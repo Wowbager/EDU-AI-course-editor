@@ -1,0 +1,1887 @@
+{
+  "export_type": "course_v2",
+  "course_id": "ZLOMKY5TR",
+  "version": 1,
+  "name": "Zlomky pro 5. třídu",
+  "description": "Kompletní kurz zlomků pro žáky 5. třídy. Naučíš se co jsou zlomky, jak je porovnávat, sčítat, odčítat, násobit a používat v běžném životě.",
+  "language": "cs",
+  "author": "EduAI Team",
+  "updated": "2026-02-12T12:00:00.000Z",
+  "status": "published",
+  "pin": "314159",
+  "header_image": {
+    "url": "https://app-admin.edu-ai.eu/images/fractions/course-header.svg",
+    "alt": "Matematické zlomky"
+  },
+  "lessons": [
+    {
+      "lesson_id": "L1_INTRO",
+      "version": 1,
+      "name": "Co je zlomek?",
+      "description": "Úvod do světa zlomků — čitatel, jmenovatel a co znamená dělení celku na části.",
+      "order": 1,
+      "header_image": {
+        "url": "https://app-admin.edu-ai.eu/images/fractions/lesson1-header.svg",
+        "alt": "Pizza rozřezaná na díly"
+      },
+      "blocks": [
+        { "block_id": "L1_B1_uvod", "order": 1, "default_practice": false },
+        { "block_id": "L1_B2_casti", "order": 2, "default_practice": false },
+        { "block_id": "L1_B3_poznej", "order": 3, "default_practice": true },
+        { "block_id": "L1_B4_cviceni", "order": 4, "default_practice": true },
+        { "block_id": "L1_B5_shrn", "order": 5, "default_practice": false }
+      ]
+    },
+    {
+      "lesson_id": "L2_POROV",
+      "version": 1,
+      "name": "Porovnávání zlomků",
+      "description": "Jak zjistit, který zlomek je větší? Se stejným i různým jmenovatelem.",
+      "order": 2,
+      "blocks": [
+        { "block_id": "L2_B1_stejny", "order": 1, "default_practice": false },
+        { "block_id": "L2_B2_ruzny", "order": 2, "default_practice": false },
+        { "block_id": "L2_B3_otazka", "order": 3, "default_practice": true },
+        { "block_id": "L2_B4_tf", "order": 4, "default_practice": true },
+        { "block_id": "L2_B5_cviceni", "order": 5, "default_practice": true }
+      ]
+    },
+    {
+      "lesson_id": "L3_SCITANI",
+      "version": 1,
+      "name": "Sčítání a odčítání zlomků",
+      "description": "Naučíš se sčítat a odčítat zlomky se stejným jmenovatelem.",
+      "order": 3,
+      "blocks": [
+        { "block_id": "L3_B1_scitani", "order": 1, "default_practice": false },
+        { "block_id": "L3_B2_odcitani", "order": 2, "default_practice": false },
+        { "block_id": "L3_B3_mc", "order": 3, "default_practice": true },
+        { "block_id": "L3_B4_open", "order": 4, "default_practice": true },
+        { "block_id": "L3_B5_cviceni", "order": 5, "default_practice": true }
+      ]
+    },
+    {
+      "lesson_id": "L4_NASOB",
+      "version": 1,
+      "name": "Násobení zlomků",
+      "description": "Jak násobit zlomek celým číslem a jak násobit dva zlomky mezi sebou.",
+      "order": 4,
+      "blocks": [
+        { "block_id": "L4_B1_zaklady", "order": 1, "default_practice": false },
+        { "block_id": "L4_B2_celym", "order": 2, "default_practice": false },
+        { "block_id": "L4_B3_mc", "order": 3, "default_practice": true },
+        { "block_id": "L4_B4_cviceni", "order": 4, "default_practice": true },
+        { "block_id": "L4_B5_slovni", "order": 5, "default_practice": true }
+      ]
+    },
+    {
+      "lesson_id": "L5_PRAXE",
+      "version": 1,
+      "name": "Zlomky v praxi",
+      "description": "Kde všude potkáš zlomky v běžném životě — vaření, čas, peníze, sport.",
+      "order": 5,
+      "blocks": [
+        { "block_id": "L5_B1_vareni", "order": 1, "default_practice": false },
+        { "block_id": "L5_B2_cas", "order": 2, "default_practice": false },
+        { "block_id": "L5_B3_pizza", "order": 3, "default_practice": true },
+        { "block_id": "L5_B4_cviceni", "order": 4, "default_practice": true },
+        { "block_id": "L5_B5_final", "order": 5, "default_practice": true }
+      ]
+    }
+  ],
+  "blocks": [
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L1_B1_uvod",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "display",
+      "duration": "3 min",
+      "xp": 5,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.1 Identify and represent fractions",
+        "grade": 5,
+        "level": 2
+      },
+      "learning": {
+        "concepts": ["Zlomek", "Část celku"],
+        "competencies": { "M.5.2.1": 30 },
+        "bloom_level": 1,
+        "difficulty": 1,
+        "prerequisites": []
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "# Co je zlomek?\n\nPředstav si, že máš celou pizzu a rozřežeš ji na **4 stejné díly**. Když si vezmeš 1 díl, máš **jednu čtvrtinu** pizzy.\n\nZapisujeme to jako:\n\n$$\\frac{1}{4}$$\n\nZlomek je tedy způsob, jak zapsat **část z celku**."
+        },
+        {
+          "id": "s2",
+          "type": "image",
+          "order": 2,
+          "image": {
+            "url": "https://app-admin.edu-ai.eu/images/fractions/pizza-quarters.svg",
+            "alt": "Koláč rozřezaný na čtvrtiny",
+            "position": "below"
+          }
+        },
+        {
+          "id": "s3",
+          "type": "text",
+          "order": 3,
+          "content": "Zlomek má dvě části:\n\n- **Čitatel** (nahoře) — kolik dílů máme\n- **Jmenovatel** (dole) — na kolik dílů jsme celek rozdělili\n\nNapříklad ve zlomku $\\frac{3}{8}$ je čitatel **3** a jmenovatel **8**. Máme tedy 3 díly z celku rozděleného na 8 částí."
+        }
+      ]
+    },
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L1_B2_casti",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "display",
+      "duration": "3 min",
+      "xp": 5,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.1 Identify and represent fractions",
+        "grade": 5,
+        "level": 2
+      },
+      "learning": {
+        "concepts": ["Čitatel", "Jmenovatel", "Zlomková čára"],
+        "competencies": { "M.5.2.1": 50 },
+        "bloom_level": 2,
+        "difficulty": 1,
+        "prerequisites": [
+          { "block_id": "L1_B1_uvod", "min_level": 0.5 }
+        ]
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "# Části zlomku\n\nKaždý zlomek se skládá ze tří věcí:\n\n1. **Čitatel** — číslo nahoře, říká **kolik dílů** máme\n2. **Zlomková čára** — odděluje čitatel od jmenovatele\n3. **Jmenovatel** — číslo dole, říká **na kolik dílů** jsme celek rozdělili"
+        },
+        {
+          "id": "s2",
+          "type": "image",
+          "order": 2,
+          "image": {
+            "url": "https://app-admin.edu-ai.eu/images/fractions/fraction-parts.svg",
+            "alt": "Popis částí zlomku — čitatel, zlomková čára, jmenovatel",
+            "position": "below"
+          }
+        },
+        {
+          "id": "s3",
+          "type": "text",
+          "order": 3,
+          "content": "### Příklady zlomků\n\n| Zlomek | Čteme jako | Význam |\n|--------|-----------|--------|\n| $\\frac{1}{2}$ | jedna polovina | 1 díl ze 2 |\n| $\\frac{2}{3}$ | dvě třetiny | 2 díly ze 3 |\n| $\\frac{3}{4}$ | tři čtvrtiny | 3 díly ze 4 |\n| $\\frac{5}{8}$ | pět osmin | 5 dílů z 8 |\n\n**Tip:** Jmenovatel ti řekne, jak velké jsou díly. Čím větší jmenovatel, tím menší díly!",
+          "hint": "Zkus si představit pizzu rozřezanou na tolik dílů, kolik říká jmenovatel."
+        }
+      ]
+    },
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L1_B3_poznej",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "question",
+      "duration": "2 min",
+      "xp": 15,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.1 Identify and represent fractions",
+        "grade": 5,
+        "level": 2
+      },
+      "learning": {
+        "concepts": ["Čitatel", "Jmenovatel"],
+        "competencies": { "M.5.2.1": 60 },
+        "bloom_level": 2,
+        "difficulty": 2,
+        "prerequisites": [
+          { "block_id": "L1_B2_casti", "min_level": 0.5 }
+        ]
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Podívej se na zlomek $\\frac{5}{7}$ a odpověz na otázku.",
+          "hint": "Čitatel je číslo nahoře, jmenovatel je číslo dole."
+        },
+        {
+          "id": "s2",
+          "type": "question",
+          "order": 2,
+          "question": {
+            "type": "multiple_choice",
+            "show_answers": true,
+            "options": [
+              {
+                "id": "a",
+                "text": "Čitatel je 5, jmenovatel je 7",
+                "is_correct": true,
+                "feedback": "Správně! Čitatel (nahoře) = 5, jmenovatel (dole) = 7.",
+                "go_to": "s4"
+              },
+              {
+                "id": "b",
+                "text": "Čitatel je 7, jmenovatel je 5",
+                "is_correct": false,
+                "feedback": "Pozor, popletl/a sis to! Čitatel je **nahoře** a jmenovatel **dole**.",
+                "go_to": "s3"
+              },
+              {
+                "id": "c",
+                "text": "Čitatel je 5, jmenovatel je 12",
+                "is_correct": false,
+                "feedback": "Ne, jmenovatel je číslo **dole** ve zlomku, tedy 7.",
+                "go_to": "L1_B2_casti"
+              }
+            ],
+            "solution": "Ve zlomku $\\frac{5}{7}$ je čitatel (horní číslo) **5** a jmenovatel (dolní číslo) **7**. Znamená to, že máme 5 dílů z celku rozděleného na 7 částí."
+          },
+          "hint": "Horní číslo = čitatel, dolní číslo = jmenovatel."
+        },
+        {
+          "id": "s3",
+          "type": "text",
+          "order": 3,
+          "content": "### Připomenutí\n\nV zlomku $\\frac{a}{b}$:\n- **a** (nahoře) = **čitatel** — kolik dílů máme\n- **b** (dole) = **jmenovatel** — na kolik dílů jsme dělili\n\nZkus to znovu!",
+          "hint": "Čitatel je vždy nahoře."
+        },
+        {
+          "id": "s4",
+          "type": "text",
+          "order": 4,
+          "content": "Výborně! Umíš správně určit čitatel a jmenovatel. Pojďme si to procvičit na dalších příkladech."
+        }
+      ]
+    },
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L1_B4_cviceni",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "exercise",
+      "duration": "3 min",
+      "xp": 20,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.1 Identify and represent fractions",
+        "grade": 5,
+        "level": 3
+      },
+      "learning": {
+        "concepts": ["Zlomek", "Zápis zlomků"],
+        "competencies": { "M.5.2.1": 70 },
+        "bloom_level": 3,
+        "difficulty": 2,
+        "prerequisites": [
+          { "block_id": "L1_B3_poznej", "min_level": 0.6 }
+        ]
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Na talíři je dort rozřezaný na **6 stejných dílů**. Tomáš sní **2 díly**.\n\nJaký zlomek dortu Tomáš snědl?"
+        },
+        {
+          "id": "s2",
+          "type": "question",
+          "order": 2,
+          "question": {
+            "type": "multiple_choice",
+            "show_answers": true,
+            "options": [
+              {
+                "id": "a",
+                "text": "2/6",
+                "is_correct": true,
+                "feedback": "Správně! Tomáš snědl 2 díly z 6, tedy $\\frac{2}{6}$.",
+                "score_koef": 1.0
+              },
+              {
+                "id": "b",
+                "text": "6/2",
+                "is_correct": false,
+                "feedback": "Pozor — čitatel (kolik snědl) je nahoře a jmenovatel (kolik dílů celkem) je dole.",
+                "score_koef": 0
+              },
+              {
+                "id": "c",
+                "text": "2/4",
+                "is_correct": false,
+                "feedback": "Dort je na 6 dílů, ne na 4. Jmenovatel musí být 6.",
+                "score_koef": 0
+              },
+              {
+                "id": "d",
+                "text": "1/3",
+                "is_correct": true,
+                "feedback": "Taky správně! $\\frac{2}{6}$ se dá zkrátit na $\\frac{1}{3}$. To je bonus!",
+                "score_koef": 1.0
+              }
+            ],
+            "solution": "Tomáš snědl $\\frac{2}{6}$ dortu, což se dá zkrátit na $\\frac{1}{3}$."
+          },
+          "hint": "Kolik dílů snědl? A kolik dílů měl dort celkem?"
+        },
+        {
+          "id": "s3",
+          "type": "text",
+          "order": 3,
+          "content": "Teď jiný příklad. Ve třídě je **24 žáků**. Z toho **8 žáků** nosí brýle.\n\nJaká část třídy nosí brýle?"
+        },
+        {
+          "id": "s4",
+          "type": "question",
+          "order": 4,
+          "question": {
+            "type": "open",
+            "correct_answer": "8/24",
+            "solution": "Brýle nosí 8 žáků z 24, tedy $\\frac{8}{24}$. To se dá zkrátit na $\\frac{1}{3}$."
+          },
+          "hint": "Zapiš to jako zlomek: počet žáků s brýlemi / celkový počet žáků."
+        }
+      ]
+    },
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L1_B5_shrn",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "display",
+      "duration": "2 min",
+      "xp": 5,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.1 Identify and represent fractions",
+        "grade": 5,
+        "level": 2
+      },
+      "learning": {
+        "concepts": ["Zlomek", "Čitatel", "Jmenovatel"],
+        "competencies": { "M.5.2.1": 40 },
+        "bloom_level": 1,
+        "difficulty": 1,
+        "prerequisites": []
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "# Shrnutí lekce 1\n\n**Co jsme se naučili:**\n\n- Zlomek vyjadřuje **část z celku**\n- **Čitatel** (nahoře) = kolik dílů máme\n- **Jmenovatel** (dole) = na kolik dílů jsme celek rozdělili\n- Čím větší jmenovatel, tím menší díly\n\n**Příklad:** $\\frac{3}{4}$ znamená 3 díly ze 4 — máme tři čtvrtiny celku.\n\nV další lekci se naučíš **porovnávat zlomky** — jak zjistit, který je větší!"
+        }
+      ]
+    },
+
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L2_B1_stejny",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "display",
+      "duration": "3 min",
+      "xp": 5,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.2 Compare fractions",
+        "grade": 5,
+        "level": 2
+      },
+      "learning": {
+        "concepts": ["Porovnávání zlomků", "Stejný jmenovatel"],
+        "competencies": { "M.5.2.2": 30 },
+        "bloom_level": 2,
+        "difficulty": 1,
+        "prerequisites": [
+          { "block_id": "L1_B5_shrn", "min_level": 0.5 }
+        ]
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "# Porovnávání zlomků se stejným jmenovatelem\n\nKdyž mají dva zlomky **stejný jmenovatel**, je to jednoduché!\n\nStačí porovnat **čitatele** — kdo má větší čitatel, ten je větší.\n\n**Příklad:**\n$$\\frac{2}{5} < \\frac{4}{5}$$\n\nProtože 2 < 4 a jmenovatel je u obou stejný (5)."
+        },
+        {
+          "id": "s2",
+          "type": "image",
+          "order": 2,
+          "image": {
+            "url": "https://app-admin.edu-ai.eu/images/fractions/comparing-same-denom.svg",
+            "alt": "Porovnání zlomků 2/5 a 4/5 na číselné ose",
+            "position": "below"
+          }
+        },
+        {
+          "id": "s3",
+          "type": "text",
+          "order": 3,
+          "content": "### Pravidlo\n\nPro zlomky se **stejným jmenovatelem**:\n- Větší čitatel → větší zlomek\n- Menší čitatel → menší zlomek\n- Stejný čitatel → zlomky jsou si rovny\n\nJe to logické — díly jsou stejně velké, takže kdo jich má víc, má víc!",
+          "hint": "Představ si koláč na 5 dílů. 4 díly jsou víc než 2 díly, ne?"
+        }
+      ]
+    },
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L2_B2_ruzny",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "display",
+      "duration": "4 min",
+      "xp": 10,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.2 Compare fractions",
+        "grade": 5,
+        "level": 3
+      },
+      "learning": {
+        "concepts": ["Porovnávání zlomků", "Různý jmenovatel", "Společný jmenovatel"],
+        "competencies": { "M.5.2.2": 60 },
+        "bloom_level": 3,
+        "difficulty": 3,
+        "prerequisites": [
+          { "block_id": "L2_B1_stejny", "min_level": 0.6 }
+        ]
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "# Porovnávání zlomků s různým jmenovatelem\n\nCo když jmenovatele nejsou stejné? Třeba $\\frac{1}{3}$ a $\\frac{1}{4}$?\n\nMusíme najít **společný jmenovatel** — číslo, na které můžeme oba jmenovatele převést."
+        },
+        {
+          "id": "s2",
+          "type": "text",
+          "order": 2,
+          "content": "### Postup\n\n1. Najdi **nejmenší společný násobek** jmenovatelů (NSN)\n2. Rozšiř oba zlomky na tento jmenovatel\n3. Porovnej čitatele\n\n**Příklad:** $\\frac{1}{3}$ vs $\\frac{1}{4}$\n\n- NSN(3, 4) = 12\n- $\\frac{1}{3} = \\frac{4}{12}$\n- $\\frac{1}{4} = \\frac{3}{12}$\n- $\\frac{4}{12} > \\frac{3}{12}$, takže $\\frac{1}{3} > \\frac{1}{4}$",
+          "hint": "Třetiny jsou větší kusy než čtvrtiny!"
+        },
+        {
+          "id": "s3",
+          "type": "text",
+          "order": 3,
+          "content": "### Trik pro zlomky s čitatelem 1\n\nKdyž mají oba zlomky **čitatel 1**, platí jednoduchý trik:\n\n> Čím **větší jmenovatel**, tím **menší zlomek**!\n\nProtože dělíš celek na víc dílů → každý díl je menší.\n\n$$\\frac{1}{2} > \\frac{1}{3} > \\frac{1}{4} > \\frac{1}{5} > \\dots$$",
+          "help": "Představ si, že dělíš čokoládu. Když ji rozdělíš na 2 díly, každý je velký. Když na 100 dílů, každý je malinký. Proto je 1/2 > 1/100."
+        }
+      ]
+    },
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L2_B3_otazka",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "question",
+      "duration": "2 min",
+      "xp": 15,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.2 Compare fractions",
+        "grade": 5,
+        "level": 3
+      },
+      "learning": {
+        "concepts": ["Porovnávání zlomků"],
+        "competencies": { "M.5.2.2": 70 },
+        "bloom_level": 3,
+        "difficulty": 2,
+        "prerequisites": [
+          { "block_id": "L2_B1_stejny", "min_level": 0.5 }
+        ]
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Porovnej tyto dva zlomky:\n\n$$\\frac{3}{8} \\quad \\text{a} \\quad \\frac{5}{8}$$"
+        },
+        {
+          "id": "s2",
+          "type": "question",
+          "order": 2,
+          "question": {
+            "type": "multiple_choice",
+            "show_answers": true,
+            "options": [
+              {
+                "id": "a",
+                "text": "3/8 < 5/8",
+                "is_correct": true,
+                "feedback": "Přesně tak! Jmenovatel je stejný (8), čitatel 3 < 5, takže $\\frac{3}{8} < \\frac{5}{8}$.",
+                "go_to": "s4"
+              },
+              {
+                "id": "b",
+                "text": "3/8 > 5/8",
+                "is_correct": false,
+                "feedback": "Oba zlomky mají jmenovatel 8. Stačí porovnat čitatele: 3 vs 5. Který je větší?",
+                "go_to": "s3"
+              },
+              {
+                "id": "c",
+                "text": "3/8 = 5/8",
+                "is_correct": false,
+                "feedback": "Čitatele jsou různé (3 ≠ 5), takže zlomky si nemohou být rovny.",
+                "go_to": "L2_B1_stejny"
+              }
+            ],
+            "solution": "Oba zlomky mají jmenovatel 8, takže porovnáme čitatele: 3 < 5, tedy $\\frac{3}{8} < \\frac{5}{8}$."
+          },
+          "hint": "Mají stejný jmenovatel — stačí porovnat čitatele!"
+        },
+        {
+          "id": "s3",
+          "type": "text",
+          "order": 3,
+          "content": "### Nápověda\n\nKdyž mají zlomky **stejný jmenovatel**, porovnáváme jen čitatele.\n\n3 osminy = 3 kousky\n5 osmin = 5 kousků\n\n3 < 5, tedy $\\frac{3}{8} < \\frac{5}{8}$.\n\nVrať se a zkus odpovědět znovu."
+        },
+        {
+          "id": "s4",
+          "type": "text",
+          "order": 4,
+          "content": "Skvěle! Porovnávání zlomků se stejným jmenovatelem už zvládáš."
+        }
+      ]
+    },
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L2_B4_tf",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "question",
+      "duration": "2 min",
+      "xp": 10,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.2 Compare fractions",
+        "grade": 5,
+        "level": 2
+      },
+      "learning": {
+        "concepts": ["Porovnávání zlomků"],
+        "competencies": { "M.5.2.2": 50 },
+        "bloom_level": 2,
+        "difficulty": 2,
+        "prerequisites": []
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Rozhodni, jestli je následující tvrzení pravdivé nebo nepravdivé:\n\n> $\\frac{1}{6}$ je větší než $\\frac{1}{3}$"
+        },
+        {
+          "id": "s2",
+          "type": "question",
+          "order": 2,
+          "question": {
+            "type": "true_false",
+            "show_answers": true,
+            "options": [
+              {
+                "id": "true",
+                "text": "Pravda",
+                "is_correct": false,
+                "feedback": "Šestina je menší kus než třetina! Čím větší jmenovatel, tím menší díl.",
+                "go_to": "NEXT_STEP"
+              },
+              {
+                "id": "false",
+                "text": "Nepravda",
+                "is_correct": true,
+                "feedback": "Správně! $\\frac{1}{6} < \\frac{1}{3}$, protože šestiny jsou menší kusy než třetiny.",
+                "go_to": "END"
+              }
+            ],
+            "solution": "Nepravda. $\\frac{1}{6} < \\frac{1}{3}$. Když dělíš na 6 dílů, každý díl je menší, než když dělíš na 3 díly."
+          },
+          "hint": "Představ si pizzu na 3 díly vs na 6 dílů. Který díl je větší?"
+        }
+      ]
+    },
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L2_B5_cviceni",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "exercise",
+      "duration": "4 min",
+      "xp": 25,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.2 Compare fractions",
+        "grade": 5,
+        "level": 3
+      },
+      "learning": {
+        "concepts": ["Porovnávání zlomků", "Řazení zlomků"],
+        "competencies": { "M.5.2.2": 80 },
+        "bloom_level": 3,
+        "difficulty": 3,
+        "prerequisites": [
+          { "block_id": "L2_B3_otazka", "min_level": 0.5 }
+        ]
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Seřaď zlomky od nejmenšího po největší:\n\n$$\\frac{1}{4}, \\quad \\frac{3}{4}, \\quad \\frac{2}{4}$$"
+        },
+        {
+          "id": "s2",
+          "type": "question",
+          "order": 2,
+          "question": {
+            "type": "multiple_choice",
+            "show_answers": true,
+            "options": [
+              {
+                "id": "a",
+                "text": "1/4, 2/4, 3/4",
+                "is_correct": true,
+                "feedback": "Výborně! Všechny mají jmenovatel 4, takže řadíme podle čitatele: 1 < 2 < 3.",
+                "score_koef": 1.0
+              },
+              {
+                "id": "b",
+                "text": "3/4, 2/4, 1/4",
+                "is_correct": false,
+                "feedback": "To je od největšího po nejmenší. Úkol byl opačně — od nejmenšího!",
+                "score_koef": 0.3
+              },
+              {
+                "id": "c",
+                "text": "2/4, 1/4, 3/4",
+                "is_correct": false,
+                "feedback": "Zkontroluj pořadí. 2/4 není nejmenší ze tří zlomků.",
+                "score_koef": 0
+              }
+            ],
+            "solution": "Správné pořadí: $\\frac{1}{4} < \\frac{2}{4} < \\frac{3}{4}$"
+          },
+          "hint": "Mají stejný jmenovatel, takže seřaď čitatele od nejmenšího."
+        },
+        {
+          "id": "s3",
+          "type": "text",
+          "order": 3,
+          "content": "Který zlomek je větší?\n\n$$\\frac{2}{5} \\quad \\text{nebo} \\quad \\frac{2}{7}$$"
+        },
+        {
+          "id": "s4",
+          "type": "question",
+          "order": 4,
+          "question": {
+            "type": "multiple_choice",
+            "show_answers": true,
+            "options": [
+              {
+                "id": "a",
+                "text": "2/5 je větší",
+                "is_correct": true,
+                "feedback": "Správně! Čitatele jsou stejné (2), ale pětiny jsou větší kusy než sedminy. $\\frac{2}{5} > \\frac{2}{7}$.",
+                "score_koef": 1.0
+              },
+              {
+                "id": "b",
+                "text": "2/7 je větší",
+                "is_correct": false,
+                "feedback": "Pozor! Sedminy jsou menší kusy než pětiny (dělíš na víc dílů). Takže 2 sedmin < 2 pětin.",
+                "score_koef": 0
+              },
+              {
+                "id": "c",
+                "text": "Jsou si rovny",
+                "is_correct": false,
+                "feedback": "Mají stejný čitatel, ale různý jmenovatel. Nejsou si rovny!",
+                "score_koef": 0
+              }
+            ],
+            "solution": "Pětiny jsou větší kusy než sedminy (čím menší jmenovatel, tím větší kusy). Proto $\\frac{2}{5} > \\frac{2}{7}$."
+          },
+          "hint": "Čitatele jsou stejné. Porovnej velikosti dílů — jsou pětiny nebo sedminy větší?"
+        }
+      ]
+    },
+
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L3_B1_scitani",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "display",
+      "duration": "3 min",
+      "xp": 5,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.3 Solve real-world problems involving fractions",
+        "grade": 5,
+        "level": 2
+      },
+      "learning": {
+        "concepts": ["Sčítání zlomků", "Stejný jmenovatel"],
+        "competencies": { "M.5.2.3": 30 },
+        "bloom_level": 2,
+        "difficulty": 2,
+        "prerequisites": [
+          { "block_id": "L1_B5_shrn", "min_level": 0.5 }
+        ]
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "# Sčítání zlomků se stejným jmenovatelem\n\nKdyž sčítáš zlomky se stejným jmenovatelem, je to snadné:\n\n> **Sečti čitatele a jmenovatel nech stejný.**\n\n$$\\frac{a}{n} + \\frac{b}{n} = \\frac{a + b}{n}$$"
+        },
+        {
+          "id": "s2",
+          "type": "image",
+          "order": 2,
+          "image": {
+            "url": "https://app-admin.edu-ai.eu/images/fractions/adding-fractions.svg",
+            "alt": "Sčítání zlomků 1/4 + 2/4 = 3/4 znázorněné graficky",
+            "position": "below"
+          }
+        },
+        {
+          "id": "s3",
+          "type": "text",
+          "order": 3,
+          "content": "### Příklady\n\n$$\\frac{1}{4} + \\frac{2}{4} = \\frac{3}{4}$$\n\n$$\\frac{2}{7} + \\frac{3}{7} = \\frac{5}{7}$$\n\n$$\\frac{1}{10} + \\frac{4}{10} = \\frac{5}{10} = \\frac{1}{2}$$\n\n**Pozor:** Vždy zkontroluj, jestli se výsledek dá **zkrátit**! (jako v posledním příkladu)",
+          "hint": "Jmenovatel zůstává stejný, sčítáš jen čitatele."
+        }
+      ]
+    },
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L3_B2_odcitani",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "display",
+      "duration": "3 min",
+      "xp": 5,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.3 Solve real-world problems involving fractions",
+        "grade": 5,
+        "level": 2
+      },
+      "learning": {
+        "concepts": ["Odčítání zlomků", "Stejný jmenovatel"],
+        "competencies": { "M.5.2.3": 30 },
+        "bloom_level": 2,
+        "difficulty": 2,
+        "prerequisites": [
+          { "block_id": "L3_B1_scitani", "min_level": 0.5 }
+        ]
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "# Odčítání zlomků se stejným jmenovatelem\n\nOdčítání funguje úplně stejně jako sčítání:\n\n> **Odečti čitatele a jmenovatel nech stejný.**\n\n$$\\frac{a}{n} - \\frac{b}{n} = \\frac{a - b}{n}$$"
+        },
+        {
+          "id": "s2",
+          "type": "text",
+          "order": 2,
+          "content": "### Příklady\n\n$$\\frac{5}{6} - \\frac{2}{6} = \\frac{3}{6} = \\frac{1}{2}$$\n\n$$\\frac{7}{8} - \\frac{3}{8} = \\frac{4}{8} = \\frac{1}{2}$$\n\n$$\\frac{4}{5} - \\frac{1}{5} = \\frac{3}{5}$$\n\n**Tip:** Výsledek nemůže být záporný (v 5. třídě). Vždy odčítej menší od většího!"
+        },
+        {
+          "id": "s3",
+          "type": "image",
+          "order": 3,
+          "image": {
+            "url": "https://app-admin.edu-ai.eu/images/fractions/subtracting-fractions.svg",
+            "alt": "Odčítání zlomků znázorněné graficky",
+            "position": "below"
+          }
+        }
+      ]
+    },
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L3_B3_mc",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "question",
+      "duration": "2 min",
+      "xp": 15,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.3 Solve real-world problems involving fractions",
+        "grade": 5,
+        "level": 3
+      },
+      "learning": {
+        "concepts": ["Sčítání zlomků"],
+        "competencies": { "M.5.2.3": 60 },
+        "bloom_level": 3,
+        "difficulty": 2,
+        "prerequisites": [
+          { "block_id": "L3_B1_scitani", "min_level": 0.6 }
+        ]
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Kolik je?\n\n$$\\frac{1}{4} + \\frac{2}{4} = \\text{?}$$"
+        },
+        {
+          "id": "s2",
+          "type": "question",
+          "order": 2,
+          "question": {
+            "type": "multiple_choice",
+            "show_answers": true,
+            "options": [
+              {
+                "id": "a",
+                "text": "3/4",
+                "is_correct": true,
+                "feedback": "Výborně! $\\frac{1}{4} + \\frac{2}{4} = \\frac{1+2}{4} = \\frac{3}{4}$",
+                "go_to": "s5"
+              },
+              {
+                "id": "b",
+                "text": "3/8",
+                "is_correct": false,
+                "feedback": "Pozor! Při sčítání zlomků se stejným jmenovatelem se jmenovatel **nemění**. Nesčítej jmenovatele!",
+                "go_to": "s3"
+              },
+              {
+                "id": "c",
+                "text": "1/2",
+                "is_correct": false,
+                "feedback": "To není správný výsledek. Zkus to znovu — sečti čitatele: 1 + 2 = ?",
+                "go_to": "s3"
+              }
+            ],
+            "solution": "$\\frac{1}{4} + \\frac{2}{4} = \\frac{3}{4}$. Sčítáme čitatele (1 + 2 = 3) a jmenovatel zůstává 4."
+          },
+          "hint": "Sečti čitatele, jmenovatel zůstává!"
+        },
+        {
+          "id": "s3",
+          "type": "text",
+          "order": 3,
+          "content": "### Připomenutí\n\nPři sčítání zlomků se **stejným jmenovatelem**:\n\n$$\\frac{a}{n} + \\frac{b}{n} = \\frac{a+b}{n}$$\n\n- Čitatele **sečteme**: $1 + 2 = 3$\n- Jmenovatel **zůstává**: $4$\n- Výsledek: $\\frac{3}{4}$"
+        },
+        {
+          "id": "s4",
+          "type": "question",
+          "order": 4,
+          "question": {
+            "type": "multiple_choice",
+            "show_answers": true,
+            "options": [
+              {
+                "id": "a",
+                "text": "3/4",
+                "is_correct": true,
+                "feedback": "Tentokrát správně!",
+                "go_to": "s5"
+              },
+              {
+                "id": "b",
+                "text": "3/8",
+                "is_correct": false,
+                "feedback": "Jmenovatel se při sčítání nemění. Zůstává 4, ne 8.",
+                "go_to": "L3_B1_scitani"
+              }
+            ],
+            "solution": "Správná odpověď je $\\frac{3}{4}$."
+          },
+          "hint": "Nesčítej jmenovatele! Zůstává 4."
+        },
+        {
+          "id": "s5",
+          "type": "text",
+          "order": 5,
+          "content": "Perfektní! Sčítání zlomků se stejným jmenovatelem ti jde skvěle."
+        }
+      ]
+    },
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L3_B4_open",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "question",
+      "duration": "2 min",
+      "xp": 15,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.3 Solve real-world problems involving fractions",
+        "grade": 5,
+        "level": 3
+      },
+      "learning": {
+        "concepts": ["Sčítání zlomků"],
+        "competencies": { "M.5.2.3": 70 },
+        "bloom_level": 3,
+        "difficulty": 2,
+        "prerequisites": [
+          { "block_id": "L3_B3_mc", "min_level": 0.5 }
+        ]
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Teď to zkus sám/sama. Napiš výsledek jako zlomek.\n\n$$\\frac{3}{8} + \\frac{2}{8} = \\text{?}$$"
+        },
+        {
+          "id": "s2",
+          "type": "question",
+          "order": 2,
+          "question": {
+            "type": "open",
+            "correct_answer": "5/8",
+            "solution": "$\\frac{3}{8} + \\frac{2}{8} = \\frac{3+2}{8} = \\frac{5}{8}$"
+          },
+          "hint": "Sečti čitatele: 3 + 2 = ? Jmenovatel zůstává 8."
+        }
+      ]
+    },
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L3_B5_cviceni",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "exercise",
+      "duration": "4 min",
+      "xp": 25,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.3 Solve real-world problems involving fractions",
+        "grade": 5,
+        "level": 3
+      },
+      "learning": {
+        "concepts": ["Sčítání zlomků", "Odčítání zlomků"],
+        "competencies": { "M.5.2.3": 80 },
+        "bloom_level": 3,
+        "difficulty": 3,
+        "prerequisites": [
+          { "block_id": "L3_B3_mc", "min_level": 0.5 },
+          { "block_id": "L3_B2_odcitani", "min_level": 0.5 }
+        ]
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Maminka upekla koláč a rozřezala ho na **8 dílů**. Táta snědl $\\frac{3}{8}$ a máma snědla $\\frac{2}{8}$.\n\nKolik koláče zbylo?"
+        },
+        {
+          "id": "s2",
+          "type": "question",
+          "order": 2,
+          "question": {
+            "type": "multiple_choice",
+            "show_answers": true,
+            "options": [
+              {
+                "id": "a",
+                "text": "3/8",
+                "is_correct": true,
+                "feedback": "Správně! Snědli dohromady $\\frac{3+2}{8} = \\frac{5}{8}$, zbylo $\\frac{8}{8} - \\frac{5}{8} = \\frac{3}{8}$.",
+                "score_koef": 1.0
+              },
+              {
+                "id": "b",
+                "text": "5/8",
+                "is_correct": false,
+                "feedback": "$\\frac{5}{8}$ je to, kolik dohromady snědli. Ale ptáme se, kolik **zbylo**!",
+                "score_koef": 0.2
+              },
+              {
+                "id": "c",
+                "text": "1/8",
+                "is_correct": false,
+                "feedback": "Zkus to znovu. Nejdřív sečti, kolik snědli, a pak odečti od celku.",
+                "score_koef": 0
+              }
+            ],
+            "solution": "Snědli celkem $\\frac{3}{8} + \\frac{2}{8} = \\frac{5}{8}$. Celý koláč = $\\frac{8}{8}$. Zbytek = $\\frac{8}{8} - \\frac{5}{8} = \\frac{3}{8}$."
+          },
+          "hint": "Nejdřív sečti, kolik snědli dohromady. Pak odečti od celku (8/8)."
+        },
+        {
+          "id": "s3",
+          "type": "text",
+          "order": 3,
+          "content": "Další příklad. Kolik je?\n\n$$\\frac{7}{9} - \\frac{4}{9} = \\text{?}$$"
+        },
+        {
+          "id": "s4",
+          "type": "question",
+          "order": 4,
+          "question": {
+            "type": "open",
+            "correct_answer": "3/9",
+            "solution": "$\\frac{7}{9} - \\frac{4}{9} = \\frac{7-4}{9} = \\frac{3}{9}$, což se dá zkrátit na $\\frac{1}{3}$."
+          },
+          "hint": "Odečti čitatele: 7 - 4 = ? Jmenovatel zůstává 9."
+        }
+      ]
+    },
+
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L4_B1_zaklady",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "display",
+      "duration": "4 min",
+      "xp": 10,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.3 Solve real-world problems involving fractions",
+        "grade": 5,
+        "level": 3
+      },
+      "learning": {
+        "concepts": ["Násobení zlomků", "Zlomek krát zlomek"],
+        "competencies": { "M.5.2.4": 30 },
+        "bloom_level": 2,
+        "difficulty": 3,
+        "prerequisites": [
+          { "block_id": "L3_B5_cviceni", "min_level": 0.5 }
+        ]
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "# Násobení zlomků\n\nNásobení zlomků je vlastně jednodušší než sčítání! Nemusíš hledat společný jmenovatel.\n\n> **Vynásob čitatele mezi sebou a jmenovatele mezi sebou.**\n\n$$\\frac{a}{b} \\times \\frac{c}{d} = \\frac{a \\times c}{b \\times d}$$"
+        },
+        {
+          "id": "s2",
+          "type": "text",
+          "order": 2,
+          "content": "### Příklady\n\n$$\\frac{1}{2} \\times \\frac{3}{4} = \\frac{1 \\times 3}{2 \\times 4} = \\frac{3}{8}$$\n\n$$\\frac{2}{3} \\times \\frac{1}{5} = \\frac{2 \\times 1}{3 \\times 5} = \\frac{2}{15}$$\n\n$$\\frac{3}{4} \\times \\frac{2}{3} = \\frac{6}{12} = \\frac{1}{2}$$\n\n**Tip:** Po vynásobení vždy zkontroluj, jestli se dá výsledek zkrátit!"
+        },
+        {
+          "id": "s3",
+          "type": "text",
+          "order": 3,
+          "content": "### Co to vlastně znamená?\n\n$\\frac{1}{2} \\times \\frac{3}{4}$ znamená \"polovina ze tří čtvrtin\".\n\nPředstav si, že máš $\\frac{3}{4}$ koláče a chceš z toho **polovinu**. Dostaneš $\\frac{3}{8}$ koláče.\n\nNásobení zlomků = **hledání části z části**.",
+          "help": "Nakresli si obdélník, rozděl ho na 4 sloupce (čtvrtiny), vybarvi 3. Pak rozděl na 2 řádky (poloviny). Kolik malých čtverečků je vybarveno v horní polovině? 3 z celkových 8 — to je 3/8!"
+        }
+      ]
+    },
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L4_B2_celym",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "display",
+      "duration": "3 min",
+      "xp": 5,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.3 Solve real-world problems involving fractions",
+        "grade": 5,
+        "level": 2
+      },
+      "learning": {
+        "concepts": ["Násobení zlomku celým číslem"],
+        "competencies": { "M.5.2.4": 50 },
+        "bloom_level": 2,
+        "difficulty": 2,
+        "prerequisites": [
+          { "block_id": "L4_B1_zaklady", "min_level": 0.5 }
+        ]
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "# Násobení zlomku celým číslem\n\nCelé číslo si můžeš představit jako zlomek s jmenovatelem 1.\n\n$$4 = \\frac{4}{1}$$\n\nTakže:\n$$\\frac{2}{3} \\times 4 = \\frac{2}{3} \\times \\frac{4}{1} = \\frac{2 \\times 4}{3 \\times 1} = \\frac{8}{3}$$\n\n**Zkratka:** Stačí vynásobit **čitatel** celým číslem. Jmenovatel zůstává."
+        },
+        {
+          "id": "s2",
+          "type": "text",
+          "order": 2,
+          "content": "### Příklady\n\n$$\\frac{1}{4} \\times 3 = \\frac{3}{4}$$\n\n$$\\frac{2}{5} \\times 2 = \\frac{4}{5}$$\n\n$$\\frac{3}{8} \\times 4 = \\frac{12}{8} = \\frac{3}{2} = 1\\frac{1}{2}$$\n\n**Pozor:** Výsledek může být větší než 1! Pak ho zapíšeme jako **smíšené číslo** (celá část + zlomek).",
+          "hint": "Tři čtvrtiny × 3 = tři čtvrtiny + tři čtvrtiny + tři čtvrtiny = devět čtvrtin = 2 a 1/4"
+        }
+      ]
+    },
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L4_B3_mc",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "question",
+      "duration": "2 min",
+      "xp": 15,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.3 Solve real-world problems involving fractions",
+        "grade": 5,
+        "level": 3
+      },
+      "learning": {
+        "concepts": ["Násobení zlomku celým číslem"],
+        "competencies": { "M.5.2.4": 70 },
+        "bloom_level": 3,
+        "difficulty": 3,
+        "prerequisites": [
+          { "block_id": "L4_B2_celym", "min_level": 0.5 }
+        ]
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Vypočítej:\n\n$$\\frac{2}{3} \\times 4 = \\text{?}$$"
+        },
+        {
+          "id": "s2",
+          "type": "question",
+          "order": 2,
+          "question": {
+            "type": "multiple_choice",
+            "show_answers": true,
+            "options": [
+              {
+                "id": "a",
+                "text": "8/3",
+                "is_correct": true,
+                "feedback": "Správně! $\\frac{2 \\times 4}{3} = \\frac{8}{3} = 2\\frac{2}{3}$",
+                "go_to": "s4"
+              },
+              {
+                "id": "b",
+                "text": "8/12",
+                "is_correct": false,
+                "feedback": "Číslem 4 násobíš jen **čitatel**, ne jmenovatel! Jmenovatel zůstává 3.",
+                "go_to": "s3"
+              },
+              {
+                "id": "c",
+                "text": "2/12",
+                "is_correct": false,
+                "feedback": "Číslem 4 se násobí čitatel, ne jmenovatel.",
+                "go_to": "L4_B1_zaklady"
+              },
+              {
+                "id": "d",
+                "text": "6/3",
+                "is_correct": false,
+                "feedback": "2 × 4 = 8, ne 6. Zkus výpočet znovu.",
+                "go_to": "AGAIN"
+              }
+            ],
+            "solution": "$\\frac{2}{3} \\times 4 = \\frac{2 \\times 4}{3} = \\frac{8}{3}$, což je $2\\frac{2}{3}$ jako smíšené číslo."
+          },
+          "hint": "Vynásob čitatel (2) číslem 4. Jmenovatel (3) zůstává."
+        },
+        {
+          "id": "s3",
+          "type": "text",
+          "order": 3,
+          "content": "### Připomenutí\n\nKdyž násobíš zlomek celým číslem:\n\n$$\\frac{2}{3} \\times 4 = \\frac{2 \\times 4}{3} = \\frac{8}{3}$$\n\n**Jmenovatel se NEMĚNÍ!** Násobíš jen čitatel."
+        },
+        {
+          "id": "s4",
+          "type": "text",
+          "order": 4,
+          "content": "Skvěle! Násobení zlomků celým číslem máš v malíčku."
+        }
+      ]
+    },
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L4_B4_cviceni",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "exercise",
+      "duration": "3 min",
+      "xp": 20,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.3 Solve real-world problems involving fractions",
+        "grade": 5,
+        "level": 3
+      },
+      "learning": {
+        "concepts": ["Násobení zlomků"],
+        "competencies": { "M.5.2.4": 80 },
+        "bloom_level": 3,
+        "difficulty": 3,
+        "prerequisites": [
+          { "block_id": "L4_B3_mc", "min_level": 0.5 }
+        ]
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Vypočítej:\n\n$$\\frac{1}{2} \\times \\frac{3}{4} = \\text{?}$$"
+        },
+        {
+          "id": "s2",
+          "type": "question",
+          "order": 2,
+          "question": {
+            "type": "multiple_choice",
+            "show_answers": true,
+            "options": [
+              {
+                "id": "a",
+                "text": "3/8",
+                "is_correct": true,
+                "feedback": "Přesně! $\\frac{1 \\times 3}{2 \\times 4} = \\frac{3}{8}$",
+                "score_koef": 1.0
+              },
+              {
+                "id": "b",
+                "text": "4/6",
+                "is_correct": false,
+                "feedback": "Čitatele se násobí mezi sebou (1 × 3) a jmenovatele mezi sebou (2 × 4).",
+                "score_koef": 0
+              },
+              {
+                "id": "c",
+                "text": "3/6",
+                "is_correct": false,
+                "feedback": "Jmenovatele se taky násobí: 2 × 4 = 8, ne 6.",
+                "score_koef": 0
+              }
+            ],
+            "solution": "$\\frac{1}{2} \\times \\frac{3}{4} = \\frac{1 \\times 3}{2 \\times 4} = \\frac{3}{8}$"
+          },
+          "hint": "Čitatel × čitatel, jmenovatel × jmenovatel."
+        },
+        {
+          "id": "s3",
+          "type": "text",
+          "order": 3,
+          "content": "Kolik je?\n\n$$\\frac{3}{5} \\times \\frac{2}{3} = \\text{?}$$"
+        },
+        {
+          "id": "s4",
+          "type": "question",
+          "order": 4,
+          "question": {
+            "type": "open",
+            "correct_answer": "6/15",
+            "solution": "$\\frac{3}{5} \\times \\frac{2}{3} = \\frac{6}{15} = \\frac{2}{5}$ (po zkrácení trojkou)."
+          },
+          "hint": "3 × 2 = 6, 5 × 3 = 15. Výsledek se dá zkrátit!"
+        }
+      ]
+    },
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L4_B5_slovni",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "question",
+      "duration": "3 min",
+      "xp": 20,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.3 Solve real-world problems involving fractions",
+        "grade": 5,
+        "level": 4
+      },
+      "learning": {
+        "concepts": ["Násobení zlomků", "Slovní úloha"],
+        "competencies": { "M.5.2.4": 90 },
+        "bloom_level": 4,
+        "difficulty": 4,
+        "prerequisites": [
+          { "block_id": "L4_B4_cviceni", "min_level": 0.6 }
+        ]
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "### Slovní úloha\n\nBabička má zahrádku, která měří **12 metrů**. Na $\\frac{3}{4}$ zahrádky pěstuje zeleninu. Z té zeleniny zabírají rajčata $\\frac{1}{3}$.\n\nKolik metrů zahrádky zabírají rajčata?",
+          "help": "Postup: Nejdřív zjisti, kolik metrů je zelenina (3/4 z 12). Pak zjisti, kolik z toho jsou rajčata (1/3 ze zeleniny)."
+        },
+        {
+          "id": "s2",
+          "type": "question",
+          "order": 2,
+          "question": {
+            "type": "multiple_choice",
+            "show_answers": true,
+            "options": [
+              {
+                "id": "a",
+                "text": "3 metry",
+                "is_correct": true,
+                "feedback": "Výborně! Zelenina = $\\frac{3}{4} \\times 12 = 9$ m. Rajčata = $\\frac{1}{3} \\times 9 = 3$ m. Nebo přímo: $\\frac{3}{4} \\times \\frac{1}{3} \\times 12 = \\frac{3}{12} \\times 12 = 3$ m.",
+                "go_to": "s4"
+              },
+              {
+                "id": "b",
+                "text": "4 metry",
+                "is_correct": false,
+                "feedback": "Zkus to po krocích: 3/4 z 12 = 9 metrů zeleniny. 1/3 z 9 = ?",
+                "go_to": "s3"
+              },
+              {
+                "id": "c",
+                "text": "9 metrů",
+                "is_correct": false,
+                "feedback": "9 metrů je celá zelenina. Ale rajčata jsou jen třetina zeleniny!",
+                "go_to": "s3"
+              },
+              {
+                "id": "d",
+                "text": "1 metr",
+                "is_correct": false,
+                "feedback": "To je málo. Zkus si rozmyslet postup znovu.",
+                "go_to": "L4_B1_zaklady"
+              }
+            ],
+            "solution": "Zelenina: $\\frac{3}{4} \\times 12 = 9$ m. Rajčata: $\\frac{1}{3} \\times 9 = 3$ m."
+          },
+          "hint": "Rozdělej to na dva kroky: kolik metrů je zelenina? A kolik z toho rajčata?"
+        },
+        {
+          "id": "s3",
+          "type": "text",
+          "order": 3,
+          "content": "### Nápověda k řešení\n\n**Krok 1:** Zelenina = $\\frac{3}{4}$ z 12 m\n$$\\frac{3}{4} \\times 12 = \\frac{3 \\times 12}{4} = \\frac{36}{4} = 9 \\text{ m}$$\n\n**Krok 2:** Rajčata = $\\frac{1}{3}$ ze zeleniny\n$$\\frac{1}{3} \\times 9 = \\frac{9}{3} = 3 \\text{ m}$$\n\n**Rajčata zabírají 3 metry.**"
+        },
+        {
+          "id": "s4",
+          "type": "text",
+          "order": 4,
+          "content": "Fantastická práce! Zvládl/a jsi i složitější slovní úlohu se zlomky."
+        }
+      ]
+    },
+
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L5_B1_vareni",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "display",
+      "duration": "3 min",
+      "xp": 5,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.3 Solve real-world problems involving fractions",
+        "grade": 5,
+        "level": 3
+      },
+      "learning": {
+        "concepts": ["Zlomky v praxi", "Vaření", "Odměrky"],
+        "competencies": { "M.5.2.5": 30 },
+        "bloom_level": 2,
+        "difficulty": 2,
+        "prerequisites": []
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "# Zlomky ve vaření\n\nV kuchařských receptech se zlomky objevují pořád!\n\n- $\\frac{1}{2}$ lžičky soli\n- $\\frac{3}{4}$ hrnku mouky\n- $\\frac{1}{4}$ litru mléka\n\nKdyž chceš recept zdvojnásobit nebo napůl, potřebuješ umět **násobit a dělit zlomky**."
+        },
+        {
+          "id": "s2",
+          "type": "image",
+          "order": 2,
+          "image": {
+            "url": "https://app-admin.edu-ai.eu/images/fractions/kitchen-measures.svg",
+            "alt": "Odměrky v kuchyni — 1/4, 1/3, 1/2 a 1 cup",
+            "position": "below"
+          }
+        },
+        {
+          "id": "s3",
+          "type": "text",
+          "order": 3,
+          "content": "### Příklad z kuchyně\n\nRecept na palačinky je pro **4 lidi**. Potřebuješ $\\frac{1}{2}$ litru mléka.\n\nKdyž vaříš jen pro **2 lidi** (polovinu), potřebuješ:\n\n$$\\frac{1}{2} \\times \\frac{1}{2} = \\frac{1}{4} \\text{ litru mléka}$$\n\nA když vaříš pro **8 lidí** (dvojnásobek):\n\n$$\\frac{1}{2} \\times 2 = 1 \\text{ litr mléka}$$",
+          "hint": "V kuchyni se zlomky hodí každý den!"
+        }
+      ]
+    },
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L5_B2_cas",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "display",
+      "duration": "3 min",
+      "xp": 5,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.3 Solve real-world problems involving fractions",
+        "grade": 5,
+        "level": 2
+      },
+      "learning": {
+        "concepts": ["Zlomky v praxi", "Čas", "Peníze"],
+        "competencies": { "M.5.2.5": 30 },
+        "bloom_level": 2,
+        "difficulty": 1,
+        "prerequisites": []
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "# Zlomky v čase a penězích\n\n### Čas\nHodina má 60 minut. Zlomky hodiny:\n\n| Zlomek | Minuty | Říkáme |\n|--------|--------|--------|\n| $\\frac{1}{4}$ hodiny | 15 min | čtvrt hodiny |\n| $\\frac{1}{2}$ hodiny | 30 min | půl hodiny |\n| $\\frac{3}{4}$ hodiny | 45 min | tři čtvrtě hodiny |\n\n### Peníze\nKoruna má 100 haléřů (i když se už nepoužívají):\n- $\\frac{1}{2}$ koruny = 50 haléřů\n- $\\frac{1}{4}$ koruny = 25 haléřů"
+        },
+        {
+          "id": "s2",
+          "type": "text",
+          "order": 2,
+          "content": "### Sport\n\nI ve sportu se zlomky hodí:\n- Poločas = $\\frac{1}{2}$ zápasu\n- Třetina v hokeji = $\\frac{1}{3}$ zápasu\n- Čtvrtfinále = zbývá $\\frac{1}{4}$ týmů\n\nZlomky jsou **všude kolem nás** — stačí se rozhlédnout!",
+          "hint": "Zkus dnes doma najít 3 situace, kde se používají zlomky."
+        }
+      ]
+    },
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L5_B3_pizza",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "question",
+      "duration": "3 min",
+      "xp": 20,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.3 Solve real-world problems involving fractions",
+        "grade": 5,
+        "level": 3
+      },
+      "learning": {
+        "concepts": ["Zlomky v praxi", "Sčítání zlomků", "Porovnávání"],
+        "competencies": { "M.5.2.5": 70, "M.5.2.3": 50 },
+        "bloom_level": 4,
+        "difficulty": 3,
+        "prerequisites": [
+          { "block_id": "L3_B5_cviceni", "min_level": 0.5 }
+        ]
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "### Pizza párty!\n\nTomáš, Kája a Lucka si objednali pizzu rozřezanou na **8 dílů**.\n\n- Tomáš snědl $\\frac{3}{8}$\n- Kája snědla $\\frac{2}{8}$\n- Lucka snědla $\\frac{2}{8}$\n\nZbyl nějaký díl?"
+        },
+        {
+          "id": "s2",
+          "type": "question",
+          "order": 2,
+          "question": {
+            "type": "multiple_choice",
+            "show_answers": true,
+            "options": [
+              {
+                "id": "a",
+                "text": "Ano, zbyl 1 díl (1/8)",
+                "is_correct": true,
+                "feedback": "Správně! $\\frac{3+2+2}{8} = \\frac{7}{8}$. Celá pizza = $\\frac{8}{8}$. Zbývá $\\frac{8}{8} - \\frac{7}{8} = \\frac{1}{8}$.",
+                "go_to": "s4"
+              },
+              {
+                "id": "b",
+                "text": "Ne, snědli všechno",
+                "is_correct": false,
+                "feedback": "Sečti, kolik snědli dohromady: 3 + 2 + 2 = 7 dílů z 8. To není celá pizza!",
+                "go_to": "s3"
+              },
+              {
+                "id": "c",
+                "text": "Ano, zbyly 2 díly (2/8)",
+                "is_correct": false,
+                "feedback": "Zkontroluj součet: 3 + 2 + 2 = 7. Z 8 dílů zbývá 8 - 7 = 1 díl.",
+                "go_to": "s3"
+              }
+            ],
+            "solution": "Snědli celkem $\\frac{3+2+2}{8} = \\frac{7}{8}$ pizzy. Zbyl $\\frac{1}{8}$ — jeden díl."
+          },
+          "hint": "Sečti všechny díly: 3 + 2 + 2 = ?"
+        },
+        {
+          "id": "s3",
+          "type": "text",
+          "order": 3,
+          "content": "### Postup\n\nSečteme, co snědli:\n$$\\frac{3}{8} + \\frac{2}{8} + \\frac{2}{8} = \\frac{3+2+2}{8} = \\frac{7}{8}$$\n\nOdečteme od celku:\n$$\\frac{8}{8} - \\frac{7}{8} = \\frac{1}{8}$$\n\nZbyl **1 díl** z 8."
+        },
+        {
+          "id": "s4",
+          "type": "text",
+          "order": 4,
+          "content": "A teď bonus otázka — kdo snědl nejvíc?"
+        },
+        {
+          "id": "s5",
+          "type": "question",
+          "order": 5,
+          "question": {
+            "type": "multiple_choice",
+            "show_answers": true,
+            "options": [
+              {
+                "id": "a",
+                "text": "Tomáš",
+                "is_correct": true,
+                "feedback": "Ano! Tomáš snědl $\\frac{3}{8}$, ostatní jen $\\frac{2}{8}$. Protože 3 > 2 a jmenovatel je stejný.",
+                "go_to": "END"
+              },
+              {
+                "id": "b",
+                "text": "Kája",
+                "is_correct": false,
+                "feedback": "Kája snědla 2/8, Tomáš 3/8. Kdo má větší čitatel?",
+                "go_to": "L2_B1_stejny"
+              },
+              {
+                "id": "c",
+                "text": "Všichni stejně",
+                "is_correct": false,
+                "feedback": "Tomáš 3/8, Kája 2/8, Lucka 2/8. To není stejně!",
+                "go_to": "AGAIN"
+              }
+            ],
+            "solution": "Tomáš snědl nejvíc — $\\frac{3}{8}$ > $\\frac{2}{8}$."
+          },
+          "hint": "Porovnej čitatele — všichni mají stejný jmenovatel (8)."
+        }
+      ]
+    },
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L5_B4_cviceni",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "exercise",
+      "duration": "4 min",
+      "xp": 25,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.3 Solve real-world problems involving fractions",
+        "grade": 5,
+        "level": 3
+      },
+      "learning": {
+        "concepts": ["Zlomky v praxi", "Násobení", "Čas"],
+        "competencies": { "M.5.2.5": 80 },
+        "bloom_level": 3,
+        "difficulty": 3,
+        "prerequisites": [
+          { "block_id": "L4_B3_mc", "min_level": 0.5 }
+        ]
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Fotbalový zápas trvá **90 minut**. Kolik minut je $\\frac{1}{3}$ zápasu?"
+        },
+        {
+          "id": "s2",
+          "type": "question",
+          "order": 2,
+          "question": {
+            "type": "open",
+            "correct_answer": "30",
+            "solution": "$\\frac{1}{3} \\times 90 = \\frac{90}{3} = 30$ minut."
+          },
+          "hint": "Vyděl 90 třemi."
+        },
+        {
+          "id": "s3",
+          "type": "text",
+          "order": 3,
+          "content": "Maminka koupila $\\frac{3}{4}$ kg jablek. Jedno jablko váží $\\frac{1}{4}$ kg.\n\nKolik jablek koupila?"
+        },
+        {
+          "id": "s4",
+          "type": "question",
+          "order": 4,
+          "question": {
+            "type": "multiple_choice",
+            "show_answers": true,
+            "options": [
+              {
+                "id": "a",
+                "text": "3 jablka",
+                "is_correct": true,
+                "feedback": "Správně! $\\frac{3}{4} \\div \\frac{1}{4} = \\frac{3}{4} \\times \\frac{4}{1} = 3$. Nebo jednodušeji: 3/4 kg ÷ 1/4 kg = 3 kousků.",
+                "score_koef": 1.0
+              },
+              {
+                "id": "b",
+                "text": "4 jablka",
+                "is_correct": false,
+                "feedback": "4 jablka po 1/4 kg by vážily celé 1 kg. Ale maminka koupila jen 3/4 kg.",
+                "score_koef": 0
+              },
+              {
+                "id": "c",
+                "text": "2 jablka",
+                "is_correct": false,
+                "feedback": "2 jablka po 1/4 kg = 2/4 = 1/2 kg. Ale maminka má 3/4 kg.",
+                "score_koef": 0
+              }
+            ],
+            "solution": "3/4 kg ÷ 1/4 kg = 3 jablek. Tři čtvrtiny obsahují tři čtvrtinky."
+          },
+          "hint": "Kolikrát se 1/4 vejde do 3/4?"
+        }
+      ]
+    },
+
+    {
+      "export_type": "block_v2",
+      "block_id": "L5_B5_final",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-02-12T12:00:00.000Z",
+      "status": "published",
+      "type": "question",
+      "duration": "3 min",
+      "xp": 30,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.3 Solve real-world problems involving fractions",
+        "grade": 5,
+        "level": 4
+      },
+      "learning": {
+        "concepts": ["Zlomky", "Porovnávání", "Sčítání", "Násobení"],
+        "competencies": { "M.5.2.1": 90, "M.5.2.2": 90, "M.5.2.3": 90, "M.5.2.4": 90 },
+        "bloom_level": 5,
+        "difficulty": 4,
+        "prerequisites": [
+          { "block_id": "L5_B3_pizza", "min_level": 0.6 },
+          { "block_id": "L4_B4_cviceni", "min_level": 0.5 }
+        ]
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "### Závěrečná výzva\n\nVe třídě je **30 žáků**.\n- $\\frac{2}{5}$ třídy hraje fotbal\n- $\\frac{1}{3}$ třídy hraje basketbal\n- Zbytek nehraje žádný sport\n\nKolik žáků nehraje žádný sport?",
+          "help": "Postup:\n1. Spočítej fotbalisty: 2/5 z 30\n2. Spočítej basketbalisty: 1/3 z 30\n3. Sečti sportovce\n4. Odečti od 30"
+        },
+        {
+          "id": "s2",
+          "type": "question",
+          "order": 2,
+          "question": {
+            "type": "multiple_choice",
+            "show_answers": true,
+            "options": [
+              {
+                "id": "a",
+                "text": "8 žáků",
+                "is_correct": true,
+                "feedback": "Výborně! Fotbal: $\\frac{2}{5} \\times 30 = 12$. Basketbal: $\\frac{1}{3} \\times 30 = 10$. Sportovci: $12 + 10 = 22$. Nehraje: $30 - 22 = 8$.",
+                "go_to": "s4"
+              },
+              {
+                "id": "b",
+                "text": "10 žáků",
+                "is_correct": false,
+                "feedback": "To je počet basketbalistů. Nezapomeň odečíst OBA sporty od 30.",
+                "go_to": "s3"
+              },
+              {
+                "id": "c",
+                "text": "12 žáků",
+                "is_correct": false,
+                "feedback": "To je počet fotbalistů. Musíš odečíst fotbalisty I basketbalisty.",
+                "go_to": "s3"
+              },
+              {
+                "id": "d",
+                "text": "18 žáků",
+                "is_correct": false,
+                "feedback": "Zkus si rozmyslet výpočet znovu. Kolik hraje fotbal? Kolik basketbal?",
+                "go_to": "L4_B2_celym"
+              }
+            ],
+            "solution": "Fotbal: $\\frac{2}{5} \\times 30 = 12$. Basketbal: $\\frac{1}{3} \\times 30 = 10$. Nehraje: $30 - 12 - 10 = 8$ žáků."
+          },
+          "hint": "Spočítej každý sport zvlášť a pak odečti od celku."
+        },
+        {
+          "id": "s3",
+          "type": "text",
+          "order": 3,
+          "content": "### Řešení krok po kroku\n\n**Fotbalisté:** $\\frac{2}{5} \\times 30 = \\frac{60}{5} = 12$ žáků\n\n**Basketbalisté:** $\\frac{1}{3} \\times 30 = \\frac{30}{3} = 10$ žáků\n\n**Celkem sportovci:** $12 + 10 = 22$ žáků\n\n**Nehraje sport:** $30 - 22 = \\mathbf{8}$ žáků"
+        },
+        {
+          "id": "s4",
+          "type": "text",
+          "order": 4,
+          "content": "# Gratuluji!\n\nDokončil/a jsi celý kurz **Zlomky pro 5. třídu**!\n\n**Co všechno umíš:**\n- Rozpoznat čitatel a jmenovatel\n- Porovnávat zlomky\n- Sčítat a odčítat zlomky se stejným jmenovatelem\n- Násobit zlomky a zlomky celým číslem\n- Řešit slovní úlohy se zlomky\n\nZlomky jsou základ pro spoustu dalšího v matematice. Skvělá práce! 🎉"
+        }
+      ]
+    }
+  ]
+}

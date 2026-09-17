@@ -1,0 +1,334 @@
+{
+  "export_type": "course_v2",
+  "course_id": "ZLOMKY5TR",
+  "version": 3,
+  "name": "Zlomky pro 5. třídu",
+  "description": "Od poznání zlomku k sčítání se stejným jmenovatelem.",
+  "language": "cs",
+  "author": "EduAI Team",
+  "updated": "2026-09-10T08:00:00.000Z",
+  "status": "published",
+  "emoji": "➗",
+  "estimated_minutes": 45,
+  "pin": "A1B2C3",
+  "logged_only": true,
+  "quiz_evaluate": true,
+  "max_xp": 300,
+  "stop_gambling": true,
+  "stop_notice": "Zpomal a odpovídej s rozmyslem — o to tu jde.",
+  "ai_context": "Kurz používá zápis $\\frac{a}{b}$, nikoli a/b. Nejčastější chyba: prohození čitatele a jmenovatele. Druhá: sčítání jmenovatelů při sčítání zlomků. Neprozrazuj výsledek — veď studenta otázkou, ať sám pojmenuje, co je nahoře a co dole.",
+  "header_image": {
+    "url": "https://cdn.edu-ai.eu/zlomky/cover.png",
+    "alt": "Pizza rozdělená na osminy"
+  },
+  "lessons": [
+    {
+      "lesson_id": "L1_INTRO",
+      "version": 1,
+      "name": "Co je zlomek?",
+      "description": "Naučíš se poznat čitatele a jmenovatele.",
+      "order": 1,
+      "header_image": {
+        "url": "https://cdn.edu-ai.eu/zlomky/l1.png",
+        "alt": "Zlomek pět sedmin"
+      },
+      "ai_context": "V této lekci student ještě nezná pojem společný jmenovatel — nepoužívej ho.",
+      "blocks": [
+        {
+          "block_id": "L1_B1_uvod",
+          "order": 1
+        },
+        {
+          "block_id": "L1_B2_casti",
+          "order": 2,
+          "bg_color": "#FFF7E6"
+        },
+        {
+          "block_id": "L1_B3_poznej",
+          "order": 3
+        }
+      ]
+    }
+  ],
+  "blocks": [
+    {
+      "export_type": "block_v2",
+      "block_id": "L1_B1_uvod",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-09-10T08:00:00.000Z",
+      "status": "published",
+      "type": "display",
+      "duration": "2 min",
+      "xp": 5,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.1 Identify and represent fractions",
+        "grade": 5,
+        "level": 2
+      },
+      "learning": {
+        "concepts": [
+          "Zlomek",
+          "Část celku"
+        ],
+        "competencies": {
+          "M.5.2.1": 40
+        },
+        "bloom_level": 2,
+        "difficulty": 1,
+        "prerequisites": []
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Zlomek $\\frac{a}{b}$ popisuje **část celku**.\n\nČíslo nahoře je *čitatel*, číslo dole *jmenovatel*."
+        },
+        {
+          "id": "s2",
+          "type": "image",
+          "order": 2,
+          "image": {
+            "url": "https://cdn.edu-ai.eu/zlomky/pizza.svg",
+            "alt": "Pizza rozdělená na 8 dílů, 3 jsou zvýrazněné",
+            "position": "below"
+          }
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "L1_B2_casti",
+      "version": 1,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-09-10T08:00:00.000Z",
+      "status": "published",
+      "type": "display",
+      "duration": "3 min",
+      "xp": 5,
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.1 Identify and represent fractions",
+        "grade": 5,
+        "level": 2
+      },
+      "learning": {
+        "concepts": [
+          "Čitatel",
+          "Jmenovatel"
+        ],
+        "competencies": {
+          "M.5.2.1": 60
+        },
+        "bloom_level": 2,
+        "difficulty": 1,
+        "prerequisites": []
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "### Části zlomku\n\n| Pozice | Název | Co říká |\n|---|---|---|\n| nahoře | čitatel | kolik dílů bereme |\n| dole | jmenovatel | na kolik dílů je celek rozdělen |",
+          "default_practice": true
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "L1_B3_poznej",
+      "version": 2,
+      "language": "cs",
+      "author": "EduAI Team",
+      "updated": "2026-09-10T08:00:00.000Z",
+      "status": "published",
+      "type": "question",
+      "duration": "3 min",
+      "xp": 15,
+      "default_practice": true,
+      "hint": "Horní číslo = čitatel, dolní = jmenovatel.",
+      "help": "Ve zlomku $\\frac{a}{b}$ říká **b**, na kolik stejných dílů je celek rozdělen, a **a**, kolik jich bereme.",
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.1 Identify and represent fractions",
+        "grade": 5,
+        "level": 2,
+        "relation_vector": [
+          0,
+          0,
+          2,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "elo_vector": [
+          5,
+          5,
+          4.5,
+          5.5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5,
+          5
+        ]
+      },
+      "learning": {
+        "concepts": [
+          "Čitatel",
+          "Jmenovatel"
+        ],
+        "competencies": {
+          "M.5.2.1": 60
+        },
+        "bloom_level": 2,
+        "difficulty": 2,
+        "prerequisites": [
+          {
+            "block_id": "L1_B2_casti",
+            "min_level": 0.5
+          }
+        ]
+      },
+      "fsrs": {
+        "initial_difficulty": 0.3,
+        "initial_stability": 2.5,
+        "initial_recall": 0.65,
+        "forgetting_rate": 0.25,
+        "repetitions": 0,
+        "weight": 1.5,
+        "min_interval": 1,
+        "max_interval": 60,
+        "skip_condition": "GPF_mastery > 0.85"
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Podívej se na zlomek $\\frac{5}{7}$ a odpověz."
+        },
+        {
+          "id": "s2",
+          "type": "question",
+          "order": 2,
+          "hint": "Čitatel je číslo nahoře.",
+          "question": {
+            "type": "multiple_choice",
+            "show_answers": true,
+            "show_solution": true,
+            "solution": "Ve zlomku $\\frac{5}{7}$ je čitatel **5** a jmenovatel **7**.",
+            "options": [
+              {
+                "id": "a",
+                "text": "Čitatel je 5, jmenovatel je 7",
+                "is_correct": true,
+                "score_koef": 1.0,
+                "mark": "1",
+                "feedback": "Správně! Čitatel nahoře = 5, jmenovatel dole = 7.",
+                "go_to": "s4"
+              },
+              {
+                "id": "b",
+                "text": "Čitatel je 7, jmenovatel je 5",
+                "is_correct": false,
+                "mark": "4",
+                "feedback": "Pozor — prohodil/a jsi je. Které číslo je ve zlomku nahoře?",
+                "go_to": "s3"
+              },
+              {
+                "id": "c",
+                "text": "Čitatel je 5, jmenovatel je 12",
+                "is_correct": false,
+                "mark": "5",
+                "feedback": "Jmenovatel není součet — je to číslo dole, tedy 7.",
+                "go_to": "L1_B2_casti"
+              },
+              {
+                "id": "d",
+                "text": "Nevím, potřebuji vysvětlit",
+                "is_correct": false,
+                "mark": "5",
+                "go_to": "CHAT"
+              }
+            ]
+          }
+        },
+        {
+          "id": "s3",
+          "type": "text",
+          "order": 3,
+          "content": "### Připomenutí\n\nVe zlomku $\\frac{a}{b}$:\n- **a** (nahoře) = **čitatel**\n- **b** (dole) = **jmenovatel**\n\nZkus to znovu."
+        },
+        {
+          "id": "s4",
+          "type": "text",
+          "order": 4,
+          "content": "Výborně! Umíš určit čitatele i jmenovatele."
+        }
+      ]
+    }
+  ]
+}

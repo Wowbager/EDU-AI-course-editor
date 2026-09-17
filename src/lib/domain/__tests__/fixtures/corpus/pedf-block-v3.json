@@ -1,0 +1,282 @@
+{
+    "block_id": "DF56UBGFFG6",    
+    "version": 1,
+    "language": "cs",
+    "author": "JM",
+    "updated": "2025-09-20T21:01:01",
+    "status": "draft",
+    "type_description": "Vektor charakterizující funkční typ bloku na škále 0–2 v pořadí: [motivace, výklad, evokace, fixace, evaluace]",
+    "type": [0, 1, 1, 2, 0],
+    "duration_description": "Čas v minutách",
+    "duration": "10",
+    
+    "gpf_domain": "Number and operation",
+    "gpf_construct": "N2 FRACTIONS",
+    "gpf_subconstruct": "N2.3 Solve real-world problems involving fractions",
+    "gpf_grade_description": "rozsah 1-10 a null dle stupně zařazení dle gpf",
+    "gpf_grade": 7,
+    
+    "concepts": [
+        "Zlomky",
+        "Smíšená čísla",
+        "Aritmetické operace se zlomky",
+        "Sčítání a odčítání zlomků",
+        "Společný jmenovatel"
+    ],
+    "bloom_level": 3,
+    "relation_vector_description": "Hodnoty 0 - 2 pro každou položku GPF (gpf_subconstruct)",
+    "relation_vector": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        2,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+    ],
+    "elo_vector_description": "Rozsah 1-10 + null dle stupně zařazení dle gpf grade a level. Null znamená, že daná položka je irelevantní.",
+    "elo_vector": [
+        null,
+        1,
+        5
+    ],
+
+    "adaptation_description": "Na základě `blok-adaptation.json`; Určuje způsob přizpůsobení zadání podle úrovně žákova profilu a relevance daného bloku. Bude použito možná později.",
+    "adaptation": {
+        "scaffolded": "avg_relevant_score < 3",
+        "full": "avg_relevant_score >= 3"
+    },
+
+    "steps_description": "parametr type: může být hodnoty: display (obecné zobrazení), display_task (zobrazení zadání), display_solution (zobrazení řešení), hint (nápověda), evaluation (zpracování odeslané odpovědi)",
+    "steps": {
+        "s1": {
+            "type": "display_task",
+            "expected_input": null,
+            "expected_mode_output_format": "plain_text",
+            "modes": {
+                "static": {
+                    "default": true,
+                    "output": "Tesařka má kus dřeva dlouhý 15 7/8 stopy. Potřebuje ale jen kus dlouhý 10 5/12 stopy. Jak dlouhý kus dřeva by měla odříznout, aby jí zůstal požadovaný kus?"
+                },
+                "ai_full": {                    
+                    "output": "#api_response",
+                    "api_call": {
+                        "model": "gpt-5",
+                        "prompt": "Zadej následující úlohu v režimu *full*. Neměň text zadání. Přidej krátkou motivační větu, která povzbudí žáka k samostatnému řešení.\n\nZadání:\n\"Tesařka má kus dřeva dlouhý 15 7/8 stopy. Potřebuje ale jen kus dlouhý 10 5/12 stopy. Jak dlouhý kus dřeva by měla odříznout, aby jí zůstal požadovaný kus?\""
+                    }
+                },
+                "ai_scaffolded": {                    
+                    "description": "V modu scaffolded bude text obsahující rozdělené zadání a krátkou motivaci.",
+                    "output": "#api_response",
+                    "api_call": {
+                        "model": "gpt-5",
+                        "prompt": "Zadej následující úlohu v režimu *scaffolded*. Neměň text zadání. Rozděl ji do menších podúkolů, které žákovi pomohou dojít k výsledku krok za krokem, a formuluj ji stručně, jasně a motivačně jako celek.\n\nZadání:\n\"Tesařka má kus dřeva dlouhý 15 7/8 stopy. Potřebuje ale jen kus dlouhý 10 5/12 stopy. Jak dlouhý kus dřeva by měla odříznout, aby jí zůstal požadovaný kus?\""
+                    }
+                }
+            },
+            "next_action_description": "Automaticka akce na konci kroku, kterou aplikace provede",
+            "next_action": null,
+            "user_options_description": "Nabidka akcí pro uživatele, na které může kliknout; ID parametr může sloužit pro vyhodnocování chování uživatele",
+            "user_options": [
+                {
+                    "id": "submit",
+                    "label": "Odeslat odpověď",
+                    "go_to": "s2",
+                    "score_koef": 1
+                },
+                {
+                    "id": "ask_hint",
+                    "label": "Potřebuji nápovědu",
+                    "go_to": "s5",
+                    "score_koef_description": "Hodnoty se po pruchodu blokem pronasobi a ziska se vysledne skore. Napr. 1*1*0.5*0.5*0",
+                    "score_koef": 0.5
+                },
+                {
+                    "id": "return_later",
+                    "label": "Vrátím se k této úloze jindy",
+                    "go_to": "END",
+                    "score_koef": 0
+                }
+            ]
+        },
+        "s2": {
+            "type": "evaluation",
+            "expected_input": "user_input",
+            "expected_mode_output_format": {
+                "type": "json",
+                "schema": {
+                    "is_correct": "boolean"
+                }
+            },
+            "modes": {
+                "static": {
+                    "default": true,
+                    "rules": {
+                        "type": "exact_match",
+                        "accepted_answers": [
+                            "5 11/24",
+                            "131/24",
+                            "5.4583"
+                        ]
+                    }
+                },
+                "ai": {
+                    "api_call": {
+                        "model": "gpt-5",
+                        "prompt": "Vyhodnoť, zda žákova odpověď je matematicky ekvivalentní výsledku 5 11/24 (131/24). Odpověz JSONem: {\"is_correct\": true|false}.\n\nŽákova odpověď: {{USER_INPUT}}"
+                    }
+                }
+            },
+            "next_actions": [
+                {
+                    "result": {
+                        "is_correct": true
+                    },
+                    "label": "Správná odpověď",
+                    "go_to": "s3",
+                    "score_koef": 1
+                },
+                {
+                    "result": {
+                        "is_correct": false
+                    },
+                    "label": "Chybná odpověď",
+                    "go_to": "s6",
+                    "score_koef": 0
+                }
+            ],
+            "user_options": null
+        },
+        "s3": {
+            "type": "display",
+            "expected_input": null,
+            "expected_mode_output_format": "plain_text",
+            "modes": {
+                "static": {
+                    "default": true,
+                    "output": "Správně! Pokračuj na další úlohu."
+                }
+            },
+            "next_actions": null,
+            "user_options": [
+                {
+                    "id": "next",
+                    "label": "Další úloha",
+                    "go_to": "END",
+                    "score_koef": 1
+                }
+            ]
+        },
+        "s6": {
+            "type": "display",
+            "expected_input": null,
+            "expected_mode_output_format": "plain_text",
+            "modes": {
+                "static": {
+                    "default": true,
+                    "output": "Zatím to nesedí. Co chceš udělat dál?"
+                }
+            },
+            "next_actions": null,
+            "user_options": [
+                {
+                    "id": "try_again",
+                    "label": "Zkusit znovu",
+                    "go_to": "s1"
+                },
+                {
+                    "id": "show_solution",
+                    "label": "Zobrazit řešení",
+                    "go_to": "s4"
+                },
+                {
+                    "id": "ask_hint",
+                    "label": "Potřebuji nápovědu",
+                    "go_to": "s5"
+                },
+                {
+                    "id": "return_later",
+                    "label": "Vrátím se k této úloze jindy",
+                    "go_to": "END"
+                }
+            ]
+        },
+        "s4": {
+            "type": "display_solution",
+            "expected_input": null,
+            "expected_mode_output_format": "html_text",
+            "modes": {
+                "static": {
+                    "default": true,
+                    "output": "Tesařka by měla odříznout 5 11/24 stopy."
+                },
+                "static_detailed": {
+                    "output": "<ul><li>15 7/8 = 127/8</li><li>10 5/12 = 125/12</li><li>Na společného jmenovatele 24: 381/24 − 250/24 = 131/24</li><li>131/24 = 5 11/24</li></ul>"
+                }
+            },
+            "next_actions": null,
+            "user_options": [
+                {
+                    "id": "next",
+                    "label": "Další úloha",
+                    "go_to": "END"
+                }
+            ]
+        },
+        "s5": {
+            "description": "Nápověda – může být statická nebo generovaná AI. Pomáhá žákovi nasměrovat řešení bez prozrazení výsledku.",
+            "type": "hint",
+            "expected_input": null,
+            "expected_mode_output_format": "plain_text",
+            "modes": {
+                "static": {
+                    "default": true,
+                    "output": "Zkus převést obě smíšená čísla na zlomky se společným jmenovatelem. Pomůže ti to při odčítání."
+                },
+                "ai": {
+                    "api_call": {
+                        "model": "gpt-5",
+                        "prompt": "Žák má potíže s úlohou: 15 7/8 − 10 5/12. Poskytni stručnou nápovědu, která ho nasměruje, ale neprozradí výsledek. Připomeň, jak se převádějí smíšená čísla nebo jak najít společný jmenovatel."
+                    },
+                    "output": "#api_response"
+                }
+            },
+            "next_actions": null,
+            "user_options": [
+                {
+                    "id": "back_to_task",
+                    "label": "Vrátit se k úloze",
+                    "go_to": "s1"
+                }
+            ]
+        }
+    }
+}

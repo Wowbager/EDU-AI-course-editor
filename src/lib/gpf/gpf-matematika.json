@@ -1,0 +1,274 @@
+[
+  {
+    "id": "N",
+    "domain": "Číslo a operace",
+    "constructs": [
+      {
+        "id": "N1",
+        "construct": "Přirozená čísla",
+        "subconstructs": [
+          {
+            "id": "N1.1",
+            "subconstruct": "určí přirozená čísla a počítá s nimi, určí relativní velikost"
+          },
+          {
+            "id": "N1.2",
+            "subconstruct": "znázorňuje přirozená čísla ekvivalentními způsoby"
+          },
+          {
+            "id": "N1.3",
+            "subconstruct": "provádí operace s přirozenými čísly"
+          },
+          {
+            "id": "N1.4",
+            "subconstruct": "řeší úlohy z reálného světa s použitím přirozených čísel"
+          }
+        ]
+      },
+      {
+        "id": "N2",
+        "construct": "Zlomky",
+        "subconstructs": [
+          {
+            "id": "N2.1",
+            "subconstruct": "určí a znázorní zlomky s použitím předmětů, obrázků a symbolů, identifikuje relativní velikost"
+          },
+          {
+            "id": "N2.2",
+            "subconstruct": "provádí operace se zlomky"
+          },
+          {
+            "id": "N2.3",
+            "subconstruct": "řeší úlohy z reálného světa s použitím zlomků"
+          }
+        ]
+      },
+      {
+        "id": "N3",
+        "construct": "Desetinná čísla",
+        "subconstructs": [
+          {
+            "id": "N3.1",
+            "subconstruct": "určí a znázorní desetinná čísla s použitím předmětů, obrázků a symbolů, určí relativní velikost"
+          },
+          {
+            "id": "N3.2",
+            "subconstruct": "znázorní desetinná čísla ekvivalentními způsoby (včetně zlomků a procent)"
+          },
+          {
+            "id": "N3.3",
+            "subconstruct": "řeší operace s desetinnými čísly"
+          },
+          {
+            "id": "N3.4",
+            "subconstruct": "řeší operace s desetinnými čísly"
+          }
+        ]
+      },
+      {
+        "id": "N4",
+        "construct": "Celá čísla",
+        "subconstructs": [
+          {
+            "id": "N4.1",
+            "subconstruct": "určí a znázorní celá čísla s pomocí předmětů, obrázků a symbolů, určí relativní velikost"
+          },
+          {
+            "id": "N4.2",
+            "subconstruct": "provádí operace s celými čísly"
+          },
+          {
+            "id": "N4.3",
+            "subconstruct": "řeší úlohy z reálného světa s použitím celých čísel"
+          }
+        ]
+      },
+      {
+        "id": "N5",
+        "construct": "Mocniny a odmocniny",
+        "subconstructs": [
+          {
+            "id": "N5.1",
+            "subconstruct": "určí a znázorní veličiny pomocí mocnin a odmocnin, určí relativní velikost"
+          },
+          {
+            "id": "N5.2",
+            "subconstruct": "řeší operace s mocninami a odmocninami"
+          }
+        ]
+      },
+      {
+        "id": "N6",
+        "construct": "Operace napříč číselnými obory",
+        "subconstructs": [
+          {
+            "id": "N6.1",
+            "subconstruct": "řeší operace s celými čísly, zlomky, desetinnými čísly, procenty a mocninami"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "M",
+    "domain": "Míry",
+    "constructs": [
+      {
+        "id": "M1",
+        "construct": "Délka, hmotnost, objem, obsah a obvod",
+        "subconstructs": [
+          {
+            "id": "M1.1",
+            "subconstruct": "používá nestandardní a standardní jednotky pro měření, porovnávání a uspořádání"
+          },
+          {
+            "id": "M1.2",
+            "subconstruct": "řeší úlohy s rozměry"
+          }
+        ]
+      },
+      {
+        "id": "M2",
+        "construct": "Čas",
+        "subconstructs": [
+          {
+            "id": "M2.1",
+            "subconstruct": "určí čas"
+          },
+          {
+            "id": "M2.2",
+            "subconstruct": "řeší úlohy s časem"
+          }
+        ]
+      },
+      {
+        "id": "M3",
+        "construct": "Měna",
+        "subconstructs": [
+          {
+            "id": "M3.1",
+            "subconstruct": "využívá různých mincí pro vytvoření celkových částek"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "G",
+    "domain": "Geometrie",
+    "constructs": [
+      {
+        "id": "G1",
+        "construct": "Vlastnosti útvarů a obrazců",
+        "subconstructs": [
+          {
+            "id": "G1.1",
+            "subconstruct": "určí a popíše útvary a obrazce"
+          }
+        ]
+      },
+      {
+        "id": "G2",
+        "construct": "Prostorové vizualizace",
+        "subconstructs": [
+          {
+            "id": "G2.1",
+            "subconstruct": "skládá a rozkládá útvary a obrazce"
+          }
+        ]
+      },
+      {
+        "id": "G3",
+        "construct": "Poloha a směr",
+        "subconstructs": [
+          {
+            "id": "G3.1",
+            "subconstruct": "popisuje polohu a směr objektů v prostoru"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "S",
+    "domain": "Statistika a pravděpodobnost",
+    "constructs": [
+      {
+        "id": "S1",
+        "construct": "Práce s daty",
+        "subconstructs": [
+          {
+            "id": "S1.1",
+            "subconstruct": "přečte a interpretuje graficky znázorněná data"
+          },
+          {
+            "id": "S1.2",
+            "subconstruct": "vypočítá a interpretuje centrální tendenci"
+          }
+        ]
+      },
+      {
+        "id": "S2",
+        "construct": "Náhoda a pravděpodobnost",
+        "subconstructs": [
+          {
+            "id": "S2.1",
+            "subconstruct": "různými způsoby popisuje pravděpodobnost jevů"
+          },
+          {
+            "id": "S2.2",
+            "subconstruct": "určí permutace a kombinace"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "A",
+    "domain": "Algebra",
+    "constructs": [
+      {
+        "id": "A1",
+        "construct": "Pravidelnosti",
+        "subconstructs": [
+          {
+            "id": "A1.1",
+            "subconstruct": "určí, popíše, rozvine a vytvoří pravidelnosti"
+          }
+        ]
+      },
+      {
+        "id": "A2",
+        "construct": "Výrazy",
+        "subconstructs": [
+          {
+            "id": "A2.1",
+            "subconstruct": "řeší a modeluje výrazy a počítá s nimi"
+          }
+        ]
+      },
+      {
+        "id": "A3",
+        "construct": "Závislosti a funkce",
+        "subconstructs": [
+          {
+            "id": "A3.1",
+            "subconstruct": "řeší úlohy se závislostmi"
+          },
+          {
+            "id": "A3.2",
+            "subconstruct": "prokazuje porozumění rovnosti"
+          },
+          {
+            "id": "A3.3",
+            "subconstruct": "řeší rovnice a nerovnice"
+          },
+          {
+            "id": "A3.4",
+            "subconstruct": "Interpretuje a vyhodnocuje funkce"
+          }
+        ]
+      }
+    ]
+  }
+]

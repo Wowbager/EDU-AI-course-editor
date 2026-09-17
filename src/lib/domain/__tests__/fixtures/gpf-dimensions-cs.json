@@ -1,0 +1,282 @@
+[
+    {
+        "dimension_index": 0,
+        "code": "N1.1",
+        "domain_code": "N",
+        "domain_name": "Číslo a operace",
+        "construct_name": "Přirozená čísla",
+        "name": "Přirozená čísla – určí a počítá"
+    },
+    {
+        "dimension_index": 1,
+        "code": "N1.2",
+        "domain_code": "N",
+        "domain_name": "Číslo a operace",
+        "construct_name": "Přirozená čísla",
+        "name": "Přirozená čísla – porovná"
+    },
+    {
+        "dimension_index": 2,
+        "code": "N1.3",
+        "domain_code": "N",
+        "domain_name": "Číslo a operace",
+        "construct_name": "Přirozená čísla",
+        "name": "Přirozená čísla – zaokrouhlí"
+    },
+    {
+        "dimension_index": 3,
+        "code": "N2.1",
+        "domain_code": "N",
+        "domain_name": "Číslo a operace",
+        "construct_name": "Celá čísla",
+        "name": "Celá čísla – určí a uspořádá"
+    },
+    {
+        "dimension_index": 4,
+        "code": "N3.1",
+        "domain_code": "N",
+        "domain_name": "Číslo a operace",
+        "construct_name": "Zlomky",
+        "name": "Zlomky – určí a znázorní"
+    },
+    {
+        "dimension_index": 5,
+        "code": "N3.2",
+        "domain_code": "N",
+        "domain_name": "Číslo a operace",
+        "construct_name": "Zlomky",
+        "name": "Zlomky – porovná"
+    },
+    {
+        "dimension_index": 6,
+        "code": "N3.3",
+        "domain_code": "N",
+        "domain_name": "Číslo a operace",
+        "construct_name": "Zlomky",
+        "name": "Zlomky – převádí"
+    },
+    {
+        "dimension_index": 7,
+        "code": "N4.1",
+        "domain_code": "N",
+        "domain_name": "Číslo a operace",
+        "construct_name": "Desetinná čísla",
+        "name": "Desetinná čísla – určí a zapíše"
+    },
+    {
+        "dimension_index": 8,
+        "code": "N4.2",
+        "domain_code": "N",
+        "domain_name": "Číslo a operace",
+        "construct_name": "Desetinná čísla",
+        "name": "Desetinná čísla – porovná a zaokrouhlí"
+    },
+    {
+        "dimension_index": 9,
+        "code": "N5.1",
+        "domain_code": "N",
+        "domain_name": "Číslo a operace",
+        "construct_name": "Sčítání a odčítání",
+        "name": "Sčítání a odčítání – pamětné"
+    },
+    {
+        "dimension_index": 10,
+        "code": "N5.2",
+        "domain_code": "N",
+        "domain_name": "Číslo a operace",
+        "construct_name": "Sčítání a odčítání",
+        "name": "Sčítání a odčítání – písemné"
+    },
+    {
+        "dimension_index": 11,
+        "code": "N6.1",
+        "domain_code": "N",
+        "domain_name": "Číslo a operace",
+        "construct_name": "Násobení a dělení",
+        "name": "Násobení a dělení – pamětné"
+    },
+    {
+        "dimension_index": 12,
+        "code": "N6.2",
+        "domain_code": "N",
+        "domain_name": "Číslo a operace",
+        "construct_name": "Násobení a dělení",
+        "name": "Násobení a dělení – písemné"
+    },
+    {
+        "dimension_index": 13,
+        "code": "N7.1",
+        "domain_code": "N",
+        "domain_name": "Číslo a operace",
+        "construct_name": "Operace se zlomky",
+        "name": "Operace se zlomky – sčítání a odčítání"
+    },
+    {
+        "dimension_index": 14,
+        "code": "N7.2",
+        "domain_code": "N",
+        "domain_name": "Číslo a operace",
+        "construct_name": "Operace se zlomky",
+        "name": "Operace se zlomky – násobení a dělení"
+    },
+    {
+        "dimension_index": 15,
+        "code": "N8.1",
+        "domain_code": "N",
+        "domain_name": "Číslo a operace",
+        "construct_name": "Operace s desetinnými čísly",
+        "name": "Operace s desetinnými čísly – sčítání a odčítání"
+    },
+    {
+        "dimension_index": 16,
+        "code": "N8.2",
+        "domain_code": "N",
+        "domain_name": "Číslo a operace",
+        "construct_name": "Operace s desetinnými čísly",
+        "name": "Operace s desetinnými čísly – násobení a dělení"
+    },
+    {
+        "dimension_index": 17,
+        "code": "M1.1",
+        "domain_code": "M",
+        "domain_name": "Míry",
+        "construct_name": "Délka",
+        "name": "Délka – odhadne a změří"
+    },
+    {
+        "dimension_index": 18,
+        "code": "M1.2",
+        "domain_code": "M",
+        "domain_name": "Míry",
+        "construct_name": "Délka",
+        "name": "Délka – převádí jednotky"
+    },
+    {
+        "dimension_index": 19,
+        "code": "M2.1",
+        "domain_code": "M",
+        "domain_name": "Míry",
+        "construct_name": "Hmotnost",
+        "name": "Hmotnost – odhadne a převádí"
+    },
+    {
+        "dimension_index": 20,
+        "code": "M3.1",
+        "domain_code": "M",
+        "domain_name": "Míry",
+        "construct_name": "Čas",
+        "name": "Čas – určí a převádí"
+    },
+    {
+        "dimension_index": 21,
+        "code": "M4.1",
+        "domain_code": "M",
+        "domain_name": "Míry",
+        "construct_name": "Objem a obsah",
+        "name": "Objem a obsah – vypočítá"
+    },
+    {
+        "dimension_index": 22,
+        "code": "G1.1",
+        "domain_code": "G",
+        "domain_name": "Geometrie",
+        "construct_name": "Rovinné útvary",
+        "name": "Rovinné útvary – rozpozná a popíše"
+    },
+    {
+        "dimension_index": 23,
+        "code": "G2.1",
+        "domain_code": "G",
+        "domain_name": "Geometrie",
+        "construct_name": "Prostorové útvary",
+        "name": "Prostorové útvary – rozpozná a popíše"
+    },
+    {
+        "dimension_index": 24,
+        "code": "G3.1",
+        "domain_code": "G",
+        "domain_name": "Geometrie",
+        "construct_name": "Souměrnost",
+        "name": "Souměrnost a transformace"
+    },
+    {
+        "dimension_index": 25,
+        "code": "S1.1",
+        "domain_code": "S",
+        "domain_name": "Statistika a pravděpodobnost",
+        "construct_name": "Sběr dat",
+        "name": "Sběr a uspořádání dat"
+    },
+    {
+        "dimension_index": 26,
+        "code": "S1.2",
+        "domain_code": "S",
+        "domain_name": "Statistika a pravděpodobnost",
+        "construct_name": "Grafy a tabulky",
+        "name": "Čtení grafů a tabulek"
+    },
+    {
+        "dimension_index": 27,
+        "code": "S2.1",
+        "domain_code": "S",
+        "domain_name": "Statistika a pravděpodobnost",
+        "construct_name": "Střední hodnoty",
+        "name": "Průměr a medián"
+    },
+    {
+        "dimension_index": 28,
+        "code": "S3.1",
+        "domain_code": "S",
+        "domain_name": "Statistika a pravděpodobnost",
+        "construct_name": "Pravděpodobnost",
+        "name": "Pravděpodobnost – základní odhady"
+    },
+    {
+        "dimension_index": 29,
+        "code": "A1.1",
+        "domain_code": "A",
+        "domain_name": "Algebra",
+        "construct_name": "Číselné výrazy",
+        "name": "Číselné výrazy – vyhodnotí"
+    },
+    {
+        "dimension_index": 30,
+        "code": "A1.2",
+        "domain_code": "A",
+        "domain_name": "Algebra",
+        "construct_name": "Vzory a posloupnosti",
+        "name": "Číselné vzory a posloupnosti"
+    },
+    {
+        "dimension_index": 31,
+        "code": "A2.1",
+        "domain_code": "A",
+        "domain_name": "Algebra",
+        "construct_name": "Rovnice",
+        "name": "Rovnice – řeší jednoduché"
+    },
+    {
+        "dimension_index": 32,
+        "code": "A2.2",
+        "domain_code": "A",
+        "domain_name": "Algebra",
+        "construct_name": "Nerovnice",
+        "name": "Nerovnice – řeší jednoduché"
+    },
+    {
+        "dimension_index": 33,
+        "code": "A3.1",
+        "domain_code": "A",
+        "domain_name": "Algebra",
+        "construct_name": "Závislosti a funkce",
+        "name": "Závislosti a funkce – rozpozná"
+    },
+    {
+        "dimension_index": 34,
+        "code": "A3.2",
+        "domain_code": "A",
+        "domain_name": "Algebra",
+        "construct_name": "Poměr a úměra",
+        "name": "Poměr a úměra"
+    }
+]

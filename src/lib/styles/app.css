@@ -1,0 +1,61 @@
+/**
+ * Global base. Everything visual comes from tokens.css — this file only sets the
+ * defaults that would otherwise be the browser's.
+ */
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	height: 100%;
+}
+
+body {
+	background: var(--background);
+	color: var(--e-text);
+	font: var(--type-body);
+	-webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+	font-family: var(--font-heading);
+}
+
+button,
+input,
+select,
+textarea {
+	font-family: inherit;
+	font-size: inherit;
+	color: inherit;
+}
+
+:focus-visible {
+	outline: 2px solid var(--e-focus-ring);
+	outline-offset: 2px;
+}
+
+/*
+ * The editor is a desktop tool (plan §4): 1440 target, degrading to 1280.
+ *
+ * Scoped to the shell rather than to `body`, because the preview iframe is 400px
+ * wide and loads the same stylesheet — on `body` the notice would appear inside the
+ * preview, which is exactly where it makes no sense.
+ */
+@media (width < 1100px) {
+	.shell::before {
+		content: 'Editor je zatím určený pro širokou obrazovku (od 1280 px).';
+		display: block;
+		padding: 10px 16px;
+		background: var(--hint-bg);
+		font: var(--type-meta);
+	}
+}

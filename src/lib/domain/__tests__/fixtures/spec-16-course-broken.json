@@ -1,0 +1,1290 @@
+{
+  "export_type": "course_v2",
+  "course_id": "ZLOMKY5TR_ROZBITY",
+  "version": 3,
+  "name": "Rozbitá varianta kurzu ze spec §16",
+  "description": "Fixture: každá kontrola z §14 má v tomto dokumentu právě jednu příčinu.",
+  "language": "cs",
+  "status": "draft",
+  "only_once": true,
+  "lessons": [
+    {
+      "lesson_id": "L1",
+      "version": 1,
+      "name": "Vše najednou",
+      "order": 1,
+      "blocks": [
+        {
+          "block_id": "B_DISPLAY_EMPTY",
+          "order": 1
+        },
+        {
+          "block_id": "B_QNOQ",
+          "order": 2
+        },
+        {
+          "block_id": "B_QNOCFG",
+          "order": 3
+        },
+        {
+          "block_id": "B_OPEN",
+          "order": 4
+        },
+        {
+          "block_id": "B_NUM",
+          "order": 5
+        },
+        {
+          "block_id": "B_TF",
+          "order": 6
+        },
+        {
+          "block_id": "B_MC1",
+          "order": 7
+        },
+        {
+          "block_id": "B_MC_NOCORRECT",
+          "order": 8
+        },
+        {
+          "block_id": "B_MC_EMPTYTEXT",
+          "order": 9
+        },
+        {
+          "block_id": "B_MEDIA",
+          "order": 10
+        },
+        {
+          "block_id": "B_GOTO_BAD",
+          "order": 11
+        },
+        {
+          "block_id": "B_DUP_STEP",
+          "order": 12
+        },
+        {
+          "block_id": "B_DUP_ID",
+          "order": 13
+        },
+        {
+          "block_id": "B_VEC_LEN",
+          "order": 14
+        },
+        {
+          "block_id": "B_VEC_VAL",
+          "order": 15
+        },
+        {
+          "block_id": "B_ELO_RANGE",
+          "order": 16
+        },
+        {
+          "block_id": "B_STRONG",
+          "order": 17
+        },
+        {
+          "block_id": "B_ELO_OUTLIER",
+          "order": 18
+        },
+        {
+          "block_id": "B_PREREQ",
+          "order": 19
+        },
+        {
+          "block_id": "B_CYCLE_A",
+          "order": 20
+        },
+        {
+          "block_id": "B_CYCLE_B",
+          "order": 21
+        },
+        {
+          "block_id": "B_EXERCISE",
+          "order": 22
+        },
+        {
+          "block_id": "B_UNREACHABLE",
+          "order": 23
+        },
+        {
+          "block_id": "B_MANYSTEPS",
+          "order": 24
+        },
+        {
+          "block_id": "B_PRACTICE",
+          "order": 25
+        },
+        {
+          "block_id": "B_DUPOPT",
+          "order": 26
+        },
+        {
+          "block_id": "B_PARTIALCREDIT",
+          "order": 27
+        },
+        {
+          "block_id": "B_NOFEEDBACK",
+          "order": 28
+        },
+        {
+          "block_id": "B_OK",
+          "order": 29
+        },
+        {
+          "block_id": "B_MISSING",
+          "order": 30
+        }
+      ]
+    },
+    {
+      "lesson_id": "L_DUP",
+      "version": 1,
+      "name": "Duplicitní id",
+      "order": 2,
+      "blocks": [
+        {
+          "block_id": "B_OK",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "lesson_id": "L_DUP",
+      "version": 1,
+      "name": "Duplicitní id (druhá)",
+      "order": 3,
+      "blocks": [
+        {
+          "block_id": "B_OK",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "lesson_id": "L_LONG",
+      "version": 1,
+      "name": "Příliš dlouhá lekce",
+      "order": 4,
+      "blocks": [
+        {
+          "block_id": "B_OK",
+          "order": 1
+        },
+        {
+          "block_id": "B_OK",
+          "order": 2
+        },
+        {
+          "block_id": "B_OK",
+          "order": 3
+        },
+        {
+          "block_id": "B_OK",
+          "order": 4
+        },
+        {
+          "block_id": "B_OK",
+          "order": 5
+        },
+        {
+          "block_id": "B_OK",
+          "order": 6
+        },
+        {
+          "block_id": "B_OK",
+          "order": 7
+        },
+        {
+          "block_id": "B_OK",
+          "order": 8
+        },
+        {
+          "block_id": "B_OK",
+          "order": 9
+        },
+        {
+          "block_id": "B_OK",
+          "order": 10
+        },
+        {
+          "block_id": "B_OK",
+          "order": 11
+        },
+        {
+          "block_id": "B_OK",
+          "order": 12
+        },
+        {
+          "block_id": "B_OK",
+          "order": 13
+        }
+      ]
+    }
+  ],
+  "blocks": [
+    {
+      "export_type": "block_v2",
+      "block_id": "B_DISPLAY_EMPTY",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "display",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "   "
+        }
+      ],
+      "duration": "3 min"
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_QNOQ",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "question",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Text kroku."
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_QNOCFG",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "question",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "question",
+          "order": 1
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_OPEN",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "question",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "question",
+          "order": 1,
+          "question": {
+            "type": "open",
+            "correct_answer": ""
+          }
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_NUM",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "question",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "question",
+          "order": 1,
+          "question": {
+            "type": "numeric",
+            "tolerance": 0.1
+          }
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_TF",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "question",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "question",
+          "order": 1,
+          "question": {
+            "type": "true_false",
+            "options": [
+              {
+                "id": "true",
+                "text": "Ano",
+                "is_correct": true
+              },
+              {
+                "id": "false",
+                "text": "Ne",
+                "is_correct": true
+              },
+              {
+                "id": "maybe",
+                "text": "Možná",
+                "is_correct": false,
+                "feedback": "Třetí možnost tu nemá co dělat."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_MC1",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "question",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "question",
+          "order": 1,
+          "question": {
+            "type": "multiple_choice",
+            "options": [
+              {
+                "id": "a",
+                "text": "Jediná možnost",
+                "is_correct": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_MC_NOCORRECT",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "question",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "question",
+          "order": 1,
+          "question": {
+            "type": "multiple_choice",
+            "options": [
+              {
+                "id": "a",
+                "text": "První",
+                "is_correct": false,
+                "feedback": "Ne, čitatel je nahoře."
+              },
+              {
+                "id": "b",
+                "text": "Druhá",
+                "is_correct": false,
+                "feedback": "Ne, jmenovatel je dole."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_MC_EMPTYTEXT",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "question",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "question",
+          "order": 1,
+          "question": {
+            "type": "multiple_choice",
+            "options": [
+              {
+                "id": "a",
+                "text": "Správně",
+                "is_correct": true
+              },
+              {
+                "id": "b",
+                "text": "",
+                "is_correct": false,
+                "feedback": "Zde chybí text možnosti."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_MEDIA",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "display",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Text kroku."
+        },
+        {
+          "id": "s2",
+          "type": "video",
+          "order": 2,
+          "video": {
+            "url": "https://www.youtube.com/watch?v=abc"
+          }
+        },
+        {
+          "id": "s3",
+          "type": "image",
+          "order": 3,
+          "image": {
+            "url": "http://cdn.edu-ai.eu/a.png",
+            "alt": "Schéma"
+          }
+        },
+        {
+          "id": "s4",
+          "type": "image",
+          "order": 4,
+          "image": {
+            "url": "https://cdn.edu-ai.eu/b.png"
+          }
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_GOTO_BAD",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "question",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "question",
+          "order": 1,
+          "question": {
+            "type": "multiple_choice",
+            "options": [
+              {
+                "id": "a",
+                "text": "Správně",
+                "is_correct": true,
+                "go_to": "s99"
+              },
+              {
+                "id": "b",
+                "text": "Špatně",
+                "is_correct": false,
+                "feedback": "Zkus to znovu."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_DUP_STEP",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "display",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Text kroku."
+        },
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 2,
+          "content": "Druhý krok se stejným id."
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_DUP_ID",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "display",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Text kroku."
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_DUP_ID",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "display",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Text kroku."
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_VEC_LEN",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "display",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Text kroku."
+        }
+      ],
+      "gpf": {
+        "relation_vector": [
+          0,
+          1,
+          2
+        ],
+        "elo_vector": [
+          5.0,
+          5.0,
+          5.0
+        ]
+      }
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_VEC_VAL",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "display",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Text kroku."
+        }
+      ],
+      "gpf": {
+        "relation_vector": [
+          5,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_ELO_RANGE",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "display",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Text kroku."
+        }
+      ],
+      "gpf": {
+        "relation_vector": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "elo_vector": [
+          99.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0,
+          6.0
+        ]
+      }
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_STRONG",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "display",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Text kroku."
+        }
+      ],
+      "gpf": {
+        "relation_vector": [
+          2,
+          2,
+          2,
+          2,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "elo_vector": [
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0
+        ]
+      },
+      "learning": {
+        "difficulty": 3
+      }
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_ELO_OUTLIER",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "display",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Text kroku."
+        }
+      ],
+      "gpf": {
+        "relation_vector": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          2,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "elo_vector": [
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5,
+          9.5
+        ]
+      }
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_PREREQ",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "display",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Text kroku."
+        }
+      ],
+      "learning": {
+        "prerequisites": [
+          {
+            "block_id": "B_NENI",
+            "min_level": 0.5
+          },
+          {
+            "block_id": "B_DUP_ID",
+            "min_level": 0.95
+          }
+        ]
+      }
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_CYCLE_A",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "display",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Text kroku."
+        }
+      ],
+      "learning": {
+        "prerequisites": [
+          {
+            "block_id": "B_CYCLE_B",
+            "min_level": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_CYCLE_B",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "display",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Text kroku."
+        }
+      ],
+      "learning": {
+        "prerequisites": [
+          {
+            "block_id": "B_CYCLE_A",
+            "min_level": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_EXERCISE",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "exercise",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "question",
+          "order": 1,
+          "question": {
+            "type": "multiple_choice",
+            "options": [
+              {
+                "id": "a",
+                "text": "Správně",
+                "is_correct": true
+              },
+              {
+                "id": "b",
+                "text": "Špatně",
+                "is_correct": false,
+                "feedback": "Zkus to znovu.",
+                "go_to": "AGAIN"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_UNREACHABLE",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "question",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "question",
+          "order": 1,
+          "question": {
+            "type": "multiple_choice",
+            "options": [
+              {
+                "id": "a",
+                "text": "Správně",
+                "is_correct": true,
+                "go_to": "END"
+              },
+              {
+                "id": "b",
+                "text": "Špatně",
+                "is_correct": false,
+                "feedback": "Vysvětlení chyby.",
+                "go_to": "END"
+              }
+            ]
+          }
+        },
+        {
+          "id": "s2",
+          "type": "text",
+          "order": 2,
+          "content": "Na tento krok se nikdo nedostane."
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_ORPHAN",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "display",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Text kroku."
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_MANYSTEPS",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "display",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Text kroku."
+        },
+        {
+          "id": "s2",
+          "type": "text",
+          "order": 2,
+          "content": "Text kroku."
+        },
+        {
+          "id": "s3",
+          "type": "text",
+          "order": 3,
+          "content": "Text kroku."
+        },
+        {
+          "id": "s4",
+          "type": "text",
+          "order": 4,
+          "content": "Text kroku."
+        },
+        {
+          "id": "s5",
+          "type": "text",
+          "order": 5,
+          "content": "Text kroku."
+        },
+        {
+          "id": "s6",
+          "type": "text",
+          "order": 6,
+          "content": "Text kroku."
+        },
+        {
+          "id": "s7",
+          "type": "text",
+          "order": 7,
+          "content": "Text kroku."
+        },
+        {
+          "id": "s8",
+          "type": "text",
+          "order": 8,
+          "content": "Text kroku."
+        },
+        {
+          "id": "s9",
+          "type": "text",
+          "order": 9,
+          "content": "Text kroku."
+        },
+        {
+          "id": "s10",
+          "type": "text",
+          "order": 10,
+          "content": "Text kroku."
+        },
+        {
+          "id": "s11",
+          "type": "text",
+          "order": 11,
+          "content": "Text kroku."
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_PRACTICE",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "display",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Text kroku."
+        }
+      ],
+      "default_practice": true
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_DUPOPT",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "question",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "question",
+          "order": 1,
+          "question": {
+            "type": "multiple_choice",
+            "options": [
+              {
+                "id": "a",
+                "text": "Správně",
+                "is_correct": true
+              },
+              {
+                "id": "a",
+                "text": "Špatně",
+                "is_correct": false,
+                "feedback": "Vysvětlení chyby."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_PARTIALCREDIT",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "question",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "question",
+          "order": 1,
+          "question": {
+            "type": "multiple_choice",
+            "options": [
+              {
+                "id": "a",
+                "text": "Správně",
+                "is_correct": true
+              },
+              {
+                "id": "b",
+                "text": "Skoro",
+                "is_correct": false,
+                "score_koef": 0.5,
+                "feedback": "Postup správně, výpočet ne."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_NOFEEDBACK",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "question",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "question",
+          "order": 1,
+          "question": {
+            "type": "multiple_choice",
+            "options": [
+              {
+                "id": "a",
+                "text": "Správně",
+                "is_correct": true
+              },
+              {
+                "id": "b",
+                "text": "Špatně",
+                "is_correct": false
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B_OK",
+      "version": 1,
+      "language": "cs",
+      "status": "published",
+      "type": "display",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Text kroku."
+        }
+      ]
+    }
+  ]
+}

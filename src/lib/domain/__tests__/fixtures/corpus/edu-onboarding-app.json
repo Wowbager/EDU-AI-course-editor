@@ -1,0 +1,723 @@
+{
+  "export_type": "course_v2",
+  "course_id": "EDU_ONBOARDING_APP",
+  "version": 8,
+  "name": "Co umí EDU AI asistent",
+  "description": "Rychlý úvod do aplikace EDU AI asistent. Kde najdeš AI pomocníka, jak fungují lekce a jak si ukládat věci k opakování.",
+  "language": "cs",
+  "author": "EduAI Team",
+  "status": "published",
+  "updated": "2026-02-23T07:57:08.487Z",
+  "lessons": [
+    {
+      "lesson_id": "L01_UVOD",
+      "version": 1,
+      "name": "Úvod",
+      "description": "Krátký start, očekávání a vysvětlení, co aplikace umí.",
+      "order": 1,
+      "blocks": [
+        {
+          "block_id": "JYS5U63S3U",
+          "order": 1,
+          "default_practice": false
+        },
+        {
+          "block_id": "MFANGLPX91",
+          "order": 2,
+          "default_practice": false
+        }
+      ]
+    },
+    {
+      "lesson_id": "L02_AI_ASISTENT",
+      "version": 1,
+      "name": "AI asistent",
+      "description": "Kde najít AI pomoc a jak ji používat.",
+      "order": 2,
+      "blocks": [
+        {
+          "block_id": "ZBEXS1M1KS",
+          "order": 1,
+          "default_practice": false
+        },
+        {
+          "block_id": "10R7D07RHO",
+          "order": 2,
+          "default_practice": false
+        }
+      ]
+    },
+    {
+      "lesson_id": "L03_USPORADANI_KURZU",
+      "version": 1,
+      "name": "Uspořádání kurzu",
+      "description": "Jak fungují lekce, úlohy a adaptivita.",
+      "order": 3,
+      "blocks": [
+        {
+          "block_id": "PG29XV1PUN",
+          "order": 1,
+          "default_practice": false
+        },
+        {
+          "block_id": "6NOLRKLS5A",
+          "order": 2,
+          "default_practice": false
+        }
+      ]
+    },
+    {
+      "lesson_id": "L04_ODMENY",
+      "version": 1,
+      "name": "Odměny a start",
+      "description": "Motivace, odměny a další krok.",
+      "order": 4,
+      "blocks": [
+        {
+          "block_id": "MIWQZKLSL5",
+          "order": 1,
+          "default_practice": false
+        },
+        {
+          "block_id": "7Y76GPH6R7",
+          "order": 2,
+          "default_practice": false
+        },
+        {
+          "block_id": "14WV7BC70C",
+          "order": 3,
+          "default_practice": false
+        },
+        {
+          "block_id": "YYXUT56WST",
+          "order": 4,
+          "default_practice": false
+        }
+      ]
+    }
+  ],
+  "blocks": [
+    {
+      "export_type": "block_v2",
+      "block_id": "JYS5U63S3U",
+      "version": 1,
+      "language": "cs",
+      "author": null,
+      "updated": "2026-02-23T07:48:01.779Z",
+      "status": "published",
+      "type": "display",
+      "duration": "5 min",
+      "xp": 10,
+      "gpf": {
+        "domain": null,
+        "construct": null,
+        "subconstruct": null,
+        "grade": null,
+        "level": 2,
+        "vector": [],
+        "kb_vector": []
+      },
+      "learning": {
+        "concepts": [],
+        "competencies": [],
+        "bloom_level": 3,
+        "difficulty": 3,
+        "prerequisites": []
+      },
+      "fsrs": {
+        "initial_difficulty": 0.3,
+        "initial_stability": 2.5,
+        "initial_recall": 0.65,
+        "forgetting_rate": 0.25,
+        "repetitions": 0,
+        "weight": 1,
+        "min_interval": 1,
+        "max_interval": 90
+      },
+      "content": "Ahoj! Za 3 minuty ti ukážu, jak z EDU AI asistenta vytěžit maximum.\n\nBude to krátké: kde najdeš AI pomoc, jak stáhnout a spustit kurzy a jak si ukládat věci k opakování.",
+      "image": {
+        "url": "https://edu-ai.eu/wp-content/uploads/2026/02/ico-explain.png"
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Ahoj! Za 3 minuty ti ukážu, jak z EDU AI asistenta vytěžit maximum.\n\nBude to krátké: kde najdeš AI pomoc, jak stáhnout a spustit kurzy a jak si ukládat věci k opakování.\n\n![Yes!](https://pub-7a82ccbfca9a4f4aa1e25276ad59c86a.r2.dev/assets/EDU_ONBOARDING_APP/ico-explain.webp)"
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "ZBEXS1M1KS",
+      "version": 1,
+      "language": "cs",
+      "author": null,
+      "updated": "2026-02-23T07:49:35.075Z",
+      "status": "published",
+      "type": "exercise",
+      "duration": "5 min",
+      "xp": 10,
+      "gpf": {
+        "domain": null,
+        "construct": null,
+        "subconstruct": null,
+        "grade": null,
+        "level": 2,
+        "vector": [],
+        "kb_vector": []
+      },
+      "learning": {
+        "concepts": [],
+        "competencies": [],
+        "bloom_level": 3,
+        "difficulty": 3,
+        "prerequisites": []
+      },
+      "fsrs": {
+        "initial_difficulty": 0.3,
+        "initial_stability": 2.5,
+        "initial_recall": 0.65,
+        "forgetting_rate": 0.25,
+        "repetitions": 0,
+        "weight": 1,
+        "min_interval": 1,
+        "max_interval": 90
+      },
+      "content": "*Co myslíš, které tlačítko otevře nápovědu s AI asistentem?*",
+      "question": {
+        "type": "multiple_choice",
+        "options": [
+          {
+            "id": "opt_1",
+            "text": "📖 Kurzy",
+            "is_correct": false
+          },
+          {
+            "id": "opt_2",
+            "text": "⭐ Novinky",
+            "is_correct": false
+          },
+          {
+            "id": "opt_3",
+            "text": "❔Nápověda",
+            "is_correct": true
+          }
+        ],
+        "show_answers": true,
+        "solution": "Samozřejmě, správně je nápověda."
+      },
+      "hint": "Výborná volba, tady je tvá nápověda :)\n![Yes!](https://pub-7a82ccbfca9a4f4aa1e25276ad59c86a.r2.dev/assets/EDU_ONBOARDING_APP/ico-explain.webp)",
+      "help": "No předci ikona otazníku, dole u okraje bubliny...",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "*Co myslíš, které tlačítko otevře dialog s AI asistentem?*"
+        },
+        {
+          "id": "s2",
+          "type": "question",
+          "order": 2,
+          "question": {
+            "type": "multiple_choice",
+            "options": [
+              {
+                "id": "opt_1",
+                "text": "📖 Kurzy",
+                "is_correct": false
+              },
+              {
+                "id": "opt_2",
+                "text": "⭐ Novinky",
+                "is_correct": false
+              },
+              {
+                "id": "opt_3",
+                "text": "❔Nápověda",
+                "is_correct": true
+              }
+            ],
+            "show_answers": true,
+            "solution": "Samozřejmě, správně je ikona otazníku neboli nápověda."
+          }
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "10R7D07RHO",
+      "version": 1,
+      "language": "cs",
+      "author": null,
+      "updated": "2026-02-17T01:19:34.180Z",
+      "status": "published",
+      "type": "display",
+      "duration": "5 min",
+      "xp": 10,
+      "gpf": {
+        "domain": null,
+        "construct": null,
+        "subconstruct": null,
+        "grade": null,
+        "level": 2,
+        "vector": [],
+        "kb_vector": []
+      },
+      "learning": {
+        "concepts": [],
+        "competencies": [],
+        "bloom_level": 3,
+        "difficulty": 3,
+        "prerequisites": []
+      },
+      "fsrs": {
+        "initial_difficulty": 0.3,
+        "initial_stability": 2.5,
+        "initial_recall": 0.65,
+        "forgetting_rate": 0.25,
+        "repetitions": 0,
+        "weight": 1,
+        "min_interval": 1,
+        "max_interval": 90
+      },
+      "content": "Nápověda se objevuje nejen u výkladu, ale také u některých úloh. Pokud tedy nevíš jak dál, neváhej a poraď se 🧐👍",
+      "hint": "Tak tady snad nápovědu nepotřebuješ 🤣",
+      "help": "Ale no tak...",
+      "image": {
+        "url": "https://edu-ai.eu/wp-content/uploads/2026/02/where-is-help.jpeg"
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Nápověda se objevuje nejen u výkladu, ale také u některých úloh. Pokud tedy nevíš jak dál, neváhej a poraď se 🧐👍"
+        },
+        {
+          "id": "s2",
+          "type": "image",
+          "order": 2,
+          "image": {
+            "url": "https://pub-7a82ccbfca9a4f4aa1e25276ad59c86a.r2.dev/assets/EDU_ONBOARDING_APP/where-is-help.jpeg"
+          }
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "PG29XV1PUN",
+      "version": 1,
+      "language": "cs",
+      "author": null,
+      "updated": "2026-02-23T07:50:28.816Z",
+      "status": "published",
+      "type": "display",
+      "duration": "5 min",
+      "xp": 10,
+      "gpf": {
+        "domain": null,
+        "construct": null,
+        "subconstruct": null,
+        "grade": null,
+        "level": 2,
+        "vector": [],
+        "kb_vector": []
+      },
+      "learning": {
+        "concepts": [],
+        "competencies": [],
+        "bloom_level": 3,
+        "difficulty": 3,
+        "prerequisites": []
+      },
+      "fsrs": {
+        "initial_difficulty": 0.3,
+        "initial_stability": 2.5,
+        "initial_recall": 0.65,
+        "forgetting_rate": 0.25,
+        "repetitions": 0,
+        "weight": 1,
+        "min_interval": 1,
+        "max_interval": 90
+      },
+      "content": "**Chceš si něco pamatovat dlouhodobě?**\n\nUlož si to do sbírky k procvičování a aplikace ti to ve správných intervalech připomene.",
+      "image": {
+        "url": "https://edu-ai.eu/wp-content/uploads/2026/02/where-is-bookmark.jpeg",
+        "alt": "Bookmark"
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "**Chceš si něco pamatovat dlouhodobě?**\n\nUlož si text, obrázek nebo příklad do sbírky k procvičování. Aplikace ti to ve správných intervalech připomene.\n\n![Yes!](https://pub-7a82ccbfca9a4f4aa1e25276ad59c86a.r2.dev/assets/EDU_ONBOARDING_APP/where-is-bookmark.jpeg)"
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "MFANGLPX91",
+      "version": 1,
+      "language": "cs",
+      "author": null,
+      "updated": "2026-02-23T07:48:18.115Z",
+      "status": "published",
+      "type": "display",
+      "duration": "5 min",
+      "xp": 10,
+      "gpf": {
+        "domain": null,
+        "construct": null,
+        "subconstruct": null,
+        "grade": null,
+        "level": 2,
+        "vector": [],
+        "kb_vector": []
+      },
+      "learning": {
+        "concepts": [],
+        "competencies": [],
+        "bloom_level": 3,
+        "difficulty": 3,
+        "prerequisites": []
+      },
+      "fsrs": {
+        "initial_difficulty": 0.3,
+        "initial_stability": 2.5,
+        "initial_recall": 0.65,
+        "forgetting_rate": 0.25,
+        "repetitions": 0,
+        "weight": 1,
+        "min_interval": 1,
+        "max_interval": 90
+      },
+      "content": "**EDU AI asistent ti pomůže v těchto situacích:**\n✅ když se chceš zorientovat (hotové lekce)\n✅ když nerozumíš (vysvětlí)\n✅ když chceš trénovat (dá úlohy)\n✅ když nechceš zapomenout (řídí opakování)",
+      "hint": "Samozřejmě toho umí víc, ale úvodní lekce má být krátká ;-)",
+      "help": "Skutečně!",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "**EDU AI asistent ti pomůže v těchto situacích:**\n✅ když se chceš zorientovat (hotové lekce)\n✅ když nerozumíš (vysvětlí)\n✅ když chceš trénovat (dá úlohy)\n✅ když nechceš zapomenout (řídí opakování)"
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "MIWQZKLSL5",
+      "version": 1,
+      "language": "cs",
+      "author": null,
+      "updated": "2026-02-23T07:52:30.750Z",
+      "status": "published",
+      "type": "exercise",
+      "duration": "5 min",
+      "xp": 10,
+      "gpf": {
+        "domain": null,
+        "construct": null,
+        "subconstruct": null,
+        "grade": null,
+        "level": 2,
+        "vector": [],
+        "kb_vector": []
+      },
+      "learning": {
+        "concepts": [],
+        "competencies": [],
+        "bloom_level": 3,
+        "difficulty": 3,
+        "prerequisites": []
+      },
+      "fsrs": {
+        "initial_difficulty": 0.3,
+        "initial_stability": 2.5,
+        "initial_recall": 0.65,
+        "forgetting_rate": 0.25,
+        "repetitions": 0,
+        "weight": 1,
+        "min_interval": 1,
+        "max_interval": 90
+      },
+      "content": "Teď si ověříme, zda jsi na práci se mnou připraven...\n\nCo uděláš, když si u některé otázky nebudeš jistý/á ???",
+      "question": {
+        "type": "multiple_choice",
+        "options": [
+          {
+            "id": "opt_1",
+            "text": "Označím si jí k procvičování",
+            "is_correct": true,
+            "feedback": "Výborně, to je akademický přístup."
+          },
+          {
+            "id": "opt_2",
+            "text": "Vypnu aplikaci a jdu prokrastinovat",
+            "is_correct": false,
+            "feedback": "Ale no tak, mysli na svou budoucnost..."
+          },
+          {
+            "id": "opt_3",
+            "text": "Kliknu na otazníček",
+            "is_correct": true,
+            "feedback": "Jasně, za optání nic nedáš."
+          }
+        ],
+        "show_answers": false,
+        "allow_multiple": true,
+        "solution": "Tak samozřejmě, nápověda a procvičování jsou moje silné stránky 💪 😎"
+      },
+      "hint": "Správná odpověď nemusí být jen jedna...",
+      "help": "Tak si projeď kurz ještě jednou :-)",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Teď si ověříme, zda jsi na práci se mnou připraven...\n\nCo uděláš, když si u některé otázky nebudeš jistý/á ???"
+        },
+        {
+          "id": "s2",
+          "type": "question",
+          "order": 2,
+          "question": {
+            "type": "multiple_choice",
+            "options": [
+              {
+                "id": "opt_1",
+                "text": "Označím si jí k procvičování",
+                "is_correct": true,
+                "feedback": "Výborně, to je akademický přístup.",
+                "mark": "1"
+              },
+              {
+                "id": "opt_2",
+                "text": "Vypnu aplikaci a jdu prokrastinovat",
+                "is_correct": false,
+                "feedback": "Ale no tak, mysli na svou budoucnost...",
+                "mark": "5"
+              },
+              {
+                "id": "opt_3",
+                "text": "Kliknu na otazníček",
+                "is_correct": true,
+                "feedback": "Jasně, za optání nic nedáš.",
+                "mark": "1"
+              }
+            ],
+            "show_answers": true,
+            "allow_multiple": true,
+            "solution": "Tak samozřejmě, nápověda a procvičování jsou moje silné stránky 💪 😎"
+          }
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "6NOLRKLS5A",
+      "version": 1,
+      "language": "cs",
+      "author": null,
+      "updated": "2026-02-17T01:19:41.376Z",
+      "status": "published",
+      "type": "display",
+      "duration": "5 min",
+      "xp": 10,
+      "gpf": {
+        "domain": null,
+        "construct": null,
+        "subconstruct": null,
+        "grade": null,
+        "level": 2,
+        "vector": [],
+        "kb_vector": []
+      },
+      "learning": {
+        "concepts": [],
+        "competencies": [],
+        "bloom_level": 3,
+        "difficulty": 3,
+        "prerequisites": []
+      },
+      "fsrs": {
+        "initial_difficulty": 0.3,
+        "initial_stability": 2.5,
+        "initial_recall": 0.65,
+        "forgetting_rate": 0.25,
+        "repetitions": 0,
+        "weight": 1,
+        "min_interval": 1,
+        "max_interval": 90
+      },
+      "content": "Nejjednodušší cesta **k novému kurzu** je přes knihovnu - najdeš ji v menu nebo pod tlačítkem PLUS.\n\nMožná, že jsi dostal vstupní PIN kód k neveřejnému kurzu nebo kvízu- ten zadáš při vstupu do aplikace nebo přes **tlačítko PLUS**.\n\n*Pokud aplikaci využívá tvůj učitel nebo lektor, může ti nový kurz či kvíz zapnout přímo on.*",
+      "image": {
+        "url": "https://edu-ai.eu/wp-content/uploads/2026/02/where-is-library.jpeg",
+        "alt": "Library"
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Nejjednodušší cesta **k novému kurzu** je přes knihovnu - najdeš ji v menu nebo pod tlačítkem PLUS.\n\nMožná, že jsi dostal vstupní PIN kód k neveřejnému kurzu nebo kvízu- ten zadáš při vstupu do aplikace nebo přes **tlačítko PLUS**.\n\n*Pokud aplikaci využívá tvůj učitel nebo lektor, může ti nový kurz či kvíz zapnout přímo on.*"
+        },
+        {
+          "id": "s2",
+          "type": "image",
+          "order": 2,
+          "image": {
+            "url": "https://pub-7a82ccbfca9a4f4aa1e25276ad59c86a.r2.dev/assets/EDU_ONBOARDING_APP/where-is-library.jpeg",
+            "alt": "Library"
+          }
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "7Y76GPH6R7",
+      "version": 1,
+      "language": "cs",
+      "author": null,
+      "updated": "2026-02-23T07:57:08.487Z",
+      "status": "published",
+      "type": "display",
+      "duration": "5 min",
+      "xp": 10,
+      "gpf": {
+        "domain": null,
+        "construct": null,
+        "subconstruct": null,
+        "grade": null,
+        "level": 2,
+        "vector": [],
+        "kb_vector": []
+      },
+      "learning": {
+        "concepts": [],
+        "competencies": [],
+        "bloom_level": 3,
+        "difficulty": 3,
+        "prerequisites": []
+      },
+      "fsrs": {
+        "initial_difficulty": 0.3,
+        "initial_stability": 2.5,
+        "initial_recall": 0.65,
+        "forgetting_rate": 0.25,
+        "repetitions": 0,
+        "weight": 1,
+        "min_interval": 1,
+        "max_interval": 90
+      },
+      "content": "Abychom nezapomněli - za aktivitu sbíráš body a odznaky, za které dostaneš ...",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Ještě jedna důležitá věc - za aktivitu sbíráš body a odznaky.\n\nA za ty dostaneš ..."
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "14WV7BC70C",
+      "version": 1,
+      "language": "cs",
+      "author": null,
+      "updated": "2026-02-13T19:49:20.583Z",
+      "status": "published",
+      "type": "display",
+      "duration": "5 min",
+      "xp": 10,
+      "gpf": {
+        "domain": null,
+        "construct": null,
+        "subconstruct": null,
+        "grade": null,
+        "level": 2,
+        "vector": [],
+        "kb_vector": []
+      },
+      "learning": {
+        "concepts": [],
+        "competencies": [],
+        "bloom_level": 3,
+        "difficulty": 3,
+        "prerequisites": []
+      },
+      "fsrs": {
+        "initial_difficulty": 0.3,
+        "initial_stability": 2.5,
+        "initial_recall": 0.65,
+        "forgetting_rate": 0.25,
+        "repetitions": 0,
+        "weight": 1,
+        "min_interval": 1,
+        "max_interval": 90
+      },
+      "content": "... to bude překvapení 😇\n\n*Ale nejvíce XP získáš, když se mnou studuješ pár minut každý den.*",
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "... to bude překvapení 😇\n\n*Ale nejvíce XP získáš, když se mnou studuješ pár minut každý den.*"
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "YYXUT56WST",
+      "version": 1,
+      "language": "cs",
+      "author": null,
+      "updated": "2026-02-23T07:55:18.071Z",
+      "status": "published",
+      "type": "display",
+      "duration": "5 min",
+      "xp": 10,
+      "gpf": {
+        "domain": null,
+        "construct": null,
+        "subconstruct": null,
+        "grade": null,
+        "level": 2,
+        "vector": [],
+        "kb_vector": []
+      },
+      "learning": {
+        "concepts": [],
+        "competencies": [],
+        "bloom_level": 3,
+        "difficulty": 3,
+        "prerequisites": []
+      },
+      "fsrs": {
+        "initial_difficulty": 0.3,
+        "initial_stability": 2.5,
+        "initial_recall": 0.65,
+        "forgetting_rate": 0.25,
+        "repetitions": 0,
+        "weight": 1,
+        "min_interval": 1,
+        "max_interval": 90
+      },
+      "content": "Tak ať se ti daří!\nBudu se ti snažit co nejvíce pomoct.\n\nI když je to někdy náročné, stojí to za to.",
+      "image": {
+        "url": "https://edu-ai.eu/wp-content/uploads/2026/02/emo-amazing.png"
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Tak ať se ti daří!\nBudu se ti snažit co nejvíce pomoct.\n\n![Jsi super](https://pub-7a82ccbfca9a4f4aa1e25276ad59c86a.r2.dev/assets/EDU_ONBOARDING_APP/emo-amazing-1771290934.png)\n\nNěkdy je to náročné, ale stojí to za to."
+        }
+      ]
+    }
+  ],
+  "pin": "666666"
+}

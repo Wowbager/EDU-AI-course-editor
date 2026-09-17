@@ -1,0 +1,521 @@
+{
+  "export_type": "course_v2",
+  "course_id": "MATH_FRACTIONS_01",
+  "version": 1,
+  "name": "Zlomky a operace s nimi",
+  "description": "Kurz zaměřený na práci se zlomky, smíšenými čísly a jejich aplikaci v reálných problémech.",
+  "language": "cs",
+  "author": "MD",
+  "updated": "2025-01-08T10:00:00Z",
+  "status": "draft",
+  "lessons": [
+    {
+      "lesson_id": "L1_INTRO",
+      "version": 1,
+      "name": "Úvod do zlomků",
+      "description": "Základní pojmy a motivace pro práci se zlomky.",
+      "order": 1,
+      "blocks": [
+        {
+          "block_id": "B1_MOTIVATION",
+          "order": 1,
+          "bg_color": "#E8F5E9",
+          "default_practice": false
+        },
+        {
+          "block_id": "B2_FRACTIONS_INTRO",
+          "order": 2,
+          "default_practice": true
+        }
+      ]
+    },
+    {
+      "lesson_id": "L2_OPERATIONS",
+      "version": 1,
+      "name": "Operace se zlomky",
+      "description": "Sčítání, odčítání a násobení zlomků.",
+      "order": 2,
+      "blocks": [
+        {
+          "block_id": "B3_ADDITION",
+          "order": 1,
+          "default_practice": true
+        }
+      ]
+    }
+  ],
+  "blocks": [
+    {
+      "export_type": "block_v2",
+      "block_id": "B1_MOTIVATION",
+      "version": 1,
+      "language": "cs",
+      "author": "MD",
+      "updated": "2025-01-08T10:00:00Z",
+      "status": "approved",
+      "type": "motivation",
+      "duration": "3 min",
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.1 Understand fraction concepts",
+        "grade": 5,
+        "level": 2,
+        "vector": [0, 0, 1, 1, 0, 0],
+        "kb_vector": [0.5, 0.3, 0.8]
+      },
+      "learning": {
+        "concepts": ["zlomky", "podíl", "část celku"],
+        "competencies": {
+          "M.5.2.1": 20
+        },
+        "bloom_level": 1,
+        "difficulty": 1,
+        "prerequisites": []
+      },
+      "fsrs": {
+        "initial_difficulty": 0.2,
+        "initial_stability": 3.0,
+        "initial_recall": 0.8,
+        "forgetting_rate": 0.2,
+        "repetitions": 0,
+        "weight": 0.5,
+        "min_interval": 1,
+        "max_interval": 30
+      },
+      "steps": {
+        "s1": {
+          "type": "display",
+          "expected_input": null,
+          "expected_output_format": "plain_text",
+          "modes": {
+            "static": {
+              "default": true,
+              "output": "Představ si, že máš pizzu rozdělenou na 8 dílků a sníš 3 z nich. Kolik pizzy ti zbyde? Právě na to nám pomůžou zlomky!"
+            }
+          },
+          "user_options": [
+            {
+              "id": "continue",
+              "label": "Pokračovat",
+              "go_to": "s2",
+              "score_koef": 1
+            }
+          ]
+        },
+        "s2": {
+          "type": "display",
+          "expected_input": null,
+          "expected_output_format": "html_text",
+          "modes": {
+            "static": {
+              "default": true,
+              "output": "<p>Zlomky potkáváme všude kolem nás:</p><ul><li>V receptech (½ hrnku mouky)</li><li>V čase (¼ hodiny = 15 minut)</li><li>V měření (⅓ metru)</li></ul>"
+            }
+          },
+          "user_options": [
+            {
+              "id": "next_block",
+              "label": "Jdeme na to!",
+              "go_to": "END",
+              "score_koef": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B2_FRACTIONS_INTRO",
+      "version": 1,
+      "language": "cs",
+      "author": "MD",
+      "updated": "2025-01-08T10:00:00Z",
+      "status": "approved",
+      "type": "content",
+      "duration": "8 min",
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.1 Understand fraction concepts",
+        "grade": 5,
+        "level": 3,
+        "vector": [0, 1, 2, 2, 0, 0],
+        "kb_vector": [0.6, 0.5, 0.9]
+      },
+      "learning": {
+        "concepts": ["zlomek", "čitatel", "jmenovatel", "smíšené číslo"],
+        "competencies": {
+          "M.5.2.1": 40,
+          "M.5.2.2": 30
+        },
+        "bloom_level": 2,
+        "difficulty": 2,
+        "prerequisites": [
+          {
+            "block_id": "B1_MOTIVATION",
+            "min_level": 0.5
+          }
+        ]
+      },
+      "fsrs": {
+        "initial_difficulty": 0.3,
+        "initial_stability": 2.5,
+        "initial_recall": 0.65,
+        "forgetting_rate": 0.25,
+        "repetitions": 0,
+        "weight": 1.0,
+        "min_interval": 1,
+        "max_interval": 60
+      },
+      "steps": {
+        "s1": {
+          "type": "display_task",
+          "expected_input": null,
+          "expected_output_format": "plain_text",
+          "modes": {
+            "static": {
+              "default": true,
+              "output": "Zlomek se skládá ze dvou částí: čitatele (nahoře) a jmenovatele (dole). Jmenovatel udává, na kolik dílů jsme celek rozdělili. Čitatel říká, kolik dílů máme."
+            },
+            "ai_scaffolded": {
+              "output": "#api_response",
+              "api_call": {
+                "model": "gpt-4",
+                "prompt": "Vysvětli žákovi 5. třídy, co je zlomek, čitatel a jmenovatel. Použij jednoduché příklady a rozděl vysvětlení do krátkých kroků."
+              }
+            }
+          },
+          "user_options": [
+            {
+              "id": "understand",
+              "label": "Rozumím, pokračovat",
+              "go_to": "s2",
+              "score_koef": 1
+            },
+            {
+              "id": "hint",
+              "label": "Potřebuji příklad",
+              "go_to": "s3",
+              "score_koef": 0.8
+            }
+          ]
+        },
+        "s2": {
+          "type": "evaluation",
+          "description": "Ověření porozumění",
+          "expected_input": "user_input",
+          "expected_output_format": {
+            "type": "json",
+            "schema": {
+              "is_correct": "boolean"
+            }
+          },
+          "modes": {
+            "static": {
+              "default": true,
+              "output": "Kolik je čitatel zlomku 3/4?",
+              "rules": {
+                "type": "exact_match",
+                "accepted_answers": ["3", "tři"]
+              }
+            }
+          },
+          "next_actions": [
+            {
+              "result": { "is_correct": true },
+              "label": "Správně!",
+              "go_to": "s4",
+              "score_koef": 1
+            },
+            {
+              "result": { "is_correct": false },
+              "label": "Zkus to znovu",
+              "go_to": "s3",
+              "score_koef": 0
+            }
+          ]
+        },
+        "s3": {
+          "type": "hint",
+          "expected_input": null,
+          "expected_output_format": "plain_text",
+          "modes": {
+            "static": {
+              "default": true,
+              "output": "Podívej se na zlomek 3/4. Číslo nahoře (3) je čitatel - říká, kolik dílů máme. Číslo dole (4) je jmenovatel - říká, na kolik dílů jsme rozdělili celek."
+            }
+          },
+          "user_options": [
+            {
+              "id": "back",
+              "label": "Zpět k otázce",
+              "go_to": "s2",
+              "score_koef": 0.5
+            }
+          ]
+        },
+        "s4": {
+          "type": "display_solution",
+          "expected_input": null,
+          "expected_output_format": "plain_text",
+          "modes": {
+            "static": {
+              "default": true,
+              "output": "Výborně! Čitatel zlomku 3/4 je skutečně 3. Jmenovatel je 4. To znamená, že máme 3 díly ze 4 možných."
+            }
+          },
+          "user_options": [
+            {
+              "id": "next",
+              "label": "Další blok",
+              "go_to": "END",
+              "score_koef": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "B3_ADDITION",
+      "version": 1,
+      "language": "cs",
+      "author": "JM",
+      "updated": "2025-01-08T10:00:00Z",
+      "status": "draft",
+      "type": "exercise",
+      "duration": "10 min",
+      "gpf": {
+        "domain": "Number and operation",
+        "construct": "N2 FRACTIONS",
+        "subconstruct": "N2.3 Solve real-world problems involving fractions",
+        "grade": 7,
+        "level": 3,
+        "vector": [0, 0, 1, 2, 2, 0, 0, 1, 0],
+        "kb_vector": [0.7, 0.6, 0.8]
+      },
+      "learning": {
+        "concepts": ["sčítání zlomků", "společný jmenovatel", "smíšená čísla"],
+        "competencies": {
+          "M.7.2.3": 50,
+          "M.7.2.4": 30
+        },
+        "bloom_level": 3,
+        "difficulty": 3,
+        "prerequisites": [
+          {
+            "block_id": "B2_FRACTIONS_INTRO",
+            "min_level": 0.7
+          },
+          {
+            "skill": "M.5.2.1",
+            "min_level": 0.6,
+            "weight": 0.8
+          }
+        ]
+      },
+      "fsrs": {
+        "initial_difficulty": 0.4,
+        "initial_stability": 2.0,
+        "initial_recall": 0.55,
+        "forgetting_rate": 0.3,
+        "repetitions": 0,
+        "weight": 1.5,
+        "min_interval": 2,
+        "max_interval": 90,
+        "time_limit_sec": 300
+      },
+      "adaptation": {
+        "scaffolded": "avg_relevant_score < 3",
+        "full": "avg_relevant_score >= 3"
+      },
+      "steps": {
+        "s1": {
+          "type": "display_task",
+          "expected_input": null,
+          "expected_output_format": "plain_text",
+          "modes": {
+            "static": {
+              "default": true,
+              "output": "Tesařka má kus dřeva dlouhý 15 7/8 stopy. Potřebuje ale jen kus dlouhý 10 5/12 stopy. Jak dlouhý kus dřeva by měla odříznout, aby jí zůstal požadovaný kus?"
+            },
+            "ai_full": {
+              "output": "#api_response",
+              "api_call": {
+                "model": "gpt-4",
+                "prompt": "Zadej následující úlohu v režimu *full*. Neměň text zadání. Přidej krátkou motivační větu, která povzbudí žáka k samostatnému řešení.\n\nZadání:\n\"Tesařka má kus dřeva dlouhý 15 7/8 stopy. Potřebuje ale jen kus dlouhý 10 5/12 stopy. Jak dlouhý kus dřeva by měla odříznout, aby jí zůstal požadovaný kus?\""
+              }
+            },
+            "ai_scaffolded": {
+              "output": "#api_response",
+              "api_call": {
+                "model": "gpt-4",
+                "prompt": "Zadej následující úlohu v režimu *scaffolded*. Rozděl ji do menších podúkolů, které žákovi pomohou dojít k výsledku krok za krokem.\n\nZadání:\n\"Tesařka má kus dřeva dlouhý 15 7/8 stopy. Potřebuje ale jen kus dlouhý 10 5/12 stopy.\""
+              }
+            }
+          },
+          "user_options": [
+            {
+              "id": "submit",
+              "label": "Odeslat odpověď",
+              "go_to": "s2",
+              "score_koef": 1
+            },
+            {
+              "id": "ask_hint",
+              "label": "Potřebuji nápovědu",
+              "go_to": "s5",
+              "score_koef": 0.5
+            },
+            {
+              "id": "return_later",
+              "label": "Vrátím se k této úloze jindy",
+              "go_to": "END",
+              "score_koef": 0
+            }
+          ]
+        },
+        "s2": {
+          "type": "evaluation",
+          "expected_input": "user_input",
+          "expected_output_format": {
+            "type": "json",
+            "schema": {
+              "is_correct": "boolean"
+            }
+          },
+          "modes": {
+            "static": {
+              "default": true,
+              "rules": {
+                "type": "exact_match",
+                "accepted_answers": ["5 11/24", "131/24", "5.4583"]
+              }
+            },
+            "ai": {
+              "output": "#api_response",
+              "api_call": {
+                "model": "gpt-4",
+                "prompt": "Vyhodnoť, zda žákova odpověď je matematicky ekvivalentní výsledku 5 11/24 (131/24). Odpověz JSONem: {\"is_correct\": true|false}.\n\nŽákova odpověď: {{USER_INPUT}}"
+              }
+            }
+          },
+          "next_actions": [
+            {
+              "result": { "is_correct": true },
+              "label": "Správná odpověď",
+              "go_to": "s3",
+              "score_koef": 1
+            },
+            {
+              "result": { "is_correct": false },
+              "label": "Chybná odpověď",
+              "go_to": "s6",
+              "score_koef": 0
+            }
+          ]
+        },
+        "s3": {
+          "type": "display",
+          "expected_input": null,
+          "expected_output_format": "plain_text",
+          "modes": {
+            "static": {
+              "default": true,
+              "output": "Správně! Pokračuj na další úlohu."
+            }
+          },
+          "user_options": [
+            {
+              "id": "next",
+              "label": "Další úloha",
+              "go_to": "END",
+              "score_koef": 1
+            }
+          ]
+        },
+        "s4": {
+          "type": "display_solution",
+          "expected_input": null,
+          "expected_output_format": "html_text",
+          "modes": {
+            "static": {
+              "default": true,
+              "output": "Tesařka by měla odříznout 5 11/24 stopy."
+            },
+            "static_detailed": {
+              "output": "<ul><li>15 7/8 = 127/8</li><li>10 5/12 = 125/12</li><li>Na společného jmenovatele 24: 381/24 − 250/24 = 131/24</li><li>131/24 = 5 11/24</li></ul>"
+            }
+          },
+          "user_options": [
+            {
+              "id": "next",
+              "label": "Další úloha",
+              "go_to": "END",
+              "score_koef": 0
+            }
+          ]
+        },
+        "s5": {
+          "type": "hint",
+          "description": "Nápověda pro žáka",
+          "expected_input": null,
+          "expected_output_format": "plain_text",
+          "modes": {
+            "static": {
+              "default": true,
+              "output": "Zkus převést obě smíšená čísla na zlomky se společným jmenovatelem. Pomůže ti to při odčítání."
+            },
+            "ai": {
+              "output": "#api_response",
+              "api_call": {
+                "model": "gpt-4",
+                "prompt": "Žák má potíže s úlohou: 15 7/8 − 10 5/12. Poskytni stručnou nápovědu, která ho nasměruje, ale neprozradí výsledek."
+              }
+            }
+          },
+          "user_options": [
+            {
+              "id": "back_to_task",
+              "label": "Vrátit se k úloze",
+              "go_to": "s1",
+              "score_koef": 0.5
+            }
+          ]
+        },
+        "s6": {
+          "type": "display",
+          "expected_input": null,
+          "expected_output_format": "plain_text",
+          "modes": {
+            "static": {
+              "default": true,
+              "output": "Zatím to nesedí. Co chceš udělat dál?"
+            }
+          },
+          "user_options": [
+            {
+              "id": "try_again",
+              "label": "Zkusit znovu",
+              "go_to": "s1",
+              "score_koef": 0.3
+            },
+            {
+              "id": "show_solution",
+              "label": "Zobrazit řešení",
+              "go_to": "s4",
+              "score_koef": 0
+            },
+            {
+              "id": "ask_hint",
+              "label": "Potřebuji nápovědu",
+              "go_to": "s5",
+              "score_koef": 0.2
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
