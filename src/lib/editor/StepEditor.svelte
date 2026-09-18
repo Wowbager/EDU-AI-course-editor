@@ -4,11 +4,12 @@
 	 * controls follow the question type (§8.3) — the author never picks a renderer,
 	 * they pick what they are adding.
 	 */
-	import type { BlockStep, BlockV2, CourseV2, QuestionType } from '$lib/domain/schema';
+	import type { BlockStep, BlockV2, CourseV2, QuestionConfig, QuestionType } from '$lib/domain/schema';
 	import FocusField from '$lib/ui/FocusField.svelte';
 	import Chip from '$lib/ui/Chip.svelte';
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import Toggle from '$lib/ui/Toggle.svelte';
+	import Modal from '$lib/ui/Modal.svelte';
 	import AnswerTable from './AnswerTable.svelte';
 	import { markdownEditor } from '$lib/ui/codemirror';
 	import FieldGroup from '$lib/ui/FieldGroup.svelte';
@@ -16,6 +17,7 @@
 	import { refKey } from '$lib/domain/ref';
 	import Button from '$lib/ui/Button.svelte';
 	import { allows, fieldSpec, fieldsFor } from '$lib/ui/fields';
+	import { answersCount } from '$lib/ui/plural';
 	import {
 		CommandError,
 		deleteStep,
@@ -93,6 +95,152 @@
 		{ value: 'numeric', label: 'Číslo', title: 'Žák zadává číslo; vyhodnocuje se s tolerancí' }
 	];
 
+	/**
+	 * What `setQuestionType` (commands.ts) would throw away by switching to `target`,
+	 * counted only in things a teacher actually put there. A freshly scaffolded
+	 * question (`emptyQuestion()`: two options, no text, no feedback, no branching) is
+	 * indistinguishable from "nothing to lose" here on purpose — the option ids and the
+	 * default `is_correct` are the type's own bookkeeping, not authored content, so
+	 * switching an untouched question never nags. `null` means "apply straight away".
+	 */
+	interface TypeChangeLoss {
+		answers: number;
+		withFeedback: number;
+		withBranching: number;
+		correctAnswer?: string;
+		correctNumber?: string;
+	}
+
+	function planQuestionTypeChange(
+		question: QuestionConfig | undefined,
+		target: QuestionType
+	): TypeChangeLoss | null {
+		if (question === undefined || question.type === target) return null;
+
+		// Mirrors setQuestionType's own branches: true_false always replaces options,
+		// open/numeric drop them, and multiple_choice only replaces them when there
+		// were fewer than two to begin with (the scaffolded state).
+		const optionsReplaced =
+			target === 'true_false' ||
+			target === 'open' ||
+			target === 'numeric' ||
+			(target === 'multiple_choice' && (question.options?.length ?? 0) < 2);
+
+		const authored = optionsReplaced
+			? (question.options ?? []).filter(
+					(o) => o.text.trim() !== '' || !!o.feedback?.trim() || !!o.go_to
+				)
+			: [];
+
+		const loss: TypeChangeLoss = {
+			answers: authored.length,
+			withFeedback: authored.filter((o) => !!o.feedback?.trim()).length,
+			withBranching: authored.filter((o) => !!o.go_to).length
+		};
+		if (target !== 'open' && question.type === 'open' && question.correct_answer?.trim()) {
+			loss.correctAnswer = question.correct_answer;
+		}
+		if (target !== 'numeric' && question.type === 'numeric' && question.correct_number !== undefined) {
+			loss.correctNumber =
+				question.tolerance !== undefined
+					? `${question.correct_number} (tolerance ±${question.tolerance})`
+					: String(question.correct_number);
+		}
+
+		const nothingLost = loss.answers === 0 && loss.correctAnswer === undefined && loss.correctNumber === undefined;
+		return nothingLost ? null : loss;
+	}
+
+
+	function typeChangeMessage(loss: TypeChangeLoss): string {
+		const parts: string[] = [];
+		if (loss.answers > 0) {
+			const extras: string[] = [];
+			if (loss.withFeedback > 0) extras.push(`${loss.withFeedback}× s vysvětlením pro žáka`);
+			if (loss.withBranching > 0) extras.push(`${loss.withBranching}× s větvením na jiný krok`);
+			const suffix = extras.length > 0 ? ` (z toho ${extras.join(', ')})` : '';
+			parts.push(`smaže ${answersCount(loss.answers)}${suffix}`);
+		}
+		if (loss.correctAnswer !== undefined) {
+			parts.push(`smaže zadanou správnou odpověď „${loss.correctAnswer}“`);
+		}
+		if (loss.correctNumber !== undefined) {
+			parts.push(`smaže zadaný správný výsledek ${loss.correctNumber}`);
+		}
+		return `Tato změna ${parts.join(' a ')}. Zpět se dá vrátit tlačítkem Zpět v liště, ale jen dokud kartu neopustíš.`;
+	}
+
+	let pendingTypeChange = $state<{ type: QuestionType; loss: TypeChangeLoss } | null>(null);
+
+	function requestQuestionType(type: QuestionType) {
+		const loss = planQuestionTypeChange(step.question, type);
+		if (loss === null) {
+			store.apply((d) => setQuestionType(d, block.block_id, step.id, type));
+		} else {
+			pendingTypeChange = { type, loss };
+		}
+	}
+
+	function confirmQuestionTypeChange() {
+		if (pendingTypeChange === null) return;
+		store.apply((d) => setQuestionType(d, block.block_id, step.id, pendingTypeChange!.type));
+		pendingTypeChange = null;
+	}
+
+	function cancelQuestionTypeChange() {
+		pendingTypeChange = null;
+	}
+
+	/**
+	 * The `<img>`/`<video>`/`<audio>` preview must not re-fetch on every keystroke, but
+	 * it must not lag behind a change the author didn't type either — undo, import and
+	 * opening a different step replace the whole url at once and should show up right
+	 * away. `type()` is called from the field's own `onchange`, so it stamps `pending`
+	 * before the store round-trips back into `step`'s prop; the effect below then reads
+	 * "this echo matches what I just typed, the debounce already has it" from "this
+	 * wasn't typed here, show it now" by comparing against that stamp.
+	 */
+	function debouncedMediaPreview(read: () => string | undefined) {
+		let preview = $state(read());
+		let pending: string | undefined;
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		$effect(() => {
+			const current = read();
+			if (current === pending) return;
+			clearTimeout(timer);
+			pending = current;
+			preview = current;
+		});
+		return {
+			get value() {
+				return preview;
+			},
+			/** Called on every keystroke; settles into the preview after a short pause. */
+			type(v: string | undefined) {
+				pending = v;
+				clearTimeout(timer);
+				timer = setTimeout(() => {
+					preview = v;
+				}, 450);
+			},
+			/** Called on blur — no reason to make the teacher wait once they've moved on. */
+			flush(v: string | undefined) {
+				pending = v;
+				clearTimeout(timer);
+				preview = v;
+			}
+		};
+	}
+
+	const imagePreview = debouncedMediaPreview(() => step.image?.url);
+	const videoPreview = debouncedMediaPreview(() => step.video?.url);
+	const audioPreview = debouncedMediaPreview(() => step.audio?.url);
+
+	/** §14 E_MEDIA_NOT_DIRECT mirrors this same check — kept here too so the field can
+	 *  explain the mistake before validation ever runs, not only after. */
+	const VIDEO_PAGE_URL = /youtube\.com|youtu\.be|vimeo\.com/i;
+	const videoIsPageLink = $derived(VIDEO_PAGE_URL.test(step.video?.url ?? ''));
+
 	function remove() {
 		try {
 			store.apply((d) => deleteStep(d, block.block_id, step.id));
@@ -157,7 +305,11 @@
 				value={step.image?.url}
 				emptyText="https://… (veřejná adresa obrázku)"
 				monospace
-				onchange={(v) => set('image.url', v ?? '')}
+				onchange={(v) => {
+					set('image.url', v ?? '');
+					imagePreview.type(v ?? '');
+				}}
+				onblur={() => imagePreview.flush(step.image?.url ?? '')}
 			/>
 			<FocusField
 				label="Popis obrázku pro čtečku obrazovky"
@@ -166,8 +318,8 @@
 				invalid={issues.warnings.some((i) => i.code === 'W_IMAGE_NO_ALT')}
 				onchange={(v) => set('image.alt', v)}
 			/>
-			{#if step.image?.url}
-				<img src={step.image.url} alt={step.image.alt ?? ''} />
+			{#if imagePreview.value}
+				<img src={imagePreview.value} alt={step.image?.alt ?? ''} />
 			{/if}
 		</div>
 	{:else if step.type === 'video'}
@@ -175,13 +327,29 @@
 			<FocusField
 				label="Adresa videa"
 				value={step.video?.url}
-				emptyText="https://… přímý odkaz na MP4 (ne YouTube)"
+				emptyText="https://… přímý odkaz na MP4 (YouTube a Vimeo přehrávač nenačte)"
 				monospace
-				onchange={(v) => set('video.url', v ?? '')}
+				onchange={(v) => {
+					set('video.url', v ?? '');
+					videoPreview.type(v ?? '');
+				}}
+				onblur={() => videoPreview.flush(step.video?.url ?? '')}
 			/>
-			{#if step.video?.url}
+			{#if videoIsPageLink}
+				<!--
+					§14 E_MEDIA_NOT_DIRECT fires on export, but by then the teacher has
+					already pasted the wrong thing and moved on. Catching it here, next to
+					the field, is what turns "proč se to nepřehrává" into a one-line fix.
+				-->
+				<p class="field-hint warning">
+					Tohle je odkaz na stránku YouTube/Vimeo, ne na video samotné — přehrávač
+					v kurzu ho nenačte. Otevři video, najdi jeho přímý soubor (.mp4) a vlož
+					adresu toho.
+				</p>
+			{/if}
+			{#if videoPreview.value}
 				<!-- svelte-ignore a11y_media_has_caption -->
-				<video src={step.video.url} controls></video>
+				<video src={videoPreview.value} controls></video>
 			{/if}
 		</div>
 	{:else if step.type === 'audio'}
@@ -191,9 +359,13 @@
 				value={step.audio?.url}
 				emptyText="https://… MP3, WAV nebo OGG"
 				monospace
-				onchange={(v) => set('audio.url', v ?? '')}
+				onchange={(v) => {
+					set('audio.url', v ?? '');
+					audioPreview.type(v ?? '');
+				}}
+				onblur={() => audioPreview.flush(step.audio?.url ?? '')}
 			/>
-			{#if step.audio?.url}<audio src={step.audio.url} controls></audio>{/if}
+			{#if audioPreview.value}<audio src={audioPreview.value} controls></audio>{/if}
 		</div>
 	{:else if step.type === 'question'}
 		<div class="question">
@@ -211,7 +383,7 @@
 					label="Typ otázky"
 					options={QUESTION_TYPES}
 					value={step.question?.type ?? 'multiple_choice'}
-					onchange={(type) => store.apply((d) => setQuestionType(d, block.block_id, step.id, type))}
+					onchange={requestQuestionType}
 				/>
 			</div>
 
@@ -325,6 +497,16 @@
 			<p class="issue" class:warning={issue.severity === 'warning'}>{issue.message}</p>
 		{/if}
 	{/each}
+
+	{#if pendingTypeChange}
+		<Modal title="Změnit typ otázky?" onclose={cancelQuestionTypeChange}>
+			<p>{typeChangeMessage(pendingTypeChange.loss)}</p>
+			{#snippet footer()}
+				<Button variant="ghost" onclick={cancelQuestionTypeChange}>Zrušit</Button>
+				<Button variant="danger-solid" onclick={confirmQuestionTypeChange}>Přesto změnit</Button>
+			{/snippet}
+		</Modal>
+	{/if}
 </article>
 
 <style>
@@ -438,6 +620,15 @@
 	}
 
 	.issue.warning {
+		color: var(--e-warning);
+	}
+
+	.field-hint {
+		margin: 0;
+		font-size: var(--text-xs);
+	}
+
+	.field-hint.warning {
 		color: var(--e-warning);
 	}
 </style>

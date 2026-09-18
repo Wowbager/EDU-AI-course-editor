@@ -198,7 +198,7 @@
 			}}
 		/>
 		{#if booted}
-			<Chip tone="ok">živý náhled</Chip>
+			<Chip tone="ok">Náhled</Chip>
 		{:else if failed}
 			<Chip tone="warning">přehrávač neběží</Chip>
 		{/if}
@@ -249,9 +249,10 @@
 	<footer>
 		<span class="hint">
 			{#if view === 'expanded'}
-				Kliknutím do náhledu skočíš na pole, které danou část vytváří.
+				Náhled se aktualizuje během psaní. Kliknutím do něj skočíš na odpovídající pole v editoru.
 			{:else}
-				Odpovídej jako žák. Zpětem se vrátíš a můžeš zkusit druhou větev.
+				Odpovídej jako žák: kroky se odkrývají po jednom, další se objeví až tlačítkem pod
+				kartou. Zpětem se vrátíš a můžeš zkusit druhou větev.
 			{/if}
 		</span>
 	</footer>

@@ -80,6 +80,7 @@ export class DocStore {
 
 	/** Replace the document wholesale — a new course, or an import. */
 	load(doc: CourseV2, options: { published?: { version: number; doc: CourseV2 } } = {}) {
+		this.endEdit();
 		this.doc = doc;
 		this.#undo = [];
 		this.#redo = [];
@@ -105,8 +106,16 @@ export class DocStore {
 
 		this.doc = result.doc;
 		this.#reserve(result.doc);
-		this.#undo = [...this.#undo, { description: result.description, before, after: result.doc, ref: result.ref }]
-			.slice(-MAX_UNDO);
+		const last = this.#undo.at(-1);
+		if (this.#edit?.entry && last === this.#edit.entry) {
+			const entry = { ...last, after: result.doc };
+			this.#undo = [...this.#undo.slice(0, -1), entry];
+			this.#edit.entry = this.#undo.at(-1);
+		} else {
+			this.#undo = [...this.#undo, { description: result.description, before, after: result.doc, ref: result.ref }]
+				.slice(-MAX_UNDO);
+			if (this.#edit) this.#edit.entry = this.#undo.at(-1);
+		}
 		this.#redo = [];
 		this.dirty = true;
 		if (result.ref !== undefined) this.selection = result.ref;
@@ -114,6 +123,7 @@ export class DocStore {
 	}
 
 	undo() {
+		this.endEdit();
 		const entry = this.#undo.at(-1);
 		if (entry === undefined) return;
 		this.#undo = this.#undo.slice(0, -1);
@@ -124,6 +134,7 @@ export class DocStore {
 	}
 
 	redo() {
+		this.endEdit();
 		const entry = this.#redo.at(-1);
 		if (entry === undefined) return;
 		this.#redo = this.#redo.slice(0, -1);
@@ -132,6 +143,37 @@ export class DocStore {
 		this.#reserve(entry.after);
 		this.dirty = true;
 		if (entry.ref !== undefined) this.selection = entry.ref;
+	}
+
+	/**
+	 * Groups the keystrokes of one editing session into a single undo entry.
+	 *
+	 * A field commits on every input (so drafts persist before blur), which would
+	 * otherwise push one undo entry per character. The field opens the session on
+	 * focus and closes it on blur or Enter; a session that nets out to no change —
+	 * the author typed and pressed Escape — leaves no entry behind at all.
+	 */
+	#edit?: { before: CourseV2; entry?: UndoEntry };
+
+	beginEdit() {
+		this.endEdit();
+		this.#edit = { before: this.doc };
+	}
+
+	endEdit() {
+		const edit = this.#edit;
+		this.#edit = undefined;
+		if (!edit?.entry || this.#undo.at(-1) !== edit.entry) return;
+		if (JSON.stringify(edit.before) === JSON.stringify(this.doc)) {
+			this.#undo = this.#undo.slice(0, -1);
+		}
+	}
+
+	/** Restore identity reservations, including IDs deleted before a reload. */
+	restoreReservations(reserved: { blocks: string[]; lessons: string[]; steps: string[] }) {
+		for (const id of reserved.blocks) this.#reservedBlocks.add(id);
+		for (const id of reserved.lessons) this.#reservedLessons.add(id);
+		for (const id of reserved.steps) this.#reservedSteps.add(id);
 	}
 
 	/** Select something and ask the editor to bring it into view. */

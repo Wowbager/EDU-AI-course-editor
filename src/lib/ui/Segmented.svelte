@@ -4,11 +4,13 @@
 		value: T;
 		label: string;
 		onchange: (value: T) => void;
+		/** Settings can wrap; compact toolbar controls retain their single row. */
+		wrap?: boolean;
 	}
-	let { options, value, label, onchange }: Props = $props();
+	let { options, value, label, onchange, wrap = false }: Props = $props();
 </script>
 
-<div class="segmented" role="radiogroup" aria-label={label}>
+<div class="segmented" class:wrap role="radiogroup" aria-label={label}>
 	{#each options as option (option.value)}
 		<button
 			type="button"
@@ -29,6 +31,20 @@
 		padding: 3px;
 		border-radius: var(--radius-pill);
 		background: var(--surface-light);
+	}
+
+	.wrap {
+		min-width: 0;
+		max-width: 100%;
+		flex-wrap: wrap;
+		gap: 3px;
+		border-radius: var(--radius-s);
+	}
+
+	.wrap button {
+		min-width: 0;
+		max-width: 100%;
+		overflow-wrap: anywhere;
 	}
 
 	button {

@@ -166,24 +166,69 @@ export function isPracticeBlock(block: BlockV2, bindingFlag = false): boolean {
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
+const truncate = (text: string, max: number) =>
+	text.length > max ? `${text.slice(0, max)}…` : text;
+
 /**
- * The first line of a card's own text — what the author recognises it by.
+ * The name a card has when its author has not given it one: the first line of its
+ * own text.
  *
- * A teacher is never shown a `block_id` (§8), so every place that has to name a
- * card names it by what it says: the tree, the card header, and the branch labels
- * the preview is handed. Three call sites, one rule, or the same card would be
- * called three different things on one screen.
+ * Kept separate from `blockPreview` for one reason — the title field on the card
+ * has to show this as its placeholder, so that an author who has not filled it in
+ * can see what the card is currently called and that clearing the field goes back
+ * to it. A second copy of the rule in the component would drift from this one.
+ *
+ * `position` is the card's place in its lesson, and it is used only when there is
+ * no text at all. Three freshly added cards are otherwise all called "Karta bez
+ * textu" and are indistinguishable in the tree; "Karta 3" is where it is. Nothing
+ * is written to the document to produce it — an empty card stays empty, so the
+ * name follows the card when it is reordered instead of going stale.
  */
-export function blockPreview(block: BlockV2, max = 70): string {
+export function derivedBlockName(block: BlockV2, max = 70, position?: number): string {
 	const source = block.steps.find((step) => (step.content ?? '').trim() !== '');
 	const text = (source?.content ?? '')
 		// Markdown and LaTeX delimiters are syntax, not words. A card called
 		// "Zlomek $\frac{a}{b}$ popisuje…" is harder to recognise than one called
 		// "Zlomek \frac{a}{b} popisuje…", and much harder than the prose around it.
 		.replace(/\$+/g, '')
-		.replace(/[#*_`>]/g, '')
-		.replace(/\s+/g, ' ')
-		.trim();
-	if (text === '') return 'Karta bez textu';
-	return text.length > max ? `${text.slice(0, max)}…` : text;
+		// `#` and `>` are markers only at the start of a line. Stripping them
+		// everywhere ate them out of the author's own sentences — a card that opened
+		// "Cena je > 2 Kč" was called "Cena je 2 Kč", which is not a truncation of
+		// what they wrote, it is a different claim. Inline emphasis and code marks
+		// still go wherever they appear: they are always syntax and never prose.
+		.replace(/^[ \t]*[#>]+[ \t]?/gm, '')
+		.replace(/[*_`]/g, '')
+		.split('\n')
+		// The first line, not the whole card flattened. A card whose text is a
+		// paragraph and then a Markdown table used to be called
+		// "Části zlomku | Pozice | Název | Co říká | |---…", which names the table's
+		// syntax rather than the card. Everything after the first line is detail;
+		// the line the author opened with is the one they will recognise.
+		.map((line) => line.trim())
+		.find((line) => line !== '')
+		?.replace(/\s+/g, ' ')
+		.trim() ?? '';
+	if (text === '') return position === undefined ? 'Karta bez textu' : `Karta ${position}`;
+	return truncate(text, max);
+}
+
+/**
+ * What a card is called — the author's own title when it has one, the first line
+ * of its text when it does not.
+ *
+ * A teacher is never shown a `block_id` (§8), so every place that has to name a
+ * card comes here: the tree, the card header, and the branch labels the preview is
+ * handed. Three call sites, one rule, or the same card would be called three
+ * different things on one screen — which is also why the authored title is read
+ * here and not only in the header that edits it.
+ *
+ * An absent title and an empty one are the same thing on purpose: clearing the
+ * field deletes the key (§ "parsing never injects defaults"), and a document that
+ * carried `"name": ""` on every card would fail the round trip the first time it
+ * was saved.
+ */
+export function blockPreview(block: BlockV2, max = 70, position?: number): string {
+	const authored = (block.name ?? '').trim();
+	if (authored !== '') return truncate(authored, max);
+	return derivedBlockName(block, max, position);
 }

@@ -86,9 +86,9 @@ test.describe('live preview', () => {
 
 	test.beforeEach(async ({ page }) => {
 		await page.goto('/');
-		// The import handler is client-side: wait for hydration, which the starter card
-		// appearing proves, before handing the page a file.
-		await expect(page.locator('.tree-card')).toHaveCount(1);
+		// The import handler is client-side: wait for hydration before handing the
+		// page a file. The flag is set last in onMount, so it also covers the seed.
+		await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
 		await page.setInputFiles('input[type=file]', {
 			name: 'spec-16-course.json',
 			mimeType: 'application/json',
@@ -100,7 +100,7 @@ test.describe('live preview', () => {
 		});
 		await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 		// The player announces itself over the message channel once it has booted.
-		await expect(page.getByText('živý náhled')).toBeVisible({ timeout: 120_000 });
+		await expect(page.locator('aside .chip.ok', { hasText: 'Náhled' })).toBeVisible({ timeout: 120_000 });
 	});
 
 	test('clicking rendered content lands on the field that produced it', async ({ page }) => {
@@ -289,7 +289,7 @@ test.describe('live preview', () => {
 		// That is the thing the contract exists to avoid — it costs seconds and the
 		// author is typing.
 		expect((await messages()).filter((m) => m.includes('"ready"'))).toHaveLength(0);
-		await expect(page.getByText('živý náhled')).toBeVisible();
+		await expect(page.locator('aside .chip.ok', { hasText: 'Náhled' })).toBeVisible();
 	});
 
 	test('switching between the two modes keeps the player alive', async ({ page }) => {
@@ -303,7 +303,7 @@ test.describe('live preview', () => {
 		await page.waitForTimeout(2500);
 
 		expect((await messages()).filter((m) => m.includes('"ready"'))).toHaveLength(0);
-		await expect(page.getByText('živý náhled')).toBeVisible();
+		await expect(page.locator('aside .chip.ok', { hasText: 'Náhled' })).toBeVisible();
 	});
 
 	test('switching to a card with different steps keeps the player alive', async ({ page }) => {
@@ -316,6 +316,6 @@ test.describe('live preview', () => {
 		await page.waitForTimeout(2500);
 
 		expect((await messages()).filter((m) => m.includes('"ready"'))).toHaveLength(0);
-		await expect(page.getByText('živý náhled')).toBeVisible();
+		await expect(page.locator('aside .chip.ok', { hasText: 'Náhled' })).toBeVisible();
 	});
 });

@@ -38,6 +38,34 @@ describe('spec §16 worked course', () => {
 		expect(serialise(doc)).not.toHaveProperty('only_once');
 	});
 
+	it('leaves a card without a title without one', () => {
+		// The card title is optional and new, so it is the field most likely to be
+		// written into every block by accident — which would make the first save of
+		// an imported course a diff on every card.
+		const doc = parseCourse(raw);
+		for (const block of doc.blocks) expect(block.name).toBeUndefined();
+		for (const block of serialise(doc).blocks as Record<string, unknown>[]) {
+			expect(block).not.toHaveProperty('name');
+		}
+	});
+
+	it('round-trips a card title that is there, in its canonical place', () => {
+		const withTitle = {
+			...raw,
+			blocks: (raw.blocks as Record<string, unknown>[]).map((block, i) =>
+				i === 0 ? { ...block, name: 'Co je zlomek' } : block
+			)
+		};
+		const out = serialise(parseCourse(withTitle));
+		expect(out).toEqual(withTitle);
+		const first = (out.blocks as Record<string, unknown>[])[0];
+		// After `block_id`/`version` and before the provenance keys, exactly where
+		// `lesson.name` sits — the diff of a course reads the same at every level.
+		expect(Object.keys(first).indexOf('name')).toBeLessThan(Object.keys(first).indexOf('language'));
+		expect(serialiseToJson(parseCourse(JSON.parse(serialiseToJson(parseCourse(withTitle))))))
+			.toBe(serialiseToJson(parseCourse(withTitle)));
+	});
+
 	it('preserves keys the editor does not model', () => {
 		const withExtra = { ...raw, _comment_structure: 'poznámka autora', house_flag: 7 };
 		const out = serialise(parseCourse(withExtra));

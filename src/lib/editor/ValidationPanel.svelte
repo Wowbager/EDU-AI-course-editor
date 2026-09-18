@@ -5,6 +5,7 @@
 	 * fixes.
 	 */
 	import type { Issue } from '$lib/domain/validate';
+	import { blockLabel, lessonLabelById, optionLabelById, stepLabel } from '$lib/domain/naming';
 	import { useStore } from '$lib/ui/context';
 
 	interface Props {
@@ -34,12 +35,30 @@
 		dismissed = new Set([...dismissed, key(issue)]);
 	}
 
+	// A teacher is never shown an id (§8) — the breadcrumb under a message used to
+	// print `lesson_id` / `block_id` / step and option ids verbatim, which is the
+	// same leak `naming.ts` exists to close in the message text above it. A ref can
+	// carry an id nothing in the document resolves to (e.g. `E_BINDING_UNRESOLVED`'s
+	// dangling `block_id`), and there the id really is the only thing left to show.
 	const where = (issue: Issue): string => {
+		const { lessonId, blockId, stepId, optionId } = issue.ref;
+		const doc = store.doc;
+		const block = blockId !== undefined ? doc.blocks.find((b) => b.block_id === blockId) : undefined;
+		const step = block !== undefined && stepId !== undefined
+			? block.steps.find((s) => s.id === stepId)
+			: undefined;
+
 		const parts: string[] = [];
-		if (issue.ref.lessonId) parts.push(issue.ref.lessonId);
-		if (issue.ref.blockId) parts.push(issue.ref.blockId);
-		if (issue.ref.stepId) parts.push(issue.ref.stepId);
-		if (issue.ref.optionId) parts.push(`odpověď ${issue.ref.optionId}`);
+		if (lessonId !== undefined) parts.push(lessonLabelById(doc, lessonId) ?? lessonId);
+		if (blockId !== undefined) {
+			parts.push(block !== undefined ? blockLabel(doc, block, { lessonId, max: 30 }) : blockId);
+		}
+		if (stepId !== undefined) {
+			parts.push(block !== undefined && step !== undefined ? stepLabel(block, step) : stepId);
+		}
+		if (optionId !== undefined) {
+			parts.push(optionLabelById(step?.question, optionId, { max: 20 }) ?? `odpověď ${optionId}`);
+		}
 		return parts.length === 0 ? 'kurz' : parts.join(' › ');
 	};
 </script>

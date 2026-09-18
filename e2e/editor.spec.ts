@@ -22,7 +22,7 @@ test.beforeEach(async ({ page }) => {
 	page.on('pageerror', (error) => thrown.push(error.message));
 
 	await page.goto('/');
-	await page.waitForFunction(() => document.querySelectorAll('section').length > 0);
+	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
 	expect(thrown).toEqual([]);
 });
 
@@ -43,14 +43,14 @@ test('a teacher builds a lesson from scratch', async ({ page }) => {
 
 	// The new card is the one on screen, so there is exactly one answer table.
 	const answers = page.locator('.answers');
-	await answers.getByRole('button', { name: /^Text odpovědi/ }).first().click();
+	await answers.getByRole('textbox', { name: 'Text odpovědi' }).first().click();
 	await page.keyboard.type('Čitatel je 5');
 	await page.keyboard.press('Enter');
 
-	await expect(page.getByText('Čitatel je 5')).toBeVisible();
+	await expect(answers.getByRole('textbox', { name: 'Text odpovědi' }).first()).toHaveValue('Čitatel je 5');
 
 	// The lesson totals move with the content: two cards now.
-	await expect(page.locator('.tree-lesson.open .meta')).toContainText('2 karet');
+	await expect(page.locator('.tree-lesson.open .meta')).toContainText('2 karty');
 });
 
 test('a teacher is never shown an id they must not change', async ({ page }) => {
@@ -192,8 +192,10 @@ test('undo puts back what a delete took away', async ({ page }) => {
 	await expect(inLesson).toHaveCount(3);
 
 	await inLesson.first().click();
-	await page.getByRole('button', { name: 'Odebrat' }).click();
-	await expect(inLesson).toHaveCount(2);
+	await page.getByRole('button', { name: 'Odebrat z lekce', exact: true }).click();
+	// The removed card stays selected in the orphan bucket; its old lesson closes.
+	await expect(page.locator('.tree-lesson .meta').first()).toContainText('2 karty');
+	await expect(page.locator('.orphans .tree-card')).toHaveCount(1);
 
 	// The glyph is what a mouse sees; "Zpět" is what the button is called.
 	await page.getByRole('button', { name: 'Zpět', exact: true }).click();

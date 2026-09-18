@@ -31,6 +31,14 @@
 	const quizMarks = $derived(doc.export_type === 'quiz_v2' || doc.quiz_evaluate === true);
 	const advanced = $derived(allows('option', 'score_koef', store.mode));
 	const fixedOptions = $derived(step.question?.type === 'true_false');
+	// Shared, content-independent tracks keep headings and all rows aligned.
+	const tracks = $derived([
+		'minmax(0, 1.4fr)', '5rem',
+		...(quizMarks ? ['3.5rem'] : []),
+		'minmax(0, 1.6fr)',
+		...(branching ? ['minmax(0, 1fr)'] : []),
+		advanced ? '5rem' : '2rem'
+	].join(' '));
 
 	const ref = (optionId: string, field: string) => ({
 		blockId: block.block_id,
@@ -46,7 +54,7 @@
 		store.issuesAt({ blockId: block.block_id, stepId: step.id, optionId });
 </script>
 
-<div class="answers">
+<div class="answers" style:--answer-tracks={tracks}>
 	<div class="head" aria-hidden="true">
 		<span>Odpověď</span>
 		<span>Je to</span>
@@ -81,7 +89,7 @@
 			</div>
 
 			{#if quizMarks}
-				<div class="cell">
+				<div class="cell grade">
 					<select
 						class="mark"
 						aria-label="Známka za tuto odpověď"
@@ -109,7 +117,7 @@
 			</div>
 
 			{#if branching}
-				<div class="cell">
+				<div class="cell destination">
 					<GoToPicker
 						{doc}
 						{block}
@@ -166,6 +174,9 @@
 
 <style>
 	.answers {
+		container: answers / inline-size;
+		min-width: 0;
+		overflow-wrap: anywhere;
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
@@ -175,7 +186,7 @@
 	.head,
 	.row {
 		display: grid;
-		grid-template-columns: minmax(140px, 1.4fr) 80px auto minmax(160px, 1.6fr) auto auto;
+		grid-template-columns: var(--answer-tracks);
 		gap: 12px;
 		align-items: start;
 	}
@@ -217,8 +228,34 @@
 
 	.actions {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		gap: 6px;
+	}
+
+	/* The editor can be narrow even on a desktop with both sidebars open. */
+	@container answers (max-width: 760px) {
+		.head {
+			display: none;
+		}
+
+		.row {
+			grid-template-columns: minmax(0, 1fr);
+			gap: 10px;
+			border-bottom: 1px solid var(--e-border);
+		}
+
+		.cell::before {
+			display: block;
+			margin-bottom: 4px;
+			color: var(--e-text-faint);
+			font: var(--type-chip-label);
+		}
+
+		.text::before { content: 'Odpověď'; }
+		.feedback::before { content: 'Co se žák dozví'; }
+		.destination::before { content: 'Kam dál'; }
+		.grade::before { content: 'Známka'; }
 	}
 
 	.verb {
@@ -280,6 +317,7 @@
 
 	.note {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		gap: 8px;
 		margin: 8px 0 0;

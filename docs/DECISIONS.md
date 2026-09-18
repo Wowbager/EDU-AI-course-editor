@@ -455,6 +455,295 @@ skipped entirely — the authoring spec's "updates with reduced weight" is inten
 implementation. The editor keeps offering "okrajově" and says nothing, by decision;
 this note is the record. Worth reconciling in the app or in the spec.
 
+## Feedback round 1 — persistence, and the fields a teacher actually types into
+
+**Autosave writes to localStorage, and every way it can fail says so instead of
+staying quiet.** `DraftSession` (`src/lib/state/draft-session.svelte.ts`) debounces
+400 ms behind a single `$effect` in `+page.svelte` that tracks `store.doc`,
+`store.selection` and `store.mode`; `beforeunload` forces a synchronous `flush()` and
+only then decides whether to warn, so the guard is never a stale guess about whether
+the last edit made it out. The envelope (`src/lib/state/draft.ts`) is a zod schema
+around `courseSchema`, and `readDraft` is commented on purpose: *"Recovery checks
+shape, not publish validation: unfinished cards must survive."* A card mid-sentence —
+missing feedback, an empty option — is exactly the state a reload must not discard,
+so recovery only has to parse, never to pass `validate()`. Three failure modes are
+refusals rather than silent overwrites, matching `e2e/recovery.spec.ts`: a draft that
+fails `draftSchema.parse` (corrupt JSON, a future format) flips `status` to
+`'blocked'` and leaves the stored value untouched until the author explicitly calls
+`replace()`, which archives the old text under a timestamped backup key before
+writing over it; a second tab is detected through the `storage` event and also lands
+on `'blocked'`, pausing writes rather than letting two tabs race the same key; and a
+`setItem` throw (quota, private mode) sets `status = 'error'` and shows "Koncept se
+nepodařilo uložit" in the topbar instead of failing inside a `catch` nobody sees.
+"Pause and tell the author" beats "overwrite and hope" for the same reason the corrupt
+case does: a stopgap that occasionally destroys the thing it was built to protect is
+worse than one that sometimes asks for help.
+
+**FocusField stopped being a placeholder that swaps into an input.** The reported bug
+— a click landing slightly off-target leaves `document.activeElement` on `<body>` and
+loses every keystroke typed afterward — was inherent to the old design: the resting
+state was a `<button>` that had to be clicked exactly, then unmounted in favour of a
+real `<input>`. `FocusField` is now an always-mounted native `input`/`textarea` whose
+full rectangle is the editable surface; there is no swap for a click to miss. It
+commits `onchange` on every `oninput`, which is what makes the draft above capture an
+edit that never reached blur — but committing per keystroke would also mean one undo
+entry per character. `DocStore.beginEdit()` and `endEdit()` exist to absorb that:
+`begin()` opens a session on focus, `apply()` folds every commit into the same
+`UndoEntry` while the session is open by rewriting its `after` in place instead of
+pushing a new entry, and `endEdit()` drops the entry entirely if the document nets out
+unchanged — Escape reverts `draft` to `baseline` and closes the session, so a typed
+line abandoned with Escape leaves no undo trace at all. The undo model had to change
+because the input model did: grouping keystrokes is the price of fixing the fragility.
+
+**Answer-table columns are shared tracks plus a container query, not fixed pixels.**
+The old grid was `minmax(140px, 1.4fr) 80px auto minmax(160px, 1.6fr) auto auto` on
+both `.head` and `.row` independently, so a long "Co se žák dozví" value could push
+its own row's `auto` feedback track wide while the header and the other row kept
+their own separately-computed width — which is what let `.cell.feedback` settle at
+~60px for the whole column. `AnswerTable.svelte` now derives one `tracks` string from
+the card's actual columns (marks, branching, advanced score) and applies it to every
+`.head`/`.row` through a single `--answer-tracks` custom property, so there is exactly
+one layout computation to get right instead of one per row. The container query
+(`container: answers / inline-size`, `@container answers (max-width: 760px)`) is the
+other half: below 760px of *available* width — which the feedback report already hit
+at normal browser width once both sidebars and a wide preview were open — the grid
+collapses to one column per row and each `.cell::before` prints its own label
+("Odpověď", "Co se žák dozví", "Kam dál", "Známka"), so a narrow card stacks with
+labels instead of squeezing six tracks into less space than they need.
+
+**Course settings wrap instead of overflowing.** `CourseSettings.svelte`'s `.grid`
+moved from a hard `repeat(2, minmax(0, 1fr))` to `repeat(auto-fit, minmax(min(100%,
+20rem), 1fr))` inside its own `container: course-settings / inline-size`, and `.row`
+drops to a single column under its own `@container … (max-width: 560px)` — which is
+what stops "Zamčeno" from being clipped at 1316px, since the modal's *content* width
+at that viewport was already below two 20rem columns. `Segmented` gained a `wrap`
+prop for exactly the "Typ kurzu" and "Stav" rows, because a status list with five
+options has nowhere to go but a second line on a narrow modal; the toolbar's mode
+switch in `Topbar.svelte` does not pass `wrap`, so a compact control that must stay a
+single row keeps its old non-wrapping layout. `FieldGroup`'s label column also gave
+up its 160px fixed width for the same `auto-fit` treatment, and the hint text — which
+used to truncate to one line with the full sentence hiding in `title` — now wraps,
+because a hint nobody can read without hovering was not actually communicating.
+
+**The XP counter explains itself.** `derivedBlockXp` in `src/lib/domain/derive.ts`
+sums 8 XP per question step and 1 per content step. `addBlock` (`commands.ts`) always
+seeds a new card with exactly one step, so a freshly added question card is a single
+8-XP question step — which, added to the course's existing 1-XP display card, is
+exactly the tester's "jumped from 1 XP to 9 XP before any content was written". That
+arithmetic is unchanged; what changed is that it no longer looks accidental. The chip
+now reads "8 XP · automaticky" or "5 XP · vlastní hodnota" instead of a bare number
+with a trailing `*`, and next to it a note spells out the rule — "8 XP za každý krok
+s otázkou, 1 XP za obsahový krok" — and says explicitly that it "platí hned, i když je
+karta ještě rozepsaná", because the counter is correct for an unfinished card too and
+a teacher watching it jump needs to know that before concluding something is broken.
+
+**"Odebrat" became "Odebrat z lekce", and the orphan bucket got a way back.** The
+feedback literally asked for a confirmation dialog before unlinking. What got built
+instead is an undo notice after the fact: `removeFromLesson` in `CardEditor.svelte`
+unbinds immediately and calls `showNotice()`, which pins the new `UndoEntry` and
+shows a message naming exactly what happened — "Karta je nyní v části Karty mimo
+lekci" or, when the card is still bound elsewhere, "Karta zůstává v lekcích (N): …" —
+with a "Vrátit zpět" button. `activeNotice` is guarded against staleness: it only
+renders while `store.undoStack.at(-1)` is still the entry it captured, so a notice
+from one unbind can never undo a content edit made afterward
+(`e2e/card-actions.spec.ts`'s "an undo notice cannot undo a later content edit"
+pins exactly this). Two more pieces close the gap the feedback actually described:
+a separate "Smazat kartu…" button now always opens `RepairDialog` — real deletion,
+with its existing repair-and-confirm flow, whether the card is bound or already an
+orphan — and a "Zařadit do lekce…" picker lets an orphaned card be reattached to any
+lesson that doesn't already hold it (through the now-idempotent `bindBlock`, which
+returns the document unchanged, same object identity, if the binding already exists)
+without going through Undo at all. The argument for undo-after over confirm-before is
+that unbinding is not destructive — the block, its steps and every incoming reference
+survive untouched, only one lesson's binding changes — and a confirmation dialog on a
+reversible action mostly trains authors to click through it. This is a deliberate
+divergence from the literal ask, recorded as one.
+
+**"živý náhled" is now just "Náhled" — and the behaviour was fixed, not just the
+label.** Because `FocusField` commits on every keystroke instead of on blur, the
+preview genuinely updates while typing now, which it did not before. The word "živý"
+was dropped anyway: `bridge.ts` still debounces `setBlock` by 250 ms and re-sends the
+whole step on a document change rather than tracking a caret or diffing the edit, so
+calling it "live" would still overclaim a little even though it is no longer wrong.
+The footer hint was changed to match — "Náhled se aktualizuje během psaní" — which is
+now an accurate description rather than an aspiration.
+
+Verification leans on properties rather than a test count. `e2e/recovery.spec.ts`
+pins that an unblurred, invalid field survives a reload; that typing groups into one
+undo entry and Escape leaves no trace; that a `setItem` throw both shows an error
+status and still blocks unload; that a corrupt stored draft is never touched without
+an explicit, backed-up replacement; and that a second tab pauses writes rather than
+racing them. `e2e/card-actions.spec.ts` pins that unbinding touches only the one
+binding and leaves every other lesson and reference intact, that the picker can only
+bind to a lesson that doesn't already hold the card, that a stale undo notice cannot
+swallow a later edit, and that the XP chip's arithmetic and wording stay in sync
+across derived and authored values.
+`e2e/feedback-layout.spec.ts` measures actual `gridTemplateColumns` and
+`scrollWidth`/`clientWidth` at the viewport width from the report (1316px) and at
+narrower ones, rather than asserting on a screenshot. And
+`src/lib/domain/__tests__/card-actions.test.ts` holds the same `bindBlock` idempotence
+and object-identity properties at the domain level, with no component runtime needed
+to check them.
+
+**The suite that proves all of the above had to be made deterministic first.** Run at
+Playwright's default worker count, the e2e suite failed one or two tests per run and a
+*different* one each time — `preview.spec.ts` timing out on a navigation, then
+`card-actions.spec.ts` timing out on the first card appearing. Every spec passed in
+isolation, and two consecutive full runs at `workers: 4` passed clean in the same
+wall-clock time as the flaky ones, so the cause was the machine, not the code: each
+page in this suite boots the Flutter/CanvasKit player, which makes a worker far more
+expensive than a normal DOM test and lets half the cores' worth of them starve each
+other. The cap is in `playwright.config.ts` with that reasoning written down, because
+the next person to see a green suite on a smaller box will otherwise remove it.
+
+**`data-hydrated` now means what its comment always claimed.** It was assigned at the
+*top* of `onMount`, above the draft restore and the seed it says have finished. As
+written this was not actually reachable — the whole function is straight-line
+synchronous, so no test could observe the flag mid-flight — but a signal whose contract
+is a comment rather than a fact is one refactor away from lying, and the comment was
+the reason to trust it. It is set last now, after the seed and after the listeners are
+attached. The four specs that were still waiting on DOM proxies (`section` count, the
+starter card becoming visible) wait on the flag instead: counting sections is a weaker
+guarantee, because SSR can satisfy it before any handler is wired.
+
+**One real race turned up while chasing a flake that was not one.** `loadConfig()` in
+`+page.svelte` is fired without `await` from both the initial seed and the import path,
+so two requests to `/api` can be in flight at once — and it read `store.doc.course_id`
+before the await but assigned the answer unconditionally after it. A slow response for
+the pre-import course could therefore land last and leave the imported course being
+measured against another course's dimensions. It now captures the id it asked about and
+drops an answer the document has already moved past.
+
+---
+
+## Feedback round 2 — the preview's images, and never showing a teacher an id
+
+**The reported bug was real; its reported shape was not.** "Images render in Náhled
+but not in Vyzkoušet" turned out to be "images never render in the *player*, in either
+mode". What the tester was seeing in "Náhled" was the editor column's own `<img>`,
+which loads the authored URL directly and works; the Flutter player put every image
+through `resolveImageUrl`, i.e. the Laravel proxy at `/api/proxy/image`, which was
+answering 502 for every URL. Both preview modes were equally broken, and every image
+in the student's app with them. Four scripted reproductions of the literal report all
+*passed* before the real cause showed up in a network trace — worth remembering the
+next time a report names two states and one of them is the developer's own preview.
+
+**Images are loaded direct-first, with the proxy as the fallback.** The proxy exists
+to dodge CORS in CanvasKit, which is a real problem for the hosts that block
+cross-origin reads — but most public image hosts send `access-control-allow-origin: *`,
+so routing every image through one service made that service a single point of failure
+for content it was not needed for. `NetworkImageWithFallback` tries the authored URL,
+and only an `errorBuilder` promotes the request to the proxied one. On native there is
+no CORS and no second attempt. `isSvg` moved to the raw URL in the same change: the
+proxied URL is `…/proxy/image?url=<encoded>`, which never ends in `.svg`, so every
+proxied SVG had been mis-dispatched to the raster branch.
+
+**Click-to-edit claims the whole card, and still loses to its own leaves.**
+`PreviewTarget` shrink-wraps its child, so the hit target for a short line was the
+glyphs. `_StepCard` now wraps its whole body in a second target with
+`HitTestBehavior.opaque` and `outline: false`. Nesting is safe rather than lucky: a
+descendant's arena entry is added before its ancestor's and `sweep` defaults to
+`members.first`, so a leaf always wins a tap it was actually given — the outer target
+only picks up the padding nobody else claimed.
+
+**A destructive type switch asks, but only when there is something to lose.**
+`setQuestionType` discards options, feedback and branching, and did so silently.
+The confirmation is computed from what the *target type* would actually drop given the
+question in hand, counting only authored content — a two-option scaffold with no text
+is the type's own bookkeeping, and nagging about it would teach the author to click
+through the dialog that matters.
+
+**The media preview is debounced in the component, not in the field.** `FocusField`
+writes on every keystroke on purpose (§ recovery, round 1), so the fix could not live
+there: the `<img>`/`<video>`/`<audio>` `src` follows the value after a pause or
+immediately on blur, and an external change — undo, import, a different step — is
+distinguished from a typed echo by a stamp, so navigation never lags behind by half a
+second.
+
+**An empty media URL is an error, not a warning.** §14's media rule is already read
+expansively here (HTTPS is checked on image and audio, not only video), and a step with
+no address at all is a more basic failure of "media must be playable" than the two
+cases already blocking export. It is the same failure as `E_DISPLAY_NO_TEXT`: the
+student gets a card with nothing on it. This does mean a freshly added Video step is
+invalid before its address is typed, which is intended and why the messages are written
+as guidance ("zatím nemá žádnou adresu") rather than accusation.
+
+**Ids are resolved to what the teacher sees, except where the id is the subject.**
+`naming.ts` is the one place that answers "what is this thing called": a lesson by its
+name, a card by `blockPreview` (so an authored title, then its first line, then its
+position — one rule, already shared by the tree, the heading and the branch labels), a
+step by its 1-based position, an option by its text. Validation messages and the
+validation panel's breadcrumb both go through it. The exceptions are deliberate: a
+duplicate-id message is *about* the id, and a dangling `go_to`/binding/prerequisite
+target has nothing to resolve to — those print the id and name the thing that points
+at it.
+
+**A card gets an optional `name`, and nothing is written for one that has none.**
+No block in the corpus and neither spec's block table carries a title field.
+`learning.objective` was the near-candidate and was rejected: the app renders it as the
+card's heading to students, so borrowing it would push an author's sidebar shorthand
+onto the student's screen. `name` matches what the format already calls this at course
+and lesson level. An untitled card falls back to its text and then to "Karta 3" by
+position — computed for display only, because writing a default title into every card
+would export it and go stale on the first reorder.
+
+**"Uloženo v tomto prohlížeči" was reading as "saved".** The draft is in
+`localStorage` and nowhere else, so the top bar now also says whether the work on
+screen has ever left the browser, and the state is derived by comparing the serialised
+document with the last downloaded text — type a sentence and undo it and the file on
+disk is current again.
+
+---
+
+## Feedback round 2, second pass — what a scripted teacher found afterwards
+
+Two simulated authors then drove the editor end to end: one building a lesson from
+scratch, one importing a colleague's course and revising it. Three of their findings
+were real and are fixed here; two were not, and the difference is worth recording.
+
+**Repairing a binding could bind one card into a lesson twice.** Deleting a card and
+redirecting its lesson binding to a card the lesson *already* held rewrote the id in
+place, leaving two bindings for one card: the tree showed it twice and a student walked
+it twice. Nothing downstream caught it, because §14's uniqueness check reads `blocks[]`
+and the duplicates were in `lessons[].blocks` — the course exported clean. A redirect
+onto a card already in the lesson is a *removal*, not a rename, and `applyRepairs` now
+treats it as one.
+
+**The delete dialog was the last place still speaking in ids** — „Smazat kartu
+‚L1_B2_casti‘“, „Lekce ‚L1_INTRO‘“, „Odpověď ‚c‘ v kroku ‚s2‘“, and a redirect
+menu listing raw block ids — and it was doing it while asking for the one irreversible
+decision in the editor. It goes through `naming.ts` like everything else now, and shows
+ids only in the mode allowed to see them.
+
+**A card's name ate the author's own characters, and then the whole card.** `#` and `>`
+were stripped wherever they appeared, so a card opening "Cena je > 2 Kč" was called
+"Cena je 2 Kč" — not a truncation of what the author wrote but a different claim. They
+are Markdown only at the start of a line, and are stripped only there now. The same
+function also flattened every line into the name, so a card whose text was a paragraph
+followed by a table was called "Části zlomku | Pozice | Název | Co říká | |---…". It
+takes the first non-empty line, which is what its own doc comment always claimed.
+
+**Counted nouns were not Czech.** The chips printed „1 chyb“ and the tree „1 kroků“.
+Czech takes three forms after a number — 1, 2–4, and 0 or 5+ — and `ui/plural.ts` is
+now the one place that knows them, shared by the chips, the tree, the lesson settings
+and the question-type dialog.
+
+**The `draft` chip was promising something nothing performs.** It told the author
+"Blok, který není publikovaný, se žákovi v kurzu přeskočí". `block.status` is carried
+through the format, but `block_model.dart` never parses it and the API does not filter
+on it, so no such skip happens anywhere. The chip now says what is true — the card is
+not marked finished — and leaves the consequence to whoever starts honouring the field.
+Listed below as something to reconcile rather than a behaviour to build.
+
+**Two reported findings were not defects, and checking beat believing.** "There is no
+way to set a card title" was a false negative: the control is the editable heading above
+the card, and the tester looked only in the settings dialog. "Duplicating a lesson
+shares its cards rather than copying them" and "a no-op import/export reorders keys" are
+both deliberate, recorded decisions (§5 shared blocks; canonical key order, M1 above) —
+values round-trip deep-equal, which the tester confirmed. Two of five reports from the
+first simulated author, and two of six from the second, did not survive verification;
+a report that names a symptom is a place to start looking, not a fact.
+
 ---
 
 ## Still open
@@ -495,6 +784,10 @@ Blockers and questions, in the order they will bite:
    in `lib/`; safety currently rests entirely on `PreviewPage` handing the engine inert
    callbacks. It stays as the documented pattern for a write that does not exist yet,
    which is a bet that the next author reads the README.
-11. **`PreviewLessonPlayer` keys its history by block index**, not `blockId`. The
+11. **`block.status` is authored and read by nothing.** The editor lets an author mark
+   a card draft/published and the format carries it, but neither the app nor the API
+   looks at it, so it is currently a private note. Either the app should skip a card
+   that is not published, or the field should stop being offered.
+12. **`PreviewLessonPlayer` keys its history by block index**, not `blockId`. The
    indices are clamped so a shrinking lesson cannot crash the frame, but a run whose
    cards were reordered mid-way still retraces to the wrong ones.

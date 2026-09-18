@@ -185,23 +185,53 @@ function deepSet(node: object, path: string[], value: unknown): object {
 
 // ──────────────────────────────────────── lessons ────────────────────────────────────────
 
+export const DEFAULT_LESSON_NAME = 'Nová lekce';
+
+/**
+ * "Nová lekce", then "Nová lekce 2", "Nová lekce 3" …
+ *
+ * The number comes from the names already in the course, never from
+ * `doc.lessons.length`: a course whose lessons are called "Úvod" and "Fotosyntéza"
+ * has no "Nová lekce" in it, so the next one is "Nová lekce" and not "Nová lekce 3".
+ * The point of the suffix is to tell the placeholder names apart in the sidebar —
+ * numbering the ones that are already named would be noise, and would also drift
+ * the moment a lesson is renamed or deleted.
+ *
+ * It is a suggestion, not an identity: two lessons may end up with the same name
+ * after a rename and nothing in the format minds, because a lesson is keyed by
+ * `lesson_id`.
+ */
+export function nextDefaultLessonName(doc: CourseV2, base = DEFAULT_LESSON_NAME): string {
+	const taken = new Set(doc.lessons.map((lesson) => (lesson.name ?? '').trim()));
+	if (!taken.has(base)) return base;
+	for (let n = 2; ; n++) {
+		const candidate = `${base} ${n}`;
+		if (!taken.has(candidate)) return candidate;
+	}
+}
+
+/**
+ * `name` stays optional and an explicit one still wins — the import path and the
+ * tests name lessons themselves. Only the *default* is derived.
+ */
 export function addLesson(
 	doc: CourseV2,
-	name = 'Nová lekce',
+	name?: string,
 	reserved?: Reservations
 ): CommandResult {
 	const lessonId = newLessonId(doc, reserved);
+	const lessonName = name ?? nextDefaultLessonName(doc);
 	const lesson: LessonV2 = {
 		lesson_id: lessonId,
 		version: 1,
-		name,
+		name: lessonName,
 		order: doc.lessons.length + 1,
 		blocks: []
 	};
 	return {
 		doc: { ...doc, lessons: renumberOrder([...doc.lessons, lesson]) },
 		ref: { lessonId },
-		description: `Přidána lekce „${name}“`
+		description: `Přidána lekce „${lessonName}“`
 	};
 }
 
@@ -251,8 +281,12 @@ export function reorderLessons(doc: CourseV2, orderedIds: string[]): CommandResu
 
 /** Bind an existing block into a lesson — the shared-block case (§5). */
 export function bindBlock(doc: CourseV2, lessonId: string, blockId: string, at?: number): CommandResult {
-	requireLesson(doc, lessonId);
+	const lesson = requireLesson(doc, lessonId);
 	requireBlock(doc, blockId);
+	// Repeated assignment is a no-op, preserving binding settings and undo history.
+	if (lesson.blocks.some((binding) => binding.block_id === blockId)) {
+		return { doc, ref: { lessonId, blockId }, description: 'Karta už je v této lekci' };
+	}
 	return {
 		doc: mapLesson(doc, lessonId, (lesson) => {
 			const bindings = [...lesson.blocks];
@@ -327,6 +361,15 @@ export function moveBlockToLesson(
 /**
  * Add a block and bind it into a lesson. The block type follows from the card the
  * teacher chose to add; it is never edited as a raw field (plan §5, M4).
+ *
+ * Deliberately *not* given a default `name` the way `addLesson` is. A lesson has
+ * nothing but its name in the tree, so an unnamed one is unreadable; a card has its
+ * own first line, and the only case where several cards look alike is the few
+ * seconds between adding them and typing into them. Writing "Karta 3" into the
+ * document to cover that would put a title on every card an author never asked for,
+ * would be exported, and would go stale the moment the card moved. `blockPreview`
+ * takes the card's position instead and shows it only while the card is empty —
+ * same legibility, nothing written.
  */
 export function addBlock(
 	doc: CourseV2,
@@ -718,15 +761,25 @@ export function applyRepairs(doc: CourseV2, repairs: Repair[]): CourseV2 {
 		switch (reference.kind) {
 			case 'binding': {
 				const lessonId = reference.from.lessonId!;
-				next =
-					to === undefined
-						? unbindBlock(next, lessonId, reference.value).doc
-						: mapLesson(next, lessonId, (lesson) => ({
-								...lesson,
-								blocks: lesson.blocks.map((b) =>
-									b.block_id === reference.value ? { ...b, block_id: to } : b
-								)
-							}));
+				if (to === undefined) {
+					next = unbindBlock(next, lessonId, reference.value).doc;
+					break;
+				}
+				// Redirecting a binding to a card the lesson already holds is a *removal*,
+				// not a rename. Rewriting the id in place produced two bindings for one
+				// card in one lesson: the sidebar showed the card twice, the student was
+				// taken through it twice, and nothing in §14 looks for it — the duplicate
+				// ids are in `lessons[].blocks`, not in `blocks[]`, so `checkUniqueIds`
+				// never sees them and the course still exported as valid.
+				next = mapLesson(next, lessonId, (lesson) => {
+					const alreadyBound = lesson.blocks.some((b) => b.block_id === to);
+					const blocks = alreadyBound
+						? lesson.blocks.filter((b) => b.block_id !== reference.value)
+						: lesson.blocks.map((b) =>
+								b.block_id === reference.value ? { ...b, block_id: to } : b
+							);
+					return { ...lesson, blocks: renumberOrder(blocks) };
+				});
 				break;
 			}
 			case 'go_to': {

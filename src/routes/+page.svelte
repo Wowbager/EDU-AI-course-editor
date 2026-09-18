@@ -12,7 +12,9 @@
 	 * Desktop only, targeting 1440 and degrading to 1280 — a teacher builds a lesson
 	 * at a desk, and the preview column is what makes the tool honest.
 	 */
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
+	import { DraftSession } from '$lib/state/draft-session.svelte';
+	import { DRAFT_KEY } from '$lib/state/draft';
 	import { DocStore } from '$lib/state/doc-store.svelte';
 	import { setStore } from '$lib/ui/context';
 	import Sidebar from '$lib/editor/Sidebar.svelte';
@@ -24,15 +26,27 @@
 	import CourseSettings from '$lib/editor/CourseSettings.svelte';
 	import LessonSettings from '$lib/editor/LessonSettings.svelte';
 	import CardSettings from '$lib/editor/CardSettings.svelte';
-	import { addBlock } from '$lib/domain/commands';
+	import FocusField from '$lib/ui/FocusField.svelte';
+	import { addBlock, setField } from '$lib/domain/commands';
 	import { importCourseJson, emptyCourse } from '$lib/domain/document';
 	import { looksLikeGpfTaxonomy, skillConfigFromGpfTaxonomy } from '$lib/domain/skill-config';
-	import { blockPreview } from '$lib/domain/derive';
+	import { derivedBlockName } from '$lib/domain/derive';
+	import { fieldSpec } from '$lib/ui/fields';
 	import { loadSkillConfig } from '$lib/api/client';
 	import type { ImportNote } from '$lib/domain/legacy';
 
 	const store = new DocStore();
 	setStore(store);
+	let recovery = $state<DraftSession | null>(null);
+
+	$effect(() => {
+		const session = recovery;
+		// Track all durable values; the writer reads the freshest state at flush time.
+		void JSON.stringify(store.doc);
+		void JSON.stringify(store.selection);
+		void store.mode;
+		if (session) untrack(() => session.schedule());
+	});
 
 	let sidebarCollapsed = $state(false);
 	let showValidation = $state(false);
@@ -100,6 +114,18 @@
 
 	const TYPE_LABEL = { display: 'Výklad', question: 'Otázka', exercise: 'Cvičení' } as const;
 
+	/**
+	 * The card's place in its lesson, used only to name a card that has no text yet.
+	 * It has to be the same number the tree shows, or the placeholder in the heading
+	 * and the line in the sidebar would name one card two ways.
+	 */
+	const cardPosition = $derived.by(() => {
+		if (card === undefined || lesson === undefined) return undefined;
+		const i = lesson.blocks.findIndex((b) => b.block_id === card.block_id);
+		return i < 0 ? undefined : i + 1;
+	});
+	const nameSpec = fieldSpec('block', 'name');
+
 	async function onimport(file: File) {
 		importError = null;
 		try {
@@ -121,6 +147,7 @@
 			}
 
 			const { doc: imported, report } = importCourseJson(text);
+			if (store.dirty && !window.confirm('Nahradit rozepsaný kurz načteným souborem? Nejprve si případně stáhni jeho zálohu.')) return;
 			store.load(imported);
 			store.selection = imported.lessons[0] !== undefined
 				? { lessonId: imported.lessons[0].lesson_id }
@@ -133,8 +160,12 @@
 	}
 
 	async function loadConfig() {
-		const config = await loadSkillConfig(store.doc.course_id);
-		if (config !== null) store.skillConfig = config;
+		// Both the initial seed and an import fire this without awaiting it, so two
+		// requests can be in flight at once. Without the recheck the slower answer
+		// wins, and the course is measured against another course's dimensions.
+		const courseId = store.doc.course_id;
+		const config = await loadSkillConfig(courseId);
+		if (config !== null && store.doc.course_id === courseId) store.skillConfig = config;
 	}
 
 	// A card is always open — the editor column has nothing else to show. Without
@@ -158,16 +189,55 @@
 	});
 
 	onMount(() => {
-		store.load(emptyCourse('NOVY_KURZ', 'Nový kurz'));
-		store.apply((d, r) => {
-			const withLesson = { ...d, lessons: [{ lesson_id: 'L1', version: 1, name: 'První lekce', order: 1, blocks: [] }] };
-			return addBlock(withLesson, 'L1', 'display', undefined, r);
-		});
-		store.dirty = false;
+		const session = new DraftSession(store);
+		recovery = session;
+		// Typing that landed before hydration finished already made the document
+		// dirty; seeding or restoring now would silently discard it.
+		if (!store.dirty && !session.restore()) {
+			store.load(emptyCourse('NOVY_KURZ', 'Nový kurz'));
+			store.apply((d, r) => {
+				const withLesson = { ...d, lessons: [{ lesson_id: 'L1', version: 1, name: 'První lekce', order: 1, blocks: [] }] };
+				return addBlock(withLesson, 'L1', 'display', undefined, r);
+			});
+			store.dirty = false;
+		}
 		void loadConfig();
+		const flush = () => session.flush();
+		const hidden = () => { if (document.visibilityState === 'hidden') flush(); };
+		const unload = (event: BeforeUnloadEvent) => {
+			// Force a current write, including input in this same event turn.
+			if (session.status !== 'blocked') session.schedule();
+			flush();
+			if (session.status !== 'saved') {
+				event.preventDefault();
+				event.returnValue = '';
+			}
+		};
+		const changed = (event: StorageEvent) => {
+			if (event.key === DRAFT_KEY || event.key === null) session.conflict();
+		};
+		window.addEventListener('beforeunload', unload);
+		window.addEventListener('pagehide', flush);
+		window.addEventListener('storage', changed);
+		document.addEventListener('visibilitychange', hidden);
+		// Deterministic signal for tests (and the trace viewer) that hydration,
+		// including draft restore and the initial seed, has finished. Set last,
+		// so that it cannot be observed before the thing it claims to announce:
+		// a test that types as soon as it appears must not have its first
+		// keystrokes discarded by the seed that follows.
+		document.documentElement.dataset.hydrated = 'true';
+		return () => {
+			flush();
+			session.dispose();
+			window.removeEventListener('beforeunload', unload);
+			window.removeEventListener('pagehide', flush);
+			window.removeEventListener('storage', changed);
+			document.removeEventListener('visibilitychange', hidden);
+		};
 	});
 
 	function onkeydown(event: KeyboardEvent) {
+		if (event.defaultPrevented) return;
 		const meta = event.metaKey || event.ctrlKey;
 		if (!meta) return;
 		if (event.key === 'z' && !event.shiftKey) {
@@ -183,7 +253,19 @@
 <svelte:window onkeydown={onkeydown} />
 
 <div class="shell">
-	<Topbar {doc} onvalidation={() => (showValidation = !showValidation)} {onimport} />
+	<Topbar {doc} {recovery} onvalidation={() => (showValidation = !showValidation)} {onimport} />
+	{#if recovery?.message}
+		<div class="recovery" role="status">
+			{recovery.message}
+			{#if recovery.status === 'blocked'}
+				<button type="button" onclick={() => {
+					if (confirm('Zálohovat původní koncept a ukládat místo něj tento kurz?')) recovery?.replace();
+				}}>Zálohovat původní a uložit tento kurz</button>
+			{:else if recovery.status === 'error'}
+				<button type="button" onclick={() => recovery?.flush()}>Zkusit uložit znovu</button>
+			{/if}
+		</div>
+	{/if}
 
 	{#if showValidation}
 		<ValidationPanel onclose={() => (showValidation = false)} />
@@ -242,7 +324,26 @@
 							<span>{TYPE_LABEL[card.type]}</span>
 						{/if}
 					</p>
-					<h1>{blockPreview(card)}</h1>
+					<!--
+						The card's heading is the field that names it. It was read-only text
+						derived from the first line of the card, which is why a card with a
+						paragraph of content showed up in the tree as a truncated sentence
+						with no way to shorten it. The placeholder is that derived name, so
+						an empty field still says what the card is called today and clearing
+						the field visibly returns to it — `FocusField` emits `undefined` for
+						an empty value, so clearing deletes the key rather than writing "".
+					-->
+					<h1>
+						<FocusField
+							label={nameSpec?.label ?? 'Název karty'}
+							value={card.name}
+							placeholder={derivedBlockName(card, 70, cardPosition)}
+							density="compact"
+							onchange={(v) =>
+								store.apply((d) => setField(d, { blockId: card.block_id, field: 'name' }, v))}
+						/>
+					</h1>
+					<p class="card-head-hint">{nameSpec?.hint}</p>
 				</header>
 
 				<CardEditor
@@ -337,6 +438,22 @@
 		margin: 0;
 		font: var(--type-heading-3);
 		color: var(--e-text);
+	}
+
+	/*
+	 * The heading field inherits the h1's type, so it reads as a title and not as a
+	 * form control; the negative inset cancels FocusField's own padding so the text
+	 * keeps the alignment it had when it was a plain `<h1>`.
+	 */
+	h1 :global(.field) {
+		padding-left: 0;
+		padding-right: 0;
+	}
+
+	.card-head-hint {
+		margin: 2px 0 0;
+		color: var(--e-text-faint);
+		font: var(--type-caption);
 	}
 
 	.banner {

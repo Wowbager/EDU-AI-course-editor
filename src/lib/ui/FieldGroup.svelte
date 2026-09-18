@@ -87,26 +87,34 @@
 
 <style>
 	.field-row {
+		min-width: 0;
 		display: grid;
-		grid-template-columns: 160px 1fr;
+		/* Stack within a narrow field column, not only on narrow viewports. */
+		grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
 		gap: 12px;
 		align-items: start;
 		font-size: var(--text-m);
 	}
 
 	.field-label {
+		min-width: 0;
+		overflow-wrap: anywhere;
 		padding-top: 6px;
 		color: var(--e-text-muted);
 		font-size: var(--text-s);
 	}
 
 	.control {
+		min-width: 0;
+		overflow-wrap: anywhere;
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
 	}
 
 	select {
+		min-width: 0;
+		width: 100%;
 		max-width: 320px;
 		padding: 5px 8px;
 		border: 1px solid var(--e-border);
@@ -116,16 +124,12 @@
 		color: var(--e-text);
 	}
 
-	/*
-	 * One line, with the whole sentence in `title`. Forty advanced fields each
-	 * wrapping to three lines turns the settings panel into a document.
-	 */
 	.hint {
-		overflow: hidden;
+		min-width: 0;
+		overflow-wrap: anywhere;
 		color: var(--e-text-faint);
 		font-size: var(--text-xs);
 		line-height: 1.5;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+		white-space: normal;
 	}
 </style>

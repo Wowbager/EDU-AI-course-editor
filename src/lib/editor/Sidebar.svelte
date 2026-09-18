@@ -21,6 +21,7 @@
 	import { useStore } from '$lib/ui/context';
 	import { addBlock, addLesson, reorderBindings, reorderLessons } from '$lib/domain/commands';
 	import { blockPreview, lessonDidactics, lessonTotals } from '$lib/domain/derive';
+	import { cardsCount, stepsCount } from '$lib/ui/plural';
 
 	interface Props {
 		doc: CourseV2;
@@ -113,6 +114,44 @@
 
 	const TYPE_LABEL = { display: 'Výklad', question: 'Otázka', exercise: 'Cvičení' } as const;
 
+	/**
+	 * The three card types, described by what the *student* does — because from the
+	 * author's side all three scaffold nearly identically and the names do not say
+	 * what changes. The difference is real and it is in `block_step_engine.dart`:
+	 *
+	 *  - `display` renders one step per card and only up to `_currentStepIndex`, so
+	 *    the student is shown a step at a time and taps to continue;
+	 *  - `question` and `exercise` go through `_buildExerciseCard()` — every step in
+	 *    one bubble — and `_skipToNextQuestion()` runs on mount and after every
+	 *    answer, so the cursor lands straight on the question and the text around it
+	 *    is passive context that is never a stop;
+	 *  - `exercise` additionally has `go_to` ignored (`step_navigation.dart`:
+	 *    `if (blockType == BlockType.exercise) return nextStep`).
+	 *
+	 * "Cvičení" is also the name of a whole course type in Nastavení kurzu and of the
+	 * daily practice queue, so this one says which of the three it is.
+	 */
+	const ADD_CARD = [
+		{
+			type: 'display',
+			label: 'Výklad',
+			title:
+				'Karta typu Výklad — čtení po krocích. Žák vidí jeden krok, klikne Pokračovat a teprve pak se objeví další; hotové kroky mu zůstanou nad tím. Otázka vložená dovnitř výkladu je zastávka: dokud na ni neodpoví, další krok neuvidí.'
+		},
+		{
+			type: 'question',
+			label: 'Otázka',
+			title:
+				'Karta typu Otázka — jedna bublina, ve které je žák rovnou u otázky. Text, který napíšeš před ni, čte jako zadání, ne jako samostatnou zastávku. Podle zvolené odpovědi ho umí poslat na jiný krok nebo na jinou kartu. Použij, když má odpověď rozhodnout, co bude dál.'
+		},
+		{
+			type: 'exercise',
+			label: 'Cvičení',
+			title:
+				'Karta typu Cvičení (jedna karta v lekci — ne typ celého kurzu v Nastavení kurzu ani zařazení do denního opakování). Chová se jako Otázka, ale větvení se ignoruje: žák projde úlohy vždy ve stejném pořadí. Pro drilování postupu, který už zná.'
+		}
+	] as const;
+
 	function select(lessonId: string, blockId: string) {
 		store.selection = { lessonId, blockId };
 	}
@@ -156,7 +195,7 @@
 					>
 						<span class="name">{lesson.name ?? lesson.lesson_id}</span>
 						<span class="meta">
-							{totals.blockCount} karet · {totals.durationMinutes} min · {totals.xp} XP
+							{cardsCount(totals.blockCount)} · {totals.durationMinutes} min · {totals.xp} XP
 						</span>
 						{#if errors > 0}<span class="badge">{errors}</span>{/if}
 					</button>
@@ -187,7 +226,7 @@
 							onconsider={oncardConsider}
 							onfinalize={oncardFinalize}
 						>
-							{#each cards as card (card.id)}
+							{#each cards as card, position (card.id)}
 								{@const block = doc.blocks.find((b) => b.block_id === card.binding.block_id)}
 								<li>
 									{#if block === undefined}
@@ -201,8 +240,13 @@
 											onclick={() => select(lesson.lesson_id, block.block_id)}
 										>
 											<span class="type">{TYPE_LABEL[block.type]}</span>
-											<span class="snippet">{blockPreview(block, 44)}</span>
-											<span class="steps">{block.steps.length} kroků</span>
+											<!--
+												The position is a fallback name for a card with no text
+												yet, not a number printed next to every card: three cards
+												added in a row were otherwise all "Karta bez textu" here.
+											-->
+											<span class="snippet">{blockPreview(block, 44, position + 1)}</span>
+											<span class="steps">{stepsCount(block.steps.length)}</span>
 											{#if cardErrors > 0}<span class="badge">{cardErrors}</span>{/if}
 										</button>
 									{/if}
@@ -211,10 +255,12 @@
 						</ul>
 
 						<div class="tree-add">
-							{#each [{ type: 'display', label: 'Výklad' }, { type: 'question', label: 'Otázka' }, { type: 'exercise', label: 'Cvičení' }] as const as option (option.type)}
+							<span class="add-label">Přidat kartu:</span>
+							{#each ADD_CARD as option (option.type)}
 								<Button
 									variant="secondary"
 									size="s"
+									title={option.title}
 									onclick={() => store.apply((d, r) => addBlock(d, lesson.lesson_id, option.type, undefined, r))}
 								>
 									{option.label}
@@ -227,7 +273,12 @@
 		</ul>
 
 		<div class="add">
-			<Button variant="secondary" onclick={() => store.apply((d, r) => addLesson(d, 'Nová lekce', r))}>
+			<!--
+				No name is passed: `addLesson` numbers the default against the lessons
+				already in the course ("Nová lekce", "Nová lekce 2", …). Passing the
+				literal here is what made every new lesson identical in this list.
+			-->
+			<Button variant="secondary" onclick={() => store.apply((d, r) => addLesson(d, undefined, r))}>
 				+ Nová lekce
 			</Button>
 		</div>
@@ -523,8 +574,20 @@
 	.tree-add {
 		display: flex;
 		flex-wrap: wrap;
+		align-items: center;
 		gap: 4px;
 		margin: 6px 8px 0;
+	}
+
+	/*
+	 * Three bare words — Výklad, Otázka, Cvičení — read as a filter or as the card
+	 * types already present. Saying what the buttons make is also what separates the
+	 * Cvičení *card* here from the Cvičení *course type* in course settings.
+	 */
+	.add-label {
+		width: 100%;
+		color: var(--e-text-faint);
+		font-size: var(--text-xs);
 	}
 
 	.add {

@@ -116,6 +116,119 @@ describe('the broken variant', () => {
 	});
 });
 
+describe('empty media steps (problem 1 — a silent, invisible card)', () => {
+	// A brand-new media step is `{ url: '' }` (`addStep` in commands.ts) — the same
+	// situation as an empty text step, and just as invisible to the student, so it
+	// is an error for the same reason `E_DISPLAY_NO_TEXT` is one.
+	const doc = parseCourse({
+		export_type: 'course_v2',
+		course_id: 'C_MEDIA',
+		lessons: [],
+		blocks: [
+			{
+				block_id: 'B_EMPTY_MEDIA',
+				type: 'display',
+				steps: [
+					{ id: 's1', type: 'video', video: { url: '' } },
+					{ id: 's2', type: 'audio', audio: { url: '' } },
+					{ id: 's3', type: 'image', image: { url: '' } }
+				]
+			}
+		]
+	});
+	const result = validate(doc);
+
+	it('flags a video step with no url', () => {
+		const issue = result.errors.find((e) => e.code === 'E_VIDEO_NO_URL');
+		expect(issue).toBeDefined();
+		expect(issue!.severity).toBe('error');
+		expect(issue!.message).toMatch(/kroku 1/);
+	});
+
+	it('flags an audio step with no url', () => {
+		const issue = result.errors.find((e) => e.code === 'E_AUDIO_NO_URL');
+		expect(issue).toBeDefined();
+		expect(issue!.severity).toBe('error');
+		expect(issue!.message).toMatch(/kroku 2/);
+	});
+
+	it('flags an image step with no url the same way', () => {
+		const issue = result.errors.find((e) => e.code === 'E_IMAGE_NO_URL');
+		expect(issue).toBeDefined();
+		expect(issue!.severity).toBe('error');
+	});
+
+	it('does not fire E_DISPLAY_NO_TEXT — the block does have media steps, just empty ones', () => {
+		expect(result.errors.map((e) => e.code)).not.toContain('E_DISPLAY_NO_TEXT');
+	});
+});
+
+describe('no raw id ever reaches a message (problem 2)', () => {
+	// Ids chosen so that if one leaked into a message, it could not be mistaken for
+	// anything else in the sentence — they share no characters in common with any
+	// Czech word or with the human names these blocks/steps/options resolve to.
+	const doc = parseCourse({
+		export_type: 'course_v2',
+		course_id: 'C_RAWID',
+		lessons: [
+			{ lesson_id: 'zqf9', blocks: [{ block_id: 'xk3' }] },
+			// A second lesson with the same id — E_DUPLICATE_LESSON_ID is genuinely
+			// about the id, so it is exempt below.
+			{ lesson_id: 'zqf9', blocks: [] }
+		],
+		blocks: [
+			// No text and no name at all — E_DISPLAY_NO_TEXT, named only by position.
+			{ block_id: 'xk3', type: 'display', steps: [] },
+			{
+				block_id: 'mpr7',
+				type: 'question',
+				steps: [
+					{
+						id: 's7q',
+						type: 'question',
+						question: {
+							type: 'multiple_choice',
+							options: [
+								{ id: 'op1', text: 'Ano' },
+								// A duplicate option id — W_DUPLICATE_OPTION_ID is exempt below.
+								{ id: 'op1', text: 'Ne' }
+							]
+						}
+					},
+					// A duplicate step id — E_DUPLICATE_STEP_ID is exempt below.
+					{ id: 's7q', type: 'text', content: 'Vysvětlení' }
+				]
+			}
+		]
+	});
+	const result = validate(doc);
+	const rawIds = ['zqf9', 'xk3', 'mpr7', 's7q', 'op1'];
+	const idIsTheSubject = new Set([
+		'E_DUPLICATE_LESSON_ID',
+		'E_DUPLICATE_BLOCK_ID',
+		'E_DUPLICATE_STEP_ID',
+		'W_DUPLICATE_OPTION_ID'
+	]);
+
+	it('produces a useful spread of issues to check', () => {
+		// Sanity check on the fixture itself: if these codes stopped firing the test
+		// below would pass vacuously.
+		const codes = [...result.errors, ...result.warnings].map((i) => i.code);
+		expect(codes).toEqual(
+			expect.arrayContaining(['E_DISPLAY_NO_TEXT', 'E_MC_NO_CORRECT', 'W_ORPHAN_BLOCK'])
+		);
+	});
+
+	it('never names a place by an id that looks nothing like its visible text', () => {
+		for (const issue of [...result.errors, ...result.warnings]) {
+			if (idIsTheSubject.has(issue.code)) continue;
+			for (const id of rawIds) {
+				expect(issue.message, `${issue.code}: ${issue.message}`).not.toContain(id);
+			}
+		}
+	});
+});
+
 describe('skill configuration drives the vector length', () => {
 	const doc = parseCourse(fixture('spec-16-course.json'));
 

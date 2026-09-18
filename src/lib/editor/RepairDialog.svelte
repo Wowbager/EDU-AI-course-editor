@@ -10,6 +10,8 @@
 	import Modal from '$lib/ui/Modal.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import { deleteBlock, deleteStep, planDeleteBlock, planDeleteStep, type Repair } from '$lib/domain/commands';
+	import { allows } from '$lib/ui/fields';
+	import { blockLabel, blockLabelById, capitalize, lessonLabelById, optionLabelById, stepLabelById, stepPosition } from '$lib/domain/naming';
 
 	interface Props {
 		doc: CourseV2;
@@ -19,6 +21,23 @@
 	let { doc, target, onclose }: Props = $props();
 
 	const store = useStore();
+	/**
+	 * This dialog is the last screen before a card is destroyed, so it is the last
+	 * place that may speak a language the author does not. It used to print raw ids
+	 * throughout — „Smazat kartu ‚L1_B2_casti‘“, „Lekce ‚L1_INTRO‘“, „Přesměrovat na
+	 * krok s3“ — which is the one thing plan §8 says never to do, and it did it while
+	 * asking for an irreversible decision. Every name here now comes from `naming.ts`,
+	 * the same rule the tree, the heading and the validation panel use, and the ids
+	 * come back only in the mode that is allowed to see them.
+	 */
+	const showIds = $derived(allows('block', 'block_id', store.mode));
+	const targetBlock = $derived(doc.blocks.find((b) => b.block_id === target.blockId));
+	const targetStep = $derived(
+		target.stepId === undefined ? undefined : targetBlock?.steps.find((s) => s.id === target.stepId)
+	);
+	const targetName = $derived(
+		targetBlock === undefined ? target.blockId : blockLabel(doc, targetBlock, { max: 46 })
+	);
 	const references = $derived(
 		target.stepId === undefined
 			? planDeleteBlock(doc, target.blockId)
@@ -34,25 +53,47 @@
 		...(target.stepId !== undefined
 			? [
 					{ value: 'AGAIN', label: 'Místo toho: zkusit znovu' },
-					{ value: 'END', label: 'Místo toho: ukončit blok' },
-					...(doc.blocks
-						.find((b) => b.block_id === target.blockId)
-						?.steps.filter((s) => s.id !== target.stepId)
-						.map((s) => ({ value: s.id, label: `Přesměrovat na krok ${s.id}` })) ?? [])
+					{ value: 'END', label: 'Místo toho: ukončit kartu' },
+					...(targetBlock?.steps
+						.filter((s) => s.id !== target.stepId)
+						.map((s) => ({
+							value: s.id,
+							label: `Přesměrovat na krok ${stepPosition(targetBlock, s)}${showIds ? ` (${s.id})` : ''}`
+						})) ?? [])
 				]
 			: doc.blocks
 					.filter((b) => b.block_id !== target.blockId)
-					.map((b) => ({ value: b.block_id, label: `Přesměrovat na blok ${b.block_id}` })))
+					.map((b) => ({
+						value: b.block_id,
+						label: `Přesměrovat na kartu „${blockLabel(doc, b, { max: 46 })}“${showIds ? ` (${b.block_id})` : ''}`
+					})))
 	]);
 
 	const describe = (reference: Reference): string => {
+		const { lessonId, blockId, stepId, optionId } = reference.from;
 		switch (reference.kind) {
-			case 'binding':
-				return `Lekce „${reference.from.lessonId}“ tuto kartu obsahuje`;
-			case 'go_to':
-				return `Odpověď „${reference.from.optionId}“ v kroku „${reference.from.stepId}“ sem větví`;
-			case 'prerequisite':
-				return `Blok „${reference.from.blockId}“ ji má jako předpoklad`;
+			case 'binding': {
+				const lesson = lessonId === undefined ? undefined : lessonLabelById(doc, lessonId);
+				return `Lekce „${lesson ?? lessonId}“ tuto kartu obsahuje`;
+			}
+			case 'go_to': {
+				// The branch lives in some *other* card's step, not in the one being
+				// deleted, so both ends have to be resolved against the document.
+				const from = blockId === undefined ? undefined : doc.blocks.find((b) => b.block_id === blockId);
+				const step = from === undefined || stepId === undefined ? undefined : from.steps.find((s) => s.id === stepId);
+				const option = step === undefined || optionId === undefined
+					? undefined
+					: optionLabelById(step.question, optionId, { max: 32 });
+				const where = from === undefined
+					? ''
+					: ` v kartě „${blockLabel(doc, from, { max: 32 })}“`;
+				const which = step === undefined ? '' : `, ${stepLabelById(from!, step.id)}`;
+				return `${capitalize(option ?? `odpověď „${optionId}“`)}${where}${which} sem větví`;
+			}
+			case 'prerequisite': {
+				const name = blockId === undefined ? undefined : blockLabelById(doc, blockId, { max: 46 });
+				return `Karta „${name ?? blockId}“ ji má jako předpoklad`;
+			}
 		}
 	};
 
@@ -104,8 +145,8 @@
 
 <Modal
 	title={target.stepId === undefined
-		? `Smazat kartu „${target.blockId}“`
-		: `Smazat krok „${target.stepId}“`}
+		? `Smazat kartu „${targetName}“`
+		: `Smazat krok ${targetBlock !== undefined && targetStep !== undefined ? stepPosition(targetBlock, targetStep) : ''} v kartě „${targetName}“`}
 	{onclose}
 	children={body}
 	footer={actions}

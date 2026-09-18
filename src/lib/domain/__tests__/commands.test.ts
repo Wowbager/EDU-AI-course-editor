@@ -6,6 +6,7 @@ import type { CourseV2 } from '../schema';
 import { buildIndex, isGoToKeyword } from '../index-doc';
 import {
 	addBlock,
+	addLesson,
 	addOption,
 	addStep,
 	bindBlock,
@@ -258,6 +259,50 @@ describe('setField', () => {
 		const after = setField(before, { field: 'name' }, 'Nový název').doc;
 		expect(after.name).toBe('Nový název');
 		expect(after.blocks).toBe(before.blocks);
+	});
+});
+
+describe('the default name of a new lesson', () => {
+	it('numbers itself against the lessons already in the course', () => {
+		let doc = base();
+		expect(addLesson(doc).doc.lessons.at(-1)!.name).toBe('Nová lekce');
+		doc = addLesson(doc).doc;
+		expect(addLesson(doc).doc.lessons.at(-1)!.name).toBe('Nová lekce 2');
+		doc = addLesson(doc).doc;
+		expect(addLesson(doc).doc.lessons.at(-1)!.name).toBe('Nová lekce 3');
+	});
+
+	it('counts the placeholders, not the lessons', () => {
+		// A course of named lessons has no "Nová lekce" in it, so the next one is the
+		// first — numbering from `lessons.length` would call it "Nová lekce 3".
+		const doc: CourseV2 = {
+			...base(),
+			lessons: [
+				{ lesson_id: 'A', name: 'Úvod', order: 1, blocks: [] },
+				{ lesson_id: 'B', name: 'Fotosyntéza', order: 2, blocks: [] }
+			]
+		};
+		expect(addLesson(doc).doc.lessons.at(-1)!.name).toBe('Nová lekce');
+	});
+
+	it('fills the gap a rename leaves behind', () => {
+		let doc = base();
+		doc = addLesson(doc).doc; // Nová lekce
+		doc = addLesson(doc).doc; // Nová lekce 2
+		doc = { ...doc, lessons: doc.lessons.map((l) => (l.name === 'Nová lekce' ? { ...l, name: 'Sčítání' } : l)) };
+		expect(addLesson(doc).doc.lessons.at(-1)!.name).toBe('Nová lekce');
+	});
+
+	it('still lets an explicit name win', () => {
+		let doc = addLesson(base(), 'Opakování').doc;
+		expect(doc.lessons.at(-1)!.name).toBe('Opakování');
+		doc = addLesson(doc, 'Opakování').doc;
+		expect(doc.lessons.at(-1)!.name).toBe('Opakování');
+	});
+
+	it('names the lesson the same way in the undo log', () => {
+		const doc = addLesson(base()).doc;
+		expect(addLesson(doc).description).toContain('Nová lekce 2');
 	});
 });
 
@@ -535,5 +580,69 @@ describe('knowledge vector: many topics', () => {
 		];
 		const { doc } = setTopics(base(), 'B1', topics, DIMENSIONS, naming);
 		expect(blockTopics(doc.blocks[0])).toEqual(topics);
+	});
+});
+
+describe('repairing a binding never binds one card twice', () => {
+	/**
+	 * Deleting a card that a lesson holds, and redirecting its binding to a card the
+	 * same lesson already holds, used to rewrite the id in place and leave two
+	 * bindings for one card. Nothing catches it afterwards: §14's uniqueness check
+	 * reads `blocks[]`, not `lessons[].blocks`, so the course still exported clean
+	 * while the student walked the same card twice.
+	 */
+	const twoCardLesson = (): CourseV2 =>
+		({
+			export_type: 'course_v2',
+			course_id: 'C',
+			version: 1,
+			name: 'Kurz',
+			lessons: [
+				{
+					lesson_id: 'L1',
+					version: 1,
+					name: 'Lekce',
+					order: 1,
+					blocks: [
+						{ block_id: 'A', order: 1 },
+						{ block_id: 'B', order: 2 }
+					]
+				}
+			],
+			blocks: [
+				{ export_type: 'block_v2', block_id: 'A', version: 1, type: 'display', steps: [{ id: 's1', type: 'text', order: 1, content: 'Ano' }] },
+				{ export_type: 'block_v2', block_id: 'B', version: 1, type: 'display', steps: [{ id: 's1', type: 'text', order: 1, content: 'Ne' }] }
+			]
+		}) as CourseV2;
+
+	it('drops the binding instead of duplicating the card it points at', () => {
+		const doc = twoCardLesson();
+		const repairs = planDeleteBlock(doc, 'B').map((reference) => ({
+			reference,
+			action: 'redirect' as const,
+			to: 'A'
+		}));
+		const next = deleteBlock(doc, 'B', repairs).doc;
+		const bound = next.lessons[0].blocks.map((b) => b.block_id);
+		expect(bound).toEqual(['A']);
+		expect(next.lessons[0].blocks[0].order).toBe(1);
+	});
+
+	it('still renames the binding when the target is not already in the lesson', () => {
+		const doc = twoCardLesson();
+		doc.blocks.push({
+			export_type: 'block_v2',
+			block_id: 'C',
+			version: 1,
+			type: 'display',
+			steps: [{ id: 's1', type: 'text', order: 1, content: 'Třetí' }]
+		} as never);
+		const repairs = planDeleteBlock(doc, 'B').map((reference) => ({
+			reference,
+			action: 'redirect' as const,
+			to: 'C'
+		}));
+		const next = deleteBlock(doc, 'B', repairs).doc;
+		expect(next.lessons[0].blocks.map((b) => b.block_id)).toEqual(['A', 'C']);
 	});
 });

@@ -21,6 +21,7 @@
 	import { fieldsFor, allows } from '$lib/ui/fields';
 	import { deleteLesson, duplicateLesson, setField } from '$lib/domain/commands';
 	import { lessonDidactics, lessonTotals } from '$lib/domain/derive';
+	import { cardsCount } from '$lib/ui/plural';
 
 	interface Props {
 		doc: CourseV2;
@@ -56,7 +57,7 @@
 			<section>
 				<h3>Co v lekci je</h3>
 				<div class="chips">
-					<Chip tone="quiet">{totals.blockCount} karet</Chip>
+					<Chip tone="quiet">{cardsCount(totals.blockCount)}</Chip>
 					<Chip tone={totals.durationPartial ? 'warning' : 'quiet'}>
 						{totals.durationMinutes} min{totals.durationEstimated ? ' (odhad)' : ''}
 					</Chip>

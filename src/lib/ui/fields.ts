@@ -92,8 +92,12 @@ export const FIELDS: readonly FieldSpec[] = [
 	{ level: 'course', path: 'ai_context', mode: 'metodik', kind: 'multiline', label: 'Kontext pro AI',
 		hint: 'Didaktické poznámky pro doučující AI. Zatím je tutor nečte.' },
 
+	// "Cvičení" names two different things in the tool — this one, which is a whole
+	// course, and a card type inside a lesson. The hint says which, because a teacher
+	// who has just added a Cvičení *card* has no reason to guess that the same word
+	// in course settings changes every lesson at once.
 	{ level: 'course', path: 'export_type', mode: 'teacher', kind: 'custom', label: 'Typ kurzu',
-		hint: 'Cvičení vypne větvení v celém kurzu; kvíz navíc skryje nápovědy a řešení.', custom: true },
+		hint: 'Platí pro celý kurz, ne pro jednu kartu: Cvičení vypne větvení ve všech lekcích, Test navíc skryje nápovědy a řešení.', custom: true },
 	{ level: 'course', path: 'status', mode: 'teacher', kind: 'custom', label: 'Stav',
 		hint: 'Žák uvidí jen kurz ve stavu Publikováno.', custom: true },
 	{ level: 'course', path: 'version', mode: 'advanced', kind: 'number', label: 'Verze',
@@ -152,6 +156,12 @@ export const FIELDS: readonly FieldSpec[] = [
 		hint: 'Musí být nízkokontrastní, jinak se text přestane dát číst.' },
 
 	// ── Block ─────────────────────────────────────────────────────────────────
+	// `custom` because the control is the card's own heading in the editor column,
+	// not a row in the settings modal: the complaint it answers is about scanning the
+	// sidebar, and a title a teacher has to open a dialog to reach is a title nobody
+	// sets. `FieldGroup` must therefore not render a second copy of it.
+	{ level: 'block', path: 'name', mode: 'teacher', kind: 'custom', label: 'Název karty',
+		hint: 'Jak se karta jmenuje ve stromu vlevo. Prázdné pole vezme první řádek textu karty.', custom: true },
 	{ level: 'block', path: 'duration', mode: 'teacher', kind: 'text', label: 'Délka',
 		hint: 'Například 3 min. Počítá se z toho čas lekce i tempo v opakování.' },
 	{ level: 'block', path: 'hint', mode: 'teacher', kind: 'multiline', label: 'Nápověda ke kartě',

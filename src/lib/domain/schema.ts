@@ -122,6 +122,24 @@ export const adaptationSchema = z.looseObject({
 export const blockSchema = z.looseObject({
 	export_type: z.literal('block_v2').optional(),
 	block_id: z.string(),
+	/**
+	 * The card's own title, when the author gives it one. Optional, and absent by
+	 * default — `blockPreview` falls back to the first line of the card's text, which
+	 * is what every existing document relies on.
+	 *
+	 * Neither spec's block table carries a title, and no block in the corpus does
+	 * either (`_comment`, `author` and `duration` are the only editorial strings that
+	 * turn up). The app has no block title of its own: `ContentBlock.displayTitle`
+	 * looks for `steps[].content.title` — a shape V2 steps never produce — then for
+	 * `learning.objective`, which is undocumented in both specs, means "learning
+	 * objective" rather than "short label", and would put the author's sidebar
+	 * shorthand on the student's screen as the card heading. So `name` is a new key,
+	 * chosen to match what the format already calls this at the other two levels:
+	 * `course.name` and `lesson.name` are both "title" in the spec, and a reader of
+	 * the exported JSON meets the same word at all three. The app ignores unknown
+	 * block keys, so it is inert for the student until the app chooses to read it.
+	 */
+	name: z.string().optional(),
 	type: z.enum(BLOCK_TYPES),
 	status: z.enum(STATUSES).optional(),
 	version: z.number().int().optional(),
@@ -226,7 +244,9 @@ export const KEY_ORDER = {
 	],
 	binding: ['block_id', 'order', 'bg_color', 'bg_image', 'default_practice'],
 	block: [
-		'export_type', 'block_id', 'version', 'language', 'author', 'updated', 'status', 'type',
+		// `name` sits where `lesson.name` sits — after the id and the version — so the
+		// three levels of the document read the same way in a diff.
+		'export_type', 'block_id', 'version', 'name', 'language', 'author', 'updated', 'status', 'type',
 		'duration', 'xp', 'default_practice', 'hint', 'help', 'gpf', 'learning', 'fsrs',
 		'adaptation', 'steps'
 	],

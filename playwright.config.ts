@@ -8,6 +8,11 @@ export default defineConfig({
 	testDir: 'e2e',
 	timeout: 30_000,
 	fullyParallel: true,
+	// Every page in this suite boots the Flutter/CanvasKit player, so a worker costs
+	// far more than a typical DOM test. Left at the default (half the cores) the suite
+	// saturates the machine and fails a different test on each run; capped it is
+	// deterministic, and no slower in wall-clock because the box was already the limit.
+	workers: 4,
 	use: {
 		baseURL: 'http://localhost:5178',
 		viewport: { width: 1440, height: 900 },
