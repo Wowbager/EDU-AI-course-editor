@@ -1,0 +1,12 @@
+# The build context is now this directory (see Dockerfile), so what used to be
+# excluded by sitting one level up has to be excluded here instead. `COPY . ./`
+# in the editor stage would otherwise ship a host-built `node_modules` into a
+# Linux image and invalidate the npm-install layer on every source change.
+node_modules
+build
+.svelte-kit
+test-results
+playwright-report
+.git
+.env
+.env.*

@@ -623,7 +623,7 @@ but not in Vyzkoušet" turned out to be "images never render in the *player*, in
 mode". What the tester was seeing in "Náhled" was the editor column's own `<img>`,
 which loads the authored URL directly and works; the Flutter player put every image
 through `resolveImageUrl`, i.e. the Laravel proxy at `/api/proxy/image`, which was
-answering 502 for every URL. Both preview modes were equally broken, and every image
+answering 502 for the host in question. Both preview modes were equally broken, and every image
 in the student's app with them. Four scripted reproductions of the literal report all
 *passed* before the real cause showed up in a network trace — worth remembering the
 next time a report names two states and one of them is the developer's own preview.
@@ -632,7 +632,13 @@ next time a report names two states and one of them is the developer's own previ
 to dodge CORS in CanvasKit, which is a real problem for the hosts that block
 cross-origin reads — but most public image hosts send `access-control-allow-origin: *`,
 so routing every image through one service made that service a single point of failure
-for content it was not needed for. `NetworkImageWithFallback` tries the authored URL,
+for content it was not needed for.
+
+The proxy is not uniformly broken, and the first version of this note said it was.
+Measured directly: it returns a correct PNG for `placehold.co`, and **502** for
+`picsum.photos` and `upload.wikimedia.org` — hosts that redirect, or that refuse the
+API server's own requests. That is worse than a clean outage, because it works often
+enough to look fine and then fails on exactly the kind of URL a teacher reaches for. `NetworkImageWithFallback` tries the authored URL,
 and only an `errorBuilder` promotes the request to the proxied one. On native there is
 no CORS and no second attempt. `isSvg` moved to the raw URL in the same change: the
 proxied URL is `…/proxy/image?url=<encoded>`, which never ends in `.svg`, so every

@@ -1,6 +1,8 @@
-import { existsSync, createReadStream, statSync } from 'node:fs';
+import { existsSync, createReadStream, readFileSync, statSync } from 'node:fs';
 import { extname, join, normalize, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Plugin } from 'vite';
+import { injectPlayerShim } from './scripts/inject-player-shim.mjs';
 
 /**
  * Serves the Flutter web build at `/player/` during development.
@@ -34,6 +36,11 @@ const TYPES: Record<string, string> = {
 	'.bin': 'application/octet-stream',
 	'.map': 'application/json; charset=utf-8'
 };
+
+// The same shim the production build injects (via `scripts/inject-player-shim.mjs`
+// in the Dockerfile), read once here so dev and prod cannot drift — see that
+// script's doc comment for why `/api/proxy/image` requests need rewriting at all.
+const SHIM_PATH = fileURLToPath(new URL('./src/lib/preview/player-shim.js', import.meta.url));
 
 export function playerPlugin(playerRoot: string): Plugin {
 	const root = resolve(playerRoot);
@@ -69,6 +76,27 @@ export function playerPlugin(playerRoot: string): Plugin {
 				response.setHeader('Content-Type', TYPES[extname(file)] ?? 'application/octet-stream');
 				// Same-origin embedding only, matching the production headers.
 				response.setHeader('Content-Security-Policy', "frame-ancestors 'self'");
+
+				if (extname(file) === '.html') {
+					// Every HTML response is the player's index (there is only one), and it
+					// has to carry the same preview-image shim the Docker build injects —
+					// same module, so the two cannot drift (see inject-player-shim.mjs).
+					// Read and patched in memory rather than streamed, since it's a few KB.
+					try {
+						const html = readFileSync(file, 'utf-8');
+						const shimSource = readFileSync(SHIM_PATH, 'utf-8');
+						response.end(injectPlayerShim(html, shimSource));
+					} catch (error) {
+						// Fail loudly rather than silently serving an unpatched player: that
+						// would look fine and quietly still call the unreliable image proxy.
+						const message = error instanceof Error ? error.message : String(error);
+						server.config.logger.error(`[player] failed to inject preview-image shim: ${message}`);
+						response.statusCode = 500;
+						response.end(`player shim injection failed: ${message}`);
+					}
+					return;
+				}
+
 				createReadStream(file).pipe(response);
 			});
 		}

@@ -5,16 +5,32 @@
 # never drift from the player a student actually runs — which is the one thing that
 # would make the preview a liar.
 #
-# The build context is the workspace root, which holds both repositories:
+# The build context is this directory, so a clone of the editor alone is enough:
 #
-#     docker build -f editor/Dockerfile -t edu-editor .
+#     docker build -t edu-editor .
 
 # ── Stage 1: the player ────────────────────────────────────────────────────
 FROM ghcr.io/cirruslabs/flutter:stable AS player
 
 WORKDIR /app
-# The app repository, checked out alongside the editor in the build context.
-COPY EDU-AI-asistent-APP/ ./
+# The player is cloned, at a pinned commit, rather than copied from a sibling
+# directory in the build context.
+#
+# It used to be `COPY EDU-AI-asistent-APP/ ./`, which meant the image could only be
+# built on a machine that happened to have the app checked out next to the editor —
+# and, worse, with the *right* checkout: `lib/preview/` (the preview channel, page,
+# expanded card view and lesson player — everything this editor's preview column
+# talks to) exists in no published branch of `edu-ai-00/EDU-AI-asistent-APP`. A clean
+# clone of the editor could not build an image at all, and nothing said so.
+#
+# PLAYER_REF is a commit, not a branch, on purpose: the preview is this editor's
+# claim about what a student will see, so which player it was built against has to be
+# a fact recorded in this file rather than whatever the fork's default branch held
+# that morning. Bump it deliberately when the player changes.
+ARG PLAYER_REPO=https://github.com/Wowbager/EDU-AI-asistent-APP.git
+ARG PLAYER_REF=22b37cb5fe9a25685cd80e1429d5300ef36656de
+RUN git clone --no-checkout --filter=blob:none "${PLAYER_REPO}" . \
+    && git checkout --detach "${PLAYER_REF}"
 
 ARG API_URL=https://app-api.edu-ai.eu
 RUN flutter pub get
@@ -25,9 +41,9 @@ RUN flutter build web --release --base-href /player/ \
 FROM node:22-alpine AS editor
 
 WORKDIR /app
-COPY editor/package*.json ./
+COPY package*.json ./
 RUN npm ci
-COPY editor/ ./
+COPY . ./
 RUN npm run build && npm prune --omit=dev
 
 # ── Stage 3: what actually runs ────────────────────────────────────────────
@@ -41,8 +57,19 @@ COPY --from=editor /app/node_modules ./node_modules
 COPY --from=editor /app/package.json ./
 COPY --from=player /app/build/web /usr/share/nginx/player
 
-COPY editor/nginx.conf /etc/nginx/templates/default.conf.template
-COPY editor/docker-entrypoint.sh /usr/local/bin/
+# The player's compiled JS builds the Laravel image-proxy URL itself, at request
+# time, so the fix for that proxy's unreliability (see routes/preview-image) can only
+# be applied by intercepting the request inside the player's own page — hence
+# splicing a shim into its index.html here, the same way `vite-plugin-player.ts` does
+# for `npm run dev`, via the one script both share. `nginx.conf` then just serves the
+# resulting file; no `sub_filter` or other on-the-fly rewriting involved.
+COPY scripts/inject-player-shim.mjs /tmp/inject-player-shim.mjs
+COPY src/lib/preview/player-shim.js /tmp/player-shim.js
+RUN node /tmp/inject-player-shim.mjs /usr/share/nginx/player/index.html /tmp/player-shim.js \
+    && rm /tmp/inject-player-shim.mjs /tmp/player-shim.js
+
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 ENV PORT=8080

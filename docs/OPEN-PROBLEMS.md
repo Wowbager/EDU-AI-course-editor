@@ -14,6 +14,37 @@ reproduced is marked as such rather than quietly promoted to a fact.
 
 ---
 
+## Fixes that live in the app repository and cannot ship from here
+
+The player is `edu-ai-00/EDU-AI-asistent-APP`, which this project cannot push to. Two
+round-2 fixes were written there before that was clear. What happened to each:
+
+### A. Images — moved into the editor
+The player routes every image through the Laravel proxy, which 502s for hosts that
+redirect or that refuse the API server (`picsum.photos`, `upload.wikimedia.org`;
+`placehold.co` works, which is why the failure looks random). The editor serves the
+player's bytes, so the fix lives here instead: a same-origin `/preview-image` endpoint
+that fetches the image server-side — where CORS does not apply — and falls back to the
+Laravel proxy, plus a shim injected into the player's `index.html` that redirects the
+player's own proxy requests to it. **The editor no longer needs a patched player for
+images.**
+
+### B. Click-to-edit hit target — still app-side, not shipped
+In "Náhled", clicking a step jumps the editor to the field behind it, but the hit
+target is only whatever the leaf widget paints, so a short line of text is a sliver of
+the card and the padding around it is dead space. The fix is four lines in the app
+(`preview_expanded_block.dart`, `preview_mode.dart`: wrap the card body in an opaque,
+outline-less `PreviewTarget`) and there is **no editor-side equivalent** — the click
+happens inside a Flutter canvas the editor cannot see into, and nothing in the preview
+protocol reports where a step is drawn.
+
+It needs to be a PR against the app. Until then the tester's finding stands as reported.
+If it is never going to be accepted upstream, the alternative is a protocol change —
+the player reporting step rectangles so the editor can put its own hit layer over the
+iframe — which is more machinery than the problem deserves.
+
+---
+
 ## Defects
 
 ### 1. An empty lesson is invisible to validation and lies about its length

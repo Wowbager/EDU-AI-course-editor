@@ -16,15 +16,42 @@ Then open http://localhost:5173.
 ### The preview
 
 The preview column is the **real player from the app**, not a lookalike, so it needs
-the Flutter web build of `../EDU-AI-asistent-APP` served on this origin. The dev
-server does that at `/player/` once the build exists:
+the Flutter web build served on this origin.
+
+The player lives in a fork: <https://github.com/Wowbager/EDU-AI-asistent-APP>. The
+preview half of it — `lib/preview/`, the channel the editor talks to — is not in
+`edu-ai-00/EDU-AI-asistent-APP`, so the fork is where the editor's player actually
+comes from. `Dockerfile` pins the exact commit it builds against (`PLAYER_REF`);
+bump that deliberately when the player changes, so the preview's claim about what a
+student sees stays a fact recorded in this repository.
+
+For development, check the fork out anywhere and point the dev server at its build:
 
 ```bash
-cd ../EDU-AI-asistent-APP
-flutter build web --release --base-href /player/
+git clone https://github.com/Wowbager/EDU-AI-asistent-APP.git
+cd EDU-AI-asistent-APP && flutter build web --release --base-href /player/
+cd ../editor && PLAYER_BUILD=../EDU-AI-asistent-APP/build/web npm run dev
 ```
 
-Without it the editor runs fine and the preview column says what is missing.
+`PLAYER_BUILD` defaults to `../EDU-AI-asistent-APP/build/web`, so a checkout beside
+the editor needs no variable at all. Without any build the editor runs fine and the
+preview column says what is missing.
+
+Images in the preview do **not** go through the app's `/api/proxy/image`: the editor
+serves the player's page and splices in `src/lib/preview/player-shim.js`, which
+redirects those requests to the editor's own `/preview-image`. That endpoint fetches
+the image server-side, where there is no CORS to fight, and falls back to the Laravel
+proxy. The app's proxy 502s for hosts that redirect or that refuse its requests —
+Wikimedia among them — which is why a pasted image URL used to come back broken.
+
+### Building the image
+
+```bash
+docker build -t edu-editor .
+```
+
+The context is this directory; the player is cloned and built from the pinned commit,
+so nothing has to be checked out beside it.
 
 Two modes, and they are different things rather than two spellings of one:
 

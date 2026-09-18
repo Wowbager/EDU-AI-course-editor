@@ -14,7 +14,10 @@ export default defineConfig({
 	},
 	test: {
 		environment: 'node',
-		include: ['src/**/*.test.ts'],
+		// `scripts/` holds `inject-player-shim.mjs`, shared by the dev player-serving
+		// plugin and the production Docker build — tested here rather than only in
+		// `src` because both callers live outside `src` too.
+		include: ['src/**/*.test.ts', 'scripts/**/*.test.ts'],
 		globals: false
 	}
 });
