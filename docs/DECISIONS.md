@@ -748,7 +748,9 @@ a report that names a symptom is a place to start looking, not a fact.
 
 ## Still open
 
-Blockers and questions, in the order they will bite:
+Blockers and questions, in the order they will bite. Defects a teacher can hit today
+are listed separately in `docs/OPEN-PROBLEMS.md`, with what has and has not been
+reproduced.
 
 1. **RVP → GPF mapping table (M6)** — the GPF taxonomy is now wired (below), but the
    mapping from a *RVP outcome* to competencies and a starting vector is a different
