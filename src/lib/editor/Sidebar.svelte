@@ -42,6 +42,7 @@
         BookOpenText,
         MessageCircleQuestionMark,
         Dumbbell,
+        Plus,
     } from "@lucide/svelte";
 
     interface Props {
@@ -181,16 +182,19 @@
             type: "display",
             label: "Výklad",
             title: "Karta typu Výklad — čtení po krocích. Žák vidí jeden krok, klikne Pokračovat a teprve pak se objeví další; hotové kroky mu zůstanou nad tím. Otázka vložená dovnitř výkladu je zastávka: dokud na ni neodpoví, další krok neuvidí.",
+            icon: BookOpenText,
         },
         {
             type: "question",
             label: "Otázka",
             title: "Karta typu Otázka — jedna bublina, ve které je žák rovnou u otázky. Text, který napíšeš před ni, čte jako zadání, ne jako samostatnou zastávku. Podle zvolené odpovědi ho umí poslat na jiný krok nebo na jinou kartu. Použij, když má odpověď rozhodnout, co bude dál.",
+            icon: MessageCircleQuestionMark,
         },
         {
             type: "exercise",
             label: "Cvičení",
             title: "Karta typu Cvičení (jedna karta v lekci — ne typ celého kurzu v Nastavení kurzu ani zařazení do denního opakování). Chová se jako Otázka, ale větvení se ignoruje: žák projde úlohy vždy ve stejném pořadí. Pro drilování postupu, který už zná.",
+            icon: Dumbbell,
         },
     ] as const;
 
@@ -356,6 +360,8 @@
                                                 r,
                                             ),
                                         )}>
+                                    {@const Icon = option.icon}
+                                    <Icon size={16}></Icon>
                                     {option.label}
                                 </Button>
                             {/each}
@@ -375,7 +381,7 @@
                 variant="secondary"
                 onclick={() =>
                     store.apply((d, r) => addLesson(d, undefined, r))}>
-                + Nová lekce
+                <Plus size={16}></Plus> Nová lekce
             </Button>
         </div>
 
@@ -444,6 +450,9 @@
         border-right: 1px solid var(--e-border);
         background: var(--surface);
         overflow-y: auto;
+        transition:
+            width 0.5s,
+            padding 0.5s;
     }
 
     .sidebar.collapsed {

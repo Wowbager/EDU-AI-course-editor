@@ -18,6 +18,7 @@
             aria-checked={option.value === value}
             class:selected={option.value === value}
             title={option.title}
+            data-label={option.label}
             onclick={() => onchange(option.value)}>
             <span>
                 {option.label}
@@ -39,7 +40,6 @@
         max-width: 100%;
         flex-wrap: wrap;
         gap: 3px;
-        border-radius: var(--radius-s);
     }
 
     .wrap button {
@@ -59,6 +59,8 @@
         font-weight: var(--weight-medium);
         cursor: pointer;
         position: relative;
+        flex: 1 1 auto;
+        text-align: center;
     }
 
     button::before {
@@ -69,9 +71,15 @@
         white-space: nowrap;
     }
 
+    span {
+        position: absolute;
+        left: 14px;
+        text-align: center;
+        width: calc(100% - 28px);
+    }
+
     button:hover {
         color: var(--e-text);
-        font-weight: var(--weight-bold);
     }
 
     .selected {
