@@ -212,8 +212,7 @@
         type="button"
         class="rail-toggle"
         onclick={ontoggle}
-        title={collapsed ? "Rozbalit" : "Sbalit"}
-    >
+        title={collapsed ? "Rozbalit" : "Sbalit"}>
         {#if collapsed}
             <ChevronRight size={16}></ChevronRight>
         {:else}
@@ -233,8 +232,7 @@
         <ul
             use:dndzone={{ items, flipDurationMs: 150, dropTargetStyle: {} }}
             {onconsider}
-            {onfinalize}
-        >
+            {onfinalize}>
             {#each items as item (item.id)}
                 {@const lesson = item.lesson}
                 {@const totals = lessonTotals(lesson, store.index)}
@@ -246,25 +244,22 @@
                         type="button"
                         class="lesson"
                         class:selected={open}
-                        onclick={() => selectLesson(lesson.lesson_id)}
-                    >
+                        onclick={() => selectLesson(lesson.lesson_id)}>
                         <span class="name"
-                            >{lesson.name ?? lesson.lesson_id}</span
-                        >
+                            >{lesson.name ?? lesson.lesson_id}</span>
                         <span class="meta">
                             {cardsCount(totals.blockCount)} · {totals.durationMinutes}
                             min · {totals.xp} XP
                         </span>
-                        {#if errors > 0}<span class="badge">{errors}</span>{/if}
                     </button>
                     <div class="row-actions" class:pinned={open}>
+                        {#if errors > 0}<Chip tone="error">{errors}</Chip>{/if}
                         <button
                             type="button"
                             title="Nastavení lekce"
                             aria-label={`Nastavení lekce ${lesson.name ?? lesson.lesson_id}`}
                             onclick={() => onlessonSettings(lesson.lesson_id)}
-                            class="icon-button"
-                        >
+                            class="icon-button">
                             <Settings size={16}></Settings>
                         </button>
                     </div>
@@ -273,8 +268,7 @@
                         {#if didactics.wrongOptionFeedbackShare < 0.5 && totals.blockCount > 0}
                             <p
                                 class="nudge"
-                                title="Podíl chybných odpovědí, které žákovi řeknou, kde udělal chybu"
-                            >
+                                title="Podíl chybných odpovědí, které žákovi řeknou, kde udělal chybu">
                                 Zpětná vazba jen u {Math.round(
                                     didactics.wrongOptionFeedbackShare * 100,
                                 )} % chybných odpovědí
@@ -290,8 +284,7 @@
                                 type: "bindings",
                             }}
                             onconsider={oncardConsider}
-                            onfinalize={oncardFinalize}
-                        >
+                            onfinalize={oncardFinalize}>
                             {#each cards as card, position (card.id)}
                                 {@const block = doc.blocks.find(
                                     (b) => b.block_id === card.binding.block_id,
@@ -301,8 +294,7 @@
                                         <span
                                             class="missing"
                                             title={card.binding.block_id}
-                                            >Chybějící karta</span
-                                        >
+                                            >Chybějící karta</span>
                                     {:else}
                                         {@const cardErrors = errorsOn(
                                             block.block_id,
@@ -317,8 +309,7 @@
                                                 select(
                                                     lesson.lesson_id,
                                                     block.block_id,
-                                                )}
-                                        >
+                                                )}>
                                             <span class="type">
                                                 <Icon size={16}></Icon>
                                             </span>
@@ -327,22 +318,21 @@
 												yet, not a number printed next to every card: three cards
 												added in a row were otherwise all "Karta bez textu" here.
 											-->
-                                            <span class="snippet"
-                                                >{blockPreview(
+                                            <span class="snippet">
+                                                {blockPreview(
                                                     block,
                                                     44,
                                                     position + 1,
-                                                )}</span
-                                            >
+                                                )}
+                                            </span>
                                             <span class="steps"
                                                 >{stepsCount(
                                                     block.steps.length,
-                                                )}</span
-                                            >
-                                            {#if cardErrors > 0}<span
-                                                    class="badge"
-                                                    >{cardErrors}</span
-                                                >{/if}
+                                                )}</span>
+                                            {#if cardErrors > 0}
+                                                <Chip tone="error"
+                                                    >{cardErrors}</Chip>
+                                            {/if}
                                         </button>
                                     {/if}
                                 </li>
@@ -365,8 +355,7 @@
                                                 undefined,
                                                 r,
                                             ),
-                                        )}
-                                >
+                                        )}>
                                     {option.label}
                                 </Button>
                             {/each}
@@ -385,8 +374,7 @@
             <Button
                 variant="secondary"
                 onclick={() =>
-                    store.apply((d, r) => addLesson(d, undefined, r))}
-            >
+                    store.apply((d, r) => addLesson(d, undefined, r))}>
                 + Nová lekce
             </Button>
         </div>
@@ -401,14 +389,12 @@
                             type="button"
                             class="tree-card"
                             class:selected={block.block_id === selectedBlock}
-                            onclick={() => selectOrphan(block.block_id)}
-                        >
+                            onclick={() => selectOrphan(block.block_id)}>
                             <span class="type">
                                 <Icon size={16}></Icon>
                             </span>
                             <span class="snippet"
-                                >{blockPreview(block, 44)}</span
-                            >
+                                >{blockPreview(block, 44)}</span>
                             <span class="steps">žák se k ní nedostane</span>
                         </button>
                     </li>
@@ -424,8 +410,7 @@
                         class="rail-item"
                         class:selected={lesson.lesson_id === selectedLesson}
                         title={lesson.name ?? lesson.lesson_id}
-                        onclick={() => selectLesson(lesson.lesson_id)}
-                    >
+                        onclick={() => selectLesson(lesson.lesson_id)}>
                         {i + 1}
                     </button>
                 </li>
@@ -436,14 +421,12 @@
     {#if !collapsed}
         <footer>
             <Chip tone="quiet" title="Součet přes celý kurz"
-                >{store.totals.durationMinutes} min</Chip
-            >
+                >{store.totals.durationMinutes} min</Chip>
             <Chip
                 tone="quiet"
                 title={doc.max_xp
                     ? `Strop kurzu je ${doc.max_xp} XP`
-                    : "Bez stropu"}
-            >
+                    : "Bez stropu"}>
                 {store.totals.cappedXp} XP
             </Chip>
         </footer>
