@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { playerBuilt } from './player-build';
 
 /**
  * The player loads step/solution images through the Laravel API's
@@ -16,9 +17,6 @@ import { existsSync, readFileSync } from 'node:fs';
  * request is sent, so it holds even if the (deliberately unresolvable) test image
  * URL never loads.
  */
-const playerBuilt = existsSync(
-	new URL('../../EDU-AI-asistent-APP/build/web/index.html', import.meta.url)
-);
 
 const TEST_IMAGE_URL = 'https://example.com/preview-image-proxy-test.png';
 

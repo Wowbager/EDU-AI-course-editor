@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { playerBuilt } from './player-build';
 
 /**
  * The preview is the real player in an iframe, so this suite needs the Flutter web
@@ -14,9 +15,6 @@ import { existsSync, readFileSync } from 'node:fs';
  * ref that produced it — which also proves the right block is on screen — and that
  * an edit reaches the player without reloading it.
  */
-const playerBuilt = existsSync(
-	new URL('../../EDU-AI-asistent-APP/build/web/index.html', import.meta.url)
-);
 
 /** Record every message the player posts up to the editor. */
 async function watchMessages(page: Page) {
