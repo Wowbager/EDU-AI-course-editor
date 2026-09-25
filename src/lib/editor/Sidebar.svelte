@@ -133,8 +133,10 @@
         );
     }
 
+    // Counted from what may be shown, like every inline marker — a card nobody has
+    // left yet is being written, not broken. The top bar and export review count all.
     const errorsIn = (lessonId: string) =>
-        store.validation.errors.filter(
+        store.shown.errors.filter(
             (issue) =>
                 issue.ref.lessonId === lessonId ||
                 (issue.ref.blockId !== undefined &&
@@ -144,7 +146,7 @@
         ).length;
 
     const errorsOn = (blockId: string) =>
-        store.validation.errors.filter((issue) => issue.ref.blockId === blockId)
+        store.shown.errors.filter((issue) => issue.ref.blockId === blockId)
             .length;
 
     const orphans = $derived(

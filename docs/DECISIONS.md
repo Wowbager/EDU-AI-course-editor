@@ -752,6 +752,53 @@ a report that names a symptom is a place to start looking, not a fact.
 
 ---
 
+## Round 3 — when a problem is worth saying out loud
+
+The icon pass (Libertas, Sep 20–24) moved validation messages from lists at the bottom
+of a card, step or answer to the field each one is about. That was the right direction
+and it exposed the real problem: the editor said everything the moment it became true.
+A new card is, by definition, full of errors — no text, no correct answer — and
+painting those red while the teacher is still typing tells them nothing they do not
+know. The decision was to change *when* an issue shows, and to leave `validate()`,
+its severities and invariant 5 exactly where they were.
+
+**Each code has a timing** (`ui/issue-visibility.ts`). *Immediate* for a contradiction
+the author just caused — a YouTube link in the video field, a branch to a deleted step,
+a duplicate id. *On leave* for unfinished content: silent until the author has blurred
+that field or moved to another card, at which point it is plainly something skipped.
+*Review* for advice: never inline while writing. A unit test reads the codes out of
+`validate.ts`, so a new check cannot ship without someone deciding which it is, and no
+error may be review-only.
+
+**Leaving is tracked in the store, not in components.** The `selection` setter marks
+the previous card as touched when the selected `blockId` changes — selection also moves
+on every edit, so "changed ref" would have meant "touched on the first keystroke" —
+and `FocusField` marks its own ref on blur. `issuesAt()` and the sidebar counts read
+the filtered `shown`; the validation panel and the export review read `validation`,
+which is always everything. An empty text step now carries the card-level
+`E_DISPLAY_NO_TEXT`, because that is where it is fixed.
+
+**Export is where everything is said.** „Stáhnout“ is never disabled. A clean course
+downloads; otherwise it opens a review grouped by card (`domain/issue-groups.ts`), each
+row with „Přejít“. With errors the dialog has no download in it, and `download()`
+refuses on its own as a backstop; with warnings only it offers „Stáhnout i tak“.
+Having seen the review sets `reviewing`, after which every issue shows inline and the
+top-bar count turns red — before that it is a grey "N k dokončení". This dialog is
+where per-row AI repair will attach.
+
+**An imported or restored course is not "untouched".** Its problems were not made in
+this session, so the on-leave rule would hide all of them. Rather than mark everything
+touched and turn the screen red, one banner says "V kurzu je ještě N věcí k dokončení ·
+Zobrazit", which opens the review.
+
+Also fixed from the icon pass: a global `transition: all` was animating
+`grid-template-columns` and misaligning the answer table; `$inspect` left in
+`FocusField`; the XP explanation commented out (it is the XP chip's tooltip now);
+lost accessible names on the validation chip, answer toggle and delete buttons; a
+second status-label list that disagreed with the settings field.
+
+---
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

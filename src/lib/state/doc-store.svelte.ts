@@ -18,6 +18,8 @@ import { emptyCourse, serialise } from "$lib/domain/document";
 import type { SkillConfig } from "$lib/domain/skill-config";
 import type { CommandResult } from "$lib/domain/commands";
 import type { Mode } from "$lib/ui/fields";
+import { fieldKey, isVisible } from "$lib/ui/issue-visibility";
+import type { Issue } from "$lib/domain/validate";
 
 export interface UndoEntry {
     description: string;
@@ -35,7 +37,32 @@ export class DocStore {
     doc = $state<CourseV2>(emptyCourse("NEW", "Nový kurz"));
     skillConfig = $state<SkillConfig | null>(null);
     mode = $state<Mode>("teacher");
-    selection = $state<Ref | null>(null);
+    #selection = $state<Ref | null>(null);
+
+    /**
+     * What is selected. Setting it is also how the store learns a card was left:
+     * moving to another card marks the previous one as touched, which is when its
+     * unfinished content may start showing as such (`ui/issue-visibility.ts`).
+     * Selection moves on every edit too, so "left" means the card changed, not the ref.
+     */
+    get selection(): Ref | null {
+        return this.#selection;
+    }
+    set selection(ref: Ref | null) {
+        const left = this.#selection?.blockId;
+        if (left !== undefined && left !== ref?.blockId) this.touchCard(left);
+        this.#selection = ref;
+    }
+
+    /** Cards the author has left and fields they have blurred, this session. */
+    touchedCards = $state<ReadonlySet<string>>(new Set());
+    touchedFields = $state<ReadonlySet<string>>(new Set());
+
+    /**
+     * Set once the author has asked to export and been shown what is left. From
+     * then on every issue shows inline: they are fixing now, not writing.
+     */
+    reviewing = $state(false);
 
     /**
      * Bumped when the selection came from somewhere the author was not looking — a
@@ -100,7 +127,37 @@ export class DocStore {
         this.selection = null;
         this.dirty = false;
         this.lastPublished = options.published ?? null;
+        this.touchedCards = new Set();
+        this.touchedFields = new Set();
+        this.reviewing = false;
     }
+
+    touchCard(blockId: string) {
+        if (this.touchedCards.has(blockId)) return;
+        this.touchedCards = new Set([...this.touchedCards, blockId]);
+    }
+
+    touchField(ref: Ref) {
+        const key = fieldKey(ref);
+        if (this.touchedFields.has(key)) return;
+        this.touchedFields = new Set([...this.touchedFields, key]);
+    }
+
+    #shown = (issue: Issue) =>
+        isVisible(
+            issue,
+            { cards: this.touchedCards, fields: this.touchedFields },
+            this.reviewing,
+        );
+
+    /**
+     * The issues that may be on screen right now. Inline markers read this; the
+     * export review and the validation panel read `validation`, which is all of them.
+     */
+    shown = $derived({
+        errors: this.validation.errors.filter(this.#shown),
+        warnings: this.validation.warnings.filter(this.#shown),
+    });
 
     /**
      * Run a command and record it. The command is given the document and the current
@@ -204,7 +261,7 @@ export class DocStore {
         this.reveal++;
     }
 
-    /** Validation issues addressed at a given place — what the inline markers show. */
+    /** Shown issues addressed at a given place — what the inline markers show. */
     issuesAt(ref: Ref) {
         const matches = (issue: { ref: Ref }) => {
             let matrix = [0, 0, 0, 0, 0];
@@ -223,8 +280,8 @@ export class DocStore {
         };
 
         return {
-            errors: this.validation.errors.filter(matches),
-            warnings: this.validation.warnings.filter(matches),
+            errors: this.shown.errors.filter(matches),
+            warnings: this.shown.warnings.filter(matches),
         };
     }
 

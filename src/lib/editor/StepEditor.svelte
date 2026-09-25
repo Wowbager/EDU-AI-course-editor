@@ -64,6 +64,17 @@
     const issues = $derived(
         store.issuesAt({ blockId: block?.block_id, stepId: step?.id }),
     );
+    /**
+     * "This card has no text" is addressed to the card, but the place to fix it is an
+     * empty text step — so that is where it shows, once the card has been left.
+     */
+    const missingText = $derived(
+        step?.type === "text" && (step.content ?? "").trim() === ""
+            ? store
+                  .issuesAt({ blockId: block?.block_id })
+                  .errors.find((issue) => issue.code === "E_DISPLAY_NO_TEXT")
+            : undefined,
+    );
 
     /** Reads a dotted path off the step, for the generic renderer. */
     function read(path: string): unknown {
@@ -459,12 +470,16 @@
         {#if step.type === "text"}
             <div
                 class="markdown"
+                class:invalid={missingText !== undefined}
                 use:markdownEditor={{
                     value: step.content ?? "",
                     placeholder: "Text kroku. Markdown a $LaTeX$ fungují.",
                     onchange: (v) => set("content", v === "" ? undefined : v),
                 }}>
             </div>
+            {#if missingText}
+                <p class="missing-text">{missingText.message}</p>
+            {/if}
         {:else if step.type === "image"}
             <div class="media">
                 <FocusField
@@ -777,6 +792,17 @@
         border-radius: var(--radius-s);
         padding: 2px 10px;
         background: var(--info-bg);
+    }
+
+    .markdown.invalid {
+        box-shadow: inset 2px 0 0 var(--e-error);
+    }
+
+    .missing-text {
+        margin: 4px 0 0;
+        padding-left: 8px;
+        color: var(--e-error);
+        font-size: var(--text-xs);
     }
 
     .markdown:focus-within {

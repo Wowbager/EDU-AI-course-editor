@@ -192,6 +192,50 @@ test('a course with errors cannot be exported, one with warnings can', async ({ 
 	await expect(advice).toBeHidden();
 });
 
+test('unfinished content stays quiet until the card is left, and the review shows the rest', async ({ page }) => {
+	// A fresh course is one empty text card — unfinished, not wrong. Nothing on it is red.
+	const check = page.locator('.topbar .chip-button');
+	await expect(check).toContainText('k dokončení');
+	await expect(page.locator('.missing-text')).toHaveCount(0);
+	await expect(page.locator('.tree-card .chip.error')).toHaveCount(0);
+
+	// Moving to a new card leaves the first one; now its empty text is plainly skipped.
+	await page.locator('.tree-add').getByRole('button', { name: 'Otázka', exact: true }).click();
+	await expect(page.locator('.tree-card').first().locator('.chip.error')).toBeVisible();
+	// The new question card, still being written, stays quiet.
+	await expect(page.locator('.tree-card').nth(1).locator('.chip.error')).toHaveCount(0);
+
+	await page.locator('.tree-card').first().click();
+	await expect(page.locator('.missing-text')).toBeVisible();
+
+	// On a card still being written, a field says so once it is left — not while
+	// it is being typed into.
+	await page.locator('.tree-add').getByRole('button', { name: 'Otázka', exact: true }).click();
+	const answer = page.locator('.answers').getByRole('textbox', { name: 'Text odpovědi' }).first();
+	await answer.click();
+	await expect(answer).not.toHaveAttribute('aria-invalid', 'true');
+	await page.locator('.answers').getByRole('textbox', { name: 'Zpětná vazba k této odpovědi' }).first().click();
+	await expect(answer).toHaveAttribute('aria-invalid', 'true');
+
+	// Asking to export turns the author from writing to fixing: the count goes red.
+	await page.getByRole('button', { name: 'Stáhnout', exact: true }).click();
+	await expect(page.getByRole('dialog', { name: 'Než kurz stáhneš' })).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(check).not.toContainText('k dokončení');
+	await expect(check.locator('.chip.error')).toBeVisible();
+});
+
+test('an imported course with problems says so once, calmly', async ({ page }) => {
+	await importCourse(page, 'spec-16-course-broken.json');
+	const banner = page.locator('.banner.unfinished');
+	await expect(banner).toContainText('k dokončení');
+	await banner.getByRole('button', { name: 'Zobrazit' }).click();
+	await expect(page.getByRole('dialog', { name: 'Než kurz stáhneš' })).toBeVisible();
+	await page.keyboard.press('Escape');
+	// Seen: the banner has done its job.
+	await expect(banner).toHaveCount(0);
+});
+
 test('deleting a branched step asks where its branches should go', async ({ page }) => {
 	await importCourse(page, 'spec-16-course.json');
 

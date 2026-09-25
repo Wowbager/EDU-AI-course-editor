@@ -38,6 +38,7 @@
     import { loadSkillConfig } from "$lib/api/client";
     import type { ImportNote } from "$lib/domain/legacy";
     import { X } from "@lucide/svelte";
+    import { counted } from "$lib/ui/plural";
 
     const store = new DocStore();
     setStore(store);
@@ -58,6 +59,15 @@
         null,
     );
     let importNotes = $state<ImportNote[]>([]);
+    let reviewOpen = $state(false);
+
+    /**
+     * Set when the document on screen was not written in this session — a file
+     * that was imported, a draft restored from the browser. Nothing in it has been
+     * "touched", so its unfinished parts would stay quiet (`ui/issue-visibility.ts`);
+     * one calm line says there is something left, instead of painting it all red.
+     */
+    let inherited = $state(false);
     let importError = $state<string | null>(null);
 
     /**
@@ -176,6 +186,7 @@
             )
                 return;
             store.load(imported);
+            inherited = true;
             store.selection =
                 imported.lessons[0] !== undefined
                     ? { lessonId: imported.lessons[0].lesson_id }
@@ -230,7 +241,9 @@
         recovery = session;
         // Typing that landed before hydration finished already made the document
         // dirty; seeding or restoring now would silently discard it.
-        if (!store.dirty && !session.restore()) {
+        const restored = !store.dirty && session.restore();
+        if (restored) inherited = true;
+        if (!store.dirty && !restored) {
             store.load(emptyCourse("NOVY_KURZ", "Nový kurz"));
             store.apply((d, r) => {
                 const withLesson = {
@@ -308,7 +321,8 @@
         {doc}
         {recovery}
         onvalidation={() => (showValidation = !showValidation)}
-        {onimport} />
+        {onimport}
+        bind:reviewOpen />
     {#if recovery?.message}
         <div class="recovery" role="status">
             <p>
@@ -362,6 +376,25 @@
                     {importError}
                     <button type="button" onclick={() => (importError = null)}
                         >×</button>
+                </div>
+            {/if}
+
+            {#if inherited && !store.reviewing && store.validation.errors.length > 0}
+                <div class="banner unfinished" role="status">
+                    V kurzu je ještě {counted(
+                        store.validation.errors.length,
+                        "věc",
+                        "věci",
+                        "věcí",
+                    )} k dokončení.
+                    <button
+                        type="button"
+                        class="show"
+                        onclick={() => (reviewOpen = true)}>Zobrazit</button>
+                    <button
+                        type="button"
+                        aria-label="Skrýt oznámení"
+                        onclick={() => (inherited = false)}>×</button>
                 </div>
             {/if}
 
@@ -568,6 +601,21 @@
         background: var(--hint-bg);
         color: var(--e-text);
         font: var(--type-body-small);
+    }
+
+    .banner.unfinished {
+        background: var(--surface);
+        border: 1px solid var(--e-border);
+    }
+
+    .banner button.show {
+        position: static;
+        margin-left: 6px;
+        padding: 0;
+        color: var(--primary);
+        font: inherit;
+        font-weight: var(--weight-semibold);
+        text-decoration: underline;
     }
 
     .banner.error {

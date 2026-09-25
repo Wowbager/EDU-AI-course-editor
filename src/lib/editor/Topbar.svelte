@@ -19,13 +19,20 @@
         recovery: DraftSession | null;
         onvalidation: () => void;
         onimport: (file: File) => void;
+        /** The export review; bindable so the page can open it from its own banner. */
+        reviewOpen?: boolean;
     }
-    let { doc, recovery, onvalidation, onimport }: Props = $props();
+    let {
+        doc,
+        recovery,
+        onvalidation,
+        onimport,
+        reviewOpen = $bindable(false),
+    }: Props = $props();
 
     const store = useStore();
     let fileInput = $state<HTMLInputElement | null>(null);
     let explainStorage = $state(false);
-    let reviewExport = $state(false);
 
     /**
      * The exact JSON handed to the browser by the last „Stáhnout JSON“.
@@ -69,8 +76,14 @@
     function requestDownload() {
         const { errors, warnings } = store.validation;
         if (errors.length === 0 && warnings.length === 0) download();
-        else reviewExport = true;
+        else reviewOpen = true;
     }
+
+    // Having seen the review, the author is fixing rather than writing: every issue
+    // may now show where it is (`ui/issue-visibility.ts`).
+    $effect(() => {
+        if (reviewOpen) store.reviewing = true;
+    });
 
     /** The chip shows a bare number; the accessible name has to say what it counts. */
     const checkLabel = $derived(
@@ -125,8 +138,19 @@
         onclick={onvalidation}
         aria-label={checkLabel}
         title={checkLabel}>
-        {#if store.validation.errors.length > 0}
+        <!--
+            Quiet while the course is being written: an unfinished draft is not an
+            emergency. It turns red once the author has asked to export and seen
+            what is left, which is when the count starts to mean "still to fix".
+        -->
+        {#if store.validation.errors.length > 0 && !store.reviewing}
+            <Chip tone="quiet"
+                >{store.validation.errors.length} k dokončení</Chip>
+        {:else if store.validation.errors.length > 0}
             <Chip tone="error">{store.validation.errors.length}</Chip>
+        {:else if store.validation.warnings.length > 0 && !store.reviewing}
+            <Chip tone="quiet"
+                >{store.validation.warnings.length} doporučení</Chip>
         {:else if store.validation.warnings.length > 0}
             <Chip tone="warning">{store.validation.warnings.length}</Chip>
         {:else}
@@ -182,8 +206,8 @@
     </Button>
 </header>
 
-{#if reviewExport}
-    <ExportDialog ondownload={download} onclose={() => (reviewExport = false)} />
+{#if reviewOpen}
+    <ExportDialog ondownload={download} onclose={() => (reviewOpen = false)} />
 {/if}
 
 {#if explainStorage}

@@ -48,7 +48,6 @@
 
     import { untrack } from "svelte";
     import { useStore } from "./context";
-    import Chip from "./Chip.svelte";
     import type { Ref } from "$lib/domain/ref";
 
     const store = useStore();
@@ -103,6 +102,8 @@
         store.endEdit();
         editing = false;
         baseline = draft;
+        // Leaving a field is what lets its "not filled in yet" show as a problem.
+        if (ref) store.touchField(ref);
         onblur?.();
     }
 
@@ -135,6 +136,7 @@
     let issues = $derived(
         ref ? store.issuesAt(ref) : { errors: [], warnings: [] },
     );
+    const flagged = $derived(invalid || issues.errors.length > 0);
 </script>
 
 <div>
@@ -143,11 +145,11 @@
             bind:this={element}
             value={draft}
             aria-label={label}
-            aria-invalid={invalid || undefined}
+            aria-invalid={flagged || undefined}
             placeholder={emptyText ?? (placeholder || label)}
             class="field"
             class:mono={monospace}
-            class:invalid
+            class:invalid={flagged}
             {disabled}
             rows={Math.min(14, Math.max(3, draft.split("\n").length + 1))}
             oninput={input}
@@ -158,11 +160,11 @@
         <input
             value={draft}
             aria-label={label}
-            aria-invalid={invalid || undefined}
+            aria-invalid={flagged || undefined}
             placeholder={emptyText ?? (placeholder || label)}
             class="field"
             class:mono={monospace}
-            class:invalid
+            class:invalid={flagged}
             class:compact={density === "compact"}
             {disabled}
             oninput={input}
@@ -171,11 +173,12 @@
             {onkeydown} />
     {/if}
 
-    {#each issues.errors as error}
-        <Chip tone="error">{error.message}</Chip>
+    <!-- A line under the field, not a badge: it explains the outline, it is not an alarm. -->
+    {#each issues.errors as error (error.code)}
+        <p class="note error">{error.message}</p>
     {/each}
-    {#each issues.warnings as warning}
-        <Chip tone="warning">{warning.message}</Chip>
+    {#each issues.warnings as warning (warning.code)}
+        <p class="note warning">{warning.message}</p>
     {/each}
 </div>
 
@@ -224,6 +227,18 @@
         border-color: var(--e-focus-ring);
         outline: 2px solid var(--primary);
         outline-offset: 0;
+    }
+    .note {
+        margin: 0;
+        padding-left: 8px;
+        font-size: var(--text-xs);
+        line-height: 1.45;
+    }
+    .note.error {
+        color: var(--e-error);
+    }
+    .note.warning {
+        color: var(--e-warning);
     }
     .field.invalid {
         box-shadow: inset 2px 0 0 var(--e-error);
