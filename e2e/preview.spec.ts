@@ -140,25 +140,25 @@ test.describe('live preview', () => {
 
 	test('the question mark in Náhled goes to the text behind it', async ({ page }) => {
 		// Náhled draws the card's own buttons now, and the "?" is the first front door
-		// to `hint` and `help` — fields that are otherwise only reachable by scrolling
-		// to the bottom of the card. A card-level hint is reported without a `stepId`,
-		// because it belongs to the card, so the card editor is what has to answer.
+		// to `hint` and `help`. A card-level hint is reported without a `stepId`,
+		// because it belongs to the card, and the card-wide ladder lives in the card's
+		// settings — so the answer is that dialog opening.
 		await page.locator('.tree-card').nth(2).click();
 		await page.waitForTimeout(2500);
 
-		const targeted = page.locator('main .field-row.targeted');
-		await expect(targeted).toHaveCount(0);
+		const dialog = page.getByRole('dialog');
+		await expect(dialog).toHaveCount(0);
 
 		// The bubble sits under the first card's text, and where exactly depends on how
 		// that text wrapped — so probe along it rather than trusting a pixel.
 		const frame = (await page.locator('iframe').boundingBox())!;
-		for (let y = 150; y <= 280 && (await targeted.count()) === 0; y += 10) {
+		for (let y = 150; y <= 280 && (await dialog.count()) === 0; y += 10) {
 			await page.mouse.click(frame.x + 180, frame.y + y);
 			await page.waitForTimeout(250);
 		}
 
-		await expect(targeted).toHaveCount(1);
-		await expect(targeted).toContainText('Nápověda');
+		await expect(dialog).toBeVisible();
+		await expect(dialog).toContainText('Nápověda ke kartě');
 	});
 
 	test('the expanded view never names another card by its id in teacher mode', async ({ page }) => {

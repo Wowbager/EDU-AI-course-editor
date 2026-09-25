@@ -292,6 +292,12 @@ tool said so. Both moved to teacher mode, which took the teacher's field count f
 to 30 — and `fields.test.ts`'s bound was 30 exactly, so it moved to 32 in the same
 commit rather than failing a suite that has nothing to do with it.
 
+**The card-wide ladder then moved into card settings.** `block.hint` and `block.help`
+are only the fallback the app uses when a step has none of its own, and as a section
+under the last step they read as one more step. They are still teacher-mode fields,
+now in the first section of `CardSettings`. The preview's "?" and validation jumps
+that name them open that dialog. The steps' own ladders stay in the column.
+
 **Nothing looked editable.** `FocusField` drew `border: 1px solid transparent;
 background: none` until hover, which is the honest cause of "I can't tell what is a
 field and what is a caption". A field at rest now carries a faint tint and a writing

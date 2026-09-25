@@ -84,7 +84,11 @@ test('teacher mode hides nothing behind a disclosure', async ({ page }) => {
 	await expect(page.locator('main .disclosure')).toHaveCount(0);
 	await expect(page.locator('.step').first()).toContainText('Nápověda');
 	await expect(page.locator('.step').first()).toContainText('Podrobná pomoc');
-	await expect(page.locator('.card')).toContainText('Nápověda ke kartě');
+	// The card-wide ladder is a fallback, so it sits in the card's settings.
+	await expect(page.locator('.card')).not.toContainText('Nápověda ke kartě');
+	await page.getByRole('button', { name: 'Nastavení karty' }).click();
+	await expect(page.getByRole('dialog')).toContainText('Nápověda ke kartě');
+	await expect(page.getByRole('dialog')).toContainText('Podrobná pomoc');
 });
 
 test('the settings panels are real dialogs', async ({ page }) => {

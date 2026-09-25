@@ -1,6 +1,6 @@
 <script lang="ts">
     /**
-     * One card: a block, its steps, and the two texts the app's question mark reads.
+     * One card: a block and its steps.
      *
      * The editor column holds exactly one of these — the card selected in the tree —
      * so everything here is open. There is nothing to expand and no summary line,
@@ -8,9 +8,9 @@
      *
      * What is *not* here is the card's configuration: length, practice enrolment, the
      * knowledge vector, the machinery. That is one click away in `CardSettings`. The
-     * line between them is what the student experiences: steps, hint and help are
-     * read by a pupil, so they are content and they stay visible; the rest describes
-     * the card to the platform.
+     * card-wide hint and help are there too: they are only the fallback for steps
+     * that have none of their own, so the steps' ladders stay here and the card's
+     * sits with the rest of its settings.
      */
     import { dndzone, type DndEvent } from "svelte-dnd-action";
     import type {
@@ -55,7 +55,7 @@
         Trash,
     } from "@lucide/svelte";
     import { STEP_TYPES } from "$lib/lang";
-    import { fieldSpec, STATUS_OPTIONS } from "$lib/ui/fields";
+    import { STATUS_OPTIONS } from "$lib/ui/fields";
 
     interface Props {
         doc: CourseV2;
@@ -165,19 +165,13 @@
                 ? "Další úloha v téže bublině. Po odpovědi žák pokračuje rovnou na ni; větvení se v kartě typu Cvičení ignoruje, pořadí je vždy stejné."
                 : "Další otázka v téže bublině. Po odpovědi žák pokračuje rovnou na ni, nebo tam, kam ho pošle větvení u zvolené možnosti.";
 
-    const hintSpec = fieldSpec("block", "hint");
-    const helpSpec = fieldSpec("block", "help");
-
     /**
-     * Bring the card's own hint or help into view when something outside the editor
-     * points at it — the question mark in the preview, or a validation jump.
-     *
-     * A card-level hint is addressed without a `stepId` (it belongs to the card, not
-     * to any one step), so `StepEditor`'s reveal never matches it. Without this the
-     * "?" in the preview reported the right field and the screen did nothing, which
-     * reads exactly like a dead button.
+     * Open the card's settings when something outside the editor points at the
+     * card's own hint or help — the question mark in the preview, or a validation
+     * jump. Those two fields live in `CardSettings` now, and a card-level ref has no
+     * `stepId`, so `StepEditor`'s reveal never matches it; without this the "?"
+     * would report the right field and the screen would do nothing.
      */
-    let ladder = $state<HTMLElement | null>(null);
     const revealedField = $derived(
         store.selection?.blockId === block?.block_id &&
             store.selection?.stepId === undefined
@@ -185,15 +179,9 @@
             : undefined,
     );
     $effect(() => {
-        // The reveal counter, not the selection: typing also moves the selection, and
-        // scrolling on every keystroke would be unusable.
+        // The reveal counter, not the selection: typing also moves the selection.
         void store.reveal;
-        if (
-            ladder !== null &&
-            (revealedField === "hint" || revealedField === "help")
-        ) {
-            ladder.scrollIntoView({ block: "center", behavior: "smooth" });
-        }
+        if (revealedField === "hint" || revealedField === "help") onsettings();
     });
 
     // svelte-dnd-action needs an `id` on each item; steps already have one.
@@ -451,42 +439,6 @@
         {/each}
     </div>
 
-    <!--
-		The card-wide help ladder: used when a step has none of its own. Inline for the
-		same reason the step's is — the app escalates to it, and a course whose help
-		button leads nowhere is a course with a broken button.
-	-->
-    <div class="help-ladder" bind:this={ladder}>
-        <h4>Nápověda pro celou kartu</h4>
-        <div class="field-row" class:targeted={revealedField === "hint"}>
-            <span class="field-label"
-                >{hintSpec?.label ?? "Nápověda ke kartě"}</span>
-            <div class="control">
-                <FocusField
-                    label={hintSpec?.label ?? "Nápověda ke kartě"}
-                    value={block.hint}
-                    multiline
-                    emptyText="nevyplněno"
-                    ref={{ blockId: block.block_id, field: "hint" }}
-                    onchange={(v) => set("hint", v)} />
-                <span class="hint">{hintSpec?.hint}</span>
-            </div>
-        </div>
-        <div class="field-row" class:targeted={revealedField === "help"}>
-            <span class="field-label"
-                >{helpSpec?.label ?? "Podrobná pomoc"}</span>
-            <div class="control">
-                <FocusField
-                    label={helpSpec?.label ?? "Podrobná pomoc"}
-                    value={block.help}
-                    multiline
-                    emptyText="nevyplněno"
-                    ref={{ blockId: block.block_id, field: "help" }}
-                    onchange={(v) => set("help", v)} />
-                <span class="hint">{helpSpec?.hint}</span>
-            </div>
-        </div>
-    </div>
 </Card>
 
 {#if showLessonPicker}
@@ -588,58 +540,4 @@
         color: var(--e-text-faint);
         font-size: var(--text-xs);
     }
-
-    .help-ladder {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        margin-top: 18px;
-        padding-top: 14px;
-        border-top: 1px solid var(--e-border);
-    }
-
-    h4 {
-        margin: 0;
-        color: var(--e-text-muted);
-        font-family: var(--font-heading);
-        font-size: var(--text-s);
-    }
-
-    .field-row {
-        display: grid;
-        grid-template-columns: 160px 1fr;
-        gap: 12px;
-        align-items: start;
-        font-size: var(--text-m);
-    }
-
-    .field-row.targeted {
-        margin: -6px -10px;
-        padding: 6px 10px;
-        border-radius: var(--radius-s);
-        box-shadow: 0 0 0 2px var(--primary);
-    }
-
-    .field-label {
-        padding-top: 6px;
-        color: var(--e-text-muted);
-        font-size: var(--text-s);
-    }
-
-    .control {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-    }
-
-    .hint {
-        overflow: hidden;
-        color: var(--e-text-faint);
-        font-size: var(--text-xs);
-        line-height: 1.5;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-
 </style>

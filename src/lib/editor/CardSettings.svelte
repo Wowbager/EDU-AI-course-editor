@@ -3,10 +3,12 @@
 	 * Everything about a card that the student does not read.
 	 *
 	 * The split is deliberate and it is the whole reason this file exists. A card's
-	 * *content* — its steps, its hint, its detailed help — stays in the editor
+	 * *content* — its steps, with their own hint and help — stays in the editor
 	 * column, always visible, because that is what the author came to write. Its
 	 * *configuration* — how long it takes, whether it joins daily practice, what it
-	 * trains, the machinery underneath — lives here, one click away.
+	 * trains, the machinery underneath — lives here, one click away. So does the
+	 * card-wide hint and help: the app only falls back to them when a step has none,
+	 * and at the bottom of the column they read as a stray extra step.
 	 *
 	 * Which settings exist is still decided by the mode, from `$lib/ui/fields.ts`, so
 	 * this panel renders that table rather than keeping a second opinion about it.
@@ -36,12 +38,14 @@
 	const store = useStore();
 	const mode = $derived(store.mode);
 
-	/** Content, edited in the card itself. Never duplicated here. */
-	const INLINE = ['hint', 'help'];
+	/** The card-wide help ladder, drawn as its own section. */
+	const LADDER = ['hint', 'help'];
 
 	const didactics = $derived(allows('block', 'default_practice', mode));
 	const machinery = $derived(allows('block', 'xp', mode));
-	const blockFields = $derived(fieldsFor('block', mode).filter((f) => !INLINE.includes(f.path)));
+	const allBlockFields = $derived(fieldsFor('block', mode));
+	const ladderFields = $derived(allBlockFields.filter((f) => LADDER.includes(f.path)));
+	const blockFields = $derived(allBlockFields.filter((f) => !LADDER.includes(f.path)));
 	const teacherFields = $derived(blockFields.filter((f) => f.mode === 'teacher'));
 	const metodikFields = $derived(blockFields.filter((f) => f.mode === 'metodik'));
 	const advancedFields = $derived(blockFields.filter((f) => f.mode === 'advanced'));
@@ -65,6 +69,12 @@
 {#snippet body()}
 	<div class="section">
 		<FieldGroup fields={teacherFields} {read} write={set} />
+	</div>
+
+	<div class="section">
+		<h3>Nápověda pro celou kartu</h3>
+		<p class="note">Použije se u kroků, které nemají nápovědu vlastní.</p>
+		<FieldGroup fields={ladderFields} {read} write={set} />
 	</div>
 
 	{#if didactics}
@@ -117,6 +127,12 @@
 		color: var(--e-text-muted);
 		font-family: var(--font-heading);
 		font-size: var(--text-s);
+	}
+
+	.note {
+		margin: -6px 0 0;
+		color: var(--e-text-faint);
+		font-size: var(--text-xs);
 	}
 
 	.row {
