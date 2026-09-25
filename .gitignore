@@ -25,3 +25,12 @@ vite.config.ts.timestamp-*
 # Playwright
 /test-results
 /playwright-report
+
+# One package manager: npm (package-lock.json). Other lockfiles are never committed.
+bun.lock
+bun.lockb
+yarn.lock
+pnpm-lock.yaml
+
+# Per-machine agent settings
+.claude/settings.local.json
