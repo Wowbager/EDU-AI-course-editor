@@ -1,7 +1,7 @@
 # Decisions taken
 
 Per plan §5, each milestone ends with a short written record of what was decided and
-why. Read this with `PLAN.md` and `docs/COURSE-AUTHORING-SPEC.md`.
+why. Read this with `docs/spec/PLAN.md` and `docs/spec/COURSE-AUTHORING-SPEC.md`.
 
 ---
 

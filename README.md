@@ -1,8 +1,8 @@
 # EDU-AI — editor kurzu
 
 A teacher-facing editor whose only output is a valid `CourseV2` JSON document, as
-defined by `../docs/COURSE-AUTHORING-SPEC.md`. See `PLAN.md` for the brief and
-`DECISIONS.md` for what was decided and what is still open.
+defined by `docs/spec/COURSE-AUTHORING-SPEC.md`. See `docs/spec/PLAN.md` for the brief and
+`docs/DECISIONS.md` for what was decided and what is still open.
 
 ## Running it
 
@@ -79,6 +79,9 @@ by dropping the admin's export onto **Načíst**.
 
 ## Tests
 
+Agents: read `AGENTS.md` first, especially the git routine and which checks count.
+
+
 ```bash
 npm test         # domain: the invariants live here
 npm run test:e2e # the flows of plan §7, in a real browser
@@ -136,9 +139,6 @@ makes "pokročilý shows everything else" a tested property rather than an inten
 
 `Dockerfile` builds both halves and serves them on one origin — the editor from
 `adapter-node`, the Flutter player under `/player/` — because the preview is an
-iframe that has to talk to the page around it. Build from the workspace root, which
-holds both repositories:
-
-```bash
-docker build -f editor/Dockerfile -t edu-editor .
-```
+iframe that has to talk to the page around it. The player is cloned at the pinned
+`PLAYER_REF`, so the build context is this directory alone (see "Building the image"
+above).
