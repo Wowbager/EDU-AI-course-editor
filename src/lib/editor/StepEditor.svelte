@@ -845,15 +845,7 @@
         font-size: var(--text-s);
     }
 
-    .issue {
-        margin: 10px 0 0;
-        color: var(--e-error);
-        font-size: var(--text-xs);
-    }
 
-    .issue.warning {
-        color: var(--e-warning);
-    }
 
     .field-hint {
         margin: 0;

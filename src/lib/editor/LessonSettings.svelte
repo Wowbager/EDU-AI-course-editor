@@ -122,7 +122,8 @@
         onclick={() => {
             store.apply((d, r) => duplicateLesson(d, lessonId, r));
             onclose();
-        }}>
+        }}
+        ariaLabel="Duplikovat lekci">
         <Copy size={16}></Copy>
         Duplikovat
     </Button>
@@ -131,7 +132,8 @@
         onclick={() => {
             store.apply((d) => deleteLesson(d, lessonId));
             onclose();
-        }}>
+        }}
+        ariaLabel="Smazat lekci">
         <Trash size={16}></Trash>
         Smazat
     </Button>

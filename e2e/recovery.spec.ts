@@ -18,7 +18,8 @@ test('unblurred feedback survives reload even when export is blocked', async ({ 
 	const feedback = page.getByRole('textbox', { name: 'Zpětná vazba k této odpovědi' }).first();
 	await feedback.fill('Nezapomeň porovnat jmenovatele.\nDruhý řádek.');
 	await expect(feedback).toBeFocused();
-	await expect(page.getByRole('button', { name: 'Stáhnout JSON' })).toBeDisabled();
+	// Checked without touching the page: clicking anything would blur the field.
+	await expect(page.getByRole('button', { name: /^Kontrola kurzu: .*chyb/ })).toBeVisible();
 	await expect(page.locator(".save-state")).toHaveText('Uloženo jen v tomto prohlížeči');
 	await page.reload();
 	await expect(feedback).toHaveValue('Nezapomeň porovnat jmenovatele.\nDruhý řádek.');
@@ -100,7 +101,7 @@ test('another tab pauses writes instead of silently replacing its draft', async 
  * to say whether the work on screen has ever left the browser.
  */
 test('the top bar says whether the work has ever left the browser', async ({ page }) => {
-	await expect(page.locator('.save-status .backup')).toHaveText('· bez zálohy v souboru');
+	await expect(page.locator('.save-status .backup')).toHaveText('Bez zálohy v souboru');
 
 	await page.locator('.save-status').click();
 	const dialog = page.getByRole('dialog');
@@ -113,13 +114,15 @@ test('the top bar says whether the work has ever left the browser', async ({ pag
 	await page.locator('.cm-content').first().click();
 	await page.locator('.cm-content').first().fill('Zlomek popisuje část celku.');
 	const download = page.waitForEvent('download');
-	await page.getByRole('button', { name: 'Stáhnout JSON' }).click();
+	await page.getByRole('button', { name: 'Stáhnout', exact: true }).click();
+	const anyway = page.getByRole('button', { name: 'Stáhnout i tak' });
+	if (await anyway.isVisible()) await anyway.click();
 	await download;
 
-	await expect(page.locator('.save-status .backup')).toHaveText('· stáhnuto do souboru');
+	await expect(page.locator('.save-status .backup')).toHaveText('Stáhnuto do souboru');
 
 	// One more edit and the file on disk is behind again.
 	await page.locator('.cm-content').first().click();
 	await page.keyboard.type(' Jmenovatel říká, na kolik dílů.');
-	await expect(page.locator('.save-status .backup')).toHaveText('· bez zálohy v souboru');
+	await expect(page.locator('.save-status .backup')).toHaveText('Bez zálohy v souboru');
 });

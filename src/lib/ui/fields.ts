@@ -84,7 +84,7 @@ export interface FieldSpec {
     ref?: Ref;
 }
 
-const STATUS_OPTIONS = [
+export const STATUS_OPTIONS = [
     { value: "draft", label: "Rozpracováno" },
     { value: "private", label: "Soukromé" },
     { value: "locked", label: "Uzamčeno" },

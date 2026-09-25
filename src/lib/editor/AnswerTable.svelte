@@ -11,11 +11,9 @@
     import type { BlockStep, BlockV2, CourseV2 } from "$lib/domain/schema";
     import FocusField from "$lib/ui/FocusField.svelte";
     import Button from "$lib/ui/Button.svelte";
-    import Chip from "$lib/ui/Chip.svelte";
     import GoToPicker from "./GoToPicker.svelte";
     import { useStore } from "$lib/ui/context";
     import { allows } from "$lib/ui/fields";
-    import { refKey } from "$lib/domain/ref";
     import { addOption, deleteOption, setField } from "$lib/domain/commands";
     import { CircleCheck, Plus, Trash, X } from "@lucide/svelte";
 
@@ -58,8 +56,6 @@
     const set = (optionId: string, field: string, value: unknown) =>
         store.apply((d) => setField(d, ref(optionId, field), value));
 
-    const issuesFor = (optionId: string) =>
-        store.issuesAt({ blockId: block.block_id, stepId: step.id, optionId });
 
     function toggleChecked(optionId: string) {
         const option = options.find((o) => o.id === optionId);
@@ -100,13 +96,17 @@
     </div>
 
     {#each options as option (option.id)}
-        {@const issues = issuesFor(option.id)}
         <div class="row">
             <div class="cell">
                 <button
                     type="button"
                     class="verb"
                     class:correct={option.is_correct}
+                    aria-pressed={option.is_correct === true}
+                    aria-label={`Správná odpověď: ${option.text || "bez textu"}`}
+                    title={option.is_correct
+                        ? "Správná odpověď — klikni pro označení jako chybná"
+                        : "Chybná odpověď — klikni pro označení jako správná"}
                     onclick={() => toggleChecked(option.id)}>
                     {#if option.is_correct}
                         <CircleCheck></CircleCheck>
@@ -190,6 +190,8 @@
                     <Button
                         variant="danger"
                         size="s"
+                        title="Smazat odpověď"
+                        ariaLabel={`Smazat odpověď ${option.text || "bez textu"}`}
                         onclick={() =>
                             store.apply((d) =>
                                 deleteOption(
@@ -265,9 +267,6 @@
         --e-field-hover: var(--surface);
     }
 
-    .row.invalid {
-        box-shadow: inset 2px 0 0 var(--e-error);
-    }
 
     .cell {
         min-width: 0;
@@ -342,44 +341,13 @@
         font-size: var(--text-s);
     }
 
-    .remove {
-        padding: 0 6px;
-        border: none;
-        border-radius: var(--radius-xs);
-        background: none;
-        color: var(--e-text-faint);
-        font-size: var(--text-xl);
-        line-height: 1;
-        cursor: pointer;
-    }
 
-    .remove:hover {
-        background: var(--e-error-bg);
-        color: var(--e-error);
-    }
 
     .add {
         align-self: flex-start;
         margin-top: 6px;
     }
 
-    .issue {
-        margin: 0 0 4px 8px;
-        color: var(--e-error);
-        font-size: var(--text-xs);
-    }
 
-    .issue.warning {
-        color: var(--e-warning);
-    }
 
-    .note {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 8px;
-        margin: 8px 0 0;
-        color: var(--e-text-faint);
-        font-size: var(--text-xs);
-    }
 </style>

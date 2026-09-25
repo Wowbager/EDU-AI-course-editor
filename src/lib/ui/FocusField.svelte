@@ -135,7 +135,6 @@
     let issues = $derived(
         ref ? store.issuesAt(ref) : { errors: [], warnings: [] },
     );
-    $inspect(issues, ref);
 </script>
 
 <div>

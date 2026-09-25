@@ -9,6 +9,7 @@
     import { serialiseToJson } from "$lib/domain/document";
     import { MODES, MODE_LABELS } from "$lib/ui/fields";
     import Modal from "$lib/ui/Modal.svelte";
+    import ExportDialog from "./ExportDialog.svelte";
     import { errorsCount, warningsCount } from "$lib/ui/plural";
 
     import type { DraftSession } from "$lib/state/draft-session.svelte";
@@ -24,6 +25,7 @@
     const store = useStore();
     let fileInput = $state<HTMLInputElement | null>(null);
     let explainStorage = $state(false);
+    let reviewExport = $state(false);
 
     /**
      * The exact JSON handed to the browser by the last „Stáhnout JSON“.
@@ -45,6 +47,8 @@
     );
 
     function download() {
+        // The dialog only offers a download without errors; this is the backstop.
+        if (!store.canPublish) return;
         const json = currentJson;
         const blob = new Blob([json], { type: "application/json" });
         const url = URL.createObjectURL(blob);
@@ -55,6 +59,27 @@
         URL.revokeObjectURL(url);
         exportedJson = json;
     }
+
+    /**
+     * A clean course downloads at once. Anything else opens the review first: with
+     * errors it says what to finish and where, with warnings only it offers
+     * „Stáhnout i tak“. The button itself is never disabled — a greyed-out download
+     * is a refusal that does not say why.
+     */
+    function requestDownload() {
+        const { errors, warnings } = store.validation;
+        if (errors.length === 0 && warnings.length === 0) download();
+        else reviewExport = true;
+    }
+
+    /** The chip shows a bare number; the accessible name has to say what it counts. */
+    const checkLabel = $derived(
+        store.validation.errors.length > 0
+            ? `Kontrola kurzu: ${errorsCount(store.validation.errors.length)}`
+            : store.validation.warnings.length > 0
+              ? `Kontrola kurzu: ${warningsCount(store.validation.warnings.length)}`
+              : "Kontrola kurzu: v pořádku",
+    );
 </script>
 
 <header class="topbar">
@@ -94,7 +119,12 @@
     <Chip tone="quiet" title="Nejvyšší možný zisk XP za celý kurz"
         >{store.totals.cappedXp} XP</Chip>
 
-    <button type="button" class="chip-button" onclick={onvalidation}>
+    <button
+        type="button"
+        class="chip-button"
+        onclick={onvalidation}
+        aria-label={checkLabel}
+        title={checkLabel}>
         {#if store.validation.errors.length > 0}
             <Chip tone="error">{store.validation.errors.length}</Chip>
         {:else if store.validation.warnings.length > 0}
@@ -144,14 +174,17 @@
 
     <Button
         variant="primary"
-        onclick={download}
-        disabled={!store.canPublish}
+        onclick={requestDownload}
         title={store.canPublish
-            ? "Stáhnout JSON"
-            : "Nelze stáhnout, dokud nejsou opraveny chyby kurzu"}>
+            ? "Stáhnout kurz jako soubor JSON"
+            : "Ukáže, co je v kurzu ještě potřeba dokončit"}>
         <Download size={16}></Download> Stáhnout
     </Button>
 </header>
+
+{#if reviewExport}
+    <ExportDialog ondownload={download} onclose={() => (reviewExport = false)} />
+{/if}
 
 {#if explainStorage}
     <Modal title="Kde je kurz uložený" onclose={() => (explainStorage = false)}>
@@ -166,7 +199,7 @@
                 Vymazání dat stránky, anonymní okno nebo přeinstalace prohlížeče
                 kurz nenávratně smaže. Jediná záloha, kterou máš, je stažený
                 soubor JSON — ten si můžeš kdykoli zase načíst tlačítkem <strong
-                    >Načíst</strong
+                    >Nahrát</strong
                 >.
             </p>
             <p class:at-risk={!backedUp}>
@@ -182,10 +215,9 @@
             </p>
             {#if !store.canPublish}
                 <p>
-                    Stáhnout JSON teď nejde — kurz má {errorsCount(
-                        store.validation.errors.length,
-                    )}, které by žákovi rozbily lekci. Oprav je a zálohu si
-                    stáhni hned poté.
+                    Stáhnout teď nejde — v kurzu je ještě potřeba něco dokončit,
+                    jinak by žákovi lekce nefungovala. Tlačítko Stáhnout ukáže
+                    co a kde; zálohu si stáhni hned poté.
                 </p>
             {/if}
         </div>

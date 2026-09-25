@@ -14,10 +14,3 @@ export const STEP_TYPES: StepTypes[] = [
   { type: "video", label: "Video", icon: MonitorPlay },
   { type: "audio", label: "Audio", icon: AudioLines },
 ];
-
-export const CARD_STATUSES = [
-  { value: "draft", label: "Koncept" },
-  { value: "private", label: "Soukromé" },
-  { value: "locked", label: "Zamčeno" },
-  { value: "approved", label: "Schváleno" },
-];

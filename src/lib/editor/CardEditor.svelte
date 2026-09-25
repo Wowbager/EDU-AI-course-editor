@@ -29,8 +29,6 @@
     import FocusField from "$lib/ui/FocusField.svelte";
     import StepEditor from "./StepEditor.svelte";
     import { useStore } from "$lib/ui/context";
-    import { refKey } from "$lib/domain/ref";
-    import { fieldSpec } from "$lib/ui/fields";
     import {
         addStep,
         bindBlock,
@@ -39,7 +37,7 @@
         setField,
         unbindBlock,
     } from "$lib/domain/commands";
-    import { errorsCount } from "$lib/ui/plural";
+    import { errorsCount, warningsCount } from "$lib/ui/plural";
     import {
         blockDurationMinutes,
         derivedBlockXp,
@@ -56,7 +54,8 @@
         Settings,
         Trash,
     } from "@lucide/svelte";
-    import { CARD_STATUSES, STEP_TYPES } from "$lib/lang";
+    import { STEP_TYPES } from "$lib/lang";
+    import { fieldSpec, STATUS_OPTIONS } from "$lib/ui/fields";
 
     interface Props {
         doc: CourseV2;
@@ -301,7 +300,8 @@
             <Chip
                 tone="warning"
                 title="Karta zatím není označená jako hotová. Aplikace ji žákovi zobrazí jako kteroukoli jinou — je to poznámka pro tebe, ne nastavení pro žáka.">
-                {CARD_STATUSES.find((s) => s.value === block.status)?.label}
+                {STATUS_OPTIONS.find((s) => s.value === block.status)?.label ??
+                    block.status}
             </Chip>
         {/if}
         <Chip
@@ -313,9 +313,13 @@
         </Chip>
 
         {#if issues.errors.length > 0}
-            <Chip tone="error">{issues.errors.length}</Chip>
+            <Chip tone="error" title={errorsCount(issues.errors.length)}
+                >{issues.errors.length}</Chip>
         {:else if issues.warnings.length > 0}
-            <Chip tone="warning">{issues.warnings.length}</Chip>
+            <Chip
+                tone="warning"
+                title={warningsCount(issues.warnings.length)}
+                >{issues.warnings.length}</Chip>
         {/if}
 
         <div class="spacer"></div>
@@ -323,22 +327,10 @@
         <Chip
             tone="quiet"
             title={xpIsDerived
-                ? `Dopočteno z kroků (${derivedBlockXp(block)} XP). Vyplň XP, pokud chceš jinou odměnu.`
+                ? `Dopočteno z kroků: 8 XP za každý krok s otázkou, 1 XP za obsahový krok (${derivedBlockXp(block)} XP). Platí hned, i když je karta ještě rozepsaná. Vlastní hodnotu nastavíš v Nastavení karty.`
                 : "Zadaná odměna"}>
             {xp} XP · {xpIsDerived ? "automaticky" : "vlastní hodnota"}
         </Chip>
-        <!-- {#if xpIsDerived}
-            <!--
-				The counter jumps by 8 the moment a question step exists — even on a card
-				that is still empty. Without this line that reads as a bug; the figure is
-				the §10 default, and it counts unfinished cards the same as finished ones.
-			->
-            <span class="xp-note">
-                automaticky z kroků: 8 XP za každý krok s otázkou, 1 XP za
-                obsahový krok — platí hned, i když je karta ještě rozepsaná.
-                Vlastní hodnotu nastavíš v Nastavení karty.
-            </span>
-        {/if} -->
     </header>
     <header>
         <!--
@@ -365,7 +357,8 @@
             onclick={() =>
                 store.apply((d, r) =>
                     duplicateBlock(d, block.block_id, lessonId, r),
-                )}>
+                )}
+            ariaLabel="Duplikovat kartu">
             <Copy size={16}></Copy>
             Duplikovat
         </Button>
@@ -391,7 +384,7 @@
                 onclick={removeFromLesson}
                 title={sharedWith > 1
                     ? "Odebere kartu jen z této lekce — ostatní lekce a všechen obsah zůstanou"
-                    : "Odebere kartu z této lekce. Obsah zůstává v části Karty mimo lekci; smazat jde přes Smazat kartu…"}>
+                    : "Odebere kartu z této lekce. Obsah zůstává v části Karty mimo lekci; smazat jde přes Smazat."}>
                 <ListX size={16}></ListX>
                 Odebrat z lekce
             </Button>
@@ -400,7 +393,8 @@
             variant="danger"
             size="s"
             onclick={() => onrepairBlock(block.block_id)}
-            title="Otevře potvrzení smazání karty z celého kurzu a opravu odkazů">
+            title="Otevře potvrzení smazání karty z celého kurzu a opravu odkazů"
+            ariaLabel="Smazat kartu">
             <Trash size={16}></Trash>
             Smazat
         </Button>
@@ -520,11 +514,6 @@
 {/if}
 
 <style>
-    /* .xp-note {
-        color: var(--e-text-muted);
-        font-size: var(--text-xs);
-        line-height: 1.5;
-    } */
 
     .action-notice {
         display: flex;
@@ -652,13 +641,5 @@
         white-space: nowrap;
     }
 
-    .issue {
-        margin: 10px 0 0;
-        color: var(--e-error);
-        font-size: var(--text-xs);
-    }
 
-    .issue.warning {
-        color: var(--e-warning);
-    }
 </style>

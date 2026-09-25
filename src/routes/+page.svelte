@@ -333,6 +333,8 @@
             <button
                 type="button"
                 class="close"
+                aria-label="Skrýt oznámení"
+                title="Skrýt oznámení"
                 onclick={() => (recovery!.message = "")}
                 ><X size={16}></X></button>
         </div>

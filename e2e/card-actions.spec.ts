@@ -20,7 +20,10 @@ async function load(page: Page, doc = course()) {
 
 async function exported(page: Page) {
 	const pending = page.waitForEvent('download');
-	await page.getByRole('button', { name: 'Stáhnout JSON' }).click();
+	await page.getByRole('button', { name: 'Stáhnout', exact: true }).click();
+	// An orphaned card is a warning, and warnings open the review before the file.
+	const anyway = page.getByRole('button', { name: 'Stáhnout i tak' });
+	if (await anyway.isVisible()) await anyway.click();
 	const stream = await (await pending).createReadStream();
 	const chunks: Buffer[] = [];
 	for await (const chunk of stream!) chunks.push(Buffer.from(chunk));
@@ -28,8 +31,8 @@ async function exported(page: Page) {
 }
 
 const remove = (page: Page) => page.getByRole('button', { name: 'Odebrat z lekce', exact: true });
-const erase = (page: Page) => page.getByRole('button', { name: 'Smazat kartu…', exact: true });
-const assign = (page: Page) => page.getByRole('button', { name: 'Zařadit do lekce…', exact: true });
+const erase = (page: Page) => page.getByRole('button', { name: 'Smazat kartu', exact: true });
+const assign = (page: Page) => page.getByRole('button', { name: 'Zařadit do lekce', exact: true });
 
 test('unlinking creates an editable orphan; picker cancels, binds once and undoes', async ({ page }) => {
 	const doc = course();
@@ -109,8 +112,9 @@ test('automatic XP explains incomplete steps and keeps the existing arithmetic',
 	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
 	const card = page.locator('main .card');
 	await expect(card).toContainText('1 XP · automaticky');
-	await expect(card.locator('.xp-note')).toContainText('8 XP za každý krok s otázkou, 1 XP za obsahový krok');
-	await expect(card.locator('.xp-note')).toContainText('i když je karta ještě rozepsaná');
+	// The explanation is on the chip itself, so it does not take a line on every card.
+	const xpChip = card.getByTitle(/8 XP za každý krok s otázkou, 1 XP za obsahový krok/);
+	await expect(xpChip).toHaveAttribute('title', /i když je karta ještě rozepsaná/);
 	await card.locator('.add-step').getByRole('button', { name: 'Otázka', exact: true }).click();
 	await expect(card).toContainText('9 XP · automaticky');
 	await card.locator('.add-step').getByRole('button', { name: 'Text', exact: true }).click();

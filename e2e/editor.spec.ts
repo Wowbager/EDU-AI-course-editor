@@ -144,19 +144,52 @@ test('the validation panel jumps to the field that needs fixing', async ({ page 
 test('the spec course imports clean and publishes', async ({ page }) => {
 	await importCourse(page, 'spec-16-course.json');
 
-	await expect(page.getByText('v pořádku')).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Stáhnout JSON' })).toBeEnabled();
+	await expect(page.getByRole('button', { name: 'Kontrola kurzu: v pořádku' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Stáhnout', exact: true })).toBeEnabled();
 	await expect(page.locator('.tree-lesson.open .name')).toHaveText('Co je zlomek?');
 	await expect(page.locator('.tree-card')).toHaveCount(3);
 });
 
 test('a course with errors cannot be exported, one with warnings can', async ({ page }) => {
-	await importCourse(page, 'spec-16-course-broken.json');
-	// Errors block export (§3 invariant 5).
-	await expect(page.getByRole('button', { name: 'Stáhnout JSON' })).toBeDisabled();
+	const download = page.getByRole('button', { name: 'Stáhnout', exact: true });
+	let downloads = 0;
+	page.on('download', () => downloads++);
 
+	// Errors block export (§3 invariant 5) — but the button says why instead of
+	// being greyed out: it opens a review of what is left, grouped by card.
+	await importCourse(page, 'spec-16-course-broken.json');
+	await download.click();
+	const review = page.getByRole('dialog', { name: 'Než kurz stáhneš' });
+	await expect(review).toBeVisible();
+	await expect(review.locator('.group.error').first()).toBeVisible();
+	await expect(review.getByRole('button', { name: 'Stáhnout i tak' })).toHaveCount(0);
+	// Warnings are there too, folded away: they do not block anything.
+	await expect(review.locator('details.advice')).not.toHaveAttribute('open');
+
+	// „Přejít“ closes the review and opens the card the row is about.
+	await review.locator('.group.error').first().getByRole('button', { name: /Přejít/ }).first().click();
+	await expect(review).toBeHidden();
+	await expect(page.locator('main .card')).toHaveCount(1);
+	expect(await page.locator('.tree-card.selected').count()).toBeGreaterThan(0);
+	expect(downloads).toBe(0);
+
+	// A clean course downloads straight away, with no dialog in between.
 	await importCourse(page, 'spec-16-course.json');
-	await expect(page.getByRole('button', { name: 'Stáhnout JSON' })).toBeEnabled();
+	const direct = page.waitForEvent('download');
+	await download.click();
+	await direct;
+	await expect(page.getByRole('dialog')).toHaveCount(0);
+
+	// Warnings alone never block: the review offers the download. (Edited after the
+	// import on purpose — importing over an edited course asks for confirmation.)
+	await page.getByRole('button', { name: 'Odebrat z lekce', exact: true }).click();
+	await download.click();
+	const advice = page.getByRole('dialog', { name: 'Stáhnout kurz' });
+	await expect(advice).toContainText('dá se stáhnout');
+	const file = page.waitForEvent('download');
+	await advice.getByRole('button', { name: 'Stáhnout i tak' }).click();
+	await file;
+	await expect(advice).toBeHidden();
 });
 
 test('deleting a branched step asks where its branches should go', async ({ page }) => {
@@ -167,14 +200,14 @@ test('deleting a branched step asks where its branches should go', async ({ page
 
 	// The remediation step is the target of a wrong answer's `go_to`. It is addressed
 	// by its position, because a teacher never sees a step id (plan §8) — and the
-	// "← 1" chip says a branch points at it.
+	// inbound-branch chip says a branch points at it.
 	// Matched on the step's own label, not on any text containing it — the `go_to`
 	// picker lists the other steps by the same names.
 	const step = page.locator('.step').filter({
 		has: page.getByText('Krok 3', { exact: true })
 	});
 	await expect(step).toHaveCount(1);
-	await expect(step).toContainText('←');
+	await expect(step.getByTitle('Na tento krok vede větvení z jiné odpovědi')).toContainText('1');
 	await step.getByRole('button', { name: 'Smazat' }).click();
 
 	const dialog = page.getByRole('dialog');

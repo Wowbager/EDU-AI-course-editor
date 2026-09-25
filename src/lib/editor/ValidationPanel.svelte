@@ -5,7 +5,7 @@
 	 * fixes.
 	 */
 	import type { Issue } from '$lib/domain/validate';
-	import { blockLabel, lessonLabelById, optionLabelById, stepLabel } from '$lib/domain/naming';
+	import { issueLessonId, issuePlace } from '$lib/domain/issue-groups';
 	import { useStore } from '$lib/ui/context';
 
 	interface Props {
@@ -20,14 +20,7 @@
 	const warnings = $derived(store.validation.warnings.filter((w) => !dismissed.has(key(w))));
 
 	function jump(issue: Issue) {
-		// A ref carrying a step addresses the block definition; the lesson it is shown
-		// in is whichever one binds that block.
-		const lessonId =
-			issue.ref.lessonId ??
-			(issue.ref.blockId !== undefined
-				? store.index.lessonsByBlock.get(issue.ref.blockId)?.[0]
-				: undefined);
-		store.revealAt({ ...issue.ref, lessonId });
+		store.revealAt({ ...issue.ref, lessonId: issueLessonId(store.index, issue.ref) });
 		onclose();
 	}
 
@@ -35,32 +28,9 @@
 		dismissed = new Set([...dismissed, key(issue)]);
 	}
 
-	// A teacher is never shown an id (§8) — the breadcrumb under a message used to
-	// print `lesson_id` / `block_id` / step and option ids verbatim, which is the
-	// same leak `naming.ts` exists to close in the message text above it. A ref can
-	// carry an id nothing in the document resolves to (e.g. `E_BINDING_UNRESOLVED`'s
-	// dangling `block_id`), and there the id really is the only thing left to show.
-	const where = (issue: Issue): string => {
-		const { lessonId, blockId, stepId, optionId } = issue.ref;
-		const doc = store.doc;
-		const block = blockId !== undefined ? doc.blocks.find((b) => b.block_id === blockId) : undefined;
-		const step = block !== undefined && stepId !== undefined
-			? block.steps.find((s) => s.id === stepId)
-			: undefined;
-
-		const parts: string[] = [];
-		if (lessonId !== undefined) parts.push(lessonLabelById(doc, lessonId) ?? lessonId);
-		if (blockId !== undefined) {
-			parts.push(block !== undefined ? blockLabel(doc, block, { lessonId, max: 30 }) : blockId);
-		}
-		if (stepId !== undefined) {
-			parts.push(block !== undefined && step !== undefined ? stepLabel(block, step) : stepId);
-		}
-		if (optionId !== undefined) {
-			parts.push(optionLabelById(step?.question, optionId, { max: 20 }) ?? `odpověď ${optionId}`);
-		}
-		return parts.length === 0 ? 'kurz' : parts.join(' › ');
-	};
+	// A teacher is never shown an id (§8); `issuePlace` names everything the way the
+	// rest of the editor does, and prints an id only for a reference nothing resolves.
+	const where = (issue: Issue): string => issuePlace(store.doc, issue.ref);
 </script>
 
 <aside class="panel" aria-label="Kontrola kurzu">

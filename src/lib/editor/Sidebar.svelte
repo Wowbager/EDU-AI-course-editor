@@ -570,21 +570,7 @@
         font: var(--type-caption);
     }
 
-    .badge {
-        min-width: 18px;
-        padding: 1px 5px;
-        border-radius: var(--radius-pill);
-        background: var(--e-error-bg);
-        color: var(--e-error);
-        font-size: var(--text-xs);
-        text-align: center;
-    }
 
-    .lesson .badge {
-        position: absolute;
-        top: 8px;
-        right: 30px;
-    }
 
     .nudge {
         margin: 0 10px 6px;
@@ -668,10 +654,6 @@
         font: var(--type-caption);
     }
 
-    .tree-card .badge {
-        grid-row: span 2;
-        align-self: center;
-    }
 
     .type {
         grid-row: span 2;
