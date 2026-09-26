@@ -35,6 +35,13 @@ export interface DocIndex {
 
 const stepKey = (blockId: string, stepId: string) => `${blockId}::${stepId}`;
 
+/**
+ * View only (`groups.ts`): the blocks a merged question card stands for. The index
+ * resolves each of them to the card, so a branch from another card into the card's
+ * second question still resolves, and deleting the card finds it.
+ */
+export const MEMBERS_KEY = '_members';
+
 export const isGoToKeyword = (value: string): boolean =>
 	(GOTO_KEYWORDS as readonly string[]).includes(value);
 
@@ -54,6 +61,18 @@ export function buildIndex(doc: CourseV2): DocIndex {
 		for (const step of block.steps) if (!steps.has(step.id)) steps.set(step.id, step);
 		stepsByBlock.set(block.block_id, steps);
 	}
+	/** A merged card's blocks, each resolving to the card. */
+	const cardOf = new Map<string, string>();
+	for (const block of doc.blocks) {
+		const members = (block as Record<string, unknown>)[MEMBERS_KEY];
+		if (!Array.isArray(members)) continue;
+		for (const member of members) {
+			if (typeof member !== 'string' || blocksById.has(member)) continue;
+			blocksById.set(member, block);
+			cardOf.set(member, block.block_id);
+		}
+	}
+	const resolve = (blockId: string) => cardOf.get(blockId) ?? blockId;
 
 	for (const lesson of doc.lessons) {
 		for (const binding of lesson.blocks) {
@@ -77,7 +96,7 @@ export function buildIndex(doc: CourseV2): DocIndex {
 				if (typeof value !== 'string' || value === '' || isGoToKeyword(value)) continue;
 				const to = ownSteps?.has(value)
 					? { blockId: block.block_id, stepId: value }
-					: { blockId: value };
+					: { blockId: resolve(value) };
 				references.push({
 					kind: 'go_to',
 					from: { blockId: block.block_id, stepId: step.id, optionId: option.id, field: 'go_to' },
@@ -91,7 +110,7 @@ export function buildIndex(doc: CourseV2): DocIndex {
 			references.push({
 				kind: 'prerequisite',
 				from: { blockId: block.block_id, field: `learning.prerequisites.${i}.block_id` },
-				to: { blockId: rule.block_id },
+				to: { blockId: resolve(rule.block_id) },
 				value: rule.block_id
 			});
 		}
