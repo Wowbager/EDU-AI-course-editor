@@ -229,6 +229,8 @@ Type `BlockV2`. Edited across `BlockV2Editor.tsx` and `editors/block-v2/*`.
 | `hint` | string (Markdown+LaTeX) | ✅ | Short block-level hint. | Shown from the `?` action button on any step of the block. Using it costs score — §12. |
 | `help` | string (Markdown+LaTeX) | ✅ | Long block-level explanation. | Second-level help, costs more score than a hint — §12. |
 | `steps` | `BlockStep[]` | ✅ | **The content.** | §7. |
+| `group` | string | ⚪ | The teacher's card this block is part of — the editor's own key (§6.2a). | None in the app; the editor merges the blocks sharing it into one card in Učitel and Metodik. Written by the editor, never typed. |
+| `multi_question` | bool | ⚪ | The advanced author keeps this block's questions together on purpose (§6.2a). | None in the app. The block is graded as one item, as the app always grades a block. Set by "Více otázek v jedné kartě" in Pokročilý. |
 
 **Legacy flat fields** — `content`, `image`, `video`, `question` directly on the block — are
 still parsed by the app when `steps` is absent (`block_model.dart:1195-1245`), and the ADM has
@@ -249,6 +251,40 @@ The "one bubble, skip to the question" behaviour is the biggest surprise for aut
 in a `question` or `exercise` block, a text step placed *between* two questions is displayed
 but is never a stop — the student is taken to the next question. If you need the student to
 stop and read, that content belongs in a `display` block, or after the last question.
+
+### 6.2a One question per block — how the editor writes question cards
+
+The format allows several questions in one `question` or `exercise` block, and the admin
+editor writes them. But the app grades a **block** as one item:
+
+| What | Per block | Where |
+|---|---|---|
+| Score | the **best** score over its questions | `block_step_engine.dart` `_bestScoreKoef` |
+| Quiz mark | the **last** mark given | `_quizMark = markValue ?? _quizMark` |
+| Correct in Kvíz | `scoreKoef >= 1.0`, one question per block | `quiz_page.dart` |
+| ELO update, hint penalty | one per block | `lesson_detail_page.dart` |
+| Practice card, auto-bookmark | one per `(user, block_id)` | `practice_cards_table.dart` |
+
+So one right and one wrong answer in the same block scores as right. The editor therefore
+writes **one block per question**. In Učitel and Metodik the teacher still writes one card
+with as many questions as it needs; the editor splits it on the way into the document, and
+merges the blocks back (`group`) when it shows the card (`src/lib/domain/groups.ts`):
+
+- each block is the text and media before a question, then the question; text after the
+  last question stays with it. A block keeps its `block_id` as long as its question lives,
+  so students' saved answers stay with the question;
+- in a `question` card, a step something jumps to starts a block, because a cross-block
+  jump lands on a block's first step (§9). A stretch with no question becomes a `display`
+  block;
+- a card's settings (name, skills, hint, help, practice) are written to each of its
+  blocks, except `duration`, which stays on the first so the lesson's length is not
+  multiplied.
+
+An imported course is split the same way, as one undoable edit. A block that branches to
+one of its own steps, or ends (`END`) before its last question, is kept whole and marked
+`multi_question`, since splitting it would change the path the author built. Pokročilý
+shows the blocks as they are exported and can merge a card into one block kept together,
+or split it again.
 
 ### 6.3 GPF — `gpf` object
 

@@ -1188,6 +1188,70 @@ including the build, and 159 of 159 with `--repeat-each=3`. The `editor` project
 
 ---
 
+## Round 7 — every question is its own card, and the teacher still sees one
+
+The owner: Náhled and Vyzkoušet rendered cards differently, and cards behaved differently
+by type. Looking at the official admin, multi-question cards seemed to be the source of
+errors. But one card per question bloats the tree, and a teacher does not need to know.
+So: split questions into their own cards under the hood, the same in Učitel and Metodik
+at all times, and let the advanced author turn the old multi-question behaviour back on.
+
+What the code says (COURSE-EDITOR-SPEC §6.2a): the format and the admin allow several
+questions per block, and the admin's own test course has seven such blocks. The app,
+though, grades a block as one item — best score, last mark, one Kvíz answer, one ELO
+update, one practice card. Several questions in a block are not an error; they are
+graded wrong.
+
+**The document holds one block per question; the teacher edits cards.**
+`domain/groups.ts` is a lens: `toView` merges the blocks sharing a `group` key into one
+card, `fromView` writes an edit of that card back, one block per question. The store
+keeps the course as exported (`source`) and derives what the editor shows (`doc`), so
+every existing command and component works on cards unchanged, and undo, drafts,
+versions, export and the player work on what the pupil gets. *Rejected:* keeping
+multi-question blocks in the document and splitting only at export. The document would
+no longer be what is exported (AGENTS.md rule 6), refs from the player would name blocks
+the editor does not have, and a version would not be what was published. *Rejected:*
+a card concept stored beside the course. It would be a second source of truth.
+
+The lens's laws are what the tests hold: an edit that changes nothing changes nothing,
+a card nobody touched keeps its blocks object for object, and 300 seeded random edits
+never leave two questions in a block, a card split across its lesson, or a step lost.
+
+**A block's id follows its question.** When a card's questions are reordered, each
+block moves with its question, so a pupil's saved answers stay with the question they
+belong to. When the first question is deleted, the card keeps its `group` key as its id
+in the view, and what pointed at the card is pointed at its new first block.
+
+**Where a card breaks.** Before each question, with the text before it; text after the
+last question stays with it. In a `question` card a step something jumps to also starts
+a block, because a jump into another block lands on its first step; a stretch with no
+question becomes a `display` block. *Rejected:* forbidding jumps inside a card. The
+spec's "remediate then rejoin" pattern is exactly that, and it keeps working, as jumps
+between the card's blocks.
+
+**Imports are split, except what would change the pupil's path.** The owner's choice.
+An import, a restored draft and a restored version are split as one undoable edit, and
+the import report says so in one line. A block that jumps to its own steps, or ends
+(`END`) before its last question, is kept whole and marked `multi_question`: split, a
+jump would land on a block's first step and the blocks it skipped would stay in the
+lesson, drawn unfinished, and an `END` would end only its own question.
+
+**Pokročilý sees the blocks.** The tree shows each block with "část 2/3", and card
+settings offer "Více otázek v jedné kartě": on merges the card into one block kept
+together, off splits it again. An edit in Pokročilý that gives a block a second question
+is split too (`resplitChanged`), so "each question is its own card" holds in every mode
+unless the author turned it off for a card. Učitel and Metodik see a note on such a card.
+
+**Náhled shows a card's blocks one under another** (fork `10ca89c`), as the pupil meets
+them. Vyzkoušet plays the exported course; the editor maps each reported block back to
+the teacher's card, and counts the earlier blocks' steps as reached when it folds.
+
+**Validation runs on what the editor shows.** In Učitel and Metodik that is the card,
+so messages name steps by their place in the card the teacher sees. A test checks that
+the view and the document raise the same errors for the admin's course.
+
+---
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

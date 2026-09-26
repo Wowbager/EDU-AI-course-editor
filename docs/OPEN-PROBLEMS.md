@@ -195,6 +195,40 @@ differently, and every per-type rule has to be copied by hand (AGENTS.md rule 2)
 fix is to render Náhled through the engine itself, as a finished card whose taps go to
 click-to-edit, with a Flutter test that the two lay out every card type alike.
 
+### 19. The app grades a block as one item — app-side, and why questions are split
+**Verified: yes, by reading the upstream code.** Best score over the block's questions
+(`_bestScoreKoef`), the last mark given, one Kvíz answer (`scoreKoef >= 1.0`), one ELO
+update and one practice card per block. Also: XP counts every step, including ones a
+branch skipped; Kvíz takes only `exercise` blocks; the engine's cards are never graded
+for spaced repetition (`_recordFsrsReview` is called only for atomic questions and
+self-rated display cards). The editor now writes one block per question (DECISIONS Round
+7), which makes the first four right per question. The rest need the app.
+
+### 20. A jump into a later block leaves the blocks it skipped in the lesson, unfinished
+**Verified: in the fork's Vyzkoušet, which draws it as the app does.** A jump inside a
+split `question` card is now a jump between its blocks, and the blocks jumped over stay
+in the pupil's list, drawn unfinished on their first step. Imported cards that jump
+inside themselves are kept whole for this reason; a teacher who adds such a jump to a
+card now gets this behaviour. App-side: the lesson list would have to hide a block a
+branch skipped.
+
+### 21. "Ukončit blok" on a card's first question ends only that question
+**Verified: by construction (Round 7).** In a card split into blocks, `END` completes
+the question's own block, and the pupil goes on to the card's next question, so for a
+teacher it does what "Pokračovat dál" does. The option is not relabelled. An imported
+card with such an `END` is kept whole.
+
+### 22. The version button says "upraveno" right after importing a multi-question course
+**Verified: by construction.** The import is recorded as the version it came with; the
+split that follows is an edit, so the working copy differs from that version. True, and
+undo takes it back, but a teacher who changed nothing sees "upraveno".
+
+### 23. Editing a card overwrites settings its blocks disagree on
+**Verified: by construction.** A card's settings are written to each of its blocks. If
+an advanced author gave two blocks of one card different settings, the teacher's view
+shows the first block's, and the next edit to the card writes them to all its blocks.
+Nothing warns about the disagreement.
+
 ### 11. Folding is remembered for the session only
 **By design for now.** `StepView` lives as long as the page. A reload opens every step
 again. Worth persisting with the draft if authors of long cards ask for it.
