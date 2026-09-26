@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 
 /**
  * The domain layer is plain TypeScript and is tested without the SvelteKit plugin —
@@ -7,6 +8,10 @@ import { defineConfig } from 'vitest/config';
  * on every change.
  */
 export default defineConfig({
+	// Only `.svelte` and `.svelte.ts` files go through the compiler — the state
+	// classes use runes, and their tests need them compiled. Nothing else is touched,
+	// so the domain suite is as fast as it was.
+	plugins: [svelte({ configFile: false, compilerOptions: { runes: true } })],
 	// `$lib` is SvelteKit's alias; the domain tests run without the plugin, so it is
 	// declared here too. Only type-only imports cross into `.svelte.ts` modules.
 	resolve: {
