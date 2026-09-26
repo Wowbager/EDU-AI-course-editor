@@ -28,13 +28,15 @@ WORKDIR /app
 # a fact recorded in this file rather than whatever the fork's default branch held
 # that morning. Bump it deliberately when the player changes.
 ARG PLAYER_REPO=https://github.com/Wowbager/EDU-AI-asistent-APP.git
-ARG PLAYER_REF=8ec53524b4787597bc3b9b21760e22bc4e06099f
+ARG PLAYER_REF=36916bb1feb6519ec230fbe4c908e44037fc54f8
 RUN git clone --no-checkout --filter=blob:none "${PLAYER_REPO}" . \
     && git checkout --detach "${PLAYER_REF}"
 
 ARG API_URL=https://app-api.edu-ai.eu
 RUN flutter pub get
-RUN flutter build web --release --base-href /player/ \
+# --no-web-resources-cdn: CanvasKit is served from the build, not from gstatic. One
+# aborted or blocked CDN request left the player dead and the preview empty.
+RUN flutter build web --release --base-href /player/ --no-web-resources-cdn \
     --dart-define=API_URL=${API_URL}
 
 # ── Stage 2: the editor ────────────────────────────────────────────────────
