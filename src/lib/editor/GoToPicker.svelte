@@ -6,7 +6,9 @@
 	 * The picker is hidden entirely for exercise blocks and exercise_v2 courses, where
 	 * the player ignores branching (§9).
 	 */
-	import type { BlockV2, CourseV2 } from '$lib/domain/schema';
+	import type { BlockStep, BlockV2, CourseV2 } from '$lib/domain/schema';
+	import { blockPreview, stepSummary } from '$lib/domain/derive';
+	import { STEP_TYPES } from '$lib/lang';
 	import { useStore } from '$lib/ui/context';
 	import { allows } from '$lib/ui/fields';
 
@@ -36,20 +38,25 @@
 	const blocks = $derived(doc.blocks.filter((b) => b.block_id !== block.block_id));
 
 	// The stored value is always the id; only the label changes, because a teacher
-	// picks "Krok 3", not "s3" (§8).
-	const label = (step: { id: string; type: string; content?: string }) => {
+	// picks "Krok 3", not "s3" (§8). The names are the ones the rest of the editor
+	// uses — `stepSummary` for a step, `blockPreview` for a card — so a card is not
+	// "Části zlomku" in the tree and "Části zlomku | Pozice | Název" here.
+	const label = (step: BlockStep) => {
 		const position = block.steps.findIndex((s) => s.id === step.id) + 1;
 		const name = showIds ? step.id : `Krok ${position}`;
-		const text = (step.content ?? '').replace(/[#*_`$]/g, '').trim();
+		const text = stepSummary(step);
 		const shortened = text.length > 40 ? `${text.slice(0, 40)}…` : text;
-		return shortened === '' ? `${name} (${step.type})` : `${name}: ${shortened}`;
+		if (shortened !== '') return `${name}: ${shortened}`;
+		const type = STEP_TYPES.find((t) => t.type === step.type)?.label ?? step.type;
+		return `${name} (${type.toLowerCase()})`;
 	};
 
 	const blockLabel = (b: BlockV2) => {
-		const first = b.steps.find((s) => typeof s.content === 'string' && s.content.trim() !== '');
-		const text = (first?.content ?? '').replace(/[#*_`$]/g, '').trim();
-		if (showIds) return text === '' ? b.block_id : `${b.block_id} — ${text.slice(0, 32)}`;
-		return text === '' ? 'Karta bez textu' : text.slice(0, 40);
+		const position = doc.lessons
+			.map((lesson) => lesson.blocks.findIndex((binding) => binding.block_id === b.block_id))
+			.find((i) => i >= 0);
+		const name = blockPreview(b, 40, position === undefined ? undefined : position + 1);
+		return showIds ? `${b.block_id} — ${name}` : name;
 	};
 
 	// `NEXT_STEP` and an absent value mean the same thing; the picker shows one option
