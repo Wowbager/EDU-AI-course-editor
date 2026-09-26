@@ -133,6 +133,25 @@ describe('step ids', () => {
 	});
 });
 
+describe('a reorder that changes nothing', () => {
+	it('returns the same document, so the store records no undo entry', () => {
+		const doc = base();
+		const block = doc.blocks.find((b) => b.block_id === 'L1_B3_poznej')!;
+		expect(reorderSteps(doc, block.block_id, block.steps.map((s) => s.id)).doc).toBe(doc);
+		// A partial list is completed with the rest in their current order.
+		expect(reorderSteps(doc, block.block_id, [block.steps[0].id]).doc).toBe(doc);
+		const lesson = doc.lessons[0];
+		expect(reorderBindings(doc, lesson.lesson_id, lesson.blocks.map((b) => b.block_id)).doc).toBe(doc);
+	});
+
+	it('still renumbers when something moved', () => {
+		const doc = base();
+		const block = doc.blocks.find((b) => b.block_id === 'L1_B3_poznej')!;
+		const ids = block.steps.map((s) => s.id).reverse();
+		expect(reorderSteps(doc, block.block_id, ids).doc).not.toBe(doc);
+	});
+});
+
 describe('duplicating a block', () => {
 	it('mints a fresh id, restarts step ids and drops inward `go_to`', () => {
 		const doc = duplicateBlock(base(), 'L1_B3_poznej', 'L1_INTRO').doc;

@@ -96,6 +96,14 @@ const requireLesson = (doc: CourseV2, lessonId: string): LessonV2 => {
 const renumberOrder = <T extends { order?: number }>(items: T[]): T[] =>
 	items.map((item, i) => ({ ...item, order: i + 1 }));
 
+/**
+ * Whether a reorder left every item where it was. A drag dropped where it started
+ * is not an edit: it must not leave an undo entry behind or mark the course dirty,
+ * and renumbering would still "change" an imported file whose `order` has gaps.
+ */
+const sameSequence = <T>(before: readonly T[], after: readonly T[]): boolean =>
+	before.length === after.length && before.every((item, i) => item === after[i]);
+
 // ──────────────────────────────────── generic field ────────────────────────────────────
 
 const ID_FIELDS = new Set(['course_id', 'lesson_id', 'block_id', 'id']);
@@ -271,6 +279,7 @@ export function reorderLessons(doc: CourseV2, orderedIds: string[]): CommandResu
 	const byId = new Map(doc.lessons.map((l) => [l.lesson_id, l]));
 	const reordered = orderedIds.map((id) => byId.get(id)).filter((l): l is LessonV2 => l !== undefined);
 	for (const lesson of doc.lessons) if (!orderedIds.includes(lesson.lesson_id)) reordered.push(lesson);
+	if (sameSequence(doc.lessons, reordered)) return { doc, description: 'Pořadí lekcí se nezměnilo' };
 	return {
 		doc: { ...doc, lessons: renumberOrder(reordered) },
 		description: 'Změněno pořadí lekcí'
@@ -310,16 +319,17 @@ export function unbindBlock(doc: CourseV2, lessonId: string, blockId: string): C
 }
 
 export function reorderBindings(doc: CourseV2, lessonId: string, orderedIds: string[]): CommandResult {
+	const lesson = requireLesson(doc, lessonId);
+	const remaining = [...lesson.blocks];
+	const reordered: LessonBlockBinding[] = [];
+	for (const id of orderedIds) {
+		const at = remaining.findIndex((b) => b.block_id === id);
+		if (at >= 0) reordered.push(...remaining.splice(at, 1));
+	}
+	reordered.push(...remaining);
+	if (sameSequence(lesson.blocks, reordered)) return { doc, description: 'Pořadí karet se nezměnilo' };
 	return {
-		doc: mapLesson(doc, lessonId, (lesson) => {
-			const remaining = [...lesson.blocks];
-			const reordered: LessonBlockBinding[] = [];
-			for (const id of orderedIds) {
-				const at = remaining.findIndex((b) => b.block_id === id);
-				if (at >= 0) reordered.push(...remaining.splice(at, 1));
-			}
-			return { ...lesson, blocks: renumberOrder([...reordered, ...remaining]) };
-		}),
+		doc: mapLesson(doc, lessonId, (l) => ({ ...l, blocks: renumberOrder(reordered) })),
 		description: 'Změněno pořadí bloků v lekci'
 	};
 }
@@ -619,16 +629,17 @@ export function deleteStep(
 
 /** Reordering rewrites `order` only — ids stay put (§3 invariant 2). */
 export function reorderSteps(doc: CourseV2, blockId: string, orderedIds: string[]): CommandResult {
+	const block = requireBlock(doc, blockId);
+	const remaining = [...block.steps];
+	const reordered: BlockStep[] = [];
+	for (const id of orderedIds) {
+		const at = remaining.findIndex((s) => s.id === id);
+		if (at >= 0) reordered.push(...remaining.splice(at, 1));
+	}
+	reordered.push(...remaining);
+	if (sameSequence(block.steps, reordered)) return { doc, description: 'Pořadí kroků se nezměnilo' };
 	return {
-		doc: mapBlock(doc, blockId, (block) => {
-			const remaining = [...block.steps];
-			const reordered: BlockStep[] = [];
-			for (const id of orderedIds) {
-				const at = remaining.findIndex((s) => s.id === id);
-				if (at >= 0) reordered.push(...remaining.splice(at, 1));
-			}
-			return { ...block, steps: renumberOrder([...reordered, ...remaining]) };
-		}),
+		doc: mapBlock(doc, blockId, (b) => ({ ...b, steps: renumberOrder(reordered) })),
 		description: 'Změněno pořadí kroků'
 	};
 }
