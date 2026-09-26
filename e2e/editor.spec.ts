@@ -5,13 +5,27 @@ const fixture = (name: string) =>
 	readFileSync(new URL(`../src/lib/domain/__tests__/fixtures/${name}`, import.meta.url), 'utf8');
 
 /** Load a course through the editor's own import path, as an author would. */
-async function importCourse(page: Page, name: string) {
+async function importCourse(page: Page, name: string, text = fixture(name)) {
 	await page.setInputFiles('input[type=file]', {
 		name,
 		mimeType: 'application/json',
-		buffer: Buffer.from(fixture(name))
+		buffer: Buffer.from(text)
 	});
 	await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+}
+
+/**
+ * The spec's example course with nothing left to say about it. As written it gives the
+ * quiz card's question step a hint of its own, which the app never shows
+ * (W_HINT_UNREACHABLE). The card has its own hint, which the app does show; without
+ * the step's, the course is clean.
+ */
+function cleanSpecCourse(): string {
+	const course = JSON.parse(fixture('spec-16-course.json'));
+	const card = course.blocks.find((b: { block_id: string }) => b.block_id === 'L1_B3_poznej');
+	const step = card.steps.find((s: { id: string }) => s.id === 's2');
+	delete step.hint;
+	return JSON.stringify(course);
 }
 
 test.beforeEach(async ({ page }) => {
@@ -146,7 +160,7 @@ test('the validation panel jumps to the field that needs fixing', async ({ page 
 });
 
 test('the spec course imports clean and publishes', async ({ page }) => {
-	await importCourse(page, 'spec-16-course.json');
+	await importCourse(page, 'spec-16-course.json', cleanSpecCourse());
 
 	await expect(page.getByRole('button', { name: 'Kontrola kurzu: v pořádku' })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Stáhnout', exact: true })).toBeEnabled();
@@ -178,7 +192,7 @@ test('a course with errors cannot be exported, one with warnings can', async ({ 
 	expect(downloads).toBe(0);
 
 	// A clean course downloads straight away, with no dialog in between.
-	await importCourse(page, 'spec-16-course.json');
+	await importCourse(page, 'spec-16-course.json', cleanSpecCourse());
 	const direct = page.waitForEvent('download');
 	await download.click();
 	await direct;
