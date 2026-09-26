@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { BlockV2 } from '../schema';
-import { blockPreview, derivedBlockName } from '../derive';
+import { blockPreview, derivedBlockName, mediaFileName, stepSummary } from '../derive';
 
 const block = (over: Partial<BlockV2> = {}): BlockV2 => ({
 	block_id: 'B1',
@@ -111,5 +111,52 @@ describe('a card is named by its opening line', () => {
 		expect(blockPreview(card('\n\n   \nZlomek popisuje část celku.\nDruhý řádek.'))).toBe(
 			'Zlomek popisuje část celku.'
 		);
+	});
+});
+
+describe('a card whose text is one long paragraph', () => {
+	const named = (content: string) => derivedBlockName(block({ steps: [{ id: 's1', type: 'text', content }] }));
+
+	it('is called by its first sentence', () => {
+		expect(
+			named('Dnes se naučíme, co je to **fotosyntéza**. Je to proces, při kterém rostliny přeměňují světlo.')
+		).toBe('Dnes se naučíme, co je to fotosyntéza.');
+	});
+
+	it('does not cut at a decimal point, an ordinal or an abbreviation', () => {
+		expect(named('Číslo 3.5 je větší než tři a půl mínus nic')).toBe('Číslo 3.5 je větší než tři a půl mínus nic');
+		expect(named('Viz 1. díl učebnice o zlomcích a desetinných číslech')).toBe(
+			'Viz 1. díl učebnice o zlomcích a desetinných číslech'
+		);
+		expect(named('Voda, tj. H2O, je potřeba pro fotosyntézu')).toBe('Voda, tj. H2O, je potřeba pro fotosyntézu');
+	});
+
+	it('keeps a short opening "sentence" together with what follows', () => {
+		// "Úkol 1." is a heading, not a name.
+		expect(named('Úkol 1. Spočítej, kolik je polovina z osmi.')).toBe('Úkol 1. Spočítej, kolik je polovina z osmi.');
+	});
+});
+
+describe('the line a folded step shows', () => {
+	it('is the plain text, without Markdown', () => {
+		expect(stepSummary({ id: 's1', type: 'text', content: '## Co je **fotosyntéza**\nDalší řádek' })).toBe(
+			'Co je fotosyntéza'
+		);
+	});
+
+	it('names a picture by its description, then by its file, never by its address', () => {
+		const url = 'https://upload.wikimedia.org/wikipedia/commons/a/ab/Leaf%201.jpg?width=400';
+		expect(stepSummary({ id: 's1', type: 'image', image: { url, alt: 'List rostliny' } })).toBe('List rostliny');
+		expect(stepSummary({ id: 's1', type: 'image', image: { url } })).toBe('Leaf 1.jpg');
+		expect(stepSummary({ id: 's1', type: 'video', video: { url: 'https://example.org/v/intro.mp4' } })).toBe(
+			'intro.mp4'
+		);
+	});
+
+	it('copes with an address that is still being typed', () => {
+		expect(mediaFileName('')).toBe('');
+		expect(mediaFileName('obrazky/list.png')).toBe('list.png');
+		expect(mediaFileName('https://example.org/')).toBe('example.org');
+		expect(mediaFileName('https://example.org/%E0%A4%A.png')).toBe('%E0%A4%A.png');
 	});
 });

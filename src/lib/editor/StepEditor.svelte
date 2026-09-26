@@ -19,7 +19,9 @@
     import AnswerTable from "./AnswerTable.svelte";
     import { markdownEditor } from "$lib/ui/codemirror";
     import FieldGroup from "$lib/ui/FieldGroup.svelte";
-    import { useStore } from "$lib/ui/context";
+    import { useStepView, useStore } from "$lib/ui/context";
+    import { dragHandle } from "svelte-dnd-action";
+    import { untrack } from "svelte";
     import { refKey } from "$lib/domain/ref";
     import Button from "$lib/ui/Button.svelte";
     import { allows, fieldSpec, fieldsFor } from "$lib/ui/fields";
@@ -38,24 +40,35 @@
         ChevronRight,
         Copy,
         CornerDownRight,
+        GripVertical,
         Grid2X2,
         Hash,
         PencilLine,
         Trash,
     } from "@lucide/svelte";
     import type { Component } from "svelte";
-    import { textEllipsis } from "$lib/utils";
+    import { stepSummary } from "$lib/domain/derive";
     import { STEP_TYPES } from "$lib/lang";
 
     interface Props {
         doc: CourseV2;
         block: BlockV2;
         step: BlockStep;
+        /**
+         * The step's key in the list: its id, unless the document is broken and the id
+         * is not unique (`ui/keys.ts`). Folding is remembered under it.
+         */
+        stepKey: string;
+        /** The lesson the card is open in, so that focusing a step keeps it there. */
+        lessonId?: string;
         /** 1-based position, for the label a teacher sees instead of the id (§8). */
         position: number;
+        /** A press on the drag handle, before the drag begins (`CardEditor.grab`). */
+        ongrab: (handle: HTMLElement) => void;
         onrepair: (blockId: string, stepId: string) => void;
     }
-    let { doc, block, step, position, onrepair }: Props = $props();
+    let { doc, block, step, stepKey, lessonId, position, ongrab, onrepair }: Props =
+        $props();
 
     const store = useStore();
     const mode = $derived(store.mode);
@@ -387,14 +400,69 @@
     );
     $effect(() => {
         // Depends on the reveal counter, not on the selection: typing also moves the
-        // selection, and scrolling on every keystroke would be unusable.
-        void store.reveal;
-        if (targeted && root !== null) {
-            root.scrollIntoView({ block: "center", behavior: "smooth" });
-        }
+        // selection, and scrolling on every keystroke would be unusable. A reveal is
+        // answered once — this step may remount afterwards (a drag remounts it twice)
+        // and must not pull the page back to itself when it does.
+        const reveal = store.reveal;
+        if (!targeted || root === null) return;
+        if (untrack(() => stepView.revealHandled) === reveal) return;
+        stepView.revealHandled = reveal;
+        root.scrollIntoView({ block: "center", behavior: "smooth" });
     });
 
-    let collapsed = $state(false);
+    /**
+     * Open or folded is decided in one place (`ui/step-expansion.ts`) from state that
+     * outlives this component (`state/step-view.svelte.ts`): the author's chevron,
+     * whether the selection is here, and whether a step is being dragged.
+     */
+    const stepView = useStepView();
+    const collapsed = $derived(
+        block !== undefined &&
+            step !== undefined &&
+            !stepView.expanded(block.block_id, stepKey, step.id, store.selection),
+    );
+
+    /**
+     * The press on the handle, as a listener on the handle itself. A delegated
+     * `onmousedown` never arrives: `svelte-dnd-action` handles the same press on the
+     * step's wrapper, below the root where Svelte listens, and stops it there.
+     */
+    function grabbed(handle: HTMLElement) {
+        const press = () => ongrab(handle);
+        const key = (event: KeyboardEvent) => {
+            if (event.key === "Enter" || event.key === " ") ongrab(handle);
+        };
+        handle.addEventListener("mousedown", press);
+        handle.addEventListener("touchstart", press);
+        handle.addEventListener("keydown", key);
+        return {
+            destroy() {
+                handle.removeEventListener("mousedown", press);
+                handle.removeEventListener("touchstart", press);
+                handle.removeEventListener("keydown", key);
+            },
+        };
+    }
+
+    /**
+     * Working in a step focuses it: the selection moves here, which is what opens a
+     * folded step, outlines it in the preview, and folds it again once the author
+     * moves on. Only the body counts — the header's buttons act on the step without
+     * being "in" it, and the drag handle must not open the step it is moving.
+     */
+    function focusStep() {
+        const selection = store.selection;
+        if (
+            selection?.blockId === block.block_id &&
+            selection?.stepId === step.id
+        )
+            return;
+        store.selection = {
+            ...(lessonId !== undefined ? { lessonId } : {}),
+            blockId: block.block_id,
+            stepId: step.id,
+        };
+    }
 </script>
 
 <article
@@ -404,10 +472,25 @@
     class:targeted
     class:collapsed>
     <header>
+        <button
+            type="button"
+            class="grip"
+            use:dragHandle
+            aria-label="Přesunout krok {position}"
+            title="Přetažením změníš pořadí kroků"
+            use:grabbed>
+            <GripVertical size={16}></GripVertical>
+        </button>
         <Chip
             tone="quiet"
             title={collapsed ? "Rozbalit krok" : "Sbalit krok"}
-            onclick={() => (collapsed = !collapsed)}>
+            onclick={() =>
+                stepView.toggle(
+                    block.block_id,
+                    stepKey,
+                    step.id,
+                    store.selection,
+                )}>
             {#if collapsed}
                 <ChevronRight size={16}></ChevronRight>
             {:else}
@@ -438,35 +521,45 @@
         {/if}
 
         {#if collapsed}
-            <Chip tone="quiet" title="Název">
-                {textEllipsis(
-                    step.content ||
-                        step.image?.url ||
-                        step.video?.url ||
-                        step.audio?.url ||
-                        "",
-                    20,
-                )}
-            </Chip>
+            <!-- Clicking the summary looks inside without unfolding for good. -->
+            <button
+                type="button"
+                class="summary"
+                title="Zobrazit krok"
+                onclick={focusStep}>{stepSummary(step)}</button>
+        {:else}
+            <div class="spacer"></div>
         {/if}
-        <div class="spacer"></div>
         <Button
             variant="ghost"
             size="s"
             onclick={() =>
                 store.apply((d, r) =>
                     duplicateStep(d, block.block_id, step.id, r),
-                )}>
+                )}
+            title="Duplikovat krok"
+            ariaLabel="Duplikovat krok">
             <Copy size={16}></Copy>
-            Duplikovat
+            <span class="action-label">Duplikovat</span>
         </Button>
-        <Button variant="danger" size="s" onclick={remove}>
+        <Button
+            variant="danger"
+            size="s"
+            onclick={remove}
+            title="Smazat krok"
+            ariaLabel="Smazat krok">
             <Trash size={16}></Trash>
-            Smazat
+            <span class="action-label">Smazat</span>
         </Button>
     </header>
 
     {#if !collapsed}
+        <div
+            class="body"
+            role="group"
+            aria-label="Obsah kroku {position}"
+            onfocusin={focusStep}
+            onpointerdown={focusStep}>
         {#if step.type === "text"}
             <div
                 class="markdown"
@@ -752,6 +845,7 @@
                 {/snippet}
             </Modal>
         {/if}
+        </div>
     {/if}
 </article>
 
@@ -761,6 +855,8 @@
     }
 
     .step {
+        /* The row's own width decides how much its header can say, not the window's. */
+        container-type: inline-size;
         padding: 12px 14px;
         border: 1px solid var(--e-border);
         border-radius: var(--radius-m);
@@ -785,6 +881,52 @@
 
     .spacer {
         flex: 1;
+    }
+
+    .grip {
+        display: inline-flex;
+        align-items: center;
+        margin-left: -6px;
+        padding: 2px;
+        border: none;
+        border-radius: var(--radius-s);
+        background: none;
+        color: var(--e-text-faint);
+        cursor: grab;
+    }
+
+    .grip:hover,
+    .grip:focus-visible {
+        color: var(--e-text);
+        background: var(--surface-light);
+    }
+
+    /* A narrow step keeps its actions as icons, so the summary still has room. */
+    @container (max-width: 620px) {
+        .action-label {
+            display: none;
+        }
+    }
+
+    /* The summary takes the room the spacer would, and never less than a few words. */
+    .summary {
+        overflow: hidden;
+        min-width: 6rem;
+        flex: 1 1 0;
+        padding: 0;
+        border: none;
+        background: none;
+        color: var(--e-text-muted);
+        font: inherit;
+        font-size: var(--text-s);
+        text-align: left;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        cursor: pointer;
+    }
+
+    .summary:hover {
+        color: var(--e-text);
     }
 
     .markdown {

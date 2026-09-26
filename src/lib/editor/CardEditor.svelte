@@ -12,7 +12,13 @@
      * that have none of their own, so the steps' ladders stay here and the card's
      * sits with the rest of its settings.
      */
-    import { dndzone, type DndEvent } from "svelte-dnd-action";
+    import {
+        dragHandleZone,
+        SHADOW_ITEM_MARKER_PROPERTY_NAME,
+        SHADOW_PLACEHOLDER_ITEM_ID,
+        type DndEvent,
+    } from "svelte-dnd-action";
+    import { tick } from "svelte";
     import type {
         BlockStep,
         BlockV2,
@@ -28,7 +34,8 @@
     import type { Ref } from "$lib/domain/ref";
     import FocusField from "$lib/ui/FocusField.svelte";
     import StepEditor from "./StepEditor.svelte";
-    import { useStore } from "$lib/ui/context";
+    import { useStepView, useStore } from "$lib/ui/context";
+    import { uniqueKeys } from "$lib/ui/keys";
     import {
         addStep,
         bindBlock,
@@ -184,21 +191,82 @@
         if (revealedField === "hint" || revealedField === "help") onsettings();
     });
 
-    // svelte-dnd-action needs an `id` on each item; steps already have one.
-    let dragging = $state<BlockStep[] | null>(null);
-    const items = $derived(dragging ?? block.steps);
+    /**
+     * The list `svelte-dnd-action` reorders. Each item carries a key that is unique
+     * even when the document holds duplicate step ids, and the step itself.
+     */
+    interface StepItem {
+        id: string;
+        step: BlockStep;
+        [SHADOW_ITEM_MARKER_PROPERTY_NAME]?: boolean;
+    }
+    const stepView = useStepView();
+    const baseItems = $derived.by((): StepItem[] => {
+        const keys = uniqueKeys(block.steps.map((s) => s.id));
+        return block.steps.map((step, i) => ({ id: keys[i], step }));
+    });
+    let dragging = $state<StepItem[] | null>(null);
+    const items = $derived(dragging ?? baseItems);
+    /** The key of the step being carried — the placeholder has another id at first. */
+    let carried = $state<string | null>(null);
+    const keyOf = (item: StepItem) =>
+        item[SHADOW_ITEM_MARKER_PROPERTY_NAME] &&
+        item.id === SHADOW_PLACEHOLDER_ITEM_ID &&
+        carried !== null
+            ? carried
+            : item.id;
 
-    function onconsider(event: CustomEvent<DndEvent<BlockStep>>) {
+    /**
+     * A press on a step's handle, before the library has measured anything: fold
+     * every step now, so the list it measures — and the gap it leaves for the
+     * carried step — is the short one. Folding moves the handle, so the column is
+     * scrolled by the same amount to keep it under the pointer; otherwise the step
+     * would be picked up from wherever it landed.
+     */
+    async function grab(handle: HTMLElement) {
+        if (document.activeElement instanceof HTMLElement)
+            document.activeElement.blur();
+        const before = handle.getBoundingClientRect().top;
+        stepView.dragging = true;
+        await tick();
+        const shift = handle.getBoundingClientRect().top - before;
+        if (shift !== 0) scrollParent(handle)?.scrollBy({ top: shift });
+        // A press that never became a drag gets no `finalize`.
+        const release = () => {
+            window.removeEventListener("pointerup", release);
+            window.removeEventListener("keyup", release);
+            if (dragging === null) stepView.dragging = false;
+        };
+        window.addEventListener("pointerup", release);
+        window.addEventListener("keyup", release);
+    }
+
+    function scrollParent(node: HTMLElement): HTMLElement | null {
+        for (let el = node.parentElement; el !== null; el = el.parentElement) {
+            const overflow = getComputedStyle(el).overflowY;
+            if (
+                (overflow === "auto" || overflow === "scroll") &&
+                el.scrollHeight > el.clientHeight
+            )
+                return el;
+        }
+        return document.scrollingElement as HTMLElement | null;
+    }
+
+    function onconsider(event: CustomEvent<DndEvent<StepItem>>) {
+        carried = event.detail.info.id;
         dragging = event.detail.items;
     }
 
-    function onfinalize(event: CustomEvent<DndEvent<BlockStep>>) {
+    function onfinalize(event: CustomEvent<DndEvent<StepItem>>) {
         dragging = null;
+        carried = null;
+        stepView.dragging = false;
         store.apply((d) =>
             reorderSteps(
                 d,
                 block.block_id,
-                event.detail.items.map((s) => s.id),
+                event.detail.items.map((item) => item.step.id),
             ),
         );
     }
@@ -406,16 +474,23 @@
 
     <div
         class="steps"
-        use:dndzone={{ items, flipDurationMs: 150, dropTargetStyle: {} }}
+        use:dragHandleZone={{
+            items,
+            flipDurationMs: 150,
+            dropTargetStyle: {},
+        }}
         {onconsider}
         {onfinalize}>
-        {#each items as step, i (step.id)}
+        {#each items as item, i (item.id)}
             <div class="step-wrap">
                 <StepEditor
                     {doc}
                     {block}
-                    {step}
+                    step={item.step}
+                    stepKey={keyOf(item)}
+                    {lessonId}
                     position={i + 1}
+                    ongrab={grab}
                     onrepair={onrepairStep} />
             </div>
         {/each}

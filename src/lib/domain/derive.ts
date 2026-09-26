@@ -4,7 +4,7 @@
  * The editor shows these live because both are promises to the student that move
  * whenever a step is added or removed.
  */
-import type { BlockV2, CourseV2, LessonV2 } from './schema';
+import type { BlockStep, BlockV2, CourseV2, LessonV2 } from './schema';
 import type { DocIndex } from './index-doc';
 
 /** `"3 min"` / `"3"` / `3` → 3. Undefined when the block declares no duration. */
@@ -186,30 +186,109 @@ const truncate = (text: string, max: number) =>
  */
 export function derivedBlockName(block: BlockV2, max = 70, position?: number): string {
 	const source = block.steps.find((step) => (step.content ?? '').trim() !== '');
-	const text = (source?.content ?? '')
-		// Markdown and LaTeX delimiters are syntax, not words. A card called
-		// "Zlomek $\frac{a}{b}$ popisuje…" is harder to recognise than one called
-		// "Zlomek \frac{a}{b} popisuje…", and much harder than the prose around it.
-		.replace(/\$+/g, '')
-		// `#` and `>` are markers only at the start of a line. Stripping them
-		// everywhere ate them out of the author's own sentences — a card that opened
-		// "Cena je > 2 Kč" was called "Cena je 2 Kč", which is not a truncation of
-		// what they wrote, it is a different claim. Inline emphasis and code marks
-		// still go wherever they appear: they are always syntax and never prose.
-		.replace(/^[ \t]*[#>]+[ \t]?/gm, '')
-		.replace(/[*_`]/g, '')
-		.split('\n')
-		// The first line, not the whole card flattened. A card whose text is a
-		// paragraph and then a Markdown table used to be called
-		// "Části zlomku | Pozice | Název | Co říká | |---…", which names the table's
-		// syntax rather than the card. Everything after the first line is detail;
-		// the line the author opened with is the one they will recognise.
-		.map((line) => line.trim())
-		.find((line) => line !== '')
-		?.replace(/\s+/g, ' ')
-		.trim() ?? '';
+	const text = firstSentence(plainFirstLine(source?.content ?? ''));
 	if (text === '') return position === undefined ? 'Karta bez textu' : `Karta ${position}`;
 	return truncate(text, max);
+}
+
+/**
+ * The first line of some Markdown, as words: the syntax stripped, whitespace
+ * collapsed. Shared by the card's name and a folded step's summary line, so that
+ * the two never disagree about what the author wrote.
+ */
+export function plainFirstLine(markdown: string): string {
+	return (
+		markdown
+			// Markdown and LaTeX delimiters are syntax, not words. A card called
+			// "Zlomek $\frac{a}{b}$ popisuje…" is harder to recognise than one called
+			// "Zlomek \frac{a}{b} popisuje…", and much harder than the prose around it.
+			.replace(/\$+/g, '')
+			// `#` and `>` are markers only at the start of a line. Stripping them
+			// everywhere ate them out of the author's own sentences — a card that opened
+			// "Cena je > 2 Kč" was called "Cena je 2 Kč", which is not a truncation of
+			// what they wrote, it is a different claim. Inline emphasis and code marks
+			// still go wherever they appear: they are always syntax and never prose.
+			.replace(/^[ \t]*[#>]+[ \t]?/gm, '')
+			.replace(/[*_`]/g, '')
+			.split('\n')
+			// The first line, not the whole card flattened. A card whose text is a
+			// paragraph and then a Markdown table used to be called
+			// "Části zlomku | Pozice | Název | Co říká | |---…", which names the table's
+			// syntax rather than the card. Everything after the first line is detail;
+			// the line the author opened with is the one they will recognise.
+			.map((line) => line.trim())
+			.find((line) => line !== '')
+			?.replace(/\s+/g, ' ')
+			.trim() ?? ''
+	);
+}
+
+/**
+ * A card whose text is one paragraph has a first line that is the whole paragraph,
+ * and the tree then names it "Dnes se naučíme, co je to fotosyntéza. Je to proces,
+ * při …". The first sentence is the name an author would have given it.
+ *
+ * Only a full stop, "!", "?" or "…" followed by a space and a capital letter ends a
+ * sentence here, so "3.5", "1. díl" and "tj. voda" do not; and a "sentence" shorter
+ * than a few words is more likely an abbreviation or a numbered heading than a
+ * name, so the line is kept whole then.
+ */
+const SENTENCE_END = /[.!?…](?=\s+[A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ])/gu;
+const MIN_SENTENCE = 16;
+
+function firstSentence(line: string): string {
+	for (const match of line.matchAll(SENTENCE_END)) {
+		if (match.index + 1 >= MIN_SENTENCE) return line.slice(0, match.index + 1);
+	}
+	return line;
+}
+
+/**
+ * The one line a folded step shows in place of its body.
+ *
+ * It used to be the raw field — Markdown asterisks included, and for a picture the
+ * whole address, so a teacher read "https://upload.wiki…" where they had put a photo
+ * of a leaf. Text is the same plain first line the card's name uses; a picture is
+ * its description, or failing that its file name; video and audio are their file
+ * name. Truncation is the caller's business (CSS), because the room varies.
+ */
+export function stepSummary(step: BlockStep): string {
+	const text = plainFirstLine(step.content ?? '');
+	if (step.type === 'text') return text;
+	if (step.type === 'question') {
+		// A question whose prompt is the text step above it is recognised by its answers.
+		if (text !== '') return text;
+		return (step.question?.options ?? [])
+			.map((option) => plainFirstLine(option.text))
+			.filter((option) => option !== '')
+			.join(' · ');
+	}
+	if (step.type === 'image') {
+		const alt = (step.image?.alt ?? '').trim();
+		return alt !== '' ? alt : mediaFileName(step.image?.url) || text;
+	}
+	if (step.type === 'video') return mediaFileName(step.video?.url) || text;
+	if (step.type === 'audio') return mediaFileName(step.audio?.url) || text;
+	return text;
+}
+
+/** "https://upload.wikimedia.org/…/Leaf%201.jpg?x=1" → "Leaf 1.jpg". */
+export function mediaFileName(url: string | undefined): string {
+	const raw = (url ?? '').trim();
+	if (raw === '') return '';
+	try {
+		const parsed = new URL(raw);
+		const last = parsed.pathname.split('/').filter((part) => part !== '').at(-1);
+		if (last === undefined) return parsed.hostname;
+		try {
+			return decodeURIComponent(last);
+		} catch {
+			return last;
+		}
+	} catch {
+		// Not an absolute address — a relative path or something half-typed.
+		return raw.split(/[?#]/)[0].split('/').filter((part) => part !== '').at(-1) ?? raw;
+	}
 }
 
 /**

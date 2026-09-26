@@ -16,7 +16,8 @@
     import { DraftSession } from "$lib/state/draft-session.svelte";
     import { DRAFT_KEY } from "$lib/state/draft";
     import { DocStore } from "$lib/state/doc-store.svelte";
-    import { setStore } from "$lib/ui/context";
+    import { setStepView, setStore } from "$lib/ui/context";
+    import { StepView } from "$lib/state/step-view.svelte";
     import Sidebar from "$lib/editor/Sidebar.svelte";
     import Topbar from "$lib/editor/Topbar.svelte";
     import CardEditor from "$lib/editor/CardEditor.svelte";
@@ -42,6 +43,7 @@
 
     const store = new DocStore();
     setStore(store);
+    setStepView(new StepView());
     let recovery = $state<DraftSession | null>(null);
 
     $effect(() => {
