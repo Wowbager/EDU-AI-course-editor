@@ -795,7 +795,9 @@
                         stepId: step.id,
                         field: "hint",
                     }}
-                    emptyText="nevyplněno — žák uvidí otazník jen když tu něco je"
+                    emptyText={position === 1
+                        ? "nevyplněno — žák uvidí otazník jen když tu něco je"
+                        : "nevyplněno — aplikace zatím ukazuje jen nápovědu 1. kroku nebo ke kartě"}
                     onchange={(v) => set("hint", v)} />
             </div>
             <div class="field-row">

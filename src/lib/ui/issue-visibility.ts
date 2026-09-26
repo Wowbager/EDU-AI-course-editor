@@ -38,6 +38,9 @@ export const TIMING: Record<string, Timing> = {
 	E_PREREQ_CYCLE: 'immediate',
 	// A value that is present and wrong.
 	E_MEDIA_NOT_DIRECT: 'immediate',
+	// Text the author is typing into a field no student will ever read — said while
+	// it is typed, like a YouTube link in the video field, not at export.
+	W_HINT_UNREACHABLE: 'immediate',
 	E_MEDIA_NOT_HTTPS: 'immediate',
 	E_VECTOR_LENGTH: 'immediate',
 	E_RELATION_VECTOR_VALUE: 'immediate',
@@ -68,7 +71,6 @@ export const TIMING: Record<string, Timing> = {
 	W_NO_WRONG_OPTION_FEEDBACK: 'review',
 	W_PARTIAL_CREDIT_ON_WRONG: 'review',
 	W_IMAGE_NO_ALT: 'review',
-	W_HINT_UNREACHABLE: 'review',
 	W_TOO_MANY_STRONG_RELATIONS: 'review',
 	W_RELATION_VECTOR_ALL_ZERO: 'review',
 	W_ELO_OUTLIER: 'review',

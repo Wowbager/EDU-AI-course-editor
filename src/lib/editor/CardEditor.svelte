@@ -112,6 +112,19 @@
             ? notice
             : null,
     );
+    /**
+     * A question or exercise card is one bubble in the app: every step is on screen
+     * at once, and the questions are answered strictly top to bottom — a question
+     * below the current one is drawn with its field but takes no input until the
+     * ones above it are answered (`_buildExerciseCard` in `block_step_engine.dart`).
+     * With two or more questions that reads as a broken card to anyone who starts at
+     * the wrong one, so the card says how it will behave, once, quietly.
+     */
+    const bubbledQuestions = $derived(
+        block.type === "display"
+            ? 0
+            : block.steps.filter((s) => s.type === "question").length,
+    );
     const xp = $derived(effectiveBlockXp(block));
     const xpIsDerived = $derived(typeof block.xp !== "number");
     const minutes = $derived(blockDurationMinutes(block));
@@ -481,6 +494,19 @@
         {/each}
     </div>
 
+    {#if bubbledQuestions > 1}
+        <p class="bubble-note" role="note">
+            Žák uvidí {bubbledQuestions === 2
+                ? "obě otázky"
+                : bubbledQuestions < 5
+                  ? `všechny ${bubbledQuestions} otázky`
+                  : `všech ${bubbledQuestions} otázek`} najednou v jedné bublině a
+            odpovídá na ně postupně shora — do další otázky nejde psát, dokud
+            neodpoví na předchozí. Chceš-li je mít každou zvlášť, dej každou otázku
+            do vlastní karty, nebo použij kartu typu Výklad.
+        </p>
+    {/if}
+
     <div class="add-step">
         <span class="add-label">Přidat krok:</span>
         {#each STEP_TYPES as option (option.type)}
@@ -575,6 +601,15 @@
 
     .step-wrap:focus {
         outline: none;
+    }
+
+    .bubble-note {
+        margin: 12px 0 0;
+        padding: 8px 12px;
+        border-radius: var(--radius-s);
+        background: var(--info-bg);
+        color: var(--e-text-muted);
+        font-size: var(--text-s);
     }
 
     .add-step {

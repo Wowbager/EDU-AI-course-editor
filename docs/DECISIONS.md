@@ -934,6 +934,21 @@ has a table of when each player message is sent, and the editor's `receive()` is
 exhaustive `switch` that fails to compile on a new message type. A second `ready`
 (the frame reloaded) re-sends the last content instead of leaving a placeholder.
 
+**Said where it is typed, not at export.** The owner put a hint on step 2 and found
+no "?" in Vyzkoušet — correctly, because no student would get one (OPEN-PROBLEMS C).
+`W_HINT_UNREACHABLE` was review-only; it is `immediate` now, under the field, like a
+YouTube link in the video field: text written into a field nobody will read is a
+contradiction the author is causing right now, not advice. A later step's empty hint
+field no longer promises "žák uvidí otazník jen když tu něco je".
+
+**A question card is one bubble.** Also from the owner: a question card with two
+questions "joins the steps and cannot continue". It continues — the questions are
+answered strictly top to bottom, and a field below the current question takes no input
+while looking as if it would (OPEN-PROBLEMS C2). The preview is right to show that;
+the card now says so in one quiet line when it has two or more questions. *Rejected:*
+making Vyzkoušet draw the later questions differently — the preview would then disagree
+with the app, which is the one thing it may not do.
+
 ### Mode parity
 
 What each surface does, so that a preview change can be checked against it:

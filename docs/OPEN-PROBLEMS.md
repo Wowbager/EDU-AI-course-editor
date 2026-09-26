@@ -48,6 +48,20 @@ in the review). The fix is app-side — update the block's current step as the e
 advances, or read `step.hint` in the engine — and needs a PR a human opens against
 `edu-ai-00`.
 
+### C2. A question card's later questions look answerable and are not — app-side
+**Verified: yes**, reproduced in Vyzkoušet with the current player, and read off the
+code. A card of type Otázka or Cvičení is one bubble (`_buildExerciseCard` in
+`block_step_engine.dart`): every step is drawn at once, but only the current question
+gets input handlers. A number or text field further down is drawn exactly like an
+active one and ignores typing until the questions above it are answered, and the check
+button's only complaint is "Nejprve vyber odpověď" — "pick an answer", for a field you
+type into. Reported by the owner as "Vyzkoušet joins steps and I cannot continue"; the
+run does continue once the questions are answered top to bottom.
+
+Vyzkoušet shows it because the app does. The editor now says it on any question or
+exercise card with two or more questions. The fix — draw a later question as inactive,
+and word the message for the input type — is app-side.
+
 ### D. API: a status change bumps the version without a new file — API-side
 **Verified: yes**, read off the code. `Course::boot` (`app/Models/Course.php:91-95`)
 increments `version` on any update that does not set it, so `PUT /courses/{id}` with
