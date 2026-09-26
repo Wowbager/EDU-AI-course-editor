@@ -35,6 +35,7 @@
         lessonTotals,
     } from "$lib/domain/derive";
     import { cardsCount, stepsCount } from "$lib/ui/plural";
+    import { uniqueKeys } from "$lib/ui/keys";
     import {
         ChevronLeft,
         ChevronRight,
@@ -155,6 +156,7 @@
                 (store.index.lessonsByBlock.get(b.block_id) ?? []).length === 0,
         ),
     );
+    const orphanKeys = $derived(uniqueKeys(orphans.map((b) => b.block_id)));
 
     const TYPE_ICON = {
         display: BookOpenText,
@@ -390,7 +392,7 @@
         {#if orphans.length > 0}
             <h2 class="secondary">Karty mimo lekce</h2>
             <ul class="orphans">
-                {#each orphans as block (block.block_id)}
+                {#each orphans as block, i (orphanKeys[i])}
                     {@const Icon = TYPE_ICON[block.type]}
                     <li>
                         <button

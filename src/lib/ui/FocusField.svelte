@@ -174,10 +174,10 @@
     {/if}
 
     <!-- A line under the field, not a badge: it explains the outline, it is not an alarm. -->
-    {#each issues.errors as error (error.code)}
+    {#each issues.errors as error, i (i)}
         <p class="note error">{error.message}</p>
     {/each}
-    {#each issues.warnings as warning (warning.code)}
+    {#each issues.warnings as warning, i (i)}
         <p class="note warning">{warning.message}</p>
     {/each}
 </div>

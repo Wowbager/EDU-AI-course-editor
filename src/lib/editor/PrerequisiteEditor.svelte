@@ -65,7 +65,7 @@
 				onchange={(e) => pickBlock(index, e.currentTarget.value)}
 			>
 				<option value="">— karta —</option>
-				{#each others as other (other.block_id)}
+				{#each others as other, i (i)}
 					<option value={other.block_id}>{other.block_id}</option>
 				{/each}
 			</select>

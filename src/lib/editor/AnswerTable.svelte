@@ -13,6 +13,7 @@
     import Button from "$lib/ui/Button.svelte";
     import GoToPicker from "./GoToPicker.svelte";
     import { useStore } from "$lib/ui/context";
+    import { uniqueKeys } from "$lib/ui/keys";
     import { allows } from "$lib/ui/fields";
     import { addOption, deleteOption, setField } from "$lib/domain/commands";
     import { CircleCheck, Plus, Trash, X } from "@lucide/svelte";
@@ -26,6 +27,8 @@
 
     const store = useStore();
     const options = $derived(step.question?.options ?? []);
+    // Duplicate option ids are a warning (`W_DUPLICATE_OPTION_ID`), not a crash.
+    const optionKeys = $derived(uniqueKeys(options.map((o) => o.id)));
     const branching = $derived(
         block.type === "question" && doc.export_type !== "exercise_v2",
     );
@@ -95,7 +98,7 @@
         <span></span>
     </div>
 
-    {#each options as option (option.id)}
+    {#each options as option, i (optionKeys[i])}
         <div class="row">
             <div class="cell">
                 <button

@@ -70,14 +70,14 @@
 	</optgroup>
 	{#if steps.length > 0}
 		<optgroup label="Krok v tomto bloku">
-			{#each steps as step (step.id)}
+			{#each steps as step, i (i)}
 				<option value={step.id}>{label(step)}</option>
 			{/each}
 		</optgroup>
 	{/if}
 	{#if blocks.length > 0}
 		<optgroup label="Jiný blok v kurzu">
-			{#each blocks as target (target.block_id)}
+			{#each blocks as target, i (i)}
 				<option value={target.block_id}>{blockLabel(target)}</option>
 			{/each}
 		</optgroup>
