@@ -48,7 +48,8 @@
 	const store = useStore();
 	const versions = useVersions();
 
-	const doc = $derived(store.doc);
+	// Versions are of the course as exported, not of the view the editor shows.
+	const doc = $derived(store.source);
 	const next = $derived(versions.next(doc));
 	const modified = $derived(versions.modified(doc));
 	const visibility = $derived(visibilityOf(doc));
@@ -95,7 +96,9 @@
 			message = { tone: 'error', text: `Verzi ${version.version} se nepodařilo načíst.` };
 			return;
 		}
-		store.apply((d) => restoreVersion(d, saved.doc, version.version));
+		store.applySource((d) => restoreVersion(d, saved.doc, version.version));
+		// A version saved before questions had their own cards is split like an import.
+		store.splitQuestions();
 		message = { tone: 'ok', text: `Rozpracovaná verze je teď obsah verze ${version.version}.` };
 	}
 

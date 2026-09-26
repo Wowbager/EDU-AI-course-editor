@@ -44,7 +44,7 @@
     import { loadSkillConfig } from "$lib/api/client";
     import type { ImportNote } from "$lib/domain/legacy";
     import { X } from "@lucide/svelte";
-    import { counted } from "$lib/ui/plural";
+    import { cardsCount, counted } from "$lib/ui/plural";
 
     const store = new DocStore();
     setStore(store);
@@ -70,7 +70,7 @@
     $effect(() => {
         const session = recovery;
         // Track all durable values; the writer reads the freshest state at flush time.
-        void JSON.stringify(store.doc);
+        void JSON.stringify(store.source);
         void JSON.stringify(store.selection);
         void store.mode;
         if (session) untrack(() => session.schedule());
@@ -213,16 +213,42 @@
             // A file brings its number with it: recorded as a version, so the next
             // save cannot reuse the number it was already published under.
             void versions.recordImport(imported);
+            // Every question gets its own card in the app; the teacher's cards stay
+            // as they were written (`domain/groups.ts`).
+            const { split, keptTogether } = store.splitQuestions();
             store.selection =
                 imported.lessons[0] !== undefined
                     ? { lessonId: imported.lessons[0].lesson_id }
                     : null;
-            importNotes = report.notes;
+            importNotes = [...report.notes, ...splitNotes(split, keptTogether)];
             void loadConfig();
         } catch (error) {
             importError =
                 error instanceof Error ? error.message : String(error);
         }
+    }
+
+    /** What splitting an imported course's questions did, said once and calmly. */
+    function splitNotes(split: string[], keptTogether: string[]): ImportNote[] {
+        const cards = cardsCount;
+        return [
+            ...(split.length > 0
+                ? [
+                      {
+                          code: "IMPORT_QUESTIONS_SPLIT",
+                          message: `${cards(split.length)} s více otázkami: každá otázka se teď žákovi hodnotí zvlášť. V editoru vypadají stejně.`,
+                      },
+                  ]
+                : []),
+            ...(keptTogether.length > 0
+                ? [
+                      {
+                          code: "IMPORT_QUESTIONS_KEPT_TOGETHER",
+                          message: `${cards(keptTogether.length)} s větvením mezi vlastními otázkami ${keptTogether.length === 1 ? "zůstává celá" : "zůstávají celé"} a hodnotí se jako celek, aby se nezměnila cesta žáka.`,
+                      },
+                  ]
+                : []),
+        ];
     }
 
     async function loadConfig() {
@@ -268,7 +294,10 @@
         // Typing that landed before hydration finished already made the document
         // dirty; seeding or restoring now would silently discard it.
         const restored = !store.dirty && session.restore();
-        if (restored) inherited = true;
+        if (restored) {
+            inherited = true;
+            store.splitQuestions();
+        }
         if (!store.dirty && !restored) {
             store.load(emptyCourse(newCourseId(), "Nový kurz"));
             store.apply((d, r) => {

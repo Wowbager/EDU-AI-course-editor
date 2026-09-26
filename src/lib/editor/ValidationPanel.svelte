@@ -23,8 +23,9 @@
 	function jump(issue: Issue) {
 		// Fixed in a mode above this one: switch first, or the jump lands on nothing.
 		const need = fixModeOf(issue.ref) ?? 'advanced';
-		if (MODE_RANK[need] > MODE_RANK[store.mode]) store.mode = need;
-		store.revealAt({ ...issue.ref, lessonId: issueLessonId(store.index, issue.ref) });
+		const lessonId = issueLessonId(store.index, issue.ref);
+		const ref = MODE_RANK[need] > MODE_RANK[store.mode] ? store.switchMode(need, issue.ref) : issue.ref;
+		store.revealAt({ ...ref, lessonId });
 		onclose();
 	}
 

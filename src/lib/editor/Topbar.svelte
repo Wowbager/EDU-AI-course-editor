@@ -51,10 +51,10 @@
      * yet shows the number it will get.
      */
     const savedVersion = $derived(versions.latest);
-    const workingChanged = $derived(versions.modified(store.doc));
+    const workingChanged = $derived(versions.modified(store.source));
     const versionLabel = $derived(
         savedVersion === undefined
-            ? `v${versions.next(store.doc)} · neuloženo`
+            ? `v${versions.next(store.source)} · neuloženo`
             : workingChanged
               ? `v${savedVersion.version} · upraveno`
               : `v${savedVersion.version}`,
@@ -78,8 +78,8 @@
     // downloaded after version 3 was saved is never "version 1" to the platform.
     const currentJson = $derived(
         serialiseToJson({
-            ...store.doc,
-            version: versions.next(store.doc),
+            ...store.source,
+            version: versions.next(store.source),
         }),
     );
     const backedUp = $derived(

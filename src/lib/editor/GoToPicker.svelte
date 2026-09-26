@@ -62,6 +62,20 @@
 	// `NEXT_STEP` and an absent value mean the same thing; the picker shows one option
 	// for both and writes the absent form, which is what the corpus uses.
 	const current = $derived(value === 'NEXT_STEP' || value === null ? '' : (value ?? ''));
+
+	/**
+	 * A jump into a later question of another card (`domain/groups.ts`) names a block
+	 * the card is made of, not the card. The index resolves it to the card, and the
+	 * picker names it as such, so the teacher sees where it goes instead of a blank.
+	 */
+	const into = $derived.by(() => {
+		if (current === '' || steps.some((s) => s.id === current) || blocks.some((b) => b.block_id === current)) {
+			return undefined;
+		}
+		const card = store.index.blocksById.get(current);
+		if (card === undefined || card.block_id === current || card.block_id === block.block_id) return undefined;
+		return { value: current, label: `${blockLabel(card)} (od jedné z dalších otázek)` };
+	});
 </script>
 
 <select
@@ -87,6 +101,9 @@
 			{#each blocks as target, i (i)}
 				<option value={target.block_id}>{blockLabel(target)}</option>
 			{/each}
+			{#if into !== undefined}
+				<option value={into.value}>{into.label}</option>
+			{/if}
 		</optgroup>
 	{/if}
 </select>

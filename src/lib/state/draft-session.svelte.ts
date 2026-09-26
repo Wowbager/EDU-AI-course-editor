@@ -48,7 +48,7 @@ export class DraftSession {
 			}
 			const store = this.#store;
 			const draft: Draft = {
-				format: 1, savedAt: new Date().toISOString(), doc: store.doc, mode: store.mode,
+				format: 1, savedAt: new Date().toISOString(), doc: store.source, mode: store.mode,
 				selection: store.selection,
 				reserved: { blocks: [...store.reservations.blocks], lessons: [...store.reservations.lessons], steps: [...store.reservations.steps] }
 			};

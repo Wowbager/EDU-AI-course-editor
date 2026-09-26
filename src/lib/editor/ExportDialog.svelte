@@ -46,8 +46,7 @@
 	function jump(row: IssueRow) {
 		// A jump to a field this mode does not draw lands on nothing, so go up first.
 		const need = higherMode(row.target);
-		if (need !== null) store.mode = need;
-		store.revealAt(row.target);
+		store.revealAt(need !== null ? store.switchMode(need, row.target) : row.target);
 		onclose();
 	}
 

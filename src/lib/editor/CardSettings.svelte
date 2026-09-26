@@ -16,6 +16,7 @@
 	import type { BlockV2, CourseV2, LessonBlockBinding } from '$lib/domain/schema';
 	import Modal from '$lib/ui/Modal.svelte';
 	import Button from '$lib/ui/Button.svelte';
+	import Toggle from '$lib/ui/Toggle.svelte';
 	import FieldGroup from '$lib/ui/FieldGroup.svelte';
 	import TopicPicker from './TopicPicker.svelte';
 	import CompetencyEditor from './CompetencyEditor.svelte';
@@ -24,6 +25,13 @@
 	import { useStore } from '$lib/ui/context';
 	import { allows, fieldsFor } from '$lib/ui/fields';
 	import { setField } from '$lib/domain/commands';
+	import {
+		groupOf,
+		keepsQuestionsTogether,
+		mergeQuestionCard,
+		questionCount,
+		splitQuestionCard
+	} from '$lib/domain/groups';
 
 	interface Props {
 		doc: CourseV2;
@@ -64,11 +72,46 @@
 		);
 	}
 	const readBinding = (path: string): unknown => (binding as Record<string, unknown> | undefined)?.[path];
+
+	/**
+	 * Whether this card's questions are graded as one item (`domain/groups.ts`). Every
+	 * question is its own card by default; the advanced author may keep a card whole,
+	 * for a retry that branches between its own questions. Offered only where there
+	 * is more than one question to keep together.
+	 */
+	const together = $derived(keepsQuestionsTogether(block));
+	const card = $derived(groupOf(block));
+	const canKeepTogether = $derived(
+		mode === 'advanced' &&
+			block.type !== 'display' &&
+			(together || (card !== undefined && store.source.blocks.filter((b) => groupOf(b) === card).length > 1))
+	);
+
+	function keepTogether(on: boolean) {
+		if (on && card !== undefined) {
+			store.applySource((d) => ({
+				doc: mergeQuestionCard(d, card),
+				description: 'Otázky karty spojeny do jedné',
+				ref: { lessonId, blockId: card }
+			}));
+		} else if (!on && together) {
+			store.applySource((d, reserved) => ({
+				doc: splitQuestionCard(d, block.block_id, reserved),
+				description: 'Otázky karty rozděleny do samostatných karet',
+				ref: { lessonId, blockId: block.block_id }
+			}));
+		}
+	}
 </script>
 
 {#snippet body()}
 	<div class="section">
 		<FieldGroup fields={teacherFields} {read} write={set} />
+		{#if together && questionCount(block) > 1 && mode !== 'advanced'}
+			<p class="note">
+				Otázky této karty se žákovi hodnotí jako jedna (nastaveno v pokročilém režimu).
+			</p>
+		{/if}
 	</div>
 
 	<div class="section">
@@ -97,6 +140,14 @@
 				<code>{block.block_id}</code>
 			</div>
 			<FieldGroup fields={advancedFields} {read} write={set} />
+			{#if canKeepTogether}
+				<Toggle
+					checked={together}
+					label="Více otázek v jedné kartě"
+					hint="Žák dostane otázky v jedné kartě a aplikace je hodnotí jako jednu: nejlepší skóre, poslední známka, jedna karta k procvičování. Vypnuto: každá otázka je vlastní karta."
+					onchange={keepTogether}
+				/>
+			{/if}
 			<PrerequisiteEditor {doc} {block} />
 			<VectorEditor {block} />
 		</div>

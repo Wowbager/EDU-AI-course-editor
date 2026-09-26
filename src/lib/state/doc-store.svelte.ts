@@ -3,6 +3,13 @@
  * an undo log. Every mutation goes through `apply`, which runs a command, records the
  * change and re-derives everything downstream (plan §4).
  *
+ * Two documents live here. `source` is the course as it is exported, saved and
+ * played, with every question in its own block. `doc` is what the editor shows and
+ * edits: in the Učitel and Metodik modes the blocks of one question card merged into
+ * the card the teacher wrote (`domain/groups.ts`); in Pokročilý the source itself.
+ * `apply` runs a command on `doc` and writes the result back into `source`. Undo,
+ * drafts, versions, export and the player all work on `source`.
+ *
  * The store also owns the id reservations: the set of block, lesson and step ids this
  * session has handed out, including for things since deleted. The document cannot
  * remember them, and reusing one would hand a new step a deleted step's student
@@ -15,6 +22,16 @@ import { stepReservation, type Reservations } from "$lib/domain/ids";
 import { validate, type ValidationResult } from "$lib/domain/validate";
 import { courseTotals, type CourseTotals } from "$lib/domain/derive";
 import { emptyCourse, serialise } from "$lib/domain/document";
+import {
+    blockOfStep,
+    cardIdOf,
+    fromView,
+    groupOf,
+    groupsOf,
+    resplitChanged,
+    splitQuestionCards,
+    toView,
+} from "$lib/domain/groups";
 import type { SkillConfig } from "$lib/domain/skill-config";
 import type { CommandResult } from "$lib/domain/commands";
 import type { Mode } from "$lib/ui/fields";
@@ -34,10 +51,63 @@ export type { Mode } from "$lib/ui/fields";
 const MAX_UNDO = 200;
 
 export class DocStore {
-    doc = $state<CourseV2>(emptyCourse("NEW", "Nový kurz"));
+    /** The course as exported: one block per question. */
+    source = $state<CourseV2>(emptyCourse("NEW", "Nový kurz"));
     skillConfig = $state<SkillConfig | null>(null);
-    mode = $state<Mode>("teacher");
+    #mode = $state<Mode>("teacher");
     #selection = $state<Ref | null>(null);
+
+    /**
+     * What the editor shows and edits. In Pokročilý the source; otherwise each
+     * question card as one card. Never assigned: edits go through `apply`.
+     */
+    doc = $derived<CourseV2>(
+        this.#mode === "advanced" ? this.source : toView(this.source),
+    );
+
+    /**
+     * The editing mode. Switching between Pokročilý and the others moves the
+     * selection between a card and the block that holds the selected step.
+     */
+    get mode(): Mode {
+        return this.#mode;
+    }
+    set mode(next: Mode) {
+        const ref = this.#selection;
+        // Through the source, in the mode being left, then into the new one's view.
+        const inSource = ref === null ? null : this.toSource(ref);
+        this.#mode = next;
+        if (inSource !== null) this.#selection = this.toView(inSource);
+    }
+
+    /**
+     * Switch to `next` and return `ref` — a place in what the editor showed — as the
+     * same place in what it shows now. A jump that changes the mode goes through here,
+     * or it lands on the card instead of the block that holds the step.
+     */
+    switchMode(next: Mode, ref: Ref): Ref {
+        const inSource = this.toSource(ref);
+        this.mode = next;
+        return this.toView(inSource);
+    }
+
+    /** A ref into the source, for one into what the editor shows. */
+    toSource(ref: Ref): Ref {
+        if (this.#mode === "advanced" || ref.blockId === undefined) return ref;
+        return {
+            ...ref,
+            blockId: blockOfStep(this.source, ref.blockId, ref.stepId),
+        };
+    }
+
+    /**
+     * A ref into what the editor shows, for one into the source — what the player
+     * reports is always the source's.
+     */
+    toView(ref: Ref): Ref {
+        if (this.#mode === "advanced" || ref.blockId === undefined) return ref;
+        return { ...ref, blockId: cardIdOf(this.source, ref.blockId) };
+    }
 
     /**
      * What is selected. Setting it is also how the store learns a card was left:
@@ -56,6 +126,12 @@ export class DocStore {
 
     /** Cards the author has left and fields they have blurred, this session. */
     touchedCards = $state<ReadonlySet<string>>(new Set());
+    /** A card and its blocks count as one: leaving it in either mode leaves both. */
+    #related(blockId: string): string[] {
+        const card = cardIdOf(this.source, blockId);
+        const members = groupsOf(this.source).get(card) ?? [];
+        return [card, blockId, ...members.map((m) => m.block_id)];
+    }
     touchedFields = $state<ReadonlySet<string>>(new Set());
 
     /**
@@ -103,6 +179,10 @@ export class DocStore {
         return this.#redo.length > 0;
     }
 
+    /**
+     * Ids already handed out. Step ids are reserved under each block and, for a
+     * question card, under the card too, since the view mints them per card.
+     */
     get reservations(): Reservations {
         return {
             blocks: this.#reservedBlocks,
@@ -117,7 +197,7 @@ export class DocStore {
         options: { published?: { version: number; doc: CourseV2 } } = {},
     ) {
         this.endEdit();
-        this.doc = doc;
+        this.source = doc;
         this.#undo = [];
         this.#redo = [];
         this.#reservedBlocks = new Set();
@@ -133,8 +213,9 @@ export class DocStore {
     }
 
     touchCard(blockId: string) {
-        if (this.touchedCards.has(blockId)) return;
-        this.touchedCards = new Set([...this.touchedCards, blockId]);
+        const ids = this.#related(blockId);
+        if (ids.every((id) => this.touchedCards.has(id))) return;
+        this.touchedCards = new Set([...this.touchedCards, ...ids]);
     }
 
     touchField(ref: Ref) {
@@ -168,12 +249,58 @@ export class DocStore {
     apply(
         command: (doc: CourseV2, reserved: Reservations) => CommandResult,
     ): CommandResult {
-        const before = this.doc;
-        const result = command(before, this.reservations);
-        if (result.doc === before) return result;
+        const view = this.doc;
+        const result = command(view, this.reservations);
+        if (result.doc === view) return result;
+        // Pokročilý edits the source directly; a card it touched is split again,
+        // so a question added there gets its own block like anywhere else.
+        const next =
+            this.#mode === "advanced"
+                ? resplitChanged(this.source, result.doc, this.reservations)
+                : fromView(this.source, view, result.doc, this.reservations);
+        return this.#record(result, next);
+    }
 
-        this.doc = result.doc;
-        this.#reserve(result.doc);
+    /**
+     * Run a command on the source itself — for what only makes sense there: splitting
+     * an imported course, restoring a saved version, the advanced author's toggle.
+     * Its `ref`, if any, is the source's and is shown as the view's.
+     */
+    applySource(
+        command: (doc: CourseV2, reserved: Reservations) => CommandResult,
+    ): CommandResult {
+        const result = command(this.source, this.reservations);
+        if (result.doc === this.source) return result;
+        const ref = result.ref === undefined ? undefined : result.ref;
+        const recorded = this.#record({ ...result, ref: undefined }, result.doc);
+        if (ref !== undefined) this.selection = this.toView(ref);
+        return recorded;
+    }
+
+    /**
+     * Give every question of the course its own block, as the teacher's view would
+     * have written it (`splitQuestionCards`). Run after an import, a restored draft
+     * or a restored version, so a course from elsewhere plays each question as its
+     * own card too. It is an ordinary undoable edit. Returns what it did.
+     */
+    splitQuestions(): { split: string[]; keptTogether: string[] } {
+        let outcome = { split: [] as string[], keptTogether: [] as string[] };
+        this.applySource((doc, reserved) => {
+            const result = splitQuestionCards(doc, reserved);
+            outcome = { split: result.split, keptTogether: result.keptTogether };
+            return {
+                doc: result.doc,
+                description: "Otázky rozděleny do samostatných karet",
+            };
+        });
+        return outcome;
+    }
+
+    #record(result: CommandResult, next: CourseV2): CommandResult {
+        const before = this.source;
+        if (next === before) return result;
+        this.source = next;
+        this.#reserve(next);
         const last = this.#undo.at(-1);
         if (this.#edit?.entry && last === this.#edit.entry) {
             const entry = { ...last, after: result.doc };
@@ -203,7 +330,7 @@ export class DocStore {
         if (entry === undefined) return;
         this.#undo = this.#undo.slice(0, -1);
         this.#redo = [...this.#redo, entry];
-        this.doc = entry.before;
+        this.source = entry.before;
         this.dirty = true;
         if (entry.ref !== undefined) this.selection = entry.ref;
     }
@@ -214,7 +341,7 @@ export class DocStore {
         if (entry === undefined) return;
         this.#redo = this.#redo.slice(0, -1);
         this.#undo = [...this.#undo, entry];
-        this.doc = entry.after;
+        this.source = entry.after;
         this.#reserve(entry.after);
         this.dirty = true;
         if (entry.ref !== undefined) this.selection = entry.ref;
@@ -232,14 +359,14 @@ export class DocStore {
 
     beginEdit() {
         this.endEdit();
-        this.#edit = { before: this.doc };
+        this.#edit = { before: this.source };
     }
 
     endEdit() {
         const edit = this.#edit;
         this.#edit = undefined;
         if (!edit?.entry || this.#undo.at(-1) !== edit.entry) return;
-        if (JSON.stringify(edit.before) === JSON.stringify(this.doc)) {
+        if (JSON.stringify(edit.before) === JSON.stringify(this.source)) {
             this.#undo = this.#undo.slice(0, -1);
         }
     }
@@ -298,7 +425,7 @@ export class DocStore {
 
     /** The document as it would be published or downloaded. */
     export(): Record<string, unknown> {
-        return serialise(this.doc);
+        return serialise(this.source);
     }
 
     #reserve(doc: CourseV2) {
@@ -306,10 +433,14 @@ export class DocStore {
             this.#reservedLessons.add(lesson.lesson_id);
         for (const block of doc.blocks) {
             this.#reservedBlocks.add(block.block_id);
+            const card = groupOf(block);
+            if (card !== undefined) this.#reservedBlocks.add(card);
             for (const step of block.steps) {
                 this.#reservedSteps.add(
                     stepReservation(block.block_id, step.id),
                 );
+                if (card !== undefined)
+                    this.#reservedSteps.add(stepReservation(card, step.id));
             }
         }
     }

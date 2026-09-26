@@ -16,6 +16,7 @@
      */
     import { dndzone, type DndEvent } from "svelte-dnd-action";
     import type {
+        BlockV2,
         CourseV2,
         LessonBlockBinding,
         LessonV2,
@@ -36,6 +37,7 @@
     } from "$lib/domain/derive";
     import { cardsCount, stepsCount } from "$lib/ui/plural";
     import { uniqueKeys } from "$lib/ui/keys";
+    import { groupOf, groupsOf } from "$lib/domain/groups";
     import {
         ChevronLeft,
         ChevronRight,
@@ -71,6 +73,19 @@
     }: Props = $props();
 
     const store = useStore();
+
+    /**
+     * In Pokročilý the tree shows the blocks the course is exported as, where one
+     * teacher's card may be several (`domain/groups.ts`). Each says which part of
+     * its card it is; in the other modes a card is one entry and says nothing.
+     */
+    const groups = $derived(groupsOf(doc));
+    function partOf(block: BlockV2): string | undefined {
+        const key = groupOf(block);
+        const members = key === undefined ? undefined : groups.get(key);
+        if (members === undefined || members.length < 2) return undefined;
+        return `část ${members.indexOf(block) + 1}/${members.length}`;
+    }
     const selectedLesson = $derived(activeLessonId);
     const selectedBlock = $derived(activeBlockId);
 
@@ -334,9 +349,10 @@
                                                 )}
                                             </span>
                                             <span class="steps"
-                                                >{stepsCount(
-                                                    block.steps.length,
-                                                )}</span>
+                                                >{partOf(block) ??
+                                                    stepsCount(
+                                                        block.steps.length,
+                                                    )}</span>
                                             {#if cardErrors > 0}
                                                 <Chip tone="error"
                                                     >{cardErrors}</Chip>
