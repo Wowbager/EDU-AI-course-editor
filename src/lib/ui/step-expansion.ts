@@ -18,7 +18,11 @@
  * - and a folded step opens while it is focused (the selection points at it), then
  *   folds again when the selection moves on,
  * - unless the author folded it *while* it was focused: that is an explicit "not
- *   now", and it holds until the selection is set again.
+ *   now", and it holds until the selection is set again;
+ * - while Vyzkoušet plays a card, a step of it the pupil has not reached is folded
+ *   too. The list shows the card as the pupil has it on screen, and opens the next
+ *   step when the pupil gets to it. The author can still open one: focusing it, or
+ *   its chevron, works as on any folded step.
  */
 export interface StepExpansionInput {
 	/** The author folded this step with its chevron. */
@@ -29,11 +33,13 @@ export interface StepExpansionInput {
 	suppressed: boolean;
 	/** Some step in the list is being dragged. */
 	dragging: boolean;
+	/** A played run is on this card and has not shown the pupil this step yet. */
+	unreached?: boolean;
 }
 
-export function stepExpanded({ userCollapsed, focused, suppressed, dragging }: StepExpansionInput): boolean {
+export function stepExpanded({ userCollapsed, focused, suppressed, dragging, unreached = false }: StepExpansionInput): boolean {
 	if (dragging) return false;
-	if (!userCollapsed) return true;
+	if (!userCollapsed && !unreached) return true;
 	return focused && !suppressed;
 }
 

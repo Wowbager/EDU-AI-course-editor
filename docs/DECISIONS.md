@@ -1030,8 +1030,10 @@ What each surface does, so that a preview change can be checked against it:
 | Tap on an answer | answers | answers | selects the answer's row |
 | Hover | nothing | nothing | pointer cursor only |
 | Focus mark | — | none | outline over the focused step |
-| "?" | first step's hint or card's | same, app's sheet | same rule; unreachable text marked |
-| Where the editor is | — | follows the run | wherever the author is |
+| "?" | the step on screen's hint, else the card's (fork fix, Round 5) | same, app's sheet | same rule per step; unreachable text marked |
+| Question card | grows question by question (fork fix) | same | every step at once |
+| A finished card | keeps its answers and visited steps | same | — |
+| Where the editor is | — | follows the run; steps not reached yet are folded | wherever the author is |
 
 ### Smaller finds from the same pass
 
@@ -1043,6 +1045,73 @@ What each surface does, so that a preview change can be checked against it:
   `stepSummary` now.
 - At the 1280 floor a folded step's summary was squeezed to nothing and "Smazat" ran
   off the card; a step's Duplikovat/Smazat fold to icons when the step is narrow.
+
+## Round 5 — fixing the app in the fork, until upstream catches up
+
+The owner: the app code on GitHub is older than the app in production, with bugs the
+newer one fixes, such as the per-step hint; that newer version lands in days. Until
+then, fix the fork so the preview is right now. The joined steps in a question card
+are the same kind of bug. And Vyzkoušet opened every step of the next card in the
+editor, which is not how the pupil sees it.
+
+Round 4 treated the app as fixed and made the editor honest about it: a warning per
+unreachable hint, and a note on every question card with two questions. Both said
+true things about code that is about to be replaced. The fork now carries the fixes
+instead, in the app's own files, so Vyzkoušet and Náhled show the corrected app. The
+warnings that described the old bugs are gone or rewritten. The fork's
+`lib/preview/README.md` → "Fixes to the app" lists them for the upstream merge, and
+`test/widgets/block_step_engine_reveal_test.dart` states what the merged code must
+still do.
+
+**The hint is the step on screen's.** The engine's index setter keeps
+`ContentBlock.currentStepIndex` on the step it draws, so every reader of `currentHint`
+(the hint sheet, the AI chat context, the quiz bar) is right without being touched.
+The engine also decides whether to draw the "?". Owners used to gate it on
+`block.hasHint` once, at build, so they only ever saw step 1. *Rejected:* passing the
+step index through `onHintRequested`. It changes four call sites' signatures and
+still leaves `currentHint` wrong for the chat context. The "?" is on the current step
+only, not on history cards: a hint is for the step being worked on, and the sheet
+shows the current one.
+
+`W_HINT_UNREACHABLE` now warns only about what the fixed app really never shows:
+- help with no hint to open it;
+- a card hint or help that every step overrides;
+- the hint or help of a text step in a question card, which is never the step on
+  screen. The editor stops offering the ladder on such a step unless it already
+  has text.
+
+The spec's example course is clean again, and the e2e workaround that stripped its
+hint is gone.
+
+**A question card reveals its questions as they come.** The bubble stays one bubble.
+That is the app's design, and a card that should stop between questions is a Výklad
+card. Only the question to answer is drawn, with the text before it, and the answered
+ones stay above. *Rejected:* drawing later questions greyed out. They would still
+look like part of the task before their turn. The disabled check button now says
+"Nejprve napiš odpověď" for a typed answer. The editor's note about one bubble is
+removed, because it described the bug.
+
+**A skipped step is not history.** Found while doing the above: a `go_to` over a step
+still drew it, because the history was "every index below the current one". The engine
+records visits (`StepProgressData.visitedSteps`, optional, so older saved progress
+restores as before).
+
+**The editor follows the run the way the pupil sees it.** `stepChanged` now carries
+`shownStepIds`, the steps of that card on the pupil's screen. `StepView` folds the
+played card's other steps (`unreached` in the `stepExpanded` truth table). Focus and
+the chevron still open one, and leaving Vyzkoušet gives the author's own folding back.
+Round 4 selected and opened the current step but left every other step of the new
+card open. *Rejected:* computing "reached" from positions in the editor. With
+branching, the player is the only one that knows.
+
+**A finished card keeps its engine.** The lesson player keyed a card's engine by "the
+run's generation while current, else `done`". So a finished card was re-created as
+merely completed: its answers and feedback were lost, and every step was drawn.
+Each card keeps the key it was mounted with now, until the run goes back past it.
+A card a branch jumped over is drawn unfinished, on its first step, as the app draws
+it, not as history with every step open.
+
+Fork commits `f90a384` and `8ec5352`, pinned by `PLAYER_REF`.
 
 ---
 

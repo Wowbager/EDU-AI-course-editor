@@ -129,6 +129,15 @@ describe('following a played run', () => {
 		expect(seen).toEqual(['B1/s1', 'B2/s1']);
 	});
 
+	it('passes on which steps the pupil can see, when the player says', () => {
+		const seen: (string[] | undefined)[] = [];
+		const bridge = new PreviewBridge({ onstepChanged: (_s, _b, shown) => seen.push(shown) });
+		bridge.receive({ type: 'stepChanged', stepId: 's2', blockId: 'B1', shownStepIds: ['s1', 's2'] });
+		bridge.receive({ type: 'stepChanged', stepId: 's1', blockId: 'B1' });
+		bridge.receive({ type: 'stepChanged', stepId: 's1', blockId: 'B1', shownStepIds: ['s1', 7] } as never);
+		expect(seen).toEqual([['s1', 's2'], undefined, ['s1']]);
+	});
+
 	it('ignores a position that does not say which card it is in', () => {
 		// Step ids repeat across cards: without the card it is not a position.
 		const seen: string[] = [];

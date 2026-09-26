@@ -241,11 +241,11 @@ to steps immediately, and never write them.
 |---|---|---|---|
 | Step types allowed by the editor | text, image, video, audio | + question | + question |
 | `go_to` branching | n/a | **honoured** | **ignored** — always linear (`GoToResolver.resolve`, first branch) |
-| Step advance model | one step at a time, student taps Next | **all steps rendered at once**; the active cursor jumps straight to the first question step, text/image steps are passive context (`block_step_engine.dart:250-273`) | same as `question` |
+| Step advance model | one step at a time, student taps Next | **one bubble**; the active cursor jumps straight to the first question step, text/image steps are passive context (`block_step_engine.dart:250-273`). Upstream drew every step at once; the editor's fork reveals each question with the text before it when it is the one to answer (editor `OPEN-PROBLEMS.md` C2) | same as `question` |
 | Practice-queue flag lives on | **each step** (`step.default_practice`) | the block | the block |
-| Hints editable at | block **and** step level | block **and** step level | **block level only** (the editor hides step-level hint/help for exercises, `StepEditor.tsx:101`) |
+| Hints read at | block **and** every step | block **and** question steps (a text step is never the step on screen) | same as `question` |
 
-The "all steps at once, skip to the question" behaviour is the biggest surprise for authors:
+The "one bubble, skip to the question" behaviour is the biggest surprise for authors:
 in a `question` or `exercise` block, a text step placed *between* two questions is displayed
 but is never a stop — the student is taken to the next question. If you need the student to
 stop and read, that content belongs in a `display` block, or after the last question.
@@ -362,8 +362,8 @@ steps is a migration artefact.
 | `content` | Markdown+LaTeX | ✅ | Text step body. | §7.1. |
 | `image` / `video` / `audio` | objects | ✅ | Media payload. | §7.1. |
 | `question` | `QuestionConfig` | ✅ | Interaction. | §8. |
-| `hint` | Markdown | ✅ (first step only) | Step-level short hint. | Intended: shown from `?` on this step, taking precedence over the block hint; costs score (§12). **As the app is today only the first step's is read**: `lesson_detail_page` gates the `?` on `ContentBlock.hasHint`, whose `currentHint` reads `steps[currentStepIndex]`, and nothing in a lesson moves that index off 0 — so every step of a card offers step 1's hint, or the block's (editor `OPEN-PROBLEMS.md` C, `W_HINT_UNREACHABLE`). Hidden by the editor for `exercise` blocks. |
-| `help` | Markdown | ✅ (first step only) | Step-level detailed help. | Second level; costs more (§12). Same limitation as `hint`, and reachable only from an open hint: help with no hint is never offered. |
+| `hint` | Markdown | ✅ | Step-level short hint. | Shown from `?` while this step is the one on screen, taking precedence over the block hint (an empty value does not hide it); costs score (§12). A `question`/`exercise` card only ever stops on its questions, so a text step's hint there is never shown; the editor offers the field only where it is read and warns about one already written (`W_HINT_UNREACHABLE`). **The upstream code on GitHub read only the first step's**: `currentHint` reads `steps[currentStepIndex]`, and nothing moved that index off 0. The editor's fork fixes it in `BlockStepEngine` until the newer upstream lands (editor `OPEN-PROBLEMS.md` C). |
+| `help` | Markdown | ✅ | Step-level detailed help. | Second level; costs more (§12). Same rule as `hint`, and reachable only from an open hint: help with no hint on the step or the block is never offered. |
 | `default_practice` | bool | ✅ | **Display blocks only.** | Any step flagged true promotes the *entire block* into the practice queue (`course_model.dart:_hasStepDefaultPractice`). It is not a per-step card — cards are per block. The editor should say so. |
 
 ### 7.1 Per-type rendering

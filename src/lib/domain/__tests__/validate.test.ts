@@ -25,15 +25,13 @@ const tally = (issues: { code: string }[]): Record<string, number> => {
 describe('the spec §16 course', () => {
 	const doc = parseCourse(fixture('spec-16-course.json'));
 
-	it('is clean but for the one hint the app cannot show', () => {
-		// The spec's own example gives the quiz card's question (step 2) a hint of its
-		// own. The app shows the first step's hint, or the card's, on every step, so
-		// no pupil ever reads it — W_HINT_UNREACHABLE says so, and nothing else fires.
+	it('is clean', () => {
+		// The quiz card's question (step 2) has a hint of its own. Before the fork
+		// fixed the app's engine only the first step's hint was read, and this course
+		// carried one W_HINT_UNREACHABLE; the question's hint is offered now.
 		const result = validate(doc, skillConfig);
 		expect(result.errors).toEqual([]);
-		expect(result.warnings.map((w) => [w.code, w.ref.blockId, w.ref.stepId, w.ref.field])).toEqual([
-			['W_HINT_UNREACHABLE', 'L1_B3_poznej', 's2', 'hint']
-		]);
+		expect(result.warnings).toEqual([]);
 	});
 
 	it('is still clean when the dimension set is unknown', () => {
@@ -277,13 +275,11 @@ describe('hint and help a pupil never reaches', () => {
 			.warnings.filter((w) => w.code === 'W_HINT_UNREACHABLE')
 			.map((w) => `${w.ref.stepId ?? 'card'}.${w.ref.field}`);
 
-	it('is quiet for what the app shows: the first step\'s hint and help, or the card\'s', () => {
+	it('is quiet for what the app shows: each step\'s own hint and help, or the card\'s', () => {
 		expect(reached(card({}, [{ hint: 'H', help: 'P' }, {}]))).toEqual([]);
+		expect(reached(card({}, [{}, { hint: 'H', help: 'P' }]))).toEqual([]);
 		expect(reached(card({ hint: 'H', help: 'P' }, [{}, {}]))).toEqual([]);
-	});
-
-	it('names a later step\'s own hint or help', () => {
-		expect(reached(card({}, [{}, { hint: 'H', help: 'P' }]))).toEqual(['s2.hint', 's2.help']);
+		expect(reached(card({ hint: 'H' }, [{ help: 'P' }]))).toEqual([]); // the card's hint opens the step's help
 	});
 
 	it('names help with no hint to open it', () => {
@@ -291,7 +287,22 @@ describe('hint and help a pupil never reaches', () => {
 		expect(reached(card({ help: 'P' }, [{}]))).toEqual(['card.help']);
 	});
 
-	it('names the card\'s hint when the first step hides it', () => {
-		expect(reached(card({ hint: 'H' }, [{ hint: 'vlastní' }]))).toEqual(['card.hint']);
+	it('names the card\'s hint and help when every step has its own', () => {
+		expect(reached(card({ hint: 'H' }, [{ hint: 'vlastní' }, { hint: 'také' }]))).toEqual(['card.hint']);
+		expect(reached(card({ hint: 'H' }, [{ hint: 'vlastní' }, {}]))).toEqual([]);
+		expect(reached(card({ help: 'P' }, [{ hint: 'H', help: 'vlastní' }]))).toEqual(['card.help']);
+	});
+
+	it('names the hint of text between the questions of a question card', () => {
+		const question = { type: 'question', question: { type: 'multiple_choice', options: [{ id: 'a', text: 'A', is_correct: true }] } };
+		expect(reached(card({ type: 'question' }, [{ hint: 'H' }, { ...question, hint: 'K otázce' }]))).toEqual(['s1.hint']);
+		expect(reached(card({ type: 'exercise' }, [{ help: 'P' }, question]))).toEqual(['s1.help']);
+	});
+
+	it('counts the "?" a finished question card keeps, which opens the card\'s', () => {
+		const question = { type: 'question', hint: 'K otázce', question: { type: 'multiple_choice', options: [{ id: 'a', text: 'A', is_correct: true }] } };
+		expect(reached(card({ type: 'question', hint: 'H', help: 'P' }, [question, {}]))).toEqual([]);
+		// Ending on the question, the finished card still offers the question's own.
+		expect(reached(card({ type: 'question', hint: 'H' }, [question]))).toEqual(['card.hint']);
 	});
 });

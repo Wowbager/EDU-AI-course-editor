@@ -14,7 +14,8 @@
 	 *    as a pupil takes it, with **Zpět** so a branch can be tried and then the
 	 *    other one. Nothing in the player marks a focused step — a pupil's screen has
 	 *    no such thing — and clicks are the pupil's. The editor follows the run
-	 *    instead: each step the player reports is selected, opened and scrolled to.
+	 *    instead: each step the player reports is selected, opened and scrolled to,
+	 *    and the played card's steps the pupil has not reached yet are folded.
 	 *
 	 * The player is served under /player/ on this origin (§6.4). Until that build is
 	 * in place the column says so rather than showing a blank frame.
@@ -26,7 +27,7 @@
 	import Button from '$lib/ui/Button.svelte';
 	import { PreviewBridge, type PreviewView } from '$lib/preview/bridge';
 	import { serialise } from '$lib/domain/document';
-	import { useStore } from '$lib/ui/context';
+	import { useStepView, useStore } from '$lib/ui/context';
 	import { allows } from '$lib/ui/fields';
 	import { blockPreview } from '$lib/domain/derive';
 
@@ -38,6 +39,7 @@
 	let { doc, block, lessonId }: Props = $props();
 
 	const store = useStore();
+	const stepView = useStepView();
 	let view = $state<PreviewView>('expanded');
 	/**
 	 * What a played run was started with: the lesson and the card. Both are pinned
@@ -117,10 +119,12 @@
 			const owner = view === 'play' ? lessonOf(ref.blockId) : (ref.lessonId ?? lessonId);
 			store.revealAt({ ...ref, lessonId: owner });
 		},
-		onstepChanged: (stepId, blockId) => {
+		onstepChanged: (stepId, blockId, shownStepIds) => {
 			// Only a played run reports positions; one arriving after the author
 			// switched back to Náhled is from a run that is over.
 			if (view !== 'play') return;
+			// Folding first, so the step list never draws the new card fully open.
+			stepView.followRun(blockId, shownStepIds);
 			store.follow({ lessonId: lessonOf(blockId), blockId, stepId });
 		},
 		onnavState: (value) => (canGoBack = value)
@@ -146,6 +150,9 @@
 			cancelled = true;
 		};
 	});
+
+	// The step list stops showing the run when the column goes away with it.
+	$effect(() => () => stepView.endRun());
 
 	$effect(() => {
 		if (frame === null) return;
@@ -220,6 +227,8 @@
 					playStart = block?.block_id;
 					playLessonId = lessonId;
 					canGoBack = false;
+				} else {
+					stepView.endRun();
 				}
 				view = next;
 			}}

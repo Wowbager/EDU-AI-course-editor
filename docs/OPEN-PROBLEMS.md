@@ -34,33 +34,26 @@ The card-level opaque `PreviewTarget` is in the fork since `22b37cb`, so a click
 step's padding in Náhled lands on the step. It is fork-only: `edu-ai-00` has no
 `lib/preview/` at all, so nothing here depends on it being accepted upstream.
 
-### C. The app's question mark is always the first step's — app-side, not shipped
-**Verified: yes**, read off the code. `lesson_detail_page` gates the "?" on
-`ContentBlock.hasHint` and the sheet shows `currentHint` / `currentHelp`, which read
-the step at `currentStepIndex` — and nothing in a lesson moves that off 0
-(`block_model.dart:1333`, `hint_sheet.dart:26`). So on every step of a card a student
-gets the first step's hint, or the card's; a hint written on step 2 or later is never
-shown, and help is reachable only as the second rung of such a hint. The spec's own
-example course has one (the quiz card's question step).
+### C. The app's question mark was always the first step's — fixed in the fork, pending upstream
+**Verified: yes**, read off the code, and the fix is tested
+(`EDU-AI-asistent-APP/test/widgets/block_step_engine_reveal_test.dart`). The upstream code
+on GitHub gated the "?" on `ContentBlock.hasHint`, whose `currentHint` reads the step at
+`currentStepIndex`, and nothing moved that off 0. So every step of a card offered the
+first step's hint, or the card's. The fork's `BlockStepEngine` keeps the index on the
+step it draws, and decides the "?" itself (fork `f90a384`, DECISIONS Round 5). The
+owner says production already runs a newer app with this fixed, and its source lands
+upstream within days. **When it does:** merge it into the fork, keep upstream's version of
+the fix, and rerun that test and `test/preview`. If upstream fixes it differently, the
+editor's `W_HINT_UNREACHABLE` rule (`validate.ts`, `checkHintReach`) and Náhled's
+`_appShowsHint` have to follow.
 
-The editor now tells the truth about it (Náhled mirrors the app, `W_HINT_UNREACHABLE`
-in the review). The fix is app-side — update the block's current step as the engine
-advances, or read `step.hint` in the engine — and needs a PR a human opens against
-`edu-ai-00`.
-
-### C2. A question card's later questions look answerable and are not — app-side
-**Verified: yes**, reproduced in Vyzkoušet with the current player, and read off the
-code. A card of type Otázka or Cvičení is one bubble (`_buildExerciseCard` in
-`block_step_engine.dart`): every step is drawn at once, but only the current question
-gets input handlers. A number or text field further down is drawn exactly like an
-active one and ignores typing until the questions above it are answered, and the check
-button's only complaint is "Nejprve vyber odpověď" — "pick an answer", for a field you
-type into. Reported by the owner as "Vyzkoušet joins steps and I cannot continue"; the
-run does continue once the questions are answered top to bottom.
-
-Vyzkoušet shows it because the app does. The editor now says it on any question or
-exercise card with two or more questions. The fix — draw a later question as inactive,
-and word the message for the input type — is app-side.
+### C2. A question card's later questions looked answerable and were not — fixed in the fork, pending upstream
+**Verified: yes**, reproduced in Vyzkoušet, and fixed and tested in the same place as C.
+A card of type Otázka or Cvičení is one bubble (`_buildExerciseCard`). Upstream drew
+every step at once, with only the current question taking input, and a field below it
+ignored typing. The owner reported it as "Vyzkoušet joins steps and I cannot continue".
+The fork reveals a question when it is the one to answer, and says "Nejprve napiš
+odpověď" for a typed answer. Same merge note as C.
 
 ### D. API: a status change bumps the version without a new file — API-side
 **Verified: yes**, read off the code. `Course::boot` (`app/Models/Course.php:91-95`)
@@ -130,10 +123,16 @@ used to be `NOVY_KURZ` for all of them.
 
 ## Unconfirmed
 
-### 7. A possible transition artifact in "Vyzkoušet"
+### 7. A possible transition artifact in "Vyzkoušet" — likely fixed (Round 5)
 **Verified: no.** One scripted author flagged it and was explicit about not being sure
-what they saw. Recorded so it is not lost; needs a reproduction before it is worth
-chasing.
+what they saw. Round 5 found three real transition bugs, and any of them would look
+like this:
+- a finished card was re-created as merely "completed", losing its answers and
+  opening every step;
+- a card a branch jumped over was drawn as finished;
+- the editor opened every step of the next card.
+
+All three are fixed and tested. Close this if nobody reproduces it again.
 
 ### 8. ~~The "draft" status has no rollup~~ — moot, card status is gone (Round 4)
 

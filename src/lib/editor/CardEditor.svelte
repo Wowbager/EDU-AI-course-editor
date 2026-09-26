@@ -112,19 +112,6 @@
             ? notice
             : null,
     );
-    /**
-     * A question or exercise card is one bubble in the app: every step is on screen
-     * at once, and the questions are answered strictly top to bottom — a question
-     * below the current one is drawn with its field but takes no input until the
-     * ones above it are answered (`_buildExerciseCard` in `block_step_engine.dart`).
-     * With two or more questions that reads as a broken card to anyone who starts at
-     * the wrong one, so the card says how it will behave, once, quietly.
-     */
-    const bubbledQuestions = $derived(
-        block.type === "display"
-            ? 0
-            : block.steps.filter((s) => s.type === "question").length,
-    );
     const xp = $derived(effectiveBlockXp(block));
     const xpIsDerived = $derived(typeof block.xp !== "number");
     const minutes = $derived(blockDurationMinutes(block));
@@ -150,7 +137,7 @@
         display:
             "Typ karty: Výklad. Žák prochází kroky po jednom a mezi nimi kliká Pokračovat.",
         question:
-            "Typ karty: Otázka. Všechny kroky jsou v jedné bublině a žák je rovnou u otázky; podle odpovědi ho lze poslat jinam.",
+            "Typ karty: Otázka. Kroky jsou v jedné bublině a žák je rovnou u otázky; další otázka se objeví, až odpoví na předchozí. Podle odpovědi ho lze poslat jinam.",
         exercise:
             "Typ karty: Cvičení — jedna karta uvnitř lekce. Jako Otázka, ale bez větvení. Nezaměňuj s typem celého kurzu „Cvičení“ v Nastavení kurzu ani se zařazením karty do denního opakování.",
     } as const;
@@ -160,8 +147,9 @@
      * one thing the two "Otázka" affordances never said. From
      * `block_step_engine.dart`: a `display` card draws one step per bubble and only
      * as far as `_currentStepIndex`, so a step is a stop the student taps through;
-     * a `question` or `exercise` card draws `_buildExerciseCard()` — all steps in a
-     * single bubble — and runs `_skipToNextQuestion()` on mount and after every
+     * a `question` or `exercise` card draws `_buildExerciseCard()` — one bubble that
+     * grows as the student reaches each question (fork fix; it used to draw every
+     * step at once) — and runs `_skipToNextQuestion()` on mount and after every
      * answer, so content steps are passive context and the student starts at the
      * question. Branching (`go_to`) is honoured for `question` and ignored for
      * `exercise` (`step_navigation.dart`).
@@ -494,19 +482,6 @@
         {/each}
     </div>
 
-    {#if bubbledQuestions > 1}
-        <p class="bubble-note" role="note">
-            Žák uvidí {bubbledQuestions === 2
-                ? "obě otázky"
-                : bubbledQuestions < 5
-                  ? `všechny ${bubbledQuestions} otázky`
-                  : `všech ${bubbledQuestions} otázek`} najednou v jedné bublině a
-            odpovídá na ně postupně shora — do další otázky nejde psát, dokud
-            neodpoví na předchozí. Chceš-li je mít každou zvlášť, dej každou otázku
-            do vlastní karty, nebo použij kartu typu Výklad.
-        </p>
-    {/if}
-
     <div class="add-step">
         <span class="add-label">Přidat krok:</span>
         {#each STEP_TYPES as option (option.type)}
@@ -601,15 +576,6 @@
 
     .step-wrap:focus {
         outline: none;
-    }
-
-    .bubble-note {
-        margin: 12px 0 0;
-        padding: 8px 12px;
-        border-radius: var(--radius-s);
-        background: var(--info-bg);
-        color: var(--e-text-muted);
-        font-size: var(--text-s);
     }
 
     .add-step {

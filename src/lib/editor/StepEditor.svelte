@@ -156,6 +156,23 @@
     const hintSpec = fieldSpec("step", "hint");
     const helpSpec = fieldSpec("step", "help");
 
+    /**
+     * Whether the app's question mark can ever open this step's hint. A question or
+     * exercise card only stops on its questions; the text between them is never the
+     * step on screen, so the ladder is not offered there. A hint already written on
+     * such a step is still shown, with `W_HINT_UNREACHABLE` under it, so it can be
+     * moved or deleted.
+     */
+    const ladderReached = $derived(
+        block.type === "display" || step.type === "question",
+    );
+    const ladderShown = $derived(
+        ladderReached ||
+            (step.hint ?? "").trim() !== "" ||
+            (step.help ?? "").trim() !== "",
+    );
+    const cardHasHint = $derived((block.hint ?? "").trim() !== "");
+
     const set = (field: string, value: unknown) =>
         store.apply((d) =>
             setField(
@@ -776,46 +793,48 @@
 		teaches the method. The app's question mark offers the second only after the
 		first, and shows nothing at all if these are empty.
 	-->
-        <div class="help-ladder">
-            <!--
-			The consequence of each rung lives in the tooltip, not under the field. It
-			is the same two sentences on every step of every card, and printed out it
-			buries the step's own content under its footnotes. The card's own pair
-			spells them out once, where they teach something.
-		-->
-            <div class="field-row">
-                <span class="field-label" title={hintSpec?.hint}
-                    >{hintSpec?.label ?? "Nápověda"}</span>
-                <FocusField
-                    label={hintSpec?.label ?? "Nápověda"}
-                    value={step.hint}
-                    multiline
-                    ref={{
-                        blockId: block.block_id,
-                        stepId: step.id,
-                        field: "hint",
-                    }}
-                    emptyText={position === 1
-                        ? "nevyplněno — žák uvidí otazník jen když tu něco je"
-                        : "nevyplněno — aplikace zatím ukazuje jen nápovědu 1. kroku nebo ke kartě"}
-                    onchange={(v) => set("hint", v)} />
+        {#if ladderShown}
+            <div class="help-ladder">
+                <!--
+    			The consequence of each rung lives in the tooltip, not under the field. It
+    			is the same two sentences on every step of every card, and printed out it
+    			buries the step's own content under its footnotes. The card's own pair
+    			spells them out once, where they teach something.
+    		-->
+                <div class="field-row">
+                    <span class="field-label" title={hintSpec?.hint}
+                        >{hintSpec?.label ?? "Nápověda"}</span>
+                    <FocusField
+                        label={hintSpec?.label ?? "Nápověda"}
+                        value={step.hint}
+                        multiline
+                        ref={{
+                            blockId: block.block_id,
+                            stepId: step.id,
+                            field: "hint",
+                        }}
+                        emptyText={cardHasHint
+                            ? "nevyplněno — otazník u tohoto kroku otevře nápovědu ke kartě"
+                            : "nevyplněno — bez nápovědy žák u tohoto kroku otazník neuvidí"}
+                        onchange={(v) => set("hint", v)} />
+                </div>
+                <div class="field-row">
+                    <span class="field-label" title={helpSpec?.hint}
+                        >{helpSpec?.label ?? "Podrobná pomoc"}</span>
+                    <FocusField
+                        label={helpSpec?.label ?? "Podrobná pomoc"}
+                        value={step.help}
+                        multiline
+                        ref={{
+                            blockId: block.block_id,
+                            stepId: step.id,
+                            field: "help",
+                        }}
+                        emptyText="nevyplněno — druhá úroveň otazníku"
+                        onchange={(v) => set("help", v)} />
+                </div>
             </div>
-            <div class="field-row">
-                <span class="field-label" title={helpSpec?.hint}
-                    >{helpSpec?.label ?? "Podrobná pomoc"}</span>
-                <FocusField
-                    label={helpSpec?.label ?? "Podrobná pomoc"}
-                    value={step.help}
-                    multiline
-                    ref={{
-                        blockId: block.block_id,
-                        stepId: step.id,
-                        field: "help",
-                    }}
-                    emptyText="nevyplněno — druhá úroveň otazníku"
-                    onchange={(v) => set("help", v)} />
-            </div>
-        </div>
+        {/if}
 
         {#if extraFields.length > 0 || questionExtras.length > 0}
             <div class="step-extras">

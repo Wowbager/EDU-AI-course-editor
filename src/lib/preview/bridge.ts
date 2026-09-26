@@ -15,9 +15,11 @@
  *
  * When each player message arrives is part of the contract, and it is written down
  * on the player's side (`lib/preview/README.md` → "The contract"). The one the editor
- * leans on: while a lesson is played, `stepChanged {blockId, stepId}` arrives every
- * time the step on screen changes — the first card, the next one, a branch, back,
- * restart — and never from Náhled. `PreviewColumn` follows the run with it.
+ * leans on: while a lesson is played, `stepChanged {blockId, stepId, shownStepIds}`
+ * arrives every time the step on screen changes — the first card, the next one, a
+ * branch, back, restart — and never from Náhled. `shownStepIds` is every step of that
+ * card on the pupil's screen. `PreviewColumn` follows the run with it, and the step
+ * list folds the steps the pupil has not reached.
  */
 import type { BlockV2, CourseV2, ExportType } from '$lib/domain/schema';
 import type { Ref } from '$lib/domain/ref';
@@ -57,14 +59,18 @@ export type EditorMessage =
 
 export type PlayerMessage =
 	| { type: 'ready' }
-	| { type: 'stepChanged'; stepId: string; blockId: string }
+	| { type: 'stepChanged'; stepId: string; blockId: string; shownStepIds?: string[] }
 	| { type: 'clicked'; ref: Ref }
 	| { type: 'completed'; xp: number; scoreKoef: number; mark?: string }
 	| { type: 'navState'; canGoBack: boolean };
 
 export interface BridgeHandlers {
 	onready?: () => void;
-	onstepChanged?: (stepId: string, blockId: string) => void;
+	/**
+	 * `shownStepIds` is undefined from a player older than the field. The editor then
+	 * follows the step without folding anything.
+	 */
+	onstepChanged?: (stepId: string, blockId: string, shownStepIds: string[] | undefined) => void;
 	onclicked?: (ref: Ref) => void;
 	oncompleted?: (result: { xp: number; scoreKoef: number; mark?: string }) => void;
 	onnavState?: (canGoBack: boolean) => void;
@@ -160,7 +166,10 @@ export class PreviewBridge {
 				// Reported, never stored: this is a position in a run, not a position
 				// in the card the expanded view is showing. See `#lastStepId`.
 				if (typeof message.blockId === 'string' && typeof message.stepId === 'string') {
-					this.#handlers.onstepChanged?.(message.stepId, message.blockId);
+					const shown = Array.isArray(message.shownStepIds)
+						? message.shownStepIds.filter((id): id is string => typeof id === 'string')
+						: undefined;
+					this.#handlers.onstepChanged?.(message.stepId, message.blockId, shown);
 				}
 				break;
 			case 'navState':

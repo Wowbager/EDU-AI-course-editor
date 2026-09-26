@@ -171,8 +171,8 @@
      *
      *  - `display` renders one step per card and only up to `_currentStepIndex`, so
      *    the student is shown a step at a time and taps to continue;
-     *  - `question` and `exercise` go through `_buildExerciseCard()` — every step in
-     *    one bubble — and `_skipToNextQuestion()` runs on mount and after every
+     *  - `question` and `exercise` go through `_buildExerciseCard()` — one bubble
+     *    that grows question by question — and `_skipToNextQuestion()` runs on mount and after every
      *    answer, so the cursor lands straight on the question and the text around it
      *    is passive context that is never a stop;
      *  - `exercise` additionally has `go_to` ignored (`step_navigation.dart`:

@@ -408,7 +408,7 @@ export const FIELDS: readonly FieldSpec[] = [
         mode: "teacher",
         kind: "multiline",
         label: "Nápověda ke kartě",
-        hint: "Dostupná z otazníku na každém kroku. Použití srazí skóre na 0,75.",
+        hint: "Otazník ji ukáže u každého kroku, který nemá vlastní nápovědu. Použití srazí skóre na 0,75.",
     },
     {
         level: "block",

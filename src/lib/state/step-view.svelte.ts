@@ -32,6 +32,33 @@ export class StepView {
 	revealHandled = $state(0);
 
 	/**
+	 * The card a played run is on, and the steps of it on the pupil's screen, as the
+	 * player last reported them. Null outside Vyzkoušet, and from a player that does
+	 * not report them.
+	 */
+	#run = $state<{ blockId: string; shown: ReadonlySet<string> } | null>(null);
+	/** Unreached steps the author opened with the chevron during this run. */
+	#opened = $state<ReadonlySet<string>>(new Set());
+
+	/** The run is on `blockId`, showing `shownStepIds`; undefined stops folding. */
+	followRun(blockId: string, shownStepIds: readonly string[] | undefined) {
+		if (shownStepIds === undefined) return this.endRun();
+		if (this.#run?.blockId !== blockId) this.#opened = new Set();
+		this.#run = { blockId, shown: new Set(shownStepIds) };
+	}
+
+	/** Back to the author's own folding: Vyzkoušet was left. */
+	endRun() {
+		this.#run = null;
+		this.#opened = new Set();
+	}
+
+	#unreached(blockId: string, key: string, stepId: string): boolean {
+		const run = this.#run;
+		return run !== null && run.blockId === blockId && !run.shown.has(stepId) && !this.#opened.has(key);
+	}
+
+	/**
 	 * `stepKey` is where the folding is remembered; `stepId` is what the selection
 	 * names. They differ only for a duplicate id in a broken document.
 	 */
@@ -43,7 +70,8 @@ export class StepView {
 			userCollapsed: this.#collapsed.has(key),
 			focused,
 			suppressed,
-			dragging: this.dragging
+			dragging: this.dragging,
+			unreached: this.#unreached(blockId, key, stepId)
 		});
 	}
 
@@ -57,6 +85,7 @@ export class StepView {
 		} else {
 			next.delete(key);
 			if (this.#suppressed?.key === key) this.#suppressed = null;
+			if (this.#unreached(blockId, key, stepId)) this.#opened = new Set(this.#opened).add(key);
 		}
 		this.#collapsed = next;
 	}

@@ -244,7 +244,9 @@ test.describe('live preview', () => {
 
 		const messages = await watchMessages(page);
 		const positions = async () =>
-			(await messages()).filter((m) => m.includes('"stepChanged"')).map((m) => JSON.parse(m) as { blockId: string; stepId: string });
+			(await messages())
+				.filter((m) => m.includes('"stepChanged"'))
+				.map((m) => JSON.parse(m) as { blockId: string; stepId: string; shownStepIds: string[] });
 
 		await page.getByRole('radio', { name: 'Vyzkoušet' }).click();
 
@@ -253,6 +255,17 @@ test.describe('live preview', () => {
 		const first = (await positions()).at(-1)!;
 		expect(first.blockId).toBe('L1_B3_poznej');
 		await expect(page.locator('main .step.targeted')).toHaveCount(1);
+
+		// The quiz card is one bubble that grows question by question: the pupil has
+		// the text before the question and the question, not the text after it. The
+		// step list shows the card the same way — the steps not reached are folded.
+		expect(first).toMatchObject({ stepId: 's2', shownStepIds: ['s1', 's2'] });
+		const steps = page.locator('main .step');
+		await expect(steps).toHaveCount(4);
+		await expect(steps.nth(0)).not.toHaveClass(/collapsed/);
+		await expect(steps.nth(1)).not.toHaveClass(/collapsed/);
+		await expect(steps.nth(2)).toHaveClass(/collapsed/);
+		await expect(steps.nth(3)).toHaveClass(/collapsed/);
 
 		// The player is told nothing about focus while it plays: no highlight, and no
 		// setLesson carries a step.
@@ -272,8 +285,10 @@ test.describe('live preview', () => {
 		const outlined = JSON.parse(setBlock.at(-1)!) as { stepId?: string; block: { block_id: string }[] };
 		if (outlined.block[0]?.block_id === last.blockId) expect(outlined.stepId).toBe(last.stepId);
 
-		// And the run's own "back" is gone with it.
+		// And the run's own "back" is gone with it, and so is its folding.
 		await expect(back).toHaveCount(0);
+		await page.locator('.tree-card').nth(2).click();
+		await expect(page.locator('main .step.collapsed')).toHaveCount(0);
 	});
 
 	test('a click in Vyzkoušet is the pupil\'s and never jumps the editor', async ({ page }) => {

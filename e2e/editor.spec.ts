@@ -14,20 +14,6 @@ async function importCourse(page: Page, name: string, text = fixture(name)) {
 	await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 }
 
-/**
- * The spec's example course with nothing left to say about it. As written it gives the
- * quiz card's question step a hint of its own, which the app never shows
- * (W_HINT_UNREACHABLE). The card has its own hint, which the app does show; without
- * the step's, the course is clean.
- */
-function cleanSpecCourse(): string {
-	const course = JSON.parse(fixture('spec-16-course.json'));
-	const card = course.blocks.find((b: { block_id: string }) => b.block_id === 'L1_B3_poznej');
-	const step = card.steps.find((s: { id: string }) => s.id === 's2');
-	delete step.hint;
-	return JSON.stringify(course);
-}
-
 test.beforeEach(async ({ page }) => {
 	// Only real exceptions count. The editor is built to work with the API and the
 	// player absent — those show up here as failed resource loads, and treating them
@@ -160,7 +146,7 @@ test('the validation panel jumps to the field that needs fixing', async ({ page 
 });
 
 test('the spec course imports clean and publishes', async ({ page }) => {
-	await importCourse(page, 'spec-16-course.json', cleanSpecCourse());
+	await importCourse(page, 'spec-16-course.json');
 
 	await expect(page.getByRole('button', { name: 'Kontrola kurzu: v pořádku' })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Stáhnout', exact: true })).toBeEnabled();
@@ -192,7 +178,7 @@ test('a course with errors cannot be exported, one with warnings can', async ({ 
 	expect(downloads).toBe(0);
 
 	// A clean course downloads straight away, with no dialog in between.
-	await importCourse(page, 'spec-16-course.json', cleanSpecCourse());
+	await importCourse(page, 'spec-16-course.json');
 	const direct = page.waitForEvent('download');
 	await download.click();
 	await direct;
