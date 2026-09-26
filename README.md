@@ -29,7 +29,7 @@ For development, check the fork out anywhere and point the dev server at its bui
 
 ```bash
 git clone https://github.com/Wowbager/EDU-AI-asistent-APP.git
-cd EDU-AI-asistent-APP && flutter build web --release --base-href /player/
+cd EDU-AI-asistent-APP && flutter build web --release --base-href /player/ --no-web-resources-cdn
 cd ../editor && PLAYER_BUILD=../EDU-AI-asistent-APP/build/web npm run dev
 ```
 

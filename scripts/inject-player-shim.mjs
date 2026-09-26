@@ -44,6 +44,7 @@ function escapeRegExp(literal) {
  * @returns {string}
  */
 export function injectPlayerShim(html, shimSource) {
+	html = dropExternalScripts(html);
 	const block = `${SHIM_START}\n<script>\n${shimSource}\n</script>\n${SHIM_END}`;
 	const existing = new RegExp(`${escapeRegExp(SHIM_START)}[\\s\\S]*?${escapeRegExp(SHIM_END)}`);
 	if (existing.test(html)) {
@@ -59,6 +60,26 @@ export function injectPlayerShim(html, shimSource) {
 	}
 	const insertAt = headMatch.index + headMatch[0].length;
 	return html.slice(0, insertAt) + '\n' + block + '\n' + html.slice(insertAt);
+}
+
+/**
+ * Removes every `<script>` the player's page loads from another origin.
+ *
+ * The app's `index.html` loads Microsoft's sign-in library from `alcdn.msauth.net`
+ * as a blocking script in `<head>`. The preview never signs anyone in, and a
+ * blocking third-party script means a slow or unreachable CDN holds up the player's
+ * boot, or stops it, which the editor shows as an empty preview. What the page
+ * needs to run the preview is on this origin. Each removed tag leaves a comment
+ * naming it, so the patched page says what was taken out.
+ *
+ * @param {string} html
+ * @returns {string}
+ */
+export function dropExternalScripts(html) {
+	return html.replace(
+		/<script\b[^>]*\bsrc\s*=\s*["'](https?:)?\/\/([^"']*)["'][^>]*>\s*<\/script>/gi,
+		(_tag, _scheme, url) => `<!-- edu-preview: external script dropped: //${url} -->`
+	);
 }
 
 // ── CLI entry point ──────────────────────────────────────────────────────────────

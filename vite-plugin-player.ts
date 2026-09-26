@@ -14,7 +14,7 @@ import { injectPlayerShim } from './scripts/inject-player-shim.mjs';
  *
  * Build the player with:
  *
- *     flutter build web --release --base-href /player/
+ *     flutter build web --release --base-href /player/ --no-web-resources-cdn
  */
 const TYPES: Record<string, string> = {
 	'.html': 'text/html; charset=utf-8',
@@ -52,7 +52,16 @@ export function playerPlugin(playerRoot: string): Plugin {
 			if (!existsSync(root)) {
 				server.config.logger.warn(
 					`[player] ${root} not found — the preview column will say the player is not running. ` +
-						`Build it with: flutter build web --release --base-href /player/`
+						`Build it with: flutter build web --release --base-href /player/ --no-web-resources-cdn`
+				);
+			} else if (
+				existsSync(join(root, 'flutter_bootstrap.js')) &&
+				!readFileSync(join(root, 'flutter_bootstrap.js'), 'utf-8').includes('"useLocalCanvasKit":true')
+			) {
+				// Built without the flag, the player fetches CanvasKit from gstatic, and one
+				// aborted request there leaves the preview empty.
+				server.config.logger.warn(
+					`[player] ${root} loads CanvasKit from a CDN. Rebuild it with --no-web-resources-cdn.`
 				);
 			}
 

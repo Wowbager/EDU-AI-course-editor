@@ -54,7 +54,13 @@
 	let playLessonId = $state<string | undefined>(undefined);
 	let frame = $state<HTMLIFrameElement | null>(null);
 	let booted = $state(false);
-	let failed = $state(false);
+	/**
+	 * Why there is no player: its build is not served here (`missing`), or it is and
+	 * never announced itself, even after the retries below (`stalled`).
+	 */
+	let failed = $state<false | 'missing' | 'stalled'>(false);
+	/** Which load of the frame this is. Bumped to load it again. */
+	let attempt = $state(0);
 	let canGoBack = $state(false);
 	/** Undecided until the player URL has been probed — see below. */
 	let available = $state<boolean | null>(null);
@@ -139,12 +145,12 @@
 			.then((response) => {
 				if (cancelled) return;
 				available = response.ok;
-				failed = !response.ok;
+				failed = response.ok ? false : 'missing';
 			})
 			.catch(() => {
 				if (cancelled) return;
 				available = false;
-				failed = true;
+				failed = 'missing';
 			});
 		return () => {
 			cancelled = true;
@@ -154,19 +160,37 @@
 	// The step list stops showing the run when the column goes away with it.
 	$effect(() => () => stepView.endRun());
 
+	/**
+	 * A served player that does not announce itself is loaded again, twice, before
+	 * the column gives up and says so.
+	 *
+	 * A Flutter boot fetches a few megabytes, and one aborted request is enough to
+	 * leave it dead: "WebAssembly compilation aborted", and a blank frame for good.
+	 * It happened on a plain page open, which read as "the preview is empty". A new
+	 * load usually succeeds. The failure is only shown once the retries are spent, so
+	 * a slow first boot does not flash an error either.
+	 */
+	const BOOT_TIMEOUT_MS = 20_000;
+	const BOOT_ATTEMPTS = 3;
+
 	$effect(() => {
 		if (frame === null) return;
 		bridge.attach(frame);
-		// If the player is served but never announces itself, something is wrong
-		// inside it rather than around it.
 		const timeout = setTimeout(() => {
-			if (!bridge.ready) failed = true;
-		}, 8000);
+			if (bridge.ready) return;
+			if (untrack(() => attempt) + 1 < BOOT_ATTEMPTS) attempt++;
+			else failed = 'stalled';
+		}, BOOT_TIMEOUT_MS);
 		return () => {
 			clearTimeout(timeout);
 			bridge.detach();
 		};
 	});
+
+	function retry() {
+		failed = false;
+		attempt++;
+	}
 
 	// Re-send whenever the content or the chosen mode changes. The iframe is never
 	// reloaded — that is the whole point of the contract.
@@ -237,6 +261,8 @@
 			<Chip tone="ok">Náhled</Chip>
 		{:else if failed}
 			<Chip tone="warning">přehrávač neběží</Chip>
+		{:else if available === true}
+			<Chip>spouští se…</Chip>
 		{/if}
 
 		{#if view === 'play' && booted}
@@ -265,7 +291,17 @@
 	</header>
 
 	<div class="frame">
-		{#if failed && !booted}
+		{#if failed === 'stalled' && !booted}
+			<div class="fallback">
+				<p><strong>Přehrávač se nespustil.</strong></p>
+				<p>
+					Zkusili jsme ho načíst {BOOT_ATTEMPTS}× a pokaždé se zasekl — nejspíš
+					přerušené spojení při stahování. Kurz se dál ukládá, jen ho teď nevidíš
+					očima žáka.
+				</p>
+				<Button variant="secondary" size="s" onclick={retry}>Zkusit znovu</Button>
+			</div>
+		{:else if failed === 'missing' && !booted}
 			<div class="fallback">
 				<p><strong>Náhled zatím není k dispozici.</strong></p>
 				<p>
@@ -276,8 +312,10 @@
 				</p>
 			</div>
 		{/if}
-		{#if available === true}
-			<iframe bind:this={frame} src={PLAYER_URL} title="Náhled kurzu očima žáka"></iframe>
+		{#if available === true && failed !== 'stalled'}
+			{#key attempt}
+				<iframe bind:this={frame} src={PLAYER_URL} title="Náhled kurzu očima žáka"></iframe>
+			{/key}
 		{/if}
 	</div>
 

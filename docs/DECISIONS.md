@@ -1111,7 +1111,24 @@ Each card keeps the key it was mounted with now, until the run goes back past it
 A card a branch jumped over is drawn unfinished, on its first step, as the app draws
 it, not as history with every step open.
 
-Fork commits `f90a384` and `8ec5352`, pinned by `PLAYER_REF`.
+**An empty preview on a plain page open.** The owner opened the editor on a saved
+course and got an empty preview. Reproduced: a player whose download is interrupted
+("WebAssembly compilation aborted") never boots, and the column stayed blank. Two of
+its downloads came from other origins. CanvasKit came from gstatic, and Microsoft's
+sign-in library was a blocking script in the page's `<head>` that the preview never
+uses. Three changes:
+- the player is built with `--no-web-resources-cdn`, and the dev server warns about a
+  build made without it;
+- the shim injection drops every external `<script>` from the player's page;
+- a player that does not announce itself within 20 s is loaded again, up to three
+  times. Only then does the column say it did not start, with "Zkusit znovu".
+
+It used to say that the build was missing, which was false for a player that was
+served but stalled. On this machine WSL's network drops requests every few minutes,
+localhost included (`net::ERR_NETWORK_CHANGED`), which is how it was reproduced. The
+same drops make the e2e suite flaky here (OPEN-PROBLEMS 17).
+
+Fork commits `f90a384`, `8ec5352` and `2ea48b4`, pinned by `PLAYER_REF`.
 
 ---
 
