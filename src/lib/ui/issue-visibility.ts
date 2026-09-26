@@ -60,6 +60,7 @@ export const TIMING: Record<string, Timing> = {
 
 	// Advice.
 	W_LESSON_TOO_LONG: 'review',
+	W_EMPTY_LESSON: 'review',
 	W_PARTIAL_DURATION: 'review',
 	W_BLOCK_TOO_MANY_STEPS: 'review',
 	W_ORPHAN_BLOCK: 'review',

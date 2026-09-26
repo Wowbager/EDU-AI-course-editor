@@ -518,15 +518,6 @@ export const FIELDS: readonly FieldSpec[] = [
     },
     {
         level: "block",
-        path: "status",
-        mode: "advanced",
-        kind: "select",
-        label: "Stav karty",
-        hint: "Nepublikovaná karta se žákovi v kurzu přeskočí.",
-        options: STATUS_OPTIONS,
-    },
-    {
-        level: "block",
         path: "version",
         mode: "advanced",
         kind: "number",
@@ -997,6 +988,8 @@ export const NOT_EDITABLE: Record<string, string> = {
     "step.question":
         "Otázka má vlastní úroveň v registru — její pole jsou uvedená pod level: question.",
     "block.steps": "Struktura, ne pole — kroky se přidávají tlačítkem v kartě.",
+    "block.status":
+        "Stav karty nečte aplikace ani API — karta s jakýmkoli stavem se žákovi zobrazí. Hodnota z načteného souboru se zachová; o zveřejnění rozhoduje stav kurzu.",
     "image.url":
         "Obrázek se needituje sám o sobě — vždy patří ke kroku, k řešení nebo ke zpětné vazbě, a tam je uvedený.",
     "image.alt":

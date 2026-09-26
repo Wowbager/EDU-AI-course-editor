@@ -394,7 +394,9 @@ export function addBlock(
 		export_type: 'block_v2',
 		block_id: blockId,
 		version: 1,
-		status: 'draft',
+		// No `status`: nothing in the app or the API reads a card's status, and a new
+		// card carrying "draft" made every card open with a warning chip the teacher
+		// had no way to clear. Whether a course is out is the course's business.
 		type,
 		steps:
 			type === 'display'

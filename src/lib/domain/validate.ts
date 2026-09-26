@@ -133,6 +133,13 @@ function checkBindings(doc: CourseV2, index: DocIndex, add: Add) {
 			}
 		}
 
+		if (lesson.blocks.length === 0) {
+			// The same idea as W_ORPHAN_BLOCK, one level up. The app still lists the
+			// lesson, and still advertises it at five minutes.
+			add('warning', 'W_EMPTY_LESSON', { lessonId: lesson.lesson_id },
+				`Lekce „${lessonName}“ nemá žádnou kartu. Žák ji uvidí v kurzu i s odhadem pěti minut, ale po otevření v ní nic nenajde.`);
+		}
+
 		if (lesson.blocks.length > 12) {
 			add('warning', 'W_LESSON_TOO_LONG', { lessonId: lesson.lesson_id },
 				`Lekce „${lessonName}“ má ${lesson.blocks.length} bloků. Žák ji pravděpodobně nedokončí na jeden zátah — zvaž rozdělení.`);

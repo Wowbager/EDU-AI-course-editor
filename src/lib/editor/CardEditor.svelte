@@ -62,7 +62,6 @@
         Trash,
     } from "@lucide/svelte";
     import { STEP_TYPES } from "$lib/lang";
-    import { STATUS_OPTIONS } from "$lib/ui/fields";
 
     interface Props {
         doc: CourseV2;
@@ -344,28 +343,20 @@
                 Sdílený ({sharedWith}×)
             </Chip>
         {/if}
-        {#if block.status !== undefined && block.status !== "published"}
-            <!--
-				What this actually does to a student is not something the editor can
-				claim. `block.status` is carried through the format, but neither the
-				Flutter app (`block_model.dart` never parses it) nor the API filters on
-				it, so the chip used to promise a skip that nothing performs. It says
-				what is true — the card is not marked finished — and leaves the
-				consequence to whoever starts honouring the field.
-			-->
-            <Chip
-                tone="warning"
-                title="Karta zatím není označená jako hotová. Aplikace ji žákovi zobrazí jako kteroukoli jinou — je to poznámka pro tebe, ne nastavení pro žáka.">
-                {STATUS_OPTIONS.find((s) => s.value === block.status)?.label ??
-                    block.status}
-            </Chip>
-        {/if}
+        <!--
+            A card without a length is not a mistake: the app then estimates the
+            lesson at about four minutes a card, the way the XP beside this is derived
+            from the steps. It was a warning on every new card, which a teacher could
+            only clear by typing a number they did not have. The one case that does
+            mislead a student — some cards of a lesson with a length and some without
+            — is W_PARTIAL_DURATION, and it is said where the rest of the review is.
+        -->
         <Chip
-            tone={minutes === undefined ? "warning" : "quiet"}
+            tone="quiet"
             title={minutes === undefined
-                ? "Bez délky se čas lekce spočítá špatně"
+                ? "Délka není zadaná. Aplikace odhadne čas lekce zhruba na 4 minuty na kartu. Vlastní délku nastavíš v Nastavení karty."
                 : "Očekávaný čas na kartu"}>
-            {minutes === undefined ? "Bez délky" : `${minutes} min`}
+            {minutes === undefined ? "délka odhadem" : `${minutes} min`}
         </Chip>
 
         {#if issues.errors.length > 0}
@@ -391,21 +382,15 @@
     <header>
         <!--
 			Always visible, and it says what is behind it. A settings button that only
-			appears on hover is a setting nobody finds; one with an unread warning on
-			it — a card with no length breaks the lesson's clock — is worth opening.
+			appears on hover is a setting nobody finds.
 		-->
         <Button
             variant="secondary"
             size="s"
             onclick={onsettings}
-            title={minutes === undefined
-                ? "Karta nemá délku — čas lekce se spočítá špatně"
-                : "Délka, zařazení, klasifikace"}>
+            title="Délka, nápověda ke kartě, zařazení, klasifikace">
             <Settings size={16}></Settings>
-            Nastavení karty{#if minutes === undefined}<span
-                    class="dot"
-                    aria-label="něco chybí"></span
-                >{/if}
+            Nastavení karty
         </Button>
         <Button
             variant="ghost"
@@ -579,16 +564,6 @@
 
     .spacer {
         flex: 1;
-    }
-
-    .dot {
-        display: inline-block;
-        width: 6px;
-        height: 6px;
-        margin-left: 5px;
-        border-radius: 50%;
-        background: var(--e-warning);
-        vertical-align: middle;
     }
 
     .steps {

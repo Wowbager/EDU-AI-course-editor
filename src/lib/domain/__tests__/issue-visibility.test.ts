@@ -74,3 +74,34 @@ describe('isVisible', () => {
 		for (const each of [noText, emptyAnswer, youtube, noAlt]) expect(isVisible(each, nothing, true)).toBe(true);
 	});
 });
+
+/**
+ * A new card is, by definition, unfinished. Nothing about it may be shown as wrong
+ * before the teacher has left it — the class of bug where a card is born with a
+ * warning chip the teacher cannot clear. Every card type, and every step type added
+ * to it, from the empty course a teacher starts with.
+ */
+describe('a card is born quiet', () => {
+	const STEP_TYPES = ['text', 'image', 'video', 'audio', 'question'] as const;
+
+	for (const type of ['display', 'question', 'exercise'] as const) {
+		it(`shows nothing on a new ${type} card, with every kind of step added`, async () => {
+			const { emptyCourse } = await import('../document');
+			const { addBlock, addStep } = await import('../commands');
+			const { validate } = await import('../validate');
+			let doc = emptyCourse('KURZ', 'Kurz');
+			doc = { ...doc, lessons: [{ lesson_id: 'L1', version: 1, name: 'Lekce', order: 1, blocks: [] }] };
+			const added = addBlock(doc, 'L1', type);
+			doc = added.doc;
+			const blockId = added.ref!.blockId!;
+			for (const step of STEP_TYPES) doc = addStep(doc, blockId, step).doc;
+
+			const block = doc.blocks.find((b) => b.block_id === blockId)!;
+			expect(block.status, 'a new card carries no status').toBeUndefined();
+
+			const result = validate(doc, null);
+			const shown = [...result.errors, ...result.warnings].filter((i) => isVisible(i, nothing, false));
+			expect(shown.map((i) => i.code)).toEqual([]);
+		});
+	}
+});

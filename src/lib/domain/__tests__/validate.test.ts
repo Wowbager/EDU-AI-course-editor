@@ -243,3 +243,16 @@ describe('skill configuration drives the vector length', () => {
 		expect(result.errors.map((e) => e.code)).not.toContain('E_VECTOR_LENGTH');
 	});
 });
+
+describe('an empty lesson', () => {
+	it('is reported, because the app still lists it and promises five minutes', () => {
+		const doc = parseCourse(fixture('spec-16-course.json'));
+		const withEmpty = {
+			...doc,
+			lessons: [...doc.lessons, { lesson_id: 'L_EMPTY', version: 1, name: 'Prázdná', order: 9, blocks: [] }]
+		};
+		const codes = validate(withEmpty, skillConfig).warnings.filter((w) => w.ref.lessonId === 'L_EMPTY');
+		expect(codes.map((w) => w.code)).toEqual(['W_EMPTY_LESSON']);
+		expect(validate(doc, skillConfig).warnings.map((w) => w.code)).not.toContain('W_EMPTY_LESSON');
+	});
+});

@@ -506,7 +506,6 @@ function normaliseV1Course(raw: Json, notes: ImportNote[]): Json {
 			export_type: 'block_v2',
 			block_id: blockId,
 			version: 1,
-			status: 'draft',
 			type: hasQuestion ? 'question' : 'display',
 			steps
 		});
