@@ -1124,9 +1124,8 @@ uses. Three changes:
   times. Only then does the column say it did not start, with "Zkusit znovu".
 
 It used to say that the build was missing, which was false for a player that was
-served but stalled. On this machine WSL's network drops requests every few minutes,
-localhost included (`net::ERR_NETWORK_CHANGED`), which is how it was reproduced. The
-same drops make the e2e suite flaky here (OPEN-PROBLEMS 17).
+served but stalled. It was reproduced on a connection that drops requests every few
+minutes, localhost included (`net::ERR_NETWORK_CHANGED`).
 
 Fork commits `f90a384`, `8ec5352` and `2ea48b4`, pinned by `PLAYER_REF`.
 
@@ -1138,8 +1137,8 @@ The owner: problems with the preview were slow and complicated to fix. Looking a
 recent agents ran into, the loop was the problem as much as any bug. The browser tests
 could not see inside the canvas, so they clicked guessed pixels with fixed sleeps.
 Every page of every suite booted the whole Flutter app in its iframe. And the suite
-ran on a cold dev server, on a machine that drops its network every few seconds
-(OPEN-PROBLEMS 17). A red run said little about the code. The goal is a preview that
+ran on a cold dev server, where a dropped connection during a page load left the
+page dead. A red run said little about the code. The goal is a preview that
 stays the real Flutter render, with a test loop that says what is wrong.
 
 **The preview keeps Flutter's accessibility layer on.** The owner's choice: always, not
@@ -1182,7 +1181,7 @@ again when the first load has neither hydrated nor come back within 15 s, and re
 `load retried` on the test. *Rejected:* `retries: 2` for the whole suite, which would
 also retry a real assertion failure until it passed by chance.
 
-Measured on this machine: `main` before this, one run without retries, 49 of 52 passed
+Measured locally, on a connection that drops every 10 to 30 s: `main` before this, one run without retries, 49 of 52 passed
 in 3 min 25 s, with all three failures at page load. After, 53 of 53 in 1 min 24 s
 including the build, and 159 of 159 with `--repeat-each=3`. The `editor` project takes
 22 s. Fork commit `06662c2`, pinned by `PLAYER_REF`.

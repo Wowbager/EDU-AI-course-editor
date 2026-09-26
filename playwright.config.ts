@@ -9,12 +9,12 @@ import type { PlayerKind } from './e2e/fixtures';
  *    time, so these run fully parallel.
  *  - `player`: the suites about the preview (`preview*.spec.ts`), against the real
  *    Flutter build. Each page boots the whole player, about 11 MB of JavaScript and
- *    several MB of wasm. Four at once saturated this machine and failed a different
- *    test on each run, so this project is held to two workers.
+ *    several MB of wasm. Four at once saturated the machine and failed a
+ *    different test on each run, so this project is held to two workers.
  *
  * The server is the built editor (`vite build` + `vite preview`), not the dev
  * server. A cold dev server compiles every module on the first page load, which
- * took long enough for a dropped connection (OPEN-PROBLEMS 17) to catch most loads.
+ * left a long window for a dropped connection to kill the load.
  * `E2E_DEV=1` uses the dev server instead, for a quick loop while editing a spec.
  *
  * The viewport below is 1440, but `devices['Desktop Chrome']` in each project

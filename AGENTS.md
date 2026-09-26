@@ -1,195 +1,121 @@
 # AGENTS.md — EDU-AI course editor
 
-Rules for any agent working in this repository: a local agent, or one running on
-GitHub with nothing but this checkout. Several people and agents push to `main` at the
-same time, so most of this file is about not stepping on each other.
+For any agent working in this repository (`github.com/Wowbager/EDU-AI-course-editor`).
+Several people and agents push to `main`.
 
-This repo is `github.com/Wowbager/EDU-AI-course-editor`. It is the **only** thing this
-project can ship. The app, API and admin (`edu-ai-00/EDU-AI-asistent-*`) are read-only
-upstreams: nothing here may depend on changing them. If a fix "belongs" in the app,
-find the editor-side fix, or write it up in `docs/OPEN-PROBLEMS.md` as an app-side
-change that cannot ship from here. Don't put it in a commit to another repo.
-
-## What the editor is
+## What this is
 
 A SvelteKit app whose only output is a valid `CourseV2` JSON document. The format's
-source of truth is `docs/spec/COURSE-AUTHORING-SPEC.md`. When code says "§14" or
-"plan §7", it means that spec and `docs/spec/PLAN.md`. Don't infer the format from
-components or fixtures.
+source of truth is `docs/spec/COURSE-AUTHORING-SPEC.md`; "§14" or "plan §7" in the code
+means that spec and `docs/spec/PLAN.md`. The preview column is the **real Flutter
+player** in a same-origin iframe, built from the fork `Wowbager/EDU-AI-asistent-APP` at
+the commit pinned by `PLAYER_REF` in `Dockerfile`.
 
-The preview column is the **real Flutter player** in a same-origin iframe, built from
-the fork `Wowbager/EDU-AI-asistent-APP` at the commit pinned in `Dockerfile`
-(`PLAYER_REF`). Bump `PLAYER_REF` only as a deliberate, separate commit.
+This repo is the only thing the project can ship. The app, API and admin
+(`edu-ai-00/EDU-AI-asistent-*`) are read-only upstreams. A fix that needs them goes in
+`docs/OPEN-PROBLEMS.md` as app-side, not into a commit elsewhere. Changing the player is
+a fork commit plus a separate `PLAYER_REF` bump, and a human's call. Publishing a
+course (`POST /api/courses/upload`) waits on auth (DECISIONS → "Still open"). The GPF
+dimension count comes from the course's skill configuration or `src/lib/gpf/`, never a
+hard-coded number.
 
-Before a large change, read `docs/DECISIONS.md` (why things are the way they are) and
-`docs/OPEN-PROBLEMS.md` (what's known to be broken). `README.md` covers running and
-building.
+Read `docs/DECISIONS.md` before a large change and `docs/OPEN-PROBLEMS.md` for what is
+known to be broken.
 
-## Git: the routine
+## Git
 
-1. **Start from what is on GitHub.**
-   ```bash
-   git fetch origin
-   git status -sb                     # behind? diverged?
-   git log --oneline HEAD..origin/main
-   git pull --rebase origin main      # if anything came in
-   ```
-   If someone else's commits came in, run `npm test` and `npm run check` **before**
-   you write code. If they fail, their breakage isn't yours to silently absorb: say
-   so, then fix it in its own commit.
+- Start with `git fetch origin && git status -sb`, and rebase onto `origin/main` if
+  anything came in. If others' commits break `npm test` or `npm run check`, say so and
+  fix it in its own commit.
+- Small commits, one logical change each, pushed as soon as the checks pass. Rebase
+  again before every push. Never force-push `main`; on your own branch use
+  `--force-with-lease`.
+- Resolve a conflict by keeping both intents. Never take one side of a whole file. If
+  you can't tell what the other side meant, ask.
+- Working alone for a person: push to `main`. In parallel with another agent, or on
+  GitHub: a `<who>/<topic>` branch and a PR. Never leave work unpushed.
+- Commit messages say what changed for the teacher or the code, like the existing log.
+  Never commit `test-results/`, `playwright-report/`, `build/`, `.svelte-kit/`, `.env*`.
+- Don't reformat code you aren't changing. The code uses tabs; match the lines around
+  you. **npm only**: `package-lock.json` is the lockfile, and a dependency change is a
+  commit of `package.json` + `package-lock.json` alone.
 
-2. **Commit small and push often.** One logical change per commit. Push as soon as a
-   commit passes the checks below. Don't sit on hours of unpushed work, because the
-   longer it waits, the worse the conflict. Work in progress is fine to push as long
-   as it builds and the tests pass. Don't hide what is unfinished: say it in the commit
-   message or in `docs/OPEN-PROBLEMS.md`.
-
-3. **Before every push, rebase again.**
-   ```bash
-   git fetch origin && git rebase origin/main
-   # if the rebase brought in changes to files you touched: rerun the checks
-   git push origin HEAD
-   ```
-   A rejected push means someone pushed first. Fetch and rebase. Never
-   `--force` on `main`. On your own branch, use `--force-with-lease` and nothing
-   stronger.
-
-4. **Resolving a conflict.** Read both sides and keep both intents. Never resolve a
-   conflict by taking your own side of a whole file (`git checkout --ours`). This
-   matters most for the most-edited files: `src/routes/+page.svelte`,
-   `src/lib/editor/CardEditor.svelte`, `StepEditor.svelte`, `AnswerTable.svelte`,
-   `src/lib/ui/FocusField.svelte`. If one side is mostly whitespace or reformatting, or
-   you can't tell what the other side meant, stop and ask a human. After resolving,
-   rerun all checks before you continue the rebase.
-
-5. **Where to push.**
-   - Local agents working for a person push to `main` (rebased, fast-forward only)
-     unless told to use a branch.
-   - Agents running on GitHub, and anyone running in parallel with another agent on
-     the same machine, work on a branch named `<who>/<topic>` and open a PR against
-     `main`. Keep the PR small and rebase it on `main` before asking for review.
-   - Never commit on a detached HEAD. Never leave a branch unpushed at the end of
-     a session.
-
-6. **Commit messages** say what changed for the teacher or the code, in the style of
-   `git log` (e.g. "Export explains itself instead of greying out"). Don't commit
-   `test-results/`, `playwright-report/`, `build/`, `.svelte-kit/`, `.env*` or
-   `.claude/settings.local.json`.
-
-## Keep diffs reviewable
-
-- **Don't reformat code you aren't changing.** No editor auto-format on save across a
-  whole file, no tab→space conversion, no reordering imports "while you're there". The
-  code uses **tabs**. Some files currently mix tabs and spaces from an earlier reformat;
-  leave that alone. A single repo-wide formatting commit is planned. Until it
-  lands, match the indentation of the lines around your change.
-- **npm only.** `package-lock.json` is the lockfile. Never run `bun`, `yarn` or
-  `pnpm` here, and never commit their lockfiles (they are gitignored). Change
-  dependencies with `npm install <pkg>` and commit `package.json` and
-  `package-lock.json` together, in a commit that does nothing else.
-- A commit that touches `package-lock.json` without a matching `package.json` change
-  is almost always an accident. Check before you commit it.
-
-## Before you push: the checks
+## Checks
 
 ```bash
-npm ci                 # if package-lock.json changed
-npm run check          # svelte-check; must be 0 errors
+npm run check          # svelte-check, 0 errors
 npm test               # vitest: the domain invariants
-npm run test:e2e       # Playwright; slow, see below
+npm run test:e2e       # Playwright, against the built editor on port 5178
 ```
 
-CI (`.github/workflows/ci.yml`) runs only `check` and `npm test`. The e2e suite is
-yours to run locally. If CI on `main` is red, fix it or say why before you push more.
+CI runs `check` and `npm test`. The e2e suite is yours to run.
 
-**Playwright:**
-- Two projects (`playwright.config.ts`). `editor` runs every suite about the editor
-  itself with a **fake player** (`e2e/fake-player.html`, switched in by
-  `e2e/fixtures.ts`), fully parallel. `player` runs `preview*.spec.ts` against the
-  real Flutter build, on **2 workers**: each page boots the whole player, and more at
-  once saturates the machine. Don't raise it to "speed things up". A new suite about
-  the preview is named `preview-….spec.ts`; everything else is in `editor`.
-- Suites import `test`, `expect` and the types from `./fixtures`, not from
-  `@playwright/test`, so the project decides which player they get.
-- The suite runs against the **built** editor (`vite build` + `vite preview`) on port
-  **5178**, and reuses a server already there, so a stale server on 5178 runs the
-  tests against old code. `E2E_DEV=1` uses the dev server instead, for a quick loop.
-  To run it several times without rebuilding, start `npm run build && npm run
-  preview -- --port 5178` yourself and stop it when you are done.
-- Without the Flutter build the `player` project **skips**, so a green run without
-  it hasn't tested the preview. When you have changed anything in
+- Two Playwright projects: `editor` (every suite about the editor, with a fake player
+  from `e2e/fixtures.ts`) and `player` (`e2e/preview*.spec.ts`, the real Flutter build,
+  2 workers — don't raise it). Suites import `test`/`expect` from `./fixtures`.
+- Without the Flutter build the `player` project skips. After touching
   `src/lib/preview/`, `vite-plugin-player.ts`, `scripts/inject-player-shim.mjs` or
-  `routes/preview-image`, run with the player and `REQUIRE_PLAYER=1`, so a missing
-  build fails loudly:
-  ```bash
-  PLAYER_BUILD=../EDU-AI-asistent-APP/build/web REQUIRE_PLAYER=1 npm run test:e2e
-  ```
-- The full suite takes about a minute once built. Run it in the background and wait
-  for it to exit. Don't poll it with fixed sleeps.
-- Open the page with `openEditor(page)` from `./fixtures`. It waits for
-  `html[data-hydrated="true"]` (handlers are client-only, and the SSR shell looks
-  ready before it is), and loads once more if the network dropped the first load
-  (OPEN-PROBLEMS 17), recording `load retried` on the test.
-- Tests find elements by their Czech accessible names (`getByRole('button', { name:
-  'Stáhnout' })`). **When you change any visible label, `aria-label` or dialog title,
-  grep `e2e/` for the old text and update it in the same commit.** That includes the
-  player's own labels (the fork's `app_strings.dart`, `action*`).
-- **Inside the player**, the preview keeps Flutter's accessibility layer on, so its
-  buttons, answer options and markers have roles and names too. Use the helpers in
-  `e2e/player.ts`: `button(page, name)` / `player(page)` to find a target, `press` to
-  click it with the real mouse (it scrolls the player first), `inspect` /
-  `waitForPlayer` to ask the player what it shows, and `recordMessages` for what went
-  between the two. Never click a guessed pixel, and never sleep: wait on `inspect`,
-  on a recorded message, or on the editor's DOM.
-- Step text in the player has no name in the accessibility layer (Markdown and LaTeX
-  are painted, not labelled). A test about text asserts on the message the click
-  sends, or on `inspect`, not on the text.
+  `routes/preview-image`, run with `REQUIRE_PLAYER=1` so a missing build fails.
+- The suite reuses a server already on 5178, so a stale one tests old code.
+  `E2E_DEV=1` uses the dev server instead of the build.
+- Open the page with `openEditor(page)`; it waits for hydration and retries one aborted
+  load. Find elements by their Czech accessible names. When you change a label, grep
+  `e2e/` for the old text in the same commit (the player's labels too).
+- Inside the player use `e2e/player.ts`: `button`/`player` to find by name, `press` to
+  click with the real mouse, `inspect`/`waitForPlayer` to ask what it shows,
+  `recordMessages` for the traffic. Step text has no accessible name; assert on the
+  message a click sends instead.
 
-## Code conventions that are tested, not just preferred
+## Rules that stop the mistakes we keep making
 
-- `src/lib/domain/` is headless: no Svelte, no UI imports. Invariants are tested there
-  as properties. Put logic there, not in components.
+Each of these comes from a bug that cost a round.
+
+1. **One source per app rule.** When the editor must know how the app behaves (which
+   hint shows, which steps a pupil sees, how a card is split), that rule lives in one
+   function in `src/lib/domain/`, cites the app code it mirrors, and is tested. Never a
+   second copy in a component, and never a guess where the player can be asked.
+2. **The preview draws with the app's widgets only.** A hand-made copy of the app's
+   layout drifts from it. Náhled still is one (OPEN-PROBLEMS).
+3. **Card types and course modes are one table.** Behaviour that differs by block type
+   (`display` / `question` / `exercise`) or `export_type` is listed in the spec's table,
+   and a change is tested for every type, not just the one in the bug report.
+4. **Fix the layer that owns the behaviour** — app, bridge, domain or UI — and name it
+   before fixing. A fix that makes one symptom go away somewhere else is a bolt-on. A bug
+   fix comes with a test that fails without it.
+5. **A card is one graded item in the app** (one score, mark, practice card and ELO
+   update). So every question is its own exported block, and several blocks show as
+   one card on screen. Only the advanced mode may keep several questions in one block,
+   on purpose.
+6. **The document is what gets exported.** Parsing injects no defaults, unknown keys
+   survive, and nothing is converted on the way out. A view (like a card group) is
+   derived from the document, never stored beside it.
+7. **Tests wait on a condition, never on time**, and find things by name, never by
+   pixel.
+8. **Nothing about one machine goes in this repo**: no local paths, ports of someone's
+   own servers, or quirks of one network. Those belong in the workspace's own notes.
+
+## Conventions that are tested
+
+- `src/lib/domain/` is headless (no Svelte, no UI). Put logic there, with tests.
 - Which fields each mode (Učitel ⊂ Metodik ⊂ Pokročilý) shows is declared once, in
-  `src/lib/ui/fields.ts`. `fields.test.ts` fails on a key with no mode and no reason.
-- Validation messages are Czech and written as consequences for the student.
-  `validate.test.ts` enforces this.
-- Round trip: parsing never injects defaults, and unknown keys survive export. Don't
-  "normalise" documents.
-- Teachers never see ids in teacher mode (`editor.spec.ts` asserts it).
-- The preview protocol: both sides exchange **JSON strings**, posted to
-  `window.location.origin`, never `*`. When you add a message type, update the union
-  **and** every `switch` that handles it, on both the editor and player side.
-- `{#each}` keys must be unique even when the document is broken (duplicate ids are a
-  thing validation reports, not a thing the UI may crash on). Use `ui/keys.ts`
-  (`uniqueKeys`). Derived state must tolerate teardown (no unguarded property access
-  after unmount).
-- A field nothing downstream reads carries `unread: true` in `fields.ts`, never in
-  teacher mode; `fields.test.ts` checks it against the ✅/⚪ markers in
-  `docs/spec/COURSE-EDITOR-SPEC.md`. When the app starts reading a key, update the spec
-  and the test tells you which flag to drop.
-- No chip or dot computes its own warning. Warnings come from `validate()` and get a
-  timing in `ui/issue-visibility.ts`; a new card of any type shows none before it is
-  left (`issue-visibility.test.ts`).
-- State a component must not forget on remount (folding, anything a drag touches)
-  lives in a keyed store (`state/step-view.svelte.ts`), not in component `$state`.
-- The preview's layout may not depend on focus or on click targets. Player changes run
-  `test/preview/preview_fidelity_test.dart` in the fork; a new player message gets a
+  `src/lib/ui/fields.ts`. A field nothing downstream reads carries `unread: true` and
+  is never in teacher mode; `fields.test.ts` checks it against the ✅/⚪ markers in
+  `docs/spec/COURSE-EDITOR-SPEC.md`.
+- Validation messages are Czech, written as consequences for the student. No chip
+  computes its own warning: warnings come from `validate()`, with a timing in
+  `ui/issue-visibility.ts`.
+- Teachers never see ids.
+- The preview protocol exchanges JSON strings, posted to `window.location.origin`.
+  A new message type updates the union and every `switch` on both sides, and gets a
   "sent when" line in the fork's `lib/preview/README.md`.
+- `{#each}` keys stay unique in a broken document (`ui/keys.ts`). State a component
+  must not forget on remount lives in a keyed store (`state/step-view.svelte.ts`).
+- The preview's layout may not depend on focus or click targets
+  (`test/preview/preview_fidelity_test.dart` in the fork).
 
 ## Writing things down
 
-Record every UX or architecture decision in `docs/DECISIONS.md` under the current
-round, including what was rejected and why. Record every defect you find and don't fix
-in `docs/OPEN-PROBLEMS.md`, with whether it was reproduced. The rule from the project
-owner: **work in progress is fine, burying problems is not.** A summary that says
-"done" while a known issue is unrecorded is wrong.
-
-## Things that cannot be done from here
-
-- Changing the player's behaviour. That's a commit to the fork plus a `PLAYER_REF`
-  bump, and it's a human's call. Anything that must reach `edu-ai-00` is a PR a human
-  opens.
-- Publishing a course (`POST /api/courses/upload`). Auth is unresolved; see
-  `docs/DECISIONS.md` → "Still open".
-- The GPF dimension count. It comes from the course's skill configuration or the
-  shipped taxonomy in `src/lib/gpf/`, never a hard-coded number.
+Every UX or architecture decision goes in `docs/DECISIONS.md` under the current round,
+with what was rejected. Every defect you find and don't fix goes in
+`docs/OPEN-PROBLEMS.md`, with whether it was reproduced. Work in progress is fine;
+burying problems is not.

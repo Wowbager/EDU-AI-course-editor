@@ -178,27 +178,22 @@ offering the field.
 mode switches to that mode on the jump, and the mode stays switched. The alternative —
 landing on a card whose field is not drawn — is what this replaced.
 
-### 17. On this machine the network drops requests, and the e2e suite flakes with it
-**Verified: yes.** WSL's connectivity check fails every few minutes
-(`CheckConnection: getaddrinfo() failed` in `dmesg`). Each time, Chrome aborts every
-request in flight with `net::ERR_NETWORK_CHANGED`, localhost included. A page caught
-mid-load never hydrates, and a player caught mid-boot never starts. The preview now
-retries a stalled player (DECISIONS Round 5).
+### 17. The player still talks to other origins while it runs — app-side
+**Verified: yes.** Google Fonts (the app's `google_fonts`) and `accounts.google.com`
+(its Google Sign-In client). They do not block the boot, since the build carries
+CanvasKit and the Microsoft sign-in script is dropped from the preview page (DECISIONS
+Round 5), but a slow or unreachable host still delays the fonts, and a font that
+arrives late re-wraps the text. The fix is app-side: bundle the fonts, and don't
+start sign-in on `/preview`.
 
-**Mitigated in the e2e suite (Round 6), not fixed.** During a run on 2026-09-26 the
-drops came every 10 to 30 seconds. Most suites no longer load the Flutter player at
-all, the suite runs against the built editor, and a page load that neither hydrated
-nor came back within 15 s is loaded once more (`openEditor` in `e2e/fixtures.ts`).
-That retry is recorded on the test as `load retried`, and a page that fails twice
-still fails. Before, on `main` at `cde6f33`, one run without retries: 49 passed,
-3 failed, all on `data-hydrated` at page load, in 3 min 25 s. After: 53 of 53 in
-1 min 24 s including the build, and 159 of 159 with `--repeat-each=3`. The drops
-themselves are this machine's, and a load retry cannot help a test that is caught
-mid-assertion, so a flaky test here is still possible.
-
-The player still makes requests to other origins while it runs (Google Fonts,
-`accounts.google.com`). They do not block its boot, but they are app-side (fonts via
-`google_fonts`, Google Sign-In's client).
+### 18. Náhled is a hand-drawn copy of the app's card layout
+**Verified: yes.** `lib/preview/preview_expanded_block.dart` in the fork draws every card
+as one box per step, each with its own button row. The app draws a `question` or
+`exercise` card as one bubble with dividers and the text merged into the question after
+it (`BlockStepEngine._buildExerciseCard`). So Náhled and Vyzkoušet show those cards
+differently, and every per-type rule has to be copied by hand (AGENTS.md rule 2). The
+fix is to render Náhled through the engine itself, as a finished card whose taps go to
+click-to-edit, with a Flutter test that the two lay out every card type alike.
 
 ### 11. Folding is remembered for the session only
 **By design for now.** `StepView` lives as long as the page. A reload opens every step
