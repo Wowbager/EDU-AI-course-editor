@@ -269,10 +269,12 @@
             </p>
             <p>
                 Vymazání dat stránky, anonymní okno nebo přeinstalace prohlížeče
-                kurz nenávratně smaže. Jediná záloha, kterou máš, je stažený
-                soubor JSON — ten si můžeš kdykoli zase načíst tlačítkem <strong
-                    >Nahrát</strong
-                >.
+                rozepsaný kurz nenávratně smaže. Zálohou jsou <strong
+                    >uložené verze</strong
+                > (tlačítko s číslem verze vlevo nahoře) — ukládají se i na server
+                editoru, ale najde je zase jen tento prohlížeč — a stažený soubor
+                JSON, který si můžeš kdykoli načíst tlačítkem <strong>Nahrát</strong
+                >. Jen soubor přežije i vymazání dat prohlížeče.
             </p>
             <p class:at-risk={!backedUp}>
                 {#if backedUp}

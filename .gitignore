@@ -34,3 +34,6 @@ pnpm-lock.yaml
 
 # Per-machine agent settings
 .claude/settings.local.json
+
+# Version history kept by the dev server (DATA_DIR defaults here)
+/.data

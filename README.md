@@ -142,3 +142,18 @@ makes "pokročilý shows everything else" a tested property rather than an inten
 iframe that has to talk to the page around it. The player is cloned at the pinned
 `PLAYER_REF`, so the build context is this directory alone (see "Building the image"
 above).
+
+### Version history
+
+Saved versions of a course (the version button in the top bar) are kept in two places:
+the browser's IndexedDB, and the editor's own server under `DATA_DIR` — `/data` in the
+image, declared as a volume, so mount it:
+
+```bash
+docker run -p 8080:8080 -v edu-editor-data:/data edu-editor
+```
+
+In development `DATA_DIR` defaults to `.data/` in the checkout (gitignored). There is no
+login yet: each browser makes a random key, the server stores only its hash, and a
+browser that loses its site data loses its way to its server history too. When sign-in
+exists, `lib/server/versions/owner.ts` is the one place that changes.

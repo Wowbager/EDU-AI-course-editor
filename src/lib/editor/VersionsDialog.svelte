@@ -160,9 +160,15 @@
 		return parts.length === 0 ? 'stejné jako zveřejněná verze' : parts.join(', ');
 	}
 
+	/** Where the history is, said plainly — it decides what a lost browser costs. */
 	const kept = $derived.by(() => {
-		if (versions.unavailable.length === 0) return 'Verze se ukládají v tomto prohlížeči.';
-		return 'Verze se teď nedaří uložit v tomto prohlížeči — historie platí jen do zavření stránky. Stáhni si důležité verze do souboru.';
+		const down = versions.unavailable;
+		const browser = !down.includes('browser');
+		const server = versions.backends.includes('server') && !down.includes('server');
+		if (browser && server) return 'Verze se ukládají v tomto prohlížeči a na serveru editoru.';
+		if (browser) return 'Verze se ukládají jen v tomto prohlížeči — server editoru je teď nedostupný.';
+		if (server) return 'Verze se ukládají na serveru editoru; v tomto prohlížeči se uložit nedaří.';
+		return 'Verze se teď nedaří uložit nikam — historie platí jen do zavření stránky. Stáhni si důležité verze do souboru.';
 	});
 </script>
 

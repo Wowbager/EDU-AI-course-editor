@@ -20,6 +20,8 @@
     import { StepView } from "$lib/state/step-view.svelte";
     import { VersionStore } from "$lib/state/versions/version-store.svelte";
     import { BrowserBackend } from "$lib/state/versions/browser";
+    import { ServerBackend, workspaceKey } from "$lib/state/versions/server";
+    import { browser } from "$app/environment";
     import Sidebar from "$lib/editor/Sidebar.svelte";
     import Topbar from "$lib/editor/Topbar.svelte";
     import CardEditor from "$lib/editor/CardEditor.svelte";
@@ -52,7 +54,11 @@
      * course changes — a new course, an import, a restored draft — and nothing else:
      * an edit changes the working copy, never the history.
      */
-    const versions = new VersionStore([new BrowserBackend()]);
+    const key = browser ? workspaceKey() : null;
+    const versions = new VersionStore([
+        new BrowserBackend(),
+        ...(key !== null ? [new ServerBackend(key)] : []),
+    ]);
     setVersions(versions);
     const courseId = $derived(store.doc.course_id);
     $effect(() => {

@@ -50,6 +50,11 @@ export class VersionStore {
 		this.#now = now;
 	}
 
+	/** Which kinds of place this store writes to at all. */
+	get backends(): KeptIn[] {
+		return this.#backends.map((b) => b.name);
+	}
+
 	get index(): VersionIndex {
 		return {
 			courseId: this.courseId ?? '',

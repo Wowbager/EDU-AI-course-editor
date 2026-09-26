@@ -72,6 +72,14 @@ COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
+# Course version histories (lib/server/versions/). A volume, so they outlive the
+# container; a version is a whole course, so the node server's 512K body limit is
+# raised to match the check in lib/server/versions/files.ts (nginx allows the same).
+ENV DATA_DIR=/data
+ENV BODY_SIZE_LIMIT=8M
+RUN mkdir -p /data
+VOLUME /data
+
 ENV PORT=8080
 ENV API_URL=https://app-api.edu-ai.eu
 EXPOSE 8080
