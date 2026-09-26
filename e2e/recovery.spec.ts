@@ -1,14 +1,13 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, openEditor } from './fixtures';
 import { readFileSync } from 'node:fs';
 
 const key = 'edu-editor:draft:v1';
 const fixture = readFileSync(new URL('../src/lib/domain/__tests__/fixtures/spec-16-course.json', import.meta.url));
 
 test.beforeEach(async ({ page }) => {
-	await page.goto('/');
 	// onMount has seeded/restored the document and attached every input handler.
 	// Typing before this was the hydration race behind a lost import guard.
-	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
+	await openEditor(page);
 });
 
 test('unblurred feedback survives reload even when export is blocked', async ({ page }) => {
@@ -86,8 +85,7 @@ test('import replacement can be cancelled without losing current work', async ({
 test('another tab pauses writes instead of silently replacing its draft', async ({ page, context }) => {
 	await expect(page.locator(".save-state")).toHaveText('Uloženo jen v tomto prohlížeči');
 	const other = await context.newPage();
-	await other.goto('/');
-	await expect(other.locator('html')).toHaveAttribute('data-hydrated', 'true');
+	await openEditor(other);
 	await other.getByRole('textbox', { name: 'Název kurzu', exact: true }).fill('Druhá karta');
 	await expect(other.locator(".save-state")).toHaveText('Uloženo jen v tomto prohlížeči');
 	await expect(page.locator(".save-state")).toHaveText('Ukládání pozastaveno');

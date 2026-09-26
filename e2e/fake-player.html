@@ -1,0 +1,58 @@
+<!doctype html>
+<!--
+	A stand-in for the Flutter player, for the suites that test the editor rather than
+	the preview (see fixtures.ts). It speaks the smallest part of the contract
+	(src/lib/preview/bridge.ts): it announces itself, keeps what it is sent, and
+	answers `inspect` from that. It draws the message type and nothing else, so a
+	test that needs the real render belongs in the `player` project.
+
+	What it received is on `window.received`, for a test that wants to look.
+-->
+<html lang="cs">
+	<head>
+		<meta charset="utf-8" />
+		<title>fake player</title>
+	</head>
+	<body>
+		<p id="last">čeká na obsah</p>
+		<script>
+			window.received = [];
+			let state = { view: 'expanded', content: 'none', shownStepIds: [], canGoBack: false };
+			const send = (message) => parent.postMessage(JSON.stringify(message), location.origin);
+
+			addEventListener('message', (event) => {
+				if (event.source !== parent || typeof event.data !== 'string') return;
+				const message = JSON.parse(event.data);
+				window.received.push(message);
+				document.getElementById('last').textContent = message.type;
+				if (message.type === 'setBlock') {
+					const block = Array.isArray(message.block) ? message.block[0] : message.block;
+					const steps = (block?.steps ?? []).map((step) => step.id);
+					state = {
+						view: message.view ?? 'expanded',
+						content: 'block',
+						blockId: block?.block_id,
+						stepId: message.stepId,
+						shownStepIds: steps,
+						canGoBack: false
+					};
+				} else if (message.type === 'setLesson') {
+					state = {
+						view: 'play',
+						content: 'lesson',
+						lessonId: message.lessonId,
+						blockId: message.startBlockId,
+						shownStepIds: [],
+						canGoBack: false
+					};
+				} else if (message.type === 'reset') {
+					state = { view: 'expanded', content: 'none', shownStepIds: [], canGoBack: false };
+				} else if (message.type === 'inspect') {
+					send({ type: 'inspected', id: message.id, ...state });
+				}
+			});
+
+			send({ type: 'ready' });
+		</script>
+	</body>
+</html>

@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page, openEditor } from './fixtures';
 import { readFileSync } from 'node:fs';
 
 /**
@@ -39,8 +39,7 @@ async function press(page: Page, position: number) {
 }
 
 test.beforeEach(async ({ page }) => {
-	await page.goto('/');
-	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
+	await openEditor(page);
 });
 
 test('a folded step stays folded while it is carried and after it lands', async ({ page }) => {

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, openEditor } from './fixtures';
 import { readFileSync } from 'node:fs';
 import { playerBuilt } from './player-build';
 
@@ -42,8 +42,7 @@ test.describe('the player is rewritten to fetch images from this origin', () => 
 		const requestUrls: string[] = [];
 		page.on('request', (request) => requestUrls.push(request.url()));
 
-		await page.goto('/');
-		await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
+		await openEditor(page);
 		await page.setInputFiles('input[type=file]', {
 			name: 'preview-image-proxy-course.json',
 			mimeType: 'application/json',

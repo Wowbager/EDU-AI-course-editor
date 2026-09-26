@@ -1,14 +1,13 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page, openEditor } from './fixtures';
 import { readFileSync } from 'node:fs';
 
 async function load(page: Page, marks: boolean, branching: boolean) {
 	const doc = JSON.parse(readFileSync(new URL('../src/lib/domain/__tests__/fixtures/spec-16-course.json', import.meta.url), 'utf8'));
 	doc.export_type = branching ? 'course_v2' : 'exercise_v2';
 	doc.quiz_evaluate = marks;
-	await page.goto('/');
 	// The flag is set at the end of onMount, so it also means the seed has run and
 	// the import handler is wired — unlike counting sections, which SSR can satisfy.
-	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
+	await openEditor(page);
 	await page.setInputFiles('input[type=file]', {
 		name: 'layout.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(doc))
 	});

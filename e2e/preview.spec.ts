@@ -1,6 +1,7 @@
-import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { expect, test, type Page, openEditor } from './fixtures';
 import { playerBuilt } from './player-build';
+import { button, inspect, player, press, recordMessages, waitForPlayer } from './player';
 
 /**
  * The preview is the real player in an iframe, so this suite needs the Flutter web
@@ -9,131 +10,96 @@ import { playerBuilt } from './player-build';
  *
  *     flutter build web --release --base-href /player/ --no-web-resources-cdn
  *
- * Flutter draws to a canvas, so there is no DOM inside the frame to assert against.
- * These tests therefore check the *contract* (plan §4) rather than the pixels: that
- * the player boots and says so, that a click on rendered content comes back as the
- * ref that produced it — which also proves the right block is on screen — and that
- * an edit reaches the player without reloading it.
- */
-
-/** Record every message the player posts up to the editor. */
-async function watchMessages(page: Page) {
-	await page.evaluate(() => {
-		const seen: string[] = [];
-		(window as unknown as { __preview: string[] }).__preview = seen;
-		window.addEventListener('message', (event) => {
-			if (typeof event.data === 'string') seen.push(event.data);
-		});
-	});
-	return () =>
-		page.evaluate(() => (window as unknown as { __preview: string[] }).__preview ?? []);
-}
-
-/**
- * Answer the question on screen and press the card's action button.
+ * Flutter draws to a canvas, but the preview keeps Flutter's accessibility layer on,
+ * so buttons, answer options and markers are found by name (`e2e/player.ts`) and
+ * clicked with the real mouse. What the player shows is asked of the player
+ * (`inspect`), and waited for, rather than slept on. What travels between the two is
+ * recorded both ways, so the tests check the contract (plan §4): the player boots
+ * and says so, a click lands on the field behind it, and an edit reaches the player
+ * without reloading it.
  *
- * Flutter draws to a canvas, so nothing inside the frame can be addressed by role or
- * text: the only way to drive it is to click where it painted. Everything here is
- * therefore a probe — pick an answer somewhere in the options band, scroll down to
- * the action bar, and press along it — repeated until `done()` says the player
- * moved. That keeps the test about the contract rather than about a pixel.
+ * The spec course's cards: 0 is L1_B1_uvod (text and image), 2 is L1_B3_poznej, a
+ * question card whose question (s2) has options a–d, `a` correct.
  */
-async function playOneStep(page: Page, done: () => Promise<boolean>) {
-	const frame = (await page.locator('iframe').boundingBox())!;
 
-	for (let attempt = 0; attempt < 3; attempt++) {
-		for (const optionY of [220, 150, 290, 360]) {
-			await page.mouse.click(frame.x + frame.width / 2, frame.y + optionY);
-			await page.waitForTimeout(250);
-		}
+const COURSE = readFileSync(
+	new URL('../src/lib/domain/__tests__/fixtures/spec-16-course.json', import.meta.url)
+);
+const QUIZ = 'L1_B3_poznej';
+const INTRO = 'L1_B1_uvod';
+const RIGHT_ANSWER = 'Čitatel je 5, jmenovatel je 7';
 
-		await page.mouse.move(frame.x + frame.width / 2, frame.y + frame.height / 2);
-		for (let i = 0; i < 12; i++) {
-			await page.mouse.wheel(0, 300);
-			await page.waitForTimeout(100);
-		}
-		await page.waitForTimeout(600);
+type Log = Awaited<ReturnType<typeof recordMessages>>;
 
-		for (let y = frame.height - 60; y > frame.height - 220; y -= 20) {
-			await page.mouse.click(frame.x + frame.width - 110, frame.y + y);
-			await page.waitForTimeout(350);
-			if (await done()) return true;
-		}
-	}
-	return done();
+async function openCard(page: Page, index: number, blockId: string) {
+	await page.locator('.tree-card').nth(index).click();
+	await waitForPlayer(page, { view: 'expanded', blockId });
 }
 
-/**
- * Click down the first band of the frame until something reports a ref. The player
- * draws to a canvas, so there is no element to address and exactly where the text
- * landed depends on how it wrapped.
- */
-async function clickUntilTargeted(page: Page, targeted = page.locator('.step.targeted')) {
-	const frame = (await page.locator('iframe').boundingBox())!;
-	for (let offset = 30; offset <= 200 && (await targeted.count()) === 0; offset += 10) {
-		await page.mouse.click(frame.x + 80, frame.y + offset);
-		await page.waitForTimeout(350);
-	}
+async function play(page: Page, blockId: string) {
+	await page.getByRole('radio', { name: 'Vyzkoušet' }).click();
+	await waitForPlayer(page, { view: 'play', content: 'lesson', blockId });
+}
+
+/** Answer the quiz card's question right, as a pupil does. */
+async function answerRight(page: Page) {
+	await press(page, button(page, RIGHT_ANSWER));
+	await press(page, button(page, 'Zkontrolovat'));
 }
 
 test.describe('live preview', () => {
 	test.skip(!playerBuilt, 'the Flutter web build is not present');
-	// Serial: each test boots a full Flutter app, and two racing for the dev server's
-	// attention is slower than running them one after another.
-	test.describe.configure({ timeout: 150_000, mode: 'serial' });
+	test.describe.configure({ timeout: 90_000 });
+
+	let log: Log;
 
 	test.beforeEach(async ({ page }) => {
-		await page.goto('/');
+		log = await recordMessages(page);
 		// The import handler is client-side: wait for hydration before handing the
 		// page a file. The flag is set last in onMount, so it also covers the seed.
-		await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
+		await openEditor(page);
 		await page.setInputFiles('input[type=file]', {
 			name: 'spec-16-course.json',
 			mimeType: 'application/json',
-			buffer: Buffer.from(
-				readFileSync(
-					new URL('../src/lib/domain/__tests__/fixtures/spec-16-course.json', import.meta.url)
-				)
-			)
+			buffer: COURSE
 		});
 		await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 		// The player announces itself over the message channel once it has booted.
-		await expect(page.locator('aside .chip.ok', { hasText: 'Náhled' })).toBeVisible({ timeout: 120_000 });
+		await expect(page.locator('aside .chip.ok', { hasText: 'Náhled' })).toBeVisible({ timeout: 60_000 });
 	});
 
 	test('clicking rendered content lands on the field that produced it', async ({ page }) => {
-		const messages = await watchMessages(page);
-
-		await page.locator('.tree-card').nth(2).click();
-		await page.waitForTimeout(2500);
+		await openCard(page, 2, QUIZ);
 		await expect(page.locator('.step.targeted')).toHaveCount(0);
+		const mark = log.mark();
 
-		await clickUntilTargeted(page);
-
-		const targeted = page.locator('.step.targeted');
-		await expect(targeted).toHaveCount(1);
+		await press(page, button(page, RIGHT_ANSWER));
 
 		// The ref names the block that was on screen, which is how we know the player
 		// was showing the card the author selected.
-		const clicked = (await messages()).filter((m) => m.includes('"clicked"'));
-		expect(clicked.length).toBeGreaterThan(0);
-		expect(clicked.at(-1)).toContain('"blockId":"L1_B3_poznej"');
+		await expect.poll(() => log.up('clicked', mark).length).toBeGreaterThan(0);
+		expect(log.up('clicked', mark).at(-1)).toMatchObject({
+			ref: { blockId: QUIZ, stepId: 's2', optionId: 'a', field: 'text' }
+		});
+		await expect(page.locator('.step.targeted')).toHaveCount(1);
 	});
 
 	test('the expanded view is inert: nothing in it answers or advances', async ({ page }) => {
 		// Náhled is the default, and it is the whole point of it: the author reads the
-		// card rather than taking it. A tap on an answer reports where that answer is
-		// authored, so `clicked` arrives and `stepChanged` never does.
-		await page.locator('.tree-card').nth(2).click();
-		await page.waitForTimeout(2500);
-		const messages = await watchMessages(page);
+		// card rather than taking it. A tap on an answer, or on the card's own button,
+		// reports where it is authored, so `clicked` arrives and `stepChanged` never does.
+		await openCard(page, 2, QUIZ);
+		const mark = log.mark();
 
-		await clickUntilTargeted(page);
+		await press(page, button(page, RIGHT_ANSWER));
+		await press(page, button(page, 'Hotovo').first());
+		// Everything the clicks caused has been painted once the player answers.
+		await inspect(page);
 
-		const seen = await messages();
-		expect(seen.filter((m) => m.includes('"clicked"')).length).toBeGreaterThan(0);
-		expect(seen.filter((m) => m.includes('"stepChanged"'))).toHaveLength(0);
-		expect(seen.filter((m) => m.includes('"completed"'))).toHaveLength(0);
+		expect(log.up('clicked', mark).length).toBeGreaterThan(0);
+		expect(log.up('stepChanged', mark)).toHaveLength(0);
+		expect(log.up('completed', mark)).toHaveLength(0);
+		await waitForPlayer(page, { view: 'expanded', blockId: QUIZ });
 	});
 
 	test('the question mark in Náhled goes to the text behind it', async ({ page }) => {
@@ -142,28 +108,15 @@ test.describe('live preview', () => {
 		// screen's hint, as in the app — so the answer is that step's hint field.
 		// (A card-level hint is reported without a `stepId` and opens the card's
 		// settings; the Flutter suite holds that path.)
-		await page.locator('.tree-card').nth(2).click();
-		await page.waitForTimeout(2500);
-		const messages = await watchMessages(page);
-		const hintRef = async () =>
-			(await messages())
-				.map((m) => JSON.parse(m) as { type: string; ref?: { stepId?: string; field?: string } })
-				.find((m) => m.type === 'clicked' && m.ref?.field === 'hint')?.ref;
+		await openCard(page, 2, QUIZ);
+		const mark = log.mark();
 
-		// Where the row landed depends on how the text above it wrapped, so probe
-		// down the frame, a screen at a time, rather than trusting a pixel.
-		const frame = (await page.locator('iframe').boundingBox())!;
-		for (let screen = 0; screen < 4 && (await hintRef()) === undefined; screen++) {
-			for (let y = 40; y <= frame.height - 20 && (await hintRef()) === undefined; y += 12) {
-				await page.mouse.click(frame.x + 180, frame.y + y);
-				await page.waitForTimeout(120);
-			}
-			await page.mouse.move(frame.x + frame.width / 2, frame.y + frame.height / 2);
-			await page.mouse.wheel(0, frame.height - 80);
-			await page.waitForTimeout(400);
-		}
+		await press(page, button(page, 'Nápověda'));
 
-		expect(await hintRef()).toMatchObject({ blockId: 'L1_B3_poznej', stepId: 's2', field: 'hint' });
+		await expect.poll(() => log.up('clicked', mark).length).toBeGreaterThan(0);
+		expect(log.up('clicked', mark).at(-1)).toMatchObject({
+			ref: { blockId: QUIZ, stepId: 's2', field: 'hint' }
+		});
 		await expect(page.locator('main .step.targeted')).toHaveCount(1);
 		await expect(page.getByRole('dialog')).toHaveCount(0);
 	});
@@ -171,65 +124,53 @@ test.describe('live preview', () => {
 	test('the expanded view never names another card by its id in teacher mode', async ({ page }) => {
 		// The branch markers name where each answer leads. The player holds one card
 		// and cannot look another one up, so the editor supplies the names — and in
-		// teacher mode a name is never an id (plan §8). Asserted on the wire, because
-		// the frame itself is a canvas with nothing to read.
-		const posted: string[] = [];
-		await page.exposeFunction('__record', (m: string) => void posted.push(m));
-		await page.evaluate(() => {
-			const frame = document.querySelector('iframe') as HTMLIFrameElement;
-			const original = frame.contentWindow!.postMessage.bind(frame.contentWindow);
-			frame.contentWindow!.postMessage = ((data: unknown, origin: string) => {
-				if (typeof data === 'string') void (window as unknown as { __record: (m: string) => void }).__record(data);
-				return original(data as string, origin);
-			}) as typeof original;
-		});
+		// teacher mode a name is never an id (plan §8). Asserted on what the player
+		// received, and on what it drew.
+		await openCard(page, 2, QUIZ);
 
-		await page.locator('.tree-card').nth(2).click();
-		await page.waitForTimeout(2000);
-
-		const setBlock = posted.filter((m) => m.includes('"setBlock"'));
-		expect(setBlock.length).toBeGreaterThan(0);
-		const labels = JSON.parse(setBlock.at(-1)!).blockLabels as Record<string, string>;
+		const lastSetBlock = () => log.down('setBlock').at(-1) as { blockLabels?: Record<string, string> };
+		const labels = lastSetBlock().blockLabels ?? {};
 		expect(Object.keys(labels).length).toBeGreaterThan(0);
 		for (const [blockId, label] of Object.entries(labels)) {
 			expect(label, `${blockId} was named by its id`).not.toBe(blockId);
 		}
+		// The markers the player drew carry the name too, never the id.
+		const markers = player(page).getByRole('group', { name: /→/ });
+		await expect(markers).toHaveCount(1);
+		await expect(markers).toHaveAccessibleName(/karta „Části zlomku“/);
+		await expect(markers).not.toHaveAccessibleName(/L1_B2_casti/);
 
 		// The advanced author, who may change ids, gets the ids.
 		await page.getByRole('radio', { name: 'Pokročilý' }).click();
-		await page.waitForTimeout(2000);
-		const advanced = JSON.parse(
-			posted.filter((m) => m.includes('"setBlock"')).at(-1)!
-		).blockLabels as Record<string, string>;
-		expect(Object.entries(advanced).every(([id, label]) => id === label)).toBe(true);
+		await expect
+			.poll(() => Object.entries(lastSetBlock().blockLabels ?? {}).every(([id, label]) => id === label))
+			.toBe(true);
 	});
 
 	test('Vyzkoušet plays the lesson and Zpět retraces it', async ({ page }) => {
-		await page.locator('.tree-card').nth(2).click();
-		await page.waitForTimeout(1500);
+		await openCard(page, 2, QUIZ);
 
 		const back = page.getByRole('button', { name: '← Zpět' });
 		await expect(back).toHaveCount(0);
 
-		await page.getByRole('radio', { name: 'Vyzkoušet' }).click();
-		await page.waitForTimeout(3000);
+		await play(page, QUIZ);
 
 		// Nowhere to go back to until the author has moved.
 		await expect(back).toBeVisible();
 		await expect(back).toBeDisabled();
+		const mark = log.mark();
 
-		const messages = await watchMessages(page);
-
-		await playOneStep(page, async () => back.isEnabled());
+		await answerRight(page);
 
 		// Having moved, Zpět becomes available — that is the navState message arriving.
 		await expect(back).toBeEnabled({ timeout: 15_000 });
-		expect((await messages()).filter((m) => m.includes('"navState"')).length).toBeGreaterThan(0);
+		expect(log.up('navState', mark).length).toBeGreaterThan(0);
+		await waitForPlayer(page, { canGoBack: true });
 
 		await back.click();
-		await page.waitForTimeout(1500);
+		await waitForPlayer(page, { canGoBack: false });
 		// Still the same player: going back must never cost a Flutter boot.
-		expect((await messages()).filter((m) => m.includes('"ready"'))).toHaveLength(0);
+		expect(log.up('ready', mark)).toHaveLength(0);
 	});
 
 	test('Vyzkoušet moves the editor to where the pupil is, and nothing else', async ({ page }) => {
@@ -237,38 +178,24 @@ test.describe('live preview', () => {
 		// every step the player reports is selected and opened in the editor. The
 		// player's own state still never leaks into Náhled — Náhled shows what the
 		// editor has selected, and after a run that is where the run ended, openly.
-		await page.locator('.tree-card').nth(2).click();
-		await page.waitForTimeout(1500);
-
-		const posted: string[] = [];
-		await page.exposeFunction('__record', (m: string) => void posted.push(m));
-		await page.evaluate(() => {
-			const frame = document.querySelector('iframe') as HTMLIFrameElement;
-			const original = frame.contentWindow!.postMessage.bind(frame.contentWindow);
-			frame.contentWindow!.postMessage = ((data: unknown, origin: string) => {
-				if (typeof data === 'string') void (window as unknown as { __record: (m: string) => void }).__record(data);
-				return original(data as string, origin);
-			}) as typeof original;
-		});
-
-		const messages = await watchMessages(page);
-		const positions = async () =>
-			(await messages())
-				.filter((m) => m.includes('"stepChanged"'))
-				.map((m) => JSON.parse(m) as { blockId: string; stepId: string; shownStepIds: string[] });
+		await openCard(page, 2, QUIZ);
+		const mark = log.mark();
+		const positions = () =>
+			log.up('stepChanged', mark) as unknown as { blockId: string; stepId: string; shownStepIds: string[] }[];
 
 		await page.getByRole('radio', { name: 'Vyzkoušet' }).click();
 
 		// The first card reports itself on mount, and the editor opens that step.
-		await expect.poll(async () => (await positions()).length, { timeout: 15_000 }).toBeGreaterThan(0);
-		const first = (await positions()).at(-1)!;
-		expect(first.blockId).toBe('L1_B3_poznej');
+		await expect.poll(() => positions().length, { timeout: 15_000 }).toBeGreaterThan(0);
+		const first = positions().at(-1)!;
+		expect(first.blockId).toBe(QUIZ);
 		await expect(page.locator('main .step.targeted')).toHaveCount(1);
 
 		// The quiz card is one bubble that grows question by question: the pupil has
 		// the text before the question and the question, not the text after it. The
 		// step list shows the card the same way — the steps not reached are folded.
 		expect(first).toMatchObject({ stepId: 's2', shownStepIds: ['s1', 's2'] });
+		await waitForPlayer(page, { blockId: QUIZ, stepId: 's2', shownStepIds: ['s1', 's2'] });
 		const steps = page.locator('main .step');
 		await expect(steps).toHaveCount(4);
 		await expect(steps.nth(0)).not.toHaveClass(/collapsed/);
@@ -278,20 +205,18 @@ test.describe('live preview', () => {
 
 		// The player is told nothing about focus while it plays: no highlight, and no
 		// setLesson carries a step.
-		expect(posted.filter((m) => m.includes('"highlight"'))).toHaveLength(0);
+		expect(log.down('highlight', mark)).toHaveLength(0);
 
 		const back = page.getByRole('button', { name: '← Zpět' });
-		await playOneStep(page, async () => back.isEnabled());
+		await answerRight(page);
 		await expect(back).toBeEnabled({ timeout: 15_000 });
-		const last = (await positions()).at(-1)!;
+		const last = positions().at(-1)!;
 
 		// Back in Náhled, the outline is the editor's selection — the step the run
 		// reached, because the run moved the editor there — and no hidden state.
 		await page.getByRole('radio', { name: 'Náhled' }).click();
-		await page.waitForTimeout(2000);
-		const setBlock = posted.filter((m) => m.includes('"setBlock"'));
-		expect(setBlock.length).toBeGreaterThan(0);
-		const outlined = JSON.parse(setBlock.at(-1)!) as { stepId?: string; block: { block_id: string }[] };
+		await waitForPlayer(page, { view: 'expanded' });
+		const outlined = log.down('setBlock').at(-1)!;
 		if (outlined.block[0]?.block_id === last.blockId) expect(outlined.stepId).toBe(last.stepId);
 
 		// And the run's own "back" is gone with it, and so is its folding.
@@ -300,62 +225,72 @@ test.describe('live preview', () => {
 		await expect(page.locator('main .step.collapsed')).toHaveCount(0);
 	});
 
-	test('a click in Vyzkoušet is the pupil\'s and never jumps the editor', async ({ page }) => {
-		await page.locator('.tree-card').first().click();
-		await page.waitForTimeout(1500);
-		await page.getByRole('radio', { name: 'Vyzkoušet' }).click();
-		await page.waitForTimeout(3000);
-		const messages = await watchMessages(page);
+	test("a click in Vyzkoušet is the pupil's and never jumps the editor", async ({ page }) => {
+		await openCard(page, 0, INTRO);
+		await play(page, INTRO);
+		const mark = log.mark();
 
-		// Click down the text of the first card, where Náhled would report `content`.
-		const frame = (await page.locator('iframe').boundingBox())!;
-		for (let y = 30; y <= 200; y += 20) {
-			await page.mouse.click(frame.x + 80, frame.y + y);
-			await page.waitForTimeout(150);
-		}
-		expect((await messages()).filter((m) => m.includes('"clicked"'))).toHaveLength(0);
+		// Click the text of the first card, where Náhled would report `content`.
+		const texts = player(page).getByRole('textbox');
+		expect(await texts.count()).toBeGreaterThan(0);
+		for (let i = 0; i < (await texts.count()); i++) await press(page, texts.nth(i));
+		await inspect(page);
+
+		expect(log.up('clicked', mark)).toHaveLength(0);
 	});
 
 	test('editing content updates the player without reloading it', async ({ page }) => {
-		await page.locator('.tree-card').first().click();
-		await page.waitForTimeout(2000);
-		const messages = await watchMessages(page);
+		await openCard(page, 0, INTRO);
+		const mark = log.mark();
 
 		await page.locator('.cm-content').first().click();
 		await page.keyboard.type(' Změna.');
-		await page.waitForTimeout(2000);
+		await expect
+			.poll(() => log.down('setBlock', mark).some((m) => JSON.stringify(m).includes('Změna.')))
+			.toBe(true);
+		await inspect(page);
 
 		// A reload would boot the whole Flutter app again and announce a second time.
 		// That is the thing the contract exists to avoid — it costs seconds and the
 		// author is typing.
-		expect((await messages()).filter((m) => m.includes('"ready"'))).toHaveLength(0);
+		expect(log.up('ready', mark)).toHaveLength(0);
 		await expect(page.locator('aside .chip.ok', { hasText: 'Náhled' })).toBeVisible();
 	});
 
 	test('switching between the two modes keeps the player alive', async ({ page }) => {
-		await page.locator('.tree-card').first().click();
-		await page.waitForTimeout(2000);
-		const messages = await watchMessages(page);
+		await openCard(page, 0, INTRO);
+		const mark = log.mark();
 
-		await page.getByRole('radio', { name: 'Vyzkoušet' }).click();
-		await page.waitForTimeout(2500);
+		await play(page, INTRO);
 		await page.getByRole('radio', { name: 'Náhled' }).click();
-		await page.waitForTimeout(2500);
+		await waitForPlayer(page, { view: 'expanded', blockId: INTRO });
 
-		expect((await messages()).filter((m) => m.includes('"ready"'))).toHaveLength(0);
+		expect(log.up('ready', mark)).toHaveLength(0);
 		await expect(page.locator('aside .chip.ok', { hasText: 'Náhled' })).toBeVisible();
 	});
 
 	test('switching to a card with different steps keeps the player alive', async ({ page }) => {
-		await page.locator('.tree-card').first().click();
-		await page.waitForTimeout(2000);
-		const messages = await watchMessages(page);
+		await openCard(page, 0, INTRO);
+		const mark = log.mark();
 
 		// Different step graph: the engine re-mounts, but the iframe does not reload.
-		await page.locator('.tree-card').nth(2).click();
-		await page.waitForTimeout(2500);
+		await openCard(page, 2, QUIZ);
 
-		expect((await messages()).filter((m) => m.includes('"ready"'))).toHaveLength(0);
+		expect(log.up('ready', mark)).toHaveLength(0);
 		await expect(page.locator('aside .chip.ok', { hasText: 'Náhled' })).toBeVisible();
+	});
+});
+
+test.describe('the player on a plain page open', () => {
+	test.skip(!playerBuilt, 'the Flutter web build is not present');
+	test.describe.configure({ timeout: 90_000 });
+
+	test('boots and answers, with nothing imported', async ({ page }) => {
+		// The other suites import a course first. This is the page as a teacher opens
+		// it — the case that used to show an empty preview (DECISIONS Round 5).
+		await openEditor(page);
+		await expect(page.locator('aside .chip.ok', { hasText: 'Náhled' })).toBeVisible({ timeout: 60_000 });
+		const state = await inspect(page);
+		expect(['none', 'block']).toContain(state.content);
 	});
 });

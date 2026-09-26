@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, openEditor } from './fixtures';
 import { readFileSync } from 'node:fs';
 
 const fixture = (name: string) =>
@@ -21,8 +21,9 @@ test.beforeEach(async ({ page }) => {
 	const thrown: string[] = [];
 	page.on('pageerror', (error) => thrown.push(error.message));
 
-	await page.goto('/');
-	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
+	// A load the network dropped throws on its way down ("Failed to fetch dynamically
+	// imported module"). What counts is the page that did load.
+	if (await openEditor(page)) thrown.length = 0;
 	expect(thrown).toEqual([]);
 });
 

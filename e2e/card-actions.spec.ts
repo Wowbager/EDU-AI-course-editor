@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, openEditor } from './fixtures';
 import { readFileSync } from 'node:fs';
 
 const course = () => JSON.parse(readFileSync(new URL(
@@ -6,9 +6,8 @@ const course = () => JSON.parse(readFileSync(new URL(
 ), 'utf8'));
 
 async function load(page: Page, doc = course()) {
-	await page.goto('/');
 	// Wait for the initial onMount document, not the SSR file input.
-	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
+	await openEditor(page);
 	await page.setInputFiles('input[type=file]', {
 		name: 'card-actions.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(doc))
 	});
@@ -108,8 +107,7 @@ test('an undo notice cannot undo a later content edit', async ({ page }) => {
 });
 
 test('automatic XP explains incomplete steps and keeps the existing arithmetic', async ({ page }) => {
-	await page.goto('/');
-	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
+	await openEditor(page);
 	const card = page.locator('main .card');
 	await expect(card).toContainText('1 XP · automaticky');
 	// The explanation is on the chip itself, so it does not take a line on every card.

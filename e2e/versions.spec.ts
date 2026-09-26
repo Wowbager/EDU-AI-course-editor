@@ -1,4 +1,4 @@
-import { expect, test, type Download } from '@playwright/test';
+import { expect, test, type Download, openEditor } from './fixtures';
 
 /**
  * Version control: the working copy is saved as numbered versions, one of which is
@@ -12,8 +12,7 @@ async function json(download: Download) {
 }
 
 test.beforeEach(async ({ page }) => {
-	await page.goto('/');
-	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
+	await openEditor(page);
 	await page.locator('.cm-content').first().click();
 	await page.keyboard.type('Fotosyntéza je proces, při kterém rostliny vyrábějí cukr.');
 });
