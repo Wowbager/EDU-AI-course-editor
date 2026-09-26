@@ -99,8 +99,8 @@ npm test               # vitest: the domain invariants
 npm run test:e2e       # Playwright; slow, see below
 ```
 
-CI (`.github/workflows/ci.yml`) runs the same commands on every push and PR. Don't
-push to `main` while CI on `main` is red without saying why.
+CI (`.github/workflows/ci.yml`) runs only `check` and `npm test`. The e2e suite is
+yours to run locally. If CI on `main` is red, fix it or say why before you push more.
 
 **Playwright:**
 - The suite starts its own dev server on port **5178** (`playwright.config.ts`).
