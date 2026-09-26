@@ -261,6 +261,17 @@ export class DocStore {
         this.reveal++;
     }
 
+    /**
+     * Follow a played run: select the step the pupil is on and bring it into view,
+     * without counting the card the run moved off as left. Playing through a lesson
+     * is not finishing its cards, and marking them touched would paint every
+     * unfinished one red behind the author's back (`ui/issue-visibility.ts`).
+     */
+    follow(ref: Ref) {
+        this.#selection = ref;
+        this.reveal++;
+    }
+
     /** Shown issues addressed at a given place — what the inline markers show. */
     issuesAt(ref: Ref) {
         const matches = (issue: { ref: Ref }) => {

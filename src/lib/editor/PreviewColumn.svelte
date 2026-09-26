@@ -12,7 +12,9 @@
 	 *    see yet — every option's feedback, the solution, where each branch leads.
 	 *  - **Vyzkoušet** plays the whole lesson from the selected card onward, exactly
 	 *    as a pupil takes it, with **Zpět** so a branch can be tried and then the
-	 *    other one.
+	 *    other one. Nothing in the player marks a focused step — a pupil's screen has
+	 *    no such thing — and clicks are the pupil's. The editor follows the run
+	 *    instead: each step the player reports is selected, opened and scrolled to.
 	 *
 	 * The player is served under /player/ on this origin (§6.4). Until that build is
 	 * in place the column says so rather than showing a blank frame.
@@ -38,12 +40,16 @@
 	const store = useStore();
 	let view = $state<PreviewView>('expanded');
 	/**
-	 * Where a played lesson started. Pinned when the mode is entered rather than
-	 * tracked from the selection: clicking inside the preview selects the card that
-	 * was clicked, and if that fed back into the start point, every click would
-	 * silently restart the run the author was halfway through.
+	 * What a played run was started with: the lesson and the card. Both are pinned
+	 * when the mode is entered, never tracked from the selection — the run *moves*
+	 * the selection (see `onstepChanged`), and a run whose inputs followed its own
+	 * output would restart itself: a branch into a card shared with another lesson
+	 * changed the lesson, and "Od začátku" re-pinned the start to whatever card the
+	 * run had reached, which restarted it twice. The selection is the run's output
+	 * and never its input.
 	 */
 	let playStart = $state<string | undefined>(undefined);
+	let playLessonId = $state<string | undefined>(undefined);
 	let frame = $state<HTMLIFrameElement | null>(null);
 	let booted = $state(false);
 	let failed = $state(false);
@@ -87,15 +93,35 @@
 		return labels;
 	});
 
+	/**
+	 * The lesson to show a card in: the played one when the card is in it — a card
+	 * shared by two lessons belongs to the one being played — and otherwise the first
+	 * lesson that has it. A card in none is shown on its own.
+	 */
+	function lessonOf(blockId: string | undefined): string | undefined {
+		if (blockId === undefined) return undefined;
+		const owners = store.index.lessonsByBlock.get(blockId) ?? [];
+		if (playLessonId !== undefined && owners.includes(playLessonId)) return playLessonId;
+		return owners[0];
+	}
+
 	const bridge = new PreviewBridge({
 		onready: () => {
 			booted = true;
 			failed = false;
 		},
 		onclicked: (ref) => {
-			// Click-to-edit: a tap in the preview selects the field behind it and
-			// brings it into view — the author clicked something they want to change.
-			store.revealAt({ ...ref, lessonId: ref.lessonId ?? lessonId });
+			// Click-to-edit: a tap in Náhled selects the field behind it and brings it
+			// into view — the author clicked something they want to change. A played
+			// run sends one only for a branch into a card outside the lesson.
+			const owner = view === 'play' ? lessonOf(ref.blockId) : (ref.lessonId ?? lessonId);
+			store.revealAt({ ...ref, lessonId: owner });
+		},
+		onstepChanged: (stepId, blockId) => {
+			// Only a played run reports positions; one arriving after the author
+			// switched back to Náhled is from a run that is over.
+			if (view !== 'play') return;
+			store.follow({ lessonId: lessonOf(blockId), blockId, stepId });
 		},
 		onnavState: (value) => (canGoBack = value)
 	});
@@ -140,8 +166,8 @@
 	$effect(() => {
 		if (!booted) return;
 		if (view === 'play') {
-			if (lessonId === undefined) return;
-			bridge.showLesson(doc, lessonId, exportMode, serialise, playStart);
+			if (playLessonId === undefined) return;
+			bridge.showLesson(doc, playLessonId, exportMode, serialise, playStart);
 		} else if (block !== undefined) {
 			bridge.showBlock(
 				block,
@@ -192,6 +218,7 @@
 			onchange={(next) => {
 				if (next === 'play') {
 					playStart = block?.block_id;
+					playLessonId = lessonId;
 					canGoBack = false;
 				}
 				view = next;
@@ -217,9 +244,8 @@
 			<Button
 				variant="ghost"
 				size="s"
-				title="Znovu od vybrané karty"
+				title="Znovu od karty, u které jsi začal/a"
 				onclick={() => {
-					playStart = block?.block_id;
 					canGoBack = false;
 					bridge.restart();
 				}}

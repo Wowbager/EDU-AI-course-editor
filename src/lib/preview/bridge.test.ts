@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { nearestSurviving, PreviewBridge } from './bridge';
 import type { BlockV2, CourseV2 } from '$lib/domain/schema';
 
@@ -54,13 +54,24 @@ describe('a played run never decides what the expanded view shows', () => {
 		bridge.receive({ type: 'stepChanged', stepId: 's3', blockId: 'B7' });
 		bridge.showBlock(card('s1', 's2', 's3'), 'course_v2', asIs);
 
-		expect(sent(bridge)?.stepId).toBe('s1');
+		// Nothing is selected, so nothing is outlined — least of all s3.
+		expect(sent(bridge)?.stepId).toBeUndefined();
+	});
+
+	it('outlines nothing when no step is focused', () => {
+		// It used to fall back to the "nearest surviving" step and outline step 1 of
+		// every card nobody had focused.
+		const bridge = new PreviewBridge();
+		bridge.showBlock(card('s1', 's2'), 'course_v2', asIs, 'expanded', 's2');
+		bridge.showBlock(card('s1', 's3'), 'course_v2', asIs, 'expanded');
+
+		expect(sent(bridge)?.stepId).toBeUndefined();
 	});
 
 	it('lands on the step the editor has selected, not the one the run ended on', () => {
 		const bridge = new PreviewBridge();
 		bridge.showLesson({} as CourseV2, 'L1', 'course_v2', asIs);
-		bridge.receive({ type: 'stepChanged', stepId: 's3' });
+		bridge.receive({ type: 'stepChanged', stepId: 's3', blockId: 'B1' });
 		bridge.showBlock(card('s1', 's2', 's3'), 'course_v2', asIs, 'expanded', 's2');
 
 		expect(sent(bridge)?.stepId).toBe('s2');
@@ -70,7 +81,7 @@ describe('a played run never decides what the expanded view shows', () => {
 		const bridge = new PreviewBridge();
 		bridge.showBlock(card('s1', 's2'), 'course_v2', asIs, 'expanded', 'a_step_of_another_card');
 
-		expect(sent(bridge)?.stepId).toBe('s1');
+		expect(sent(bridge)?.stepId).toBeUndefined();
 	});
 
 	it('keeps the outline where it is while the author types', () => {
@@ -106,5 +117,54 @@ describe('the outgoing queue', () => {
 		bridge.highlight({ blockId: 'B1', stepId: 's1' });
 
 		expect(sent(bridge)?.type).toBe('setBlock');
+	});
+});
+
+describe('following a played run', () => {
+	it('passes on every position the player reports, with its card', () => {
+		const seen: string[] = [];
+		const bridge = new PreviewBridge({ onstepChanged: (stepId, blockId) => seen.push(`${blockId}/${stepId}`) });
+		bridge.receive({ type: 'stepChanged', stepId: 's1', blockId: 'B1' });
+		bridge.receive({ type: 'stepChanged', stepId: 's1', blockId: 'B2' });
+		expect(seen).toEqual(['B1/s1', 'B2/s1']);
+	});
+
+	it('ignores a position that does not say which card it is in', () => {
+		// Step ids repeat across cards: without the card it is not a position.
+		const seen: string[] = [];
+		const bridge = new PreviewBridge({ onstepChanged: (stepId) => seen.push(stepId) });
+		bridge.receive({ type: 'stepChanged', stepId: 's1' } as never);
+		expect(seen).toEqual([]);
+	});
+});
+
+describe('a player that announces itself again', () => {
+	it('is given the last content again instead of staying empty', () => {
+		vi.useFakeTimers();
+		const posted: string[] = [];
+		const frame = { contentWindow: { postMessage: (data: string) => posted.push(data) } } as unknown as HTMLIFrameElement;
+		const original = (globalThis as { window?: unknown }).window;
+		// The bridge only needs listeners and `location.origin` from the page.
+		(globalThis as { window?: unknown }).window = {
+			addEventListener: () => {},
+			removeEventListener: () => {},
+			location: { origin: 'http://localhost' }
+		};
+		try {
+			const bridge = new PreviewBridge();
+			bridge.attach(frame);
+			bridge.receive({ type: 'ready' });
+			bridge.showBlock(card('s1'), 'course_v2', asIs);
+			vi.advanceTimersByTime(300);
+			expect(posted).toHaveLength(1);
+
+			// The frame reloaded: it comes up empty and says so.
+			bridge.receive({ type: 'ready' });
+			expect(posted).toHaveLength(2);
+			expect(JSON.parse(posted[1])).toMatchObject({ type: 'setBlock', remount: true });
+		} finally {
+			(globalThis as { window?: unknown }).window = original;
+			vi.useRealTimers();
+		}
 	});
 });

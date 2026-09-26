@@ -223,11 +223,11 @@ test.describe('live preview', () => {
 		expect((await messages()).filter((m) => m.includes('"ready"'))).toHaveLength(0);
 	});
 
-	test('what Vyzkoušet did never decides where Náhled lands', async ({ page }) => {
-		// The played run reports every step it reaches. That used to be the only writer
-		// of the bridge's restore point — which only Náhled read — so an abandoned run
-		// sent the expanded view to the step it happened to stop on, of whatever card
-		// was open. Asserted on the wire, because the frame is a canvas.
+	test('Vyzkoušet moves the editor to where the pupil is, and nothing else', async ({ page }) => {
+		// The run is the only thing that decides where the editor is while it plays:
+		// every step the player reports is selected and opened in the editor. The
+		// player's own state still never leaks into Náhled — Náhled shows what the
+		// editor has selected, and after a run that is where the run ended, openly.
 		await page.locator('.tree-card').nth(2).click();
 		await page.waitForTimeout(1500);
 
@@ -243,35 +243,53 @@ test.describe('live preview', () => {
 		});
 
 		const messages = await watchMessages(page);
-		const back = page.getByRole('button', { name: '← Zpět' });
+		const positions = async () =>
+			(await messages()).filter((m) => m.includes('"stepChanged"')).map((m) => JSON.parse(m) as { blockId: string; stepId: string });
+
 		await page.getByRole('radio', { name: 'Vyzkoušet' }).click();
-		await page.waitForTimeout(3000);
+
+		// The first card reports itself on mount, and the editor opens that step.
+		await expect.poll(async () => (await positions()).length, { timeout: 15_000 }).toBeGreaterThan(0);
+		const first = (await positions()).at(-1)!;
+		expect(first.blockId).toBe('L1_B3_poznej');
+		await expect(page.locator('main .step.targeted')).toHaveCount(1);
+
+		// The player is told nothing about focus while it plays: no highlight, and no
+		// setLesson carries a step.
+		expect(posted.filter((m) => m.includes('"highlight"'))).toHaveLength(0);
+
+		const back = page.getByRole('button', { name: '← Zpět' });
 		await playOneStep(page, async () => back.isEnabled());
 		await expect(back).toBeEnabled({ timeout: 15_000 });
+		const last = (await positions()).at(-1)!;
 
-		// Whatever the run walked through.
-		const played = new Set(
-			(await messages())
-				.filter((m) => m.includes('"stepChanged"'))
-				.map((m) => JSON.parse(m).stepId as string)
-		);
-
+		// Back in Náhled, the outline is the editor's selection — the step the run
+		// reached, because the run moved the editor there — and no hidden state.
 		await page.getByRole('radio', { name: 'Náhled' }).click();
 		await page.waitForTimeout(2000);
-
 		const setBlock = posted.filter((m) => m.includes('"setBlock"'));
 		expect(setBlock.length).toBeGreaterThan(0);
-		const restored = JSON.parse(setBlock.at(-1)!).stepId as string | undefined;
-
-		// It may carry the editor's own selection, or nothing at all. What it must never
-		// carry is a step that only the run knew about.
-		if (restored !== undefined && played.size > 0) {
-			const selected = await page.locator('.step.targeted').count();
-			expect(played.has(restored) && selected === 0).toBe(false);
-		}
+		const outlined = JSON.parse(setBlock.at(-1)!) as { stepId?: string; block: { block_id: string }[] };
+		if (outlined.block[0]?.block_id === last.blockId) expect(outlined.stepId).toBe(last.stepId);
 
 		// And the run's own "back" is gone with it.
 		await expect(back).toHaveCount(0);
+	});
+
+	test('a click in Vyzkoušet is the pupil\'s and never jumps the editor', async ({ page }) => {
+		await page.locator('.tree-card').first().click();
+		await page.waitForTimeout(1500);
+		await page.getByRole('radio', { name: 'Vyzkoušet' }).click();
+		await page.waitForTimeout(3000);
+		const messages = await watchMessages(page);
+
+		// Click down the text of the first card, where Náhled would report `content`.
+		const frame = (await page.locator('iframe').boundingBox())!;
+		for (let y = 30; y <= 200; y += 20) {
+			await page.mouse.click(frame.x + 80, frame.y + y);
+			await page.waitForTimeout(150);
+		}
+		expect((await messages()).filter((m) => m.includes('"clicked"'))).toHaveLength(0);
 	});
 
 	test('editing content updates the player without reloading it', async ({ page }) => {

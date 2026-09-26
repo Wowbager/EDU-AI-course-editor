@@ -58,20 +58,20 @@ test.describe('the player is rewritten to fetch images from this origin', () => 
 		// The first card carries the image step (fixture: L1_B1_uvod / step s2).
 		await page.locator('.tree-card').first().click();
 		// Náhled shows every step at once, so the player fetches the image as soon as
-		// the card is on screen — give it a moment to issue the request.
-		await page.waitForTimeout(3000);
-
+		// the card is on screen. How soon depends on how busy the machine is — a fixed
+		// three-second wait made this fail whenever the suite ran it alongside another
+		// player — so wait for the request itself.
 		const origin = new URL(page.url()).origin;
 		const encoded = encodeURIComponent(TEST_IMAGE_URL);
+		const rewritten = () =>
+			requestUrls.filter((url) => url.startsWith(`${origin}/preview-image?url=`));
 
-		const rewritten = requestUrls.filter((url) =>
-			url.startsWith(`${origin}/preview-image?url=`)
-		);
+		await expect
+			.poll(() => rewritten().some((url) => url.includes(encoded)), { timeout: 30_000 })
+			.toBe(true);
 		const wentDirectlyToTheLaravelProxy = requestUrls.filter(
 			(url) => url.includes('/api/proxy/image') && !url.startsWith(origin)
 		);
-
-		expect(rewritten.some((url) => url.includes(encoded))).toBe(true);
 		expect(wentDirectlyToTheLaravelProxy).toHaveLength(0);
 	});
 });

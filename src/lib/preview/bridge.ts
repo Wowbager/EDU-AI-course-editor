@@ -12,6 +12,12 @@
  * Content updates are debounced; **navigation is not**. The queue keeps only the
  * last pending message, so a debounced `back` would be swallowed by the next
  * keystroke — and a button that sometimes does nothing is worse than no button.
+ *
+ * When each player message arrives is part of the contract, and it is written down
+ * on the player's side (`lib/preview/README.md` → "The contract"). The one the editor
+ * leans on: while a lesson is played, `stepChanged {blockId, stepId}` arrives every
+ * time the step on screen changes — the first card, the next one, a branch, back,
+ * restart — and never from Náhled. `PreviewColumn` follows the run with it.
  */
 import type { BlockV2, CourseV2, ExportType } from '$lib/domain/schema';
 import type { Ref } from '$lib/domain/ref';
@@ -51,14 +57,14 @@ export type EditorMessage =
 
 export type PlayerMessage =
 	| { type: 'ready' }
-	| { type: 'stepChanged'; stepId: string; blockId?: string }
+	| { type: 'stepChanged'; stepId: string; blockId: string }
 	| { type: 'clicked'; ref: Ref }
 	| { type: 'completed'; xp: number; scoreKoef: number; mark?: string }
 	| { type: 'navState'; canGoBack: boolean };
 
 export interface BridgeHandlers {
 	onready?: () => void;
-	onstepChanged?: (stepId: string, blockId?: string) => void;
+	onstepChanged?: (stepId: string, blockId: string) => void;
 	onclicked?: (ref: Ref) => void;
 	oncompleted?: (result: { xp: number; scoreKoef: number; mark?: string }) => void;
 	onnavState?: (canGoBack: boolean) => void;
@@ -88,6 +94,12 @@ export class PreviewBridge {
 	#lastStepId: string | undefined;
 	/** The view last sent; switching views re-mounts, switching content does not. */
 	#lastView: PreviewView | undefined;
+	/**
+	 * The last card or lesson sent, so a player that announces itself a second time —
+	 * the frame reloaded, or crashed and came back — is given its content again
+	 * instead of sitting on its placeholder until the next keystroke.
+	 */
+	#lastContent: EditorMessage | null = null;
 
 	constructor(handlers: BridgeHandlers = {}) {
 		this.#handlers = handlers;
@@ -135,15 +147,21 @@ export class PreviewBridge {
 	 */
 	receive(message: PlayerMessage) {
 		switch (message.type) {
-			case 'ready':
+			case 'ready': {
 				this.#ready = true;
 				this.#handlers.onready?.();
-				if (this.#pending !== null) this.#post(this.#pending);
+				const content = this.#pending ?? this.#lastContent;
+				if (content !== null) {
+					this.#post(content.type === 'setBlock' ? { ...content, remount: true } : content);
+				}
 				break;
+			}
 			case 'stepChanged':
 				// Reported, never stored: this is a position in a run, not a position
 				// in the card the expanded view is showing. See `#lastStepId`.
-				this.#handlers.onstepChanged?.(message.stepId, message.blockId);
+				if (typeof message.blockId === 'string' && typeof message.stepId === 'string') {
+					this.#handlers.onstepChanged?.(message.stepId, message.blockId);
+				}
 				break;
 			case 'navState':
 				this.#handlers.onnavState?.(message.canGoBack === true);
@@ -154,6 +172,12 @@ export class PreviewBridge {
 			case 'completed':
 				this.#handlers.oncompleted?.(message);
 				break;
+			default: {
+				// Every player message has a case. A new one fails to compile here
+				// until it is handled (AGENTS.md: update the union and every switch).
+				const unhandled: never = message;
+				void unhandled;
+			}
 		}
 	}
 
@@ -176,8 +200,14 @@ export class PreviewBridge {
 		// repeat across blocks, so an unchecked id would land on whatever step of
 		// *this* card happens to share the number.
 		const wanted = stepId !== undefined && stepIds.includes(stepId) ? stepId : undefined;
+		// In the expanded view `stepId` is only the outline, so it is the selection
+		// or nothing: every step is on screen and there is no position to restore.
+		// Falling back to the nearest surviving step there outlined step 1 of every
+		// card nobody had focused. Only a played card has a place to be put back to.
 		const restore =
-			wanted ?? (remount ? nearestSurviving(this.#lastStepId, this.#lastStepIds, stepIds) : undefined);
+			view === 'expanded'
+				? wanted
+				: (wanted ?? (remount ? nearestSurviving(this.#lastStepId, this.#lastStepIds, stepIds) : undefined));
 		this.#lastStepIds = stepIds;
 		this.#lastView = view;
 		this.#lastStepId =
@@ -236,6 +266,7 @@ export class PreviewBridge {
 		this.#lastStepIds = [];
 		this.#lastStepId = undefined;
 		this.#lastView = undefined;
+		this.#lastContent = null;
 		this.#post({ type: 'reset' });
 	}
 
@@ -249,6 +280,7 @@ export class PreviewBridge {
 	}
 
 	#post(message: EditorMessage) {
+		if (message.type === 'setBlock' || message.type === 'setLesson') this.#lastContent = message;
 		if (!this.#ready || this.#frame?.contentWindow == null) {
 			// Content waits for the player; navigation does not. Parking a `back` here
 			// would overwrite the `setBlock` queued behind it and the player would
