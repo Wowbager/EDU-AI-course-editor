@@ -277,8 +277,8 @@ merges the blocks back (`group`) when it shows the card (`src/lib/domain/groups.
   jump lands on a block's first step (§9). A stretch with no question becomes a `display`
   block;
 - a card's settings (name, skills, hint, help, practice) are written to each of its
-  blocks, except `duration`, which stays on the first so the lesson's length is not
-  multiplied.
+  blocks, except `duration` and an authored `xp`, which stay on the first so the
+  lesson's length and reward are not multiplied.
 
 An imported course is split the same way, as one undoable edit. A block that branches to
 one of its own steps, or ends (`END`) before its last question, is kept whole and marked

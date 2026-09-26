@@ -173,6 +173,12 @@ marked unread now, but the card header still says "N XP · vlastní hodnota" whe
 set. Worth showing the derived figure with the authored one crossed out, or not
 offering the field.
 
+Since Round 7 it also makes the totals differ between modes. A card with its own XP
+keeps it on its first block only, so the view shows the card's 20 XP while Pokročilý
+adds the derived XP of the card's other blocks: the admin's test course reads 335 XP in
+Učitel and 380 XP in Pokročilý. What the app awards is neither: it counts steps, which
+the split does not change. Showing the derived figure everywhere would fix both.
+
 ### 16. "Přejít" can switch the editing mode
 **By design, recorded because it is surprising.** A review row whose fix is in a higher
 mode switches to that mode on the jump, and the mode stays switched. The alternative —

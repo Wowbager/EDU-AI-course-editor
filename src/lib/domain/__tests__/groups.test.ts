@@ -69,7 +69,7 @@ describe('a card with one question is a block like any other', () => {
 
 describe('a second question makes the card two blocks, and the teacher still sees one card', () => {
 	const doc = course([
-		{ block_id: 'B1', type: 'exercise', name: 'Sčítání', hint: 'Sečti čitatele.', duration: '3 min', steps: [text('s1'), question('s2')] },
+		{ block_id: 'B1', type: 'exercise', name: 'Sčítání', hint: 'Sečti čitatele.', duration: '3 min', xp: 20, steps: [text('s1'), question('s2')] },
 		{ block_id: 'B2', type: 'display', steps: [text('s1')] }
 	]);
 	const after = edit(doc, (v) => {
@@ -91,9 +91,12 @@ describe('a second question makes the card two blocks, and the teacher still see
 			expect(block.name).toBe('Sčítání');
 			expect(block.hint).toBe('Sečti čitatele.');
 		}
-		// A lesson's length is the sum of its blocks, so the card's time is not copied.
+		// A lesson's length and reward are sums over its blocks, so the card's time and
+		// its own XP are not copied.
 		expect(after.blocks[0].duration).toBe('3 min');
 		expect(after.blocks[1].duration).toBeUndefined();
+		expect(after.blocks[0].xp).toBe(20);
+		expect(after.blocks[1].xp).toBeUndefined();
 	});
 
 	it('binds both blocks where the card was bound', () => {

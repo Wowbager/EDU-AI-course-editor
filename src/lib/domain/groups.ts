@@ -38,11 +38,12 @@ type Loose = Record<string, unknown>;
  * card has — its name, skills, hint, practice settings, and keys this editor does not
  * model — is the card's, and is written to every block of the group.
  *
- *  - `duration` is kept on the first block only, because a lesson's length is the sum
- *    of its blocks' durations, and copying it would multiply the card's time.
+ *  - `duration` and an authored `xp` are kept on the first block only, because a
+ *    lesson's length and reward are sums over its blocks, and copying them would
+ *    multiply the card's.
  */
 const OWN_FIELDS = new Set(['block_id', 'type', 'steps', GROUP_KEY, MEMBERS_KEY]);
-const FIRST_ONLY = new Set(['duration']);
+const FIRST_ONLY = new Set(['duration', 'xp']);
 
 export const groupOf = (block: BlockV2): string | undefined => {
 	const value = (block as Loose)[GROUP_KEY];
