@@ -19,6 +19,10 @@
 	 *
 	 * The player is served under /player/ on this origin (§6.4). Until that build is
 	 * in place the column says so rather than showing a blank frame.
+	 *
+	 * The player gets the course as exported (`store.source`), where each question of
+	 * a card is its own block (`domain/groups.ts`). What it reports back names those
+	 * blocks, and `store.toView` turns them into the card the editor shows.
 	 */
 	import { untrack } from 'svelte';
 	import type { BlockV2, CourseV2, ExportType } from '$lib/domain/schema';
@@ -30,6 +34,7 @@
 	import { useStepView, useStore } from '$lib/ui/context';
 	import { allows } from '$lib/ui/fields';
 	import { blockPreview } from '$lib/domain/derive';
+	import { groupOf, groupsOf } from '$lib/domain/groups';
 
 	interface Props {
 		doc: CourseV2;
@@ -82,6 +87,18 @@
 	);
 	const exportMode = $derived<ExportType>(doc.export_type ?? 'course_v2');
 
+	/** The course as the player gets it. */
+	const source = $derived(store.source);
+	const groups = $derived(groupsOf(source));
+
+	/** The blocks the card on screen is made of, as exported. */
+	const blocksOfCard = (cardId: string): BlockV2[] => {
+		const members = groups.get(cardId);
+		if (members !== undefined) return members;
+		const own = source.blocks.find((b) => b.block_id === cardId);
+		return own !== undefined ? [own] : [];
+	};
+
 	/**
 	 * What to call the other cards a branch leads to. The player holds one card and
 	 * cannot look another one up; left to itself it would print the `block_id`, which
@@ -91,15 +108,36 @@
 	const blockLabels = $derived.by(() => {
 		const showIds = allows('block', 'block_id', store.mode);
 		const labels: Record<string, string> = {};
-		for (const candidate of doc.blocks) {
+		for (const candidate of source.blocks) {
 			if (showIds) {
 				labels[candidate.block_id] = candidate.block_id;
 				continue;
 			}
-			labels[candidate.block_id] = blockPreview(candidate, 30);
+			// A branch into a card's later question names the card and the question.
+			const key = groupOf(candidate);
+			const members = key !== undefined ? (groups.get(key) ?? []) : [];
+			const position = members.indexOf(candidate);
+			const card = members[0] ?? candidate;
+			labels[candidate.block_id] =
+				position > 0
+					? `${blockPreview(card, 30)}, ${position + 1}. část`
+					: blockPreview(card, 30);
 		}
 		return labels;
 	});
+
+	/**
+	 * The steps of a played card the pupil has met: those of the card's blocks before
+	 * the one on screen, and the ones on screen. The step list folds the rest.
+	 */
+	function reachedSteps(blockId: string, shown: string[] | undefined): string[] | undefined {
+		if (shown === undefined) return undefined;
+		const key = groupOf(source.blocks.find((b) => b.block_id === blockId) ?? ({} as BlockV2));
+		if (key === undefined || store.mode === 'advanced') return shown;
+		const members = groups.get(key) ?? [];
+		const at = members.findIndex((m) => m.block_id === blockId);
+		return [...members.slice(0, Math.max(at, 0)).flatMap((m) => m.steps.map((s) => s.id)), ...shown];
+	}
 
 	/**
 	 * The lesson to show a card in: the played one when the card is in it — a card
@@ -122,16 +160,18 @@
 			// Click-to-edit: a tap in Náhled selects the field behind it and brings it
 			// into view — the author clicked something they want to change. A played
 			// run sends one only for a branch into a card outside the lesson.
-			const owner = view === 'play' ? lessonOf(ref.blockId) : (ref.lessonId ?? lessonId);
-			store.revealAt({ ...ref, lessonId: owner });
+			const shown = store.toView(ref);
+			const owner = view === 'play' ? lessonOf(shown.blockId) : (ref.lessonId ?? lessonId);
+			store.revealAt({ ...shown, lessonId: owner });
 		},
 		onstepChanged: (stepId, blockId, shownStepIds) => {
 			// Only a played run reports positions; one arriving after the author
 			// switched back to Náhled is from a run that is over.
 			if (view !== 'play') return;
 			// Folding first, so the step list never draws the new card fully open.
-			stepView.followRun(blockId, shownStepIds);
-			store.follow({ lessonId: lessonOf(blockId), blockId, stepId });
+			const card = store.toView({ blockId }).blockId!;
+			stepView.followRun(card, reachedSteps(blockId, shownStepIds));
+			store.follow({ lessonId: lessonOf(card), blockId: card, stepId });
 		},
 		onnavState: (value) => (canGoBack = value)
 	});
@@ -198,12 +238,12 @@
 		if (!booted) return;
 		if (view === 'play') {
 			if (playLessonId === undefined) return;
-			bridge.showLesson(doc, playLessonId, exportMode, serialise, playStart);
+			bridge.showLesson(source, playLessonId, exportMode, serialise, playStart);
 		} else if (block !== undefined) {
-			bridge.showBlock(
-				block,
+			bridge.showBlocks(
+				blocksOfCard(block.block_id),
 				exportMode,
-				(b) => serialise({ ...doc, lessons: [], blocks: [b] }).blocks,
+				(blocks) => serialise({ ...source, lessons: [], blocks }).blocks,
 				'expanded',
 				selectedStepId,
 				blockLabels
@@ -225,7 +265,7 @@
 		void store.reveal;
 		const selection = untrack(() => store.selection);
 		if (!booted || untrack(() => view) !== 'expanded' || selection?.stepId === undefined) return;
-		bridge.highlight(selection);
+		bridge.highlight(store.toSource(selection));
 	});
 </script>
 
@@ -248,7 +288,7 @@
 			]}
 			onchange={(next) => {
 				if (next === 'play') {
-					playStart = block?.block_id;
+					playStart = block === undefined ? undefined : blocksOfCard(block.block_id)[0]?.block_id;
 					playLessonId = lessonId;
 					canGoBack = false;
 				} else {

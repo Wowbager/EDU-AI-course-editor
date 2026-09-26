@@ -26,14 +26,15 @@
 				window.received.push(message);
 				document.getElementById('last').textContent = message.type;
 				if (message.type === 'setBlock') {
-					const block = Array.isArray(message.block) ? message.block[0] : message.block;
-					const steps = (block?.steps ?? []).map((step) => step.id);
+					// The blocks one teacher's card is made of, in order.
+					const blocks = Array.isArray(message.block) ? message.block : [message.block];
 					state = {
 						view: message.view ?? 'expanded',
 						content: 'block',
-						blockId: block?.block_id,
+						blockId: blocks[0]?.block_id,
+						blockIds: blocks.map((block) => block?.block_id),
 						stepId: message.stepId,
-						shownStepIds: steps,
+						shownStepIds: blocks.flatMap((block) => (block?.steps ?? []).map((step) => step.id)),
 						canGoBack: false
 					};
 				} else if (message.type === 'setLesson') {

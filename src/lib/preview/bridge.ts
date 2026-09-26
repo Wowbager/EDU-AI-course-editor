@@ -71,6 +71,8 @@ export interface PlayerState {
 	error?: string;
 	lessonId?: string;
 	blockId?: string;
+	/** Náhled: the blocks the card on screen is made of (`domain/groups.ts`). */
+	blockIds?: string[];
 	/** Náhled: the focused step. Playing: where the pupil is. */
 	stepId?: string;
 	shownStepIds: string[];
@@ -226,7 +228,23 @@ export class PreviewBridge {
 		stepId?: string,
 		blockLabels?: Record<string, string>
 	) {
-		const stepIds = block.steps.map((s) => s.id);
+		this.showBlocks([block], exportMode, (blocks) => serialise(blocks[0]), view, stepId, blockLabels);
+	}
+
+	/**
+	 * Send the blocks one teacher's card is made of (`domain/groups.ts`), in order.
+	 * Náhled draws them one under another, as the pupil meets them. Their step ids are
+	 * unique across the card, so one step id says which block the outline is on.
+	 */
+	showBlocks(
+		blocks: BlockV2[],
+		exportMode: ExportType,
+		serialise: (blocks: BlockV2[]) => unknown,
+		view: PreviewView = 'expanded',
+		stepId?: string,
+		blockLabels?: Record<string, string>
+	) {
+		const stepIds = blocks.flatMap((block) => block.steps.map((s) => s.id));
 		const remount = !sameIds(stepIds, this.#lastStepIds) || view !== this.#lastView;
 		// A selection can name a step in another card — the author clicked one card in
 		// the tree while the editor still pointed at a step of the last one. Step ids
@@ -251,7 +269,7 @@ export class PreviewBridge {
 
 		this.#queue({
 			type: 'setBlock',
-			block: serialise(block),
+			block: serialise(blocks),
 			exportMode,
 			view,
 			stepId: restore,
