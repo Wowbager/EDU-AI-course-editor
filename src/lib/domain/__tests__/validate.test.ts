@@ -25,10 +25,15 @@ const tally = (issues: { code: string }[]): Record<string, number> => {
 describe('the spec §16 course', () => {
 	const doc = parseCourse(fixture('spec-16-course.json'));
 
-	it('is clean — no errors and no warnings', () => {
+	it('is clean but for the one hint the app cannot show', () => {
+		// The spec's own example gives the quiz card's question (step 2) a hint of its
+		// own. The app shows the first step's hint, or the card's, on every step, so
+		// no pupil ever reads it — W_HINT_UNREACHABLE says so, and nothing else fires.
 		const result = validate(doc, skillConfig);
 		expect(result.errors).toEqual([]);
-		expect(result.warnings).toEqual([]);
+		expect(result.warnings.map((w) => [w.code, w.ref.blockId, w.ref.stepId, w.ref.field])).toEqual([
+			['W_HINT_UNREACHABLE', 'L1_B3_poznej', 's2', 'hint']
+		]);
 	});
 
 	it('is still clean when the dimension set is unknown', () => {
@@ -254,5 +259,39 @@ describe('an empty lesson', () => {
 		const codes = validate(withEmpty, skillConfig).warnings.filter((w) => w.ref.lessonId === 'L_EMPTY');
 		expect(codes.map((w) => w.code)).toEqual(['W_EMPTY_LESSON']);
 		expect(validate(doc, skillConfig).warnings.map((w) => w.code)).not.toContain('W_EMPTY_LESSON');
+	});
+});
+
+describe('hint and help a pupil never reaches', () => {
+	const card = (over: Record<string, unknown>, steps: Record<string, unknown>[]) =>
+		parseCourse({
+			export_type: 'course_v2',
+			course_id: 'K',
+			version: 1,
+			name: 'K',
+			lessons: [{ lesson_id: 'L1', name: 'L', order: 1, blocks: [{ block_id: 'B1', order: 1 }] }],
+			blocks: [{ block_id: 'B1', type: 'display', ...over, steps: steps.map((s, i) => ({ id: `s${i + 1}`, type: 'text', content: 'Text', ...s })) }]
+		});
+	const reached = (doc: ReturnType<typeof card>) =>
+		validate(doc, skillConfig)
+			.warnings.filter((w) => w.code === 'W_HINT_UNREACHABLE')
+			.map((w) => `${w.ref.stepId ?? 'card'}.${w.ref.field}`);
+
+	it('is quiet for what the app shows: the first step\'s hint and help, or the card\'s', () => {
+		expect(reached(card({}, [{ hint: 'H', help: 'P' }, {}]))).toEqual([]);
+		expect(reached(card({ hint: 'H', help: 'P' }, [{}, {}]))).toEqual([]);
+	});
+
+	it('names a later step\'s own hint or help', () => {
+		expect(reached(card({}, [{}, { hint: 'H', help: 'P' }]))).toEqual(['s2.hint', 's2.help']);
+	});
+
+	it('names help with no hint to open it', () => {
+		expect(reached(card({}, [{ help: 'P' }]))).toEqual(['s1.help']);
+		expect(reached(card({ help: 'P' }, [{}]))).toEqual(['card.help']);
+	});
+
+	it('names the card\'s hint when the first step hides it', () => {
+		expect(reached(card({ hint: 'H' }, [{ hint: 'vlastní' }]))).toEqual(['card.hint']);
 	});
 });

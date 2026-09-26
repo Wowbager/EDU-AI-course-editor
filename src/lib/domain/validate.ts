@@ -205,6 +205,56 @@ function checkBlocks(doc: CourseV2, index: DocIndex, skillConfig: SkillConfig | 
 		}
 
 		checkEloOutlier(doc, block, courseEloMean, add);
+		checkHintReach(doc, block, add);
+	}
+}
+
+/**
+ * Hint and help that the student's app never shows.
+ *
+ * The app has one question mark per card, not per step: `lesson_detail_page` gates
+ * it on `ContentBlock.hasHint` and the sheet shows `currentHint` / `currentHelp`,
+ * which read the step at `currentStepIndex` — and nothing in a lesson moves that off
+ * 0. So on every step of a card the student gets the *first* step's hint, or the
+ * card's when the first step has none, and help only as the second rung of a hint
+ * that exists. Anything else a teacher writes is kept in the file and never read by
+ * a pupil. That is an app bug (docs/OPEN-PROBLEMS.md); until it is fixed, the
+ * teacher is told rather than left to find out.
+ */
+function checkHintReach(doc: CourseV2, block: BlockV2, add: Add) {
+	const filled = (text: string | undefined) => (text ?? '').trim() !== '';
+	const first = block.steps[0];
+	const hintFromFirst = first !== undefined && filled(first.hint);
+	const hintShown = hintFromFirst || filled(block.hint);
+	const helpFromFirst = first !== undefined && filled(first.help);
+	const cardName = blockLabel(doc, block);
+	const why = 'Aplikace u celé karty ukazuje jen nápovědu prvního kroku, nebo nápovědu ke kartě.';
+
+	block.steps.forEach((step, i) => {
+		if (i === 0) {
+			if (filled(step.help) && !hintShown) {
+				add('warning', 'W_HINT_UNREACHABLE', { blockId: block.block_id, stepId: step.id, field: 'help' },
+					`${capitalize(stepLabel(block, step))} v kartě „${cardName}“ má podrobnou pomoc, kterou žák neuvidí: otevírá se až z nápovědy, a ta v kartě chybí.`);
+			}
+			return;
+		}
+		for (const field of ['hint', 'help'] as const) {
+			if (!filled(step[field])) continue;
+			const what = field === 'hint' ? 'nápovědu' : 'podrobnou pomoc';
+			add('warning', 'W_HINT_UNREACHABLE', { blockId: block.block_id, stepId: step.id, field },
+				`${capitalize(stepLabel(block, step))} v kartě „${cardName}“ má ${what}, kterou žák neuvidí. ${why} Přesuň ji do prvního kroku nebo do nápovědy ke kartě.`);
+		}
+	});
+
+	if (hintFromFirst && filled(block.hint)) {
+		add('warning', 'W_HINT_UNREACHABLE', { blockId: block.block_id, field: 'hint' },
+			`Nápovědu ke kartě „${cardName}“ žák neuvidí: první krok má vlastní nápovědu a ta ji zastíní.`);
+	}
+	if (filled(block.help) && (helpFromFirst || !hintShown)) {
+		add('warning', 'W_HINT_UNREACHABLE', { blockId: block.block_id, field: 'help' },
+			helpFromFirst
+				? `Podrobnou pomoc ke kartě „${cardName}“ žák neuvidí: první krok má vlastní pomoc a ta ji zastíní.`
+				: `Podrobnou pomoc ke kartě „${cardName}“ žák neuvidí: otevírá se až z nápovědy, a ta v kartě chybí.`);
 	}
 }
 

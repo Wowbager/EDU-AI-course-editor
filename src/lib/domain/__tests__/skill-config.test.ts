@@ -64,7 +64,8 @@ describe('the admin taxonomy export', () => {
 	it('validates the spec §16 course clean, exactly as the app-shipped list does', () => {
 		const result = validate(parseCourse(fixture('spec-16-course.json')), config);
 		expect(result.errors).toEqual([]);
-		expect(result.warnings).toEqual([]);
+		// The one warning is the app's hint rule, not the taxonomy (see validate.test.ts).
+		expect(result.warnings.map((w) => w.code)).toEqual(['W_HINT_UNREACHABLE']);
 	});
 
 	it('flags a 35-element vector when the course uses a smaller taxonomy', () => {
