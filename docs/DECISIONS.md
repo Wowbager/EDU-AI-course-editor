@@ -949,6 +949,76 @@ the card now says so in one quiet line when it has two or more questions. *Rejec
 making Vyzkoušet draw the later questions differently — the preview would then disagree
 with the app, which is the one thing it may not do.
 
+### Version control replaces card status
+
+The owner asked for a version button that opens every version, lets the teacher pick
+which is published, and sets who sees the course — private, public, signed-in only in
+teacher mode, more from Metodik, without bloat.
+
+**What upstream allows decided the model** (`domain/versions.ts`). The API keeps one
+row per course and takes an upload only with a strictly higher `version`; the app
+offers students an update only when the number grows. So a version is a numbered,
+frozen copy of the whole course, numbers only grow, and "make version 3 the published
+one" after 5 was out becomes **version 6 with version 3's content** — the dialog says
+"Zveřejnit znovu jako verzi 6" before it happens. *Rejected:* pointing "published" back
+at 3 — the API would refuse it and every app that has 5 would ignore it.
+
+**Visibility is the two keys the platform reads.** Soukromý = `status: private` (not in
+the library, open with the PIN), Veřejný = `published`, Jen pro přihlášené =
+`published` + `logged_only`. Metodik adds Rozpracovaný, Schválený and K revizi — the
+spec's `locked`, "frozen for review, hidden from students". *Rejected:* calling
+"signed-in only" *locked*, which the owner's wording suggested: the spec already
+means something else by it, and one word for two states is how a course gets hidden
+by accident.
+
+**The working copy stays the document.** Saving freezes it as the next number;
+restoring is an undoable edit (`restoreVersion` keeps the course's id and current
+visibility); nothing replaces the document behind the author's back. The top bar says
+`v3`, `v3 · upraveno` or `v1 · neuloženo`, and the working copy's download carries the
+number it will be saved as. An imported file is recorded as the version it came with,
+so the next save cannot reuse a number it was published under.
+
+**Where versions live: this browser and the editor's server.** IndexedDB first, always;
+the editor's own server (`routes/versions/`, files under `DATA_DIR`) second. A store
+merges both and copies a version to whichever lacks it, so a history written offline
+reaches the server later, and one on the server comes back to a browser whose
+IndexedDB was cleared. There is no login, so the owner is a random per-browser key; the
+server keeps only its SHA-256. The interface answers for "the current owner" so that a
+signed-in owner (`lib/server/versions/owner.ts`) and a per-course access list for
+collaboration slot in without changing the client. *Rejected:* keying by course id
+alone — every new course used to be `NOVY_KURZ`, and anyone who could reach the editor
+could have replaced anyone's history.
+
+**Publishing is still a download.** The API upload's sign-in is unresolved ("Still
+open" 2 and 3), so a published version is marked, and downloaded for the
+administration. `W_VERSION_NOT_BUMPED` stays for a hand-edited `version` in Pokročilý;
+the editor's own numbering cannot produce it.
+
+### How this class of problem is caught from now on
+
+Each of these fails on the code as it was before this round:
+
+- **A field names its consumer.** `fields.test.ts` reads `COURSE-EDITOR-SPEC.md`'s
+  ✅/🟡/⚪ markers and requires `unread: true` on exactly the fields nothing reads — both
+  ways, so the flag goes when the platform starts reading a key. None may be in teacher
+  mode; wherever one is shown its help starts "Zatím bez účinku" (`hintFor`). It found
+  38, some promising effects outright. *Rejected:* a hand-maintained `readBy` on every
+  field — a second record of the same fact, and the spec is the one that cites code.
+- **An issue is fixable where it is shown.** `fixModeOf` knows the mode that draws the
+  field behind any issue; the review and the panel say so and switch on "Přejít". A
+  test fails when an issue names a field the registry does not know.
+- **A card is born quiet.** Every card type with every step type shows nothing before
+  it is left. No chip computes its own warning — warnings come from `validate()`, with
+  a timing.
+- **View state outlives components.** Folding is keyed in `StepView`; the rule is a
+  truth table; e2e drags a folded step.
+- **The preview is measured.** Line breaks are compared with and without focus, and
+  with and without a click target around the app's own renderer
+  (`test/preview/preview_fidelity_test.dart` in the fork).
+- **The protocol says when.** Every player message has a "sent when" line, the lesson
+  player test asserts each emission point, and `receive()` fails to compile on a new
+  message type.
+
 ### Mode parity
 
 What each surface does, so that a preview change can be checked against it:

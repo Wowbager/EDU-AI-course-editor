@@ -141,8 +141,21 @@ yours to run locally. If CI on `main` is red, fix it or say why before you push 
   `window.location.origin`, never `*`. When you add a message type, update the union
   **and** every `switch` that handles it, on both the editor and player side.
 - `{#each}` keys must be unique even when the document is broken (duplicate ids are a
-  thing validation reports, not a thing the UI may crash on). Derived state must
-  tolerate teardown (no unguarded property access after unmount).
+  thing validation reports, not a thing the UI may crash on). Use `ui/keys.ts`
+  (`uniqueKeys`). Derived state must tolerate teardown (no unguarded property access
+  after unmount).
+- A field nothing downstream reads carries `unread: true` in `fields.ts`, never in
+  teacher mode; `fields.test.ts` checks it against the ✅/⚪ markers in
+  `docs/spec/COURSE-EDITOR-SPEC.md`. When the app starts reading a key, update the spec
+  and the test tells you which flag to drop.
+- No chip or dot computes its own warning. Warnings come from `validate()` and get a
+  timing in `ui/issue-visibility.ts`; a new card of any type shows none before it is
+  left (`issue-visibility.test.ts`).
+- State a component must not forget on remount (folding, anything a drag touches)
+  lives in a keyed store (`state/step-view.svelte.ts`), not in component `$state`.
+- The preview's layout may not depend on focus or on click targets. Player changes run
+  `test/preview/preview_fidelity_test.dart` in the fork; a new player message gets a
+  "sent when" line in the fork's `lib/preview/README.md`.
 
 ## Writing things down
 

@@ -148,6 +148,37 @@ badly. Fix is in the fork (render them with `MarkdownLatexWidget`), not done.
 with the name of the other mode. Cosmetic; the whole browser suite waits on that chip,
 so renaming it is a change to every preview test and was left for its own commit.
 
+### 12. Server versions are reachable only from the browser that made them
+**By design until sign-in.** The owner is a random key in this browser's
+`localStorage`; the server stores its hash. Clear site data, or open another browser,
+and that server history is out of reach — it is not deleted, nobody can find it. The
+dialog and the "Kde je kurz uložený" note say so. Fix: sign-in, then
+`lib/server/versions/owner.ts` resolves the session instead of the key.
+
+### 13. Publishing marks a version and downloads it; it does not upload
+**By design until sign-in.** `POST /api/courses/upload` needs a signed-in teacher.
+Until then "Zveřejnit" records which version is out, for whom, and downloads that file
+for the administration's upload. The API's own quirks (D, E) matter the day it is
+wired.
+
+### 14. The FSRS fields write keys the app does not read
+**Verified: yes**, per `COURSE-EDITOR-SPEC.md` §6.5. The authoring spec names them
+`initial_difficulty`, `initial_stability`, `repetitions`…; the app reads `difficulty`,
+`stability`, `reps` and nothing else. They are marked "Zatím bez účinku" now. Which
+side is wrong is a spec question for the owner; the editor writes what the authoring
+spec says.
+
+### 15. A card's own XP is shown as its reward, and the app ignores it
+**Verified: yes**, per the spec (§6.1 `xp` ⚠️ Inert) and "Still open" 8. The field is
+marked unread now, but the card header still says "N XP · vlastní hodnota" when one is
+set. Worth showing the derived figure with the authored one crossed out, or not
+offering the field.
+
+### 16. "Přejít" can switch the editing mode
+**By design, recorded because it is surprising.** A review row whose fix is in a higher
+mode switches to that mode on the jump, and the mode stays switched. The alternative —
+landing on a card whose field is not drawn — is what this replaced.
+
 ### 11. Folding is remembered for the session only
 **By design for now.** `StepView` lives as long as the page. A reload opens every step
 again. Worth persisting with the draft if authors of long cards ask for it.
