@@ -7,7 +7,7 @@ import { playerBuilt } from './player-build';
  * build. It skips rather than fails when that is absent — the editor is developed
  * and tested without a Flutter toolchain most of the time.
  *
- *     flutter build web --release --base-href /player/
+ *     flutter build web --release --base-href /player/ --no-web-resources-cdn
  *
  * Flutter draws to a canvas, so there is no DOM inside the frame to assert against.
  * These tests therefore check the *contract* (plan §4) rather than the pixels: that
@@ -137,26 +137,35 @@ test.describe('live preview', () => {
 	});
 
 	test('the question mark in Náhled goes to the text behind it', async ({ page }) => {
-		// Náhled draws the card's own buttons now, and the "?" is the first front door
-		// to `hint` and `help`. A card-level hint is reported without a `stepId`,
-		// because it belongs to the card, and the card-wide ladder lives in the card's
-		// settings — so the answer is that dialog opening.
+		// Náhled draws the card's own buttons, and the "?" is a front door to `hint`
+		// and `help`. In the quiz card the "?" is the question's own — the step on
+		// screen's hint, as in the app — so the answer is that step's hint field.
+		// (A card-level hint is reported without a `stepId` and opens the card's
+		// settings; the Flutter suite holds that path.)
 		await page.locator('.tree-card').nth(2).click();
 		await page.waitForTimeout(2500);
+		const messages = await watchMessages(page);
+		const hintRef = async () =>
+			(await messages())
+				.map((m) => JSON.parse(m) as { type: string; ref?: { stepId?: string; field?: string } })
+				.find((m) => m.type === 'clicked' && m.ref?.field === 'hint')?.ref;
 
-		const dialog = page.getByRole('dialog');
-		await expect(dialog).toHaveCount(0);
-
-		// The bubble sits under the first card's text, and where exactly depends on how
-		// that text wrapped — so probe along it rather than trusting a pixel.
+		// Where the row landed depends on how the text above it wrapped, so probe
+		// down the frame, a screen at a time, rather than trusting a pixel.
 		const frame = (await page.locator('iframe').boundingBox())!;
-		for (let y = 150; y <= 280 && (await dialog.count()) === 0; y += 10) {
-			await page.mouse.click(frame.x + 180, frame.y + y);
-			await page.waitForTimeout(250);
+		for (let screen = 0; screen < 4 && (await hintRef()) === undefined; screen++) {
+			for (let y = 40; y <= frame.height - 20 && (await hintRef()) === undefined; y += 12) {
+				await page.mouse.click(frame.x + 180, frame.y + y);
+				await page.waitForTimeout(120);
+			}
+			await page.mouse.move(frame.x + frame.width / 2, frame.y + frame.height / 2);
+			await page.mouse.wheel(0, frame.height - 80);
+			await page.waitForTimeout(400);
 		}
 
-		await expect(dialog).toBeVisible();
-		await expect(dialog).toContainText('Nápověda ke kartě');
+		expect(await hintRef()).toMatchObject({ blockId: 'L1_B3_poznej', stepId: 's2', field: 'hint' });
+		await expect(page.locator('main .step.targeted')).toHaveCount(1);
+		await expect(page.getByRole('dialog')).toHaveCount(0);
 	});
 
 	test('the expanded view never names another card by its id in teacher mode', async ({ page }) => {
