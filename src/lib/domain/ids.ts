@@ -181,3 +181,17 @@ function remapOptionGoTo(option: QuestionOption, idMap: Map<string, string>): Qu
 export function duplicateBlockValue(block: BlockV2, newId: string): BlockV2 {
 	return { ...block, block_id: newId, steps: renumberStepsForCopy(block.steps) };
 }
+
+/**
+ * A new course's id. It is the storage path and the enrolment key, unique
+ * platform-wide and immutable once published (§3.1), so it cannot be a constant: every
+ * new course used to be `NOVY_KURZ`, which made two teachers' — or one teacher's two —
+ * new courses the same course to the API, to the version history and to the
+ * Downloads folder. A teacher never sees it (§8).
+ */
+export function newCourseId(random: () => number = Math.random): string {
+	const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+	let suffix = '';
+	for (let i = 0; i < 10; i++) suffix += alphabet[Math.floor(random() * alphabet.length)];
+	return `KURZ_${suffix}`;
+}

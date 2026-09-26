@@ -30,6 +30,7 @@
     import FocusField from "$lib/ui/FocusField.svelte";
     import { addBlock, setField } from "$lib/domain/commands";
     import { importCourseJson, emptyCourse } from "$lib/domain/document";
+    import { newCourseId } from "$lib/domain/ids";
     import {
         looksLikeGpfTaxonomy,
         skillConfigFromGpfTaxonomy,
@@ -246,7 +247,7 @@
         const restored = !store.dirty && session.restore();
         if (restored) inherited = true;
         if (!store.dirty && !restored) {
-            store.load(emptyCourse("NOVY_KURZ", "Nový kurz"));
+            store.load(emptyCourse(newCourseId(), "Nový kurz"));
             store.apply((d, r) => {
                 const withLesson = {
                     ...d,

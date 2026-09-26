@@ -14,6 +14,7 @@
 
     import type { DraftSession } from "$lib/state/draft-session.svelte";
     import { CircleCheck, Download, Redo, Undo, Upload } from "@lucide/svelte";
+    import { courseFileName } from "$lib/domain/filename";
     interface Props {
         doc: CourseV2;
         recovery: DraftSession | null;
@@ -61,7 +62,7 @@
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = `${doc.course_id || "kurz"}.json`;
+        link.download = courseFileName(doc.name, doc.course_id || "kurz");
         link.click();
         URL.revokeObjectURL(url);
         exportedJson = json;
