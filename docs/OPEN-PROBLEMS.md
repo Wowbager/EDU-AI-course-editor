@@ -29,37 +29,54 @@ Laravel proxy, plus a shim injected into the player's `index.html` that redirect
 player's own proxy requests to it. **The editor no longer needs a patched player for
 images.**
 
-### B. Click-to-edit hit target — still app-side, not shipped
-In "Náhled", clicking a step jumps the editor to the field behind it, but the hit
-target is only whatever the leaf widget paints, so a short line of text is a sliver of
-the card and the padding around it is dead space. The fix is four lines in the app
-(`preview_expanded_block.dart`, `preview_mode.dart`: wrap the card body in an opaque,
-outline-less `PreviewTarget`) and there is **no editor-side equivalent** — the click
-happens inside a Flutter canvas the editor cannot see into, and nothing in the preview
-protocol reports where a step is drawn.
+### B. Click-to-edit hit target — shipped in the fork
+The card-level opaque `PreviewTarget` is in the fork since `22b37cb`, so a click on a
+step's padding in Náhled lands on the step. It is fork-only: `edu-ai-00` has no
+`lib/preview/` at all, so nothing here depends on it being accepted upstream.
 
-It needs to be a PR against the app. Until then the tester's finding stands as reported.
-If it is never going to be accepted upstream, the alternative is a protocol change —
-the player reporting step rectangles so the editor can put its own hit layer over the
-iframe — which is more machinery than the problem deserves.
+### C. The app's question mark is always the first step's — app-side, not shipped
+**Verified: yes**, read off the code. `lesson_detail_page` gates the "?" on
+`ContentBlock.hasHint` and the sheet shows `currentHint` / `currentHelp`, which read
+the step at `currentStepIndex` — and nothing in a lesson moves that off 0
+(`block_model.dart:1333`, `hint_sheet.dart:26`). So on every step of a card a student
+gets the first step's hint, or the card's; a hint written on step 2 or later is never
+shown, and help is reachable only as the second rung of such a hint. The spec's own
+example course has one (the quiz card's question step).
+
+The editor now tells the truth about it (Náhled mirrors the app, `W_HINT_UNREACHABLE`
+in the review). The fix is app-side — update the block's current step as the engine
+advances, or read `step.hint` in the engine — and needs a PR a human opens against
+`edu-ai-00`.
+
+### D. API: a status change bumps the version without a new file — API-side
+**Verified: yes**, read off the code. `Course::boot` (`app/Models/Course.php:91-95`)
+increments `version` on any update that does not set it, so `PUT /courses/{id}` with
+only `{status}` — which is how the admin publishes — raises the stored version while
+the stored file stays `v{old}.json`. The app compares versions, sees an update, and
+locks the course's lessons behind the update banner for a file that did not change;
+the editor's next upload then has to beat a number nobody authored. Matters for the
+version control the editor is getting: publishing from it must always upload the whole
+document with an explicit version, never flip a status alone.
+
+### E. API: the upload writes to storage before checking ownership — API-side
+**Verified: yes**, read off the code. `CourseController::upload` writes the file to R2
+(`:190-199`) before the teacher-owns-this-course check (`:201-205`). A refused upload
+still leaves an object at `courses/{id}/v{n}.json`. Not reachable from the editor
+today (publishing is not wired), recorded for when it is.
+
+### F. The app's library hides `data['private']`, an undocumented key — app-side
+**Verified: yes.** `knihovna_page.dart:466-470` filters out a course whose JSON has
+`private: true`, a key that is in neither spec. Harmless while nothing writes it; the
+editor will not, and uses `status: private` for "PIN only".
 
 ---
 
 ## Defects
 
-### 1. An empty lesson is invisible to validation and lies about its length
-**Verified: yes**, read off the code.
-
-Add a lesson and leave it empty. The tree says `0 karet · 5 min · 0 XP` — five minutes
-for a lesson containing nothing, because `lessonTotals` floors the estimate at
-`clamp(blockCount * 4, 5, 60)` (`domain/derive.ts:73`) with no zero case. The editor
-column does say the right thing when you click into the lesson ("Lekce … zatím nemá
-kartu"), but `validate.ts` has no lesson-level emptiness check at all — the only binding
-check is `lesson.blocks.length > 12` (`domain/validate.ts:136`) — so the top bar chip
-and "Kontrola kurzu" both stay green and the course exports clean.
-
-Two separate fixes: a zero case in the duration estimate, and a `W_EMPTY_LESSON`
-alongside `W_ORPHAN_BLOCK`, which is the same idea one level up.
+### 1. ~~An empty lesson is invisible to validation~~ — fixed (Round 4)
+`W_EMPTY_LESSON` reports it in the review. The tree still says "5 min" for it, on
+purpose: that is the number the app shows a student (`course_model.dart` floors the
+estimate at five), and the editor's totals mirror the app's arithmetic.
 
 ### 2. Dragging a card to reorder it only grabs on the text
 **Verified: no** — reported by a scripted author, traced by them to
@@ -69,12 +86,9 @@ being pixel-identical to the `<button>` inside it. Not reproduced independently.
 If it holds, it is the same class as the click-to-jump hit target fixed in the player
 this round: the affordance is the row, so the row should be the handle.
 
-### 3. `block.status` is authored and read by nothing
-**Verified: yes.** The editor lets an author mark a card `draft`/`published` and the
-format carries it, but `block_model.dart` never parses `status` and the API does not
-filter on it. The chip's tooltip used to promise that a draft card is skipped for the
-student; it no longer claims that, but the field is still offered and still means
-nothing. Either the app should honour it or the editor should stop asking.
+### 3. ~~`block.status` is authored and read by nothing~~ — no longer offered (Round 4)
+New cards carry no status, the chip is gone, and no mode offers the field. Imported
+values survive. Publishing moves to the course (version control, in progress).
 
 ---
 
@@ -94,11 +108,9 @@ author confirmed that separately. The cost is that re-exporting an existing file
 produces a few hundred lines of diff that are all noise, which makes "what did I
 actually change" hard to answer for a course that came from somewhere else.
 
-### 6. The downloaded filename does not follow a course rename
-**Verified: yes.** The file is named from `course_id`, which is minted once and
-immutable by design, so a course renamed to "Úvod do fotosyntézy" still downloads as
-`NOVY_KURZ.json`. Defensible, but a teacher looking in their Downloads folder for the
-name they typed will not find it.
+### 6. ~~The downloaded filename does not follow a course rename~~ — fixed (Round 4)
+The file is named from the course name. Every new course also gets its own id now; it
+used to be `NOVY_KURZ` for all of them.
 
 ---
 
@@ -109,7 +121,19 @@ name they typed will not find it.
 what they saw. Recorded so it is not lost; needs a reproduction before it is worth
 chasing.
 
-### 8. The "draft" status has no rollup
-**Verified: yes**, but only worth anything if #3 is resolved first. There is no
-lesson- or course-level "3 of 5 cards are still draft" the way there is for XP,
-duration and feedback coverage.
+### 8. ~~The "draft" status has no rollup~~ — moot, card status is gone (Round 4)
+
+### 9. The markers in Náhled print Markdown and LaTeX as typed
+**Verified: yes**, seen in the browser. The hint, help and branch markers are plain
+`Text`, so "Pomoc: Ve zlomku $\frac{a}{b}$ říká **b**" shows its syntax. They are
+preview-only notes, so it misleads nobody about what the student sees, but it reads
+badly. Fix is in the fork (render them with `MarkdownLatexWidget`), not done.
+
+### 10. The preview's status chip says "Náhled" in Vyzkoušet too
+**Verified: yes.** The green chip means "the player is running", and it is labelled
+with the name of the other mode. Cosmetic; the whole browser suite waits on that chip,
+so renaming it is a change to every preview test and was left for its own commit.
+
+### 11. Folding is remembered for the session only
+**By design for now.** `StepView` lives as long as the page. A reload opens every step
+again. Worth persisting with the draft if authors of long cards ask for it.

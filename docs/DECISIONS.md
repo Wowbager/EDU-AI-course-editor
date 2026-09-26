@@ -805,6 +805,162 @@ second status-label list that disagreed with the settings field.
 
 ---
 
+## Round 4 — things that looked finished and were not
+
+The owner's review found three problems that were half-specified rather than broken,
+and each hid real defects underneath. They are one class: **something the teacher
+sees that nothing behind it supports** — a warning they cannot clear, a fold the
+code forgets, a preview that re-lays itself out when focused. The fixes are aimed at
+the class, and each has a test that fails on the old code.
+
+### Card status is gone; publishing is the course's business
+
+**Every new card was born with a warning.** `addBlock` wrote `status: "draft"`, the
+card header showed a warning chip for anything not `published`, and the only way to
+change the status was a select in Pokročilý whose hint ("a draft card is skipped for
+the student") was false: neither `block_model.dart` nor the API reads `block.status`
+(`docs/spec/COURSE-EDITOR-SPEC.md` §3.5). The status is no longer written, shown or
+offered; a value in an imported file survives the round trip (`NOT_EDITABLE` says
+why). *Rejected:* making the app honour it — that is an upstream change this repo
+cannot ship, and a per-card publish switch is exactly the thing the owner asked to
+replace with course-level versions.
+
+**"Bez délky" was the same bug.** A card with no `duration` showed a warning chip and
+put a dot on the settings button. The app then estimates ~4 min a card
+(`course_model.dart`), just as XP is derived from the steps when not set, so the chip
+now says "délka odhadem", quietly. The one case that misleads a student — only some
+cards of a lesson have a length — is still `W_PARTIAL_DURATION`, in the review.
+`W_EMPTY_LESSON` joins `W_ORPHAN_BLOCK`: the app lists an empty lesson and advertises
+it at five minutes. The editor's arithmetic still mirrors the app's (an empty lesson
+*is* "5 min" to a student), which is why the fix is a warning and not a different sum.
+
+**Prevention:** `issue-visibility.test.ts` builds every card type with every step type
+and asserts nothing is shown before the card is left. No chip may compute its own
+warning; warnings come from `validate()`, with a timing.
+
+### A folded step stays folded, and focus opens it
+
+`collapsed` was `$state` inside `StepEditor`. `svelte-dnd-action` swaps the dragged
+item for a placeholder with another id (`id:dnd-shadow-placeholder-0000`), so the
+keyed `{#each}` destroyed the folded instance and mounted a fresh, open one: an
+expanded-height hole while carrying, an open step after the drop. It also leaked
+between cards, because step ids repeat per card and the column reuses its
+components.
+
+- Folding lives in `StepView` (`state/step-view.svelte.ts`), keyed `blockId/stepKey`,
+  and one pure rule decides open or folded (`ui/step-expansion.ts`, truth-table
+  tested): dragging folds everything; otherwise a step is open unless folded; a
+  folded step opens while the selection is in it; folding it *while* focused holds
+  until the selection is set again.
+- "Focused" is the selection. Working in a step's body selects it (it did not
+  before — only typing moved the selection), and a preview click, a validation jump
+  or the export review's "Přejít" already did, so all of them now open a folded step
+  instead of scrolling to a header whose field was not rendered.
+- Steps move by a grip handle. The press folds every step *before* the library
+  measures the list, and scrolls the column by however far the handle moved, so the
+  step is picked up from under the pointer. *Rejected:* folding on the first
+  `consider` — by then `preventShrinking` has fixed the zone's height and the clone
+  has been sized to the old placeholder. *Rejected:* keeping the whole row as the
+  handle — a press on a chevron and 3 px of movement started a drag.
+- A reveal is consumed once (`StepView.revealHandled`), so a remount mid-drag no
+  longer scrolls the page back to the selected step.
+- A folded row shows `stepSummary()` — plain text, a picture's description or file
+  name — never `https://upload.wiki…`. The card's derived name is its first sentence
+  when its first line is a whole paragraph.
+
+A drag dropped where it started is not an edit: the reorder commands return the same
+document, so no undo entry and no dirty flag. Keys that repeat in a broken document
+(`E_DUPLICATE_STEP_ID`, `W_DUPLICATE_OPTION_ID`) go through `uniqueKeys()` instead of
+crashing the keyed `{#each}`.
+
+### Náhled is read, Vyzkoušet is taken — and the preview never re-lays itself out
+
+Fork commit `9789fd5`, pinned by `PLAYER_REF`.
+
+**Focus reflowed the card.** The outline widened the step's border from 1 to 2 px,
+and a `Container` adds its border to its padding, so the focused step was laid out
+2 px narrower and its text wrapped at a different word. It is a `foregroundDecoration`
+now, painted over the card. **Hover did the same everywhere:** every `PreviewTarget`
+carried a permanent transparent 1.5 px border for its hover outline, so all wrapped
+text in the preview was 3 px narrower than in the app. The hover is gone (it was the
+old click-to-focus affordance); the pointer cursor is the only sign of a target.
+`test/preview/preview_fidelity_test.dart` asserts, per paragraph, the same size and
+the same line breaks with and without focus, and with and without a target around the
+app's own renderer. It fails on the previous player.
+
+**Vyzkoušet is the pupil's app.** `PreviewTarget` is inert when `interactive` is true,
+so a click on text or a picture does nothing, as for a pupil; nothing marks a focused
+step. The question mark is wired as `lesson_detail_page` wires it and opens the app's
+own hint sheet (`preview_hint.dart`) — it was never passed to the engine, which is why
+"help did not work". *Rejected:* keeping click-to-edit in Vyzkoušet — it competes with
+following the run, and the owner chose "like a student".
+
+**The editor follows the run.** `stepChanged` used to be sent only for moves within a
+card. The engine now has an optional `onStepShown`, fired after the frame from the
+single setter every write to `_currentStepIndex` goes through, and the lesson player
+turns it into `stepChanged {blockId, stepId}` on every move — mount, next card,
+branch, back, restart. *Rejected:* a report at each transition in the player — the
+bug was exactly a transition nobody remembered. The editor selects the reported step
+with `store.follow()`, which does not count the card left behind as touched (playing
+is not finishing), and the step opens and scrolls into view.
+
+**The run's inputs are pinned, the selection is its output.** Following the run moves
+the selection, so the lesson and start card are fixed when Vyzkoušet is entered. That
+also fixes a branch into a card shared by another lesson switching the lesson (and
+restarting the run), and "Od začátku", which re-pinned the start to the card the run
+had reached and so restarted twice.
+
+**M10's rule, refined rather than dropped.** "Nothing the player reports from a played
+run may decide what the expanded view shows" was about hidden state in the bridge.
+It still holds: Náhled shows the editor's selection and nothing else. What changed is
+that the run now *moves* the selection, openly, so after a run Náhled outlines the
+step the run reached. Relatedly, Náhled outlined step 1 of any card when nothing was
+focused — the restore point doubled as the outline; in Náhled the outline is now the
+selection or nothing.
+
+**The "?" in Náhled promised hints the app never shows.** It was gated per step on
+`step.hint ?? block.hint`. The app gates on `block.hasHint`, which reads
+`ContentBlock.currentHint` at `currentStepIndex`, and nothing in a lesson moves that
+off 0: every step of a card offers the *first* step's hint, or the card's, and help
+only as the second rung of a hint. Náhled now draws what the app does, marks a later
+step's own hint "žák ji neuvidí", and `W_HINT_UNREACHABLE` says it in the review. The
+spec's own example course has one such hint (the quiz card's question), so its
+"clean" tests now expect exactly that warning. The app bug is in OPEN-PROBLEMS.
+
+History and position in the lesson player are card ids, not indices (Still open #12).
+
+**The protocol says when, not only what.** `lib/preview/README.md` → "The contract"
+has a table of when each player message is sent, and the editor's `receive()` is an
+exhaustive `switch` that fails to compile on a new message type. A second `ready`
+(the frame reloaded) re-sends the last content instead of leaving a placeholder.
+
+### Mode parity
+
+What each surface does, so that a preview change can be checked against it:
+
+| | App (student) | Vyzkoušet | Náhled |
+|---|---|---|---|
+| Layout of content | — | identical to app | identical to app, focus included |
+| Tap on text / picture | nothing | nothing | selects the field in the editor |
+| Tap on an answer | answers | answers | selects the answer's row |
+| Hover | nothing | nothing | pointer cursor only |
+| Focus mark | — | none | outline over the focused step |
+| "?" | first step's hint or card's | same, app's sheet | same rule; unreachable text marked |
+| Where the editor is | — | follows the run | wherever the author is |
+
+### Smaller finds from the same pass
+
+- Every new course was `course_id: "NOVY_KURZ"`, so two new courses were one course to
+  the API and to any version history. Ids are minted per course (`KURZ_` + 10 random
+  characters, never shown), and the download is named from the course name.
+- The branch picker named cards and steps its own way (a table's syntax as a card
+  name, `(question)` in English for an empty step). It uses `blockPreview` and
+  `stepSummary` now.
+- At the 1280 floor a folded step's summary was squeezed to nothing and "Smazat" ran
+  off the card; a step's Duplikovat/Smazat fold to icons when the step is narrow.
+
+---
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today
@@ -845,10 +1001,6 @@ reproduced.
    in `lib/`; safety currently rests entirely on `PreviewPage` handing the engine inert
    callbacks. It stays as the documented pattern for a write that does not exist yet,
    which is a bet that the next author reads the README.
-11. **`block.status` is authored and read by nothing.** The editor lets an author mark
-   a card draft/published and the format carries it, but neither the app nor the API
-   looks at it, so it is currently a private note. Either the app should skip a card
-   that is not published, or the field should stop being offered.
-12. **`PreviewLessonPlayer` keys its history by block index**, not `blockId`. The
-   indices are clamped so a shrinking lesson cannot crash the frame, but a run whose
-   cards were reordered mid-way still retraces to the wrong ones.
+11. ~~`block.status` is authored and read by nothing~~ — no longer offered (Round 4).
+12. ~~`PreviewLessonPlayer` keys its history by block index~~ — keyed by `blockId`
+   (Round 4).
