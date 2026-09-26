@@ -7,7 +7,8 @@
 	 * The two exceptions are the course type and its status: both are consequential
 	 * enough to earn a segmented control and a written consequence per option.
 	 */
-	import type { CourseV2, ExportType, Status } from '$lib/domain/schema';
+	import type { CourseV2, ExportType } from '$lib/domain/schema';
+	import { VISIBILITY_LABEL, visibilityOf } from '$lib/domain/versions';
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import Modal from '$lib/ui/Modal.svelte';
 	import FieldGroup from '$lib/ui/FieldGroup.svelte';
@@ -30,13 +31,6 @@
 	const didactic = $derived(fields.filter((f) => f.mode === 'metodik'));
 	const rest = $derived(fields.filter((f) => f.mode === 'advanced'));
 
-	const STATUSES: { value: Status; label: string }[] = [
-		{ value: 'draft', label: 'Rozpracovaný' },
-		{ value: 'private', label: 'Jen na PIN' },
-		{ value: 'locked', label: 'Zamčený' },
-		{ value: 'approved', label: 'Schválený' },
-		{ value: 'published', label: 'Publikovaný' }
-	];
 
 	/**
 	 * "Cvičení" is also a card type inside a lesson, and the name of the daily
@@ -84,14 +78,12 @@
 			</div>
 
 			<div class="row">
-				<span>Stav</span>
-				<Segmented
-					wrap
-					label="Stav kurzu"
-					options={STATUSES}
-					value={doc.status ?? 'draft'}
-					onchange={(v) => set('status', v)}
-				/>
+				<span>Kdo kurz uvidí</span>
+				<!-- Visibility belongs with publishing: it is set in the version dialog. -->
+				<p class="where">
+					{VISIBILITY_LABEL[visibilityOf(doc)].label} — mění se ve verzích kurzu (tlačítko s číslem
+					verze nahoře).
+				</p>
 			</div>
 
 			<FieldGroup fields={basics} {read} write={set} />
@@ -116,6 +108,12 @@
 <Modal title="Nastavení kurzu" size="l" {onclose} children={body} />
 
 <style>
+	.where {
+		margin: 0;
+		color: var(--e-text-muted);
+		font-size: var(--text-s);
+	}
+
 	h3 {
 		grid-column: 1 / -1;
 		margin: 8px 0 0;

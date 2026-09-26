@@ -4,16 +4,24 @@
     import Segmented from "$lib/ui/Segmented.svelte";
     import FocusField from "$lib/ui/FocusField.svelte";
     import Button from "$lib/ui/Button.svelte";
-    import { useStore } from "$lib/ui/context";
+    import { useStore, useVersions } from "$lib/ui/context";
     import { setField } from "$lib/domain/commands";
     import { serialiseToJson } from "$lib/domain/document";
     import { MODES, MODE_LABELS } from "$lib/ui/fields";
     import Modal from "$lib/ui/Modal.svelte";
     import ExportDialog from "./ExportDialog.svelte";
+    import VersionsDialog from "./VersionsDialog.svelte";
     import { errorsCount, warningsCount } from "$lib/ui/plural";
 
     import type { DraftSession } from "$lib/state/draft-session.svelte";
-    import { CircleCheck, Download, Redo, Undo, Upload } from "@lucide/svelte";
+    import {
+        CircleCheck,
+        Download,
+        History,
+        Redo,
+        Undo,
+        Upload,
+    } from "@lucide/svelte";
     import { courseFileName } from "$lib/domain/filename";
     interface Props {
         doc: CourseV2;
@@ -32,8 +40,25 @@
     }: Props = $props();
 
     const store = useStore();
+    const versions = useVersions();
     let fileInput = $state<HTMLInputElement | null>(null);
     let explainStorage = $state(false);
+    let versionsOpen = $state(false);
+
+    /**
+     * The version button says where the working copy stands: the newest saved
+     * version, and whether it has been changed since. A course with nothing saved
+     * yet shows the number it will get.
+     */
+    const savedVersion = $derived(versions.latest);
+    const workingChanged = $derived(versions.modified(store.doc));
+    const versionLabel = $derived(
+        savedVersion === undefined
+            ? `v${versions.next(store.doc)} · neuloženo`
+            : workingChanged
+              ? `v${savedVersion.version} · upraveno`
+              : `v${savedVersion.version}`,
+    );
 
     /**
      * The exact JSON handed to the browser by the last „Stáhnout JSON“.
@@ -49,7 +74,14 @@
      * honest: type a sentence and undo it, and the file on disk is current again.
      */
     let exportedJson = $state<string | null>(null);
-    const currentJson = $derived(serialiseToJson(store.doc));
+    // The working copy goes out under the number it will be saved as, so a file
+    // downloaded after version 3 was saved is never "version 1" to the platform.
+    const currentJson = $derived(
+        serialiseToJson({
+            ...store.doc,
+            version: versions.next(store.doc),
+        }),
+    );
     const backedUp = $derived(
         exportedJson !== null && exportedJson === currentJson,
     );
@@ -107,8 +139,14 @@
                 store.apply((d) => setField(d, { field: "name" }, v))} />
     </div>
 
-    <Chip tone="quiet" title="Verze, kterou dostane žák při aktualizaci"
-        >v{doc.version ?? 1}</Chip>
+    <button
+        type="button"
+        class="version"
+        onclick={() => (versionsOpen = true)}
+        title="Verze kurzu: uložit, vrátit se k dřívější, zveřejnit a nastavit, kdo kurz uvidí">
+        <History size={14}></History>
+        {versionLabel}
+    </button>
     <button
         type="button"
         class="save-status"
@@ -207,6 +245,15 @@
     </Button>
 </header>
 
+{#if versionsOpen}
+    <VersionsDialog
+        onclose={() => (versionsOpen = false)}
+        onreview={() => {
+            versionsOpen = false;
+            reviewOpen = true;
+        }} />
+{/if}
+
 {#if reviewOpen}
     <ExportDialog ondownload={download} onclose={() => (reviewOpen = false)} />
 {/if}
@@ -278,6 +325,25 @@
         background: none;
         padding: 0;
         cursor: pointer;
+    }
+
+    .version {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 10px;
+        border: 1px solid var(--e-border);
+        border-radius: var(--radius-pill);
+        background: var(--surface);
+        color: var(--e-text-muted);
+        font: var(--type-chip-label);
+        white-space: nowrap;
+        cursor: pointer;
+    }
+
+    .version:hover {
+        border-color: var(--e-border-strong);
+        color: var(--e-text);
     }
 
     .save-status {

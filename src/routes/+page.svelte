@@ -16,8 +16,10 @@
     import { DraftSession } from "$lib/state/draft-session.svelte";
     import { DRAFT_KEY } from "$lib/state/draft";
     import { DocStore } from "$lib/state/doc-store.svelte";
-    import { setStepView, setStore } from "$lib/ui/context";
+    import { setStepView, setStore, setVersions } from "$lib/ui/context";
     import { StepView } from "$lib/state/step-view.svelte";
+    import { VersionStore } from "$lib/state/versions/version-store.svelte";
+    import { BrowserBackend } from "$lib/state/versions/browser";
     import Sidebar from "$lib/editor/Sidebar.svelte";
     import Topbar from "$lib/editor/Topbar.svelte";
     import CardEditor from "$lib/editor/CardEditor.svelte";
@@ -45,6 +47,18 @@
     const store = new DocStore();
     setStore(store);
     setStepView(new StepView());
+    /**
+     * The open course's version history (`state/versions/`). Loaded whenever the
+     * course changes — a new course, an import, a restored draft — and nothing else:
+     * an edit changes the working copy, never the history.
+     */
+    const versions = new VersionStore([new BrowserBackend()]);
+    setVersions(versions);
+    const courseId = $derived(store.doc.course_id);
+    $effect(() => {
+        const id = courseId;
+        untrack(() => void versions.load(id));
+    });
     let recovery = $state<DraftSession | null>(null);
 
     $effect(() => {
@@ -190,6 +204,9 @@
                 return;
             store.load(imported);
             inherited = true;
+            // A file brings its number with it: recorded as a version, so the next
+            // save cannot reuse the number it was already published under.
+            void versions.recordImport(imported);
             store.selection =
                 imported.lessons[0] !== undefined
                     ? { lessonId: imported.lessons[0].lesson_id }

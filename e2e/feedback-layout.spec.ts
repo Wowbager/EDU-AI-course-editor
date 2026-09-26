@@ -70,13 +70,8 @@ for (const width of [1316, 600, 390]) {
 		for (const row of await modal.locator('.grid > .row, .grid > h3').all()) {
 			expect((await row.boundingBox())!.width).toBeCloseTo(grid!.width, 0);
 		}
-		const status = modal.getByRole('radiogroup', { name: 'Stav kurzu' });
-		await status.getByRole('radio', { name: 'Publikovaný' }).click();
-		await expect(status.getByRole('radio', { name: 'Publikovaný' })).toHaveAttribute('aria-checked', 'true');
-		if (width < 700) {
-			const radios = await status.getByRole('radio').all();
-			expect((await radios.at(-1)!.boundingBox())!.y).toBeGreaterThan((await radios[0].boundingBox())!.y);
-		}
+		// Who sees the course is set with its versions now, not here.
+		await expect(modal.getByRole('radiogroup', { name: 'Stav kurzu' })).toHaveCount(0);
 		await modal.press('Escape');
 		await expect(modal).toBeHidden();
 	});

@@ -160,8 +160,8 @@ export const FIELDS: readonly FieldSpec[] = [
         path: "status",
         mode: "teacher",
         kind: "custom",
-        label: "Stav",
-        hint: "Žák uvidí jen kurz ve stavu Publikováno.",
+        label: "Kdo kurz uvidí",
+        hint: "Nastavuje se ve verzích kurzu, spolu se zveřejněním. Žák v knihovně najde jen zveřejněný kurz; soukromý otevře s PINem.",
         custom: true,
     },
     {
@@ -215,10 +215,11 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "course",
         path: "logged_only",
-        mode: "advanced",
-        kind: "toggle",
+        mode: "teacher",
+        kind: "custom",
         label: "Jen pro přihlášené",
-        hint: "Host kurz uvidí, ale nespustí.",
+        hint: "Jedna z voleb „Kdo kurz uvidí“ ve verzích kurzu. Host kurz uvidí, ale nespustí.",
+        custom: true,
     },
     {
         level: "course",

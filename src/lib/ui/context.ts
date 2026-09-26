@@ -1,6 +1,7 @@
 import { getContext, setContext } from 'svelte';
 import type { DocStore } from '$lib/state/doc-store.svelte';
 import type { StepView } from '$lib/state/step-view.svelte';
+import type { VersionStore } from '$lib/state/versions/version-store.svelte';
 
 const KEY = Symbol('edu-editor-store');
 
@@ -11,3 +12,8 @@ const STEP_VIEW = Symbol('edu-editor-step-view');
 
 export const setStepView = (view: StepView) => setContext(STEP_VIEW, view);
 export const useStepView = (): StepView => getContext(STEP_VIEW);
+
+const VERSIONS = Symbol('edu-editor-versions');
+
+export const setVersions = (versions: VersionStore) => setContext(VERSIONS, versions);
+export const useVersions = (): VersionStore => getContext(VERSIONS);
