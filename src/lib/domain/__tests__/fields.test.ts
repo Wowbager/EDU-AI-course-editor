@@ -20,6 +20,7 @@ import {
 	NOT_EDITABLE,
 	allows,
 	fieldsFor,
+	hintFor,
 	visible,
 	type FieldLevel,
 	type FieldSpec
@@ -171,5 +172,108 @@ describe('what each mode is for', () => {
 			expect(spec.hint.length, `${spec.level}.${spec.path}`).toBeGreaterThan(10);
 			expect(spec.hint.trim().endsWith('.'), `${spec.level}.${spec.path}: ${spec.hint}`).toBe(true);
 		}
+	});
+});
+
+/**
+ * A field must have a consumer, or say that it has none.
+ *
+ * `docs/spec/COURSE-EDITOR-SPEC.md` is the code-verified record of who reads each key:
+ * ✅ the app, 🟡 the API, ⚪ / ❌ / "Inert" nothing at all. `block.status` was offered
+ * with a hint promising that a draft card is skipped for the student, and nothing
+ * anywhere read it — which is how every new card came to carry a warning the teacher
+ * could not clear. This reads the spec's tables and holds the registry to them:
+ * nothing inert in teacher mode, and wherever an inert field is offered, its hint
+ * admits that it changes nothing for the student today.
+ */
+describe('every offered field has a consumer, or says it has none', async () => {
+	const { readFileSync } = await import('node:fs');
+	const { fileURLToPath } = await import('node:url');
+	const spec = readFileSync(
+		fileURLToPath(new URL('../../../../docs/spec/COURSE-EDITOR-SPEC.md', import.meta.url)),
+		'utf8'
+	);
+
+	// Which table a row is in decides which level and prefix its keys belong to.
+	const SECTIONS: [RegExp, FieldLevel, string][] = [
+		[/^### 3\.\d/, 'course', ''],
+		[/^## 4\. /, 'lesson', ''],
+		[/^## 5\. /, 'binding', ''],
+		[/^### 6\.1 /, 'block', ''],
+		[/^### 6\.3 /, 'block', 'gpf.'],
+		[/^### 6\.4 /, 'block', 'learning.'],
+		[/^### 6\.5 /, 'block', 'fsrs.'],
+		[/^## 7\. /, 'step', ''],
+		[/^### 8\.1 /, 'question', ''],
+		[/^### 8\.2 /, 'option', '']
+	];
+	const inert = new Set<string>();
+	let section: [FieldLevel, string] | null = null;
+	for (const line of spec.split('\n')) {
+		if (/^#{2,4} /.test(line)) {
+			const hit = SECTIONS.find(([pattern]) => pattern.test(line));
+			section = hit ? [hit[1], hit[2]] : null;
+			continue;
+		}
+		if (section === null || !line.startsWith('| `')) continue;
+		const cells = line.split(/(?<!\\)\|/).map((c) => c.trim());
+		const keys = [...cells[1].matchAll(/`([a-z_]+)`/g)].map((m) => m[1]);
+		// The marker is the first cell after the key that carries one.
+		const marker = cells.slice(2).find((c) => /[✅🟡⚪❌]|Inert/.test(c)) ?? '';
+		if (/⚪|❌|Inert/.test(marker) && !/✅|🟡/.test(marker)) {
+			for (const key of keys) inert.add(`${section[0]}.${section[1]}${key}`);
+		}
+	}
+
+	it('found the spec\'s inert keys', () => {
+		// A sanity floor, so a reformatted spec cannot make this test vacuous.
+		expect(inert.size).toBeGreaterThan(15);
+		expect(inert.has('block.status')).toBe(true);
+	});
+
+	const key = (f: FieldSpec) => `${f.level}.${f.path}`;
+
+	it('flags exactly the fields the spec says nothing reads', () => {
+		// Both ways: a field nothing reads must say so, and a field the platform starts
+		// reading must lose the flag — the spec is updated, this fails, the flag goes.
+		const flaggedButRead = FIELDS.filter((f) => f.unread && !inert.has(key(f))).map(key);
+		const inertButUnflagged = FIELDS.filter((f) => !f.unread && inert.has(key(f))).map(key);
+		expect({ flaggedButRead, inertButUnflagged }).toEqual({ flaggedButRead: [], inertButUnflagged: [] });
+	});
+
+	it('offers nothing inert in teacher mode', () => {
+		expect(FIELDS.filter((f) => f.mode === 'teacher' && f.unread).map(key)).toEqual([]);
+	});
+
+	it('says so wherever an inert field is shown', () => {
+		for (const f of FIELDS.filter((f) => f.unread)) {
+			expect(hintFor(f), key(f)).toMatch(/^Zatím bez účinku/);
+		}
+	});
+});
+
+/**
+ * Every issue points at something the author can reach — in the mode that draws it.
+ * The review switches to that mode on "Přejít" (`fixModeOf`), so this only has to hold
+ * that the registry knows every field an issue can name.
+ */
+describe('every issue can be fixed somewhere', async () => {
+	const { readFileSync } = await import('node:fs');
+	const { fileURLToPath } = await import('node:url');
+	const { parseCourse } = await import('../document');
+	const { validate } = await import('../validate');
+	const { fixModeOf } = await import('$lib/ui/fields');
+	const load = (name: string) =>
+		parseCourse(JSON.parse(readFileSync(fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url)), 'utf8')));
+
+	it('names only fields the registry knows', () => {
+		const unknown: string[] = [];
+		for (const name of ['spec-16-course-broken.json', 'spec-16-course.json']) {
+			const result = validate(load(name), null);
+			for (const issue of [...result.errors, ...result.warnings]) {
+				if (fixModeOf(issue.ref) === undefined) unknown.push(`${issue.code} → ${issue.ref.field}`);
+			}
+		}
+		expect(unknown).toEqual([]);
 	});
 });

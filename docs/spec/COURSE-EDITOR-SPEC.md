@@ -362,8 +362,8 @@ steps is a migration artefact.
 | `content` | Markdown+LaTeX | ✅ | Text step body. | §7.1. |
 | `image` / `video` / `audio` | objects | ✅ | Media payload. | §7.1. |
 | `question` | `QuestionConfig` | ✅ | Interaction. | §8. |
-| `hint` | Markdown | ✅ | Step-level short hint. | Shown from `?` on this step; takes precedence over the block hint. Costs score (§12). Hidden by the editor for `exercise` blocks. |
-| `help` | Markdown | ✅ | Step-level detailed help. | Second level; costs more (§12). |
+| `hint` | Markdown | ✅ (first step only) | Step-level short hint. | Intended: shown from `?` on this step, taking precedence over the block hint; costs score (§12). **As the app is today only the first step's is read**: `lesson_detail_page` gates the `?` on `ContentBlock.hasHint`, whose `currentHint` reads `steps[currentStepIndex]`, and nothing in a lesson moves that index off 0 — so every step of a card offers step 1's hint, or the block's (editor `OPEN-PROBLEMS.md` C, `W_HINT_UNREACHABLE`). Hidden by the editor for `exercise` blocks. |
+| `help` | Markdown | ✅ (first step only) | Step-level detailed help. | Second level; costs more (§12). Same limitation as `hint`, and reachable only from an open hint: help with no hint is never offered. |
 | `default_practice` | bool | ✅ | **Display blocks only.** | Any step flagged true promotes the *entire block* into the practice queue (`course_model.dart:_hasStepDefaultPractice`). It is not a per-step card — cards are per block. The editor should say so. |
 
 ### 7.1 Per-type rendering

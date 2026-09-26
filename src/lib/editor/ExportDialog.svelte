@@ -17,6 +17,8 @@
 	import { useStore } from '$lib/ui/context';
 	import { groupIssues, type IssueGroup, type IssueRow } from '$lib/domain/issue-groups';
 	import { counted, warningsCount } from '$lib/ui/plural';
+	import { fixModeOf, MODE_LABELS, MODE_RANK, type Mode } from '$lib/ui/fields';
+	import type { Ref } from '$lib/domain/ref';
 	import { ArrowRight, Download } from '@lucide/svelte';
 
 	interface Props {
@@ -35,7 +37,16 @@
 	/** How many cards are unfinished, which is the unit a teacher plans their time in. */
 	const cardGroups = $derived(errors.filter((g) => g.kind === 'card').length);
 
+	/** The mode a fix is in, when it is above the one the author is in. */
+	const higherMode = (target: Ref): Mode | null => {
+		const need = fixModeOf(target) ?? 'advanced';
+		return MODE_RANK[need] > MODE_RANK[store.mode] ? need : null;
+	};
+
 	function jump(row: IssueRow) {
+		// A jump to a field this mode does not draw lands on nothing, so go up first.
+		const need = higherMode(row.target);
+		if (need !== null) store.mode = need;
 		store.revealAt(row.target);
 		onclose();
 	}
@@ -60,6 +71,10 @@
 							<div class="text">
 								{#if row.detail}<span class="detail">{row.detail}</span>{/if}
 								<span class="message">{row.issue.message}</span>
+								{#if higherMode(row.target)}
+									{@const need = higherMode(row.target)!}
+									<span class="mode">Opravíš v režimu {MODE_LABELS[need].label} — Přejít na něj přepne.</span>
+								{/if}
 							</div>
 							<Button variant="ghost" size="s" onclick={() => jump(row)}>
 								Přejít <ArrowRight size={14} />
@@ -112,6 +127,11 @@
 </Modal>
 
 <style>
+	.mode {
+		color: var(--e-text-faint);
+		font-size: var(--text-xs);
+	}
+
 	.review {
 		display: flex;
 		flex-direction: column;

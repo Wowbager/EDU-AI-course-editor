@@ -81,7 +81,26 @@ export interface FieldSpec {
     options?: readonly { value: string; label: string }[];
     /** Set when a hand-written component owns this field rather than `FieldGroup`. */
     custom?: true;
+    /**
+     * Nothing downstream reads this key today — neither the app nor the API
+     * (`docs/spec/COURSE-EDITOR-SPEC.md` marks it ⚪). It is kept and exported, because
+     * the format carries it and it documents intent, but the field says so wherever
+     * it is shown (`hintFor`), and none may be offered in teacher mode.
+     * `fields.test.ts` checks this flag against the spec in both directions.
+     */
+    unread?: true;
     ref?: Ref;
+}
+
+/**
+ * What a field's help line says. For a field nothing reads, the first thing it says
+ * is that — so a hint describing what the field is *for* is never read as a promise
+ * of what it *does*.
+ */
+export function hintFor(spec: Pick<FieldSpec, "hint" | "unread">): string | undefined {
+    if (!spec.unread) return spec.hint;
+    const intent = spec.hint ? ` Zamýšleno: ${spec.hint}` : "";
+    return `Zatím bez účinku — aplikace ani API tuto hodnotu nečtou, jen se uloží.${intent}`;
 }
 
 export const STATUS_OPTIONS = [
@@ -136,6 +155,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "course",
         path: "ai_context",
+        unread: true,
         mode: "metodik",
         kind: "multiline",
         label: "Kontext pro AI",
@@ -256,6 +276,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "course",
         path: "stop_gambling",
+        unread: true,
         mode: "advanced",
         kind: "toggle",
         label: "Hlídat náhodné klikání",
@@ -264,6 +285,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "course",
         path: "stop_notice",
+        unread: true,
         mode: "advanced",
         kind: "multiline",
         label: "Hláška při náhodném klikání",
@@ -300,6 +322,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "lesson",
         path: "ai_context",
+        unread: true,
         mode: "metodik",
         kind: "multiline",
         label: "Kontext pro AI",
@@ -309,6 +332,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "lesson",
         path: "version",
+        unread: true,
         mode: "advanced",
         kind: "number",
         label: "Verze lekce",
@@ -317,6 +341,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "lesson",
         path: "header_image",
+        unread: true,
         mode: "advanced",
         kind: "custom",
         label: "Obrázek lekce",
@@ -339,6 +364,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "binding",
         path: "bg_color",
+        unread: true,
         mode: "advanced",
         kind: "text",
         label: "Barva karty",
@@ -347,6 +373,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "binding",
         path: "bg_image",
+        unread: true,
         mode: "advanced",
         kind: "text",
         label: "Pozadí karty",
@@ -403,6 +430,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "gpf.domain",
+        unread: true,
         mode: "metodik",
         kind: "custom",
         label: "Oblast",
@@ -411,6 +439,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "gpf.construct",
+        unread: true,
         mode: "metodik",
         kind: "custom",
         label: "Konstrukt",
@@ -419,6 +448,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "gpf.subconstruct",
+        unread: true,
         mode: "metodik",
         kind: "custom",
         label: "Téma",
@@ -443,6 +473,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "gpf.grade",
+        unread: true,
         mode: "metodik",
         kind: "number",
         label: "Ročník",
@@ -451,6 +482,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "gpf.level",
+        unread: true,
         mode: "metodik",
         kind: "number",
         label: "Úroveň",
@@ -459,6 +491,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "learning.concepts",
+        unread: true,
         mode: "metodik",
         kind: "custom",
         label: "Pojmy",
@@ -468,6 +501,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "learning.competencies",
+        unread: true,
         mode: "metodik",
         kind: "custom",
         label: "Výstupy RVP",
@@ -477,6 +511,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "learning.bloom_level",
+        unread: true,
         mode: "metodik",
         kind: "number",
         label: "Bloomova úroveň",
@@ -485,6 +520,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "learning.difficulty",
+        unread: true,
         mode: "metodik",
         kind: "number",
         label: "Odhad obtížnosti",
@@ -512,14 +548,16 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "xp",
+        unread: true,
         mode: "advanced",
         kind: "number",
         label: "XP",
-        hint: "Bez vyplnění se dopočte z kroků.",
+        hint: "vlastní odměna místo dopočtu z kroků. Aplikace ale XP počítá z kroků vždy.",
     },
     {
         level: "block",
         path: "version",
+        unread: true,
         mode: "advanced",
         kind: "number",
         label: "Verze karty",
@@ -527,6 +565,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "language",
+        unread: true,
         mode: "advanced",
         kind: "text",
         label: "Jazyk karty",
@@ -535,6 +574,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "author",
+        unread: true,
         mode: "advanced",
         kind: "text",
         label: "Autor karty",
@@ -542,6 +582,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "updated",
+        unread: true,
         mode: "advanced",
         kind: "text",
         label: "Upraveno",
@@ -558,6 +599,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "gpf.vector",
+        unread: true,
         mode: "advanced",
         kind: "custom",
         label: "Taxonomický vektor",
@@ -567,6 +609,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "gpf.kb_vector",
+        unread: true,
         mode: "advanced",
         kind: "custom",
         label: "Vektor znalostní báze",
@@ -576,6 +619,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "learning.prerequisites",
+        unread: true,
         mode: "advanced",
         kind: "custom",
         label: "Předpoklady",
@@ -585,6 +629,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "learning.d_data",
+        unread: true,
         mode: "advanced",
         kind: "custom",
         label: "Výzkumná data",
@@ -593,6 +638,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "learning.l_data",
+        unread: true,
         mode: "advanced",
         kind: "custom",
         label: "Data o učení",
@@ -601,6 +647,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "fsrs.initial_difficulty",
+        unread: true,
         mode: "advanced",
         kind: "number",
         label: "Počáteční obtížnost",
@@ -609,6 +656,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "fsrs.initial_stability",
+        unread: true,
         mode: "advanced",
         kind: "number",
         label: "Počáteční stabilita",
@@ -617,6 +665,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "fsrs.initial_recall",
+        unread: true,
         mode: "advanced",
         kind: "number",
         label: "Počáteční vybavení",
@@ -625,6 +674,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "fsrs.forgetting_rate",
+        unread: true,
         mode: "advanced",
         kind: "number",
         label: "Rychlost zapomínání",
@@ -633,6 +683,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "fsrs.repetitions",
+        unread: true,
         mode: "advanced",
         kind: "number",
         label: "Počet opakování",
@@ -641,14 +692,16 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "fsrs.weight",
+        unread: true,
         mode: "advanced",
         kind: "number",
         label: "Priorita v opakování",
-        hint: "Jediné, čím autor ovlivní, co žák uvidí v nabitý den jako první.",
+        hint: "přednost karty v nabitém dni opakování.",
     },
     {
         level: "block",
         path: "fsrs.min_interval",
+        unread: true,
         mode: "advanced",
         kind: "number",
         label: "Nejkratší odstup",
@@ -657,6 +710,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "fsrs.max_interval",
+        unread: true,
         mode: "advanced",
         kind: "number",
         label: "Nejdelší odstup",
@@ -665,18 +719,20 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "fsrs.skip_condition",
+        unread: true,
         mode: "advanced",
         kind: "text",
         label: "Podmínka vynechání",
-        hint: "Například GPF_mastery > 0.8 — přestane drilovat, co žák prokazatelně umí.",
+        hint: "přestat drilovat, co žák prokazatelně umí — například GPF_mastery > 0.8.",
     },
     {
         level: "block",
         path: "fsrs.time_limit_sec",
+        unread: true,
         mode: "advanced",
         kind: "number",
         label: "Časový limit",
-        hint: "V sekundách. Po vypršení se karta zavře.",
+        hint: "po vypršení limitu (v sekundách) by se karta zavřela.",
     },
     {
         level: "block",
@@ -881,6 +937,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "question",
         path: "allow_photo",
+        unread: true,
         mode: "advanced",
         kind: "toggle",
         label: "Dovolit odpověď fotkou",
@@ -1093,4 +1150,42 @@ export function fieldSpec(
 export function allows(level: FieldLevel, path: string, mode: Mode): boolean {
     const spec = fieldSpec(level, path);
     return spec === undefined ? true : visible(spec, mode);
+}
+
+/**
+ * The registry entry an issue's `ref.field` addresses: its level, read off the ref
+ * (an option, a question, a step, a card, a lesson or the course), and its path with
+ * any list index dropped (`learning.prerequisites.1` → `learning.prerequisites`).
+ */
+export function fieldOf(ref: Ref): { level: FieldLevel; path: string } | null {
+    if (ref.field === undefined) return null;
+    const path = ref.field.replace(/\.\d+(?=\.|$)/g, "");
+    if (ref.optionId !== undefined) return { level: "option", path };
+    if (ref.stepId !== undefined) {
+        return path.startsWith("question.")
+            ? { level: "question", path: path.slice("question.".length) }
+            : { level: "step", path };
+    }
+    if (ref.blockId !== undefined) return { level: "block", path };
+    if (ref.lessonId !== undefined) return { level: "lesson", path };
+    return { level: "course", path };
+}
+
+/**
+ * The lowest mode in which what an issue points at can be fixed.
+ *
+ * An issue shown to a teacher whose field only Metodik or Pokročilý draws — a
+ * duplicate id, a vector — used to send "Přejít" to a card where nothing could be
+ * changed. The review asks this, says which mode the fix is in, and switches to it on
+ * the jump. A key that is not editable at all (`NOT_EDITABLE`) is structure, fixed in
+ * the tree, which every mode has. `undefined` means the ref names a field the
+ * registry does not know — `fields.test.ts` fails on that.
+ */
+export function fixModeOf(ref: Ref): Mode | undefined {
+    const field = fieldOf(ref);
+    if (field === null) return "teacher";
+    const spec = fieldSpec(field.level, field.path);
+    if (spec !== undefined) return spec.mode;
+    if (`${field.level}.${field.path}` in NOT_EDITABLE) return "teacher";
+    return undefined;
 }

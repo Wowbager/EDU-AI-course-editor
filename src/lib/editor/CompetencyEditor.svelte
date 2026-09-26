@@ -60,6 +60,8 @@
 <section class="competencies">
 	<header>
 		<span class="title">Výstupy RVP</span>
+		<!-- ⚪ in COURSE-EDITOR-SPEC §6.4: stored and exported, read by nothing yet. -->
+		<span class="note">Aplikace je zatím nečte — slouží jako dokumentace, co karta rozvíjí.</span>
 		{#if entries.length > 0}
 			<Chip tone={total > 100 ? 'warning' : 'neutral'} title="Součet vah">{total} %</Chip>
 		{/if}
@@ -106,6 +108,11 @@
 </section>
 
 <style>
+	.note {
+		color: var(--e-text-faint);
+		font-size: var(--text-xs);
+	}
+
 	.competencies {
 		display: flex;
 		flex-direction: column;

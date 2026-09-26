@@ -4,6 +4,7 @@
 	 * jumps to the place it is about — an issue you cannot reach is an issue nobody
 	 * fixes.
 	 */
+	import { fixModeOf, MODE_RANK } from '$lib/ui/fields';
 	import type { Issue } from '$lib/domain/validate';
 	import { issueLessonId, issuePlace } from '$lib/domain/issue-groups';
 	import { useStore } from '$lib/ui/context';
@@ -20,6 +21,9 @@
 	const warnings = $derived(store.validation.warnings.filter((w) => !dismissed.has(key(w))));
 
 	function jump(issue: Issue) {
+		// Fixed in a mode above this one: switch first, or the jump lands on nothing.
+		const need = fixModeOf(issue.ref) ?? 'advanced';
+		if (MODE_RANK[need] > MODE_RANK[store.mode]) store.mode = need;
 		store.revealAt({ ...issue.ref, lessonId: issueLessonId(store.index, issue.ref) });
 		onclose();
 	}

@@ -15,7 +15,7 @@
      */
     import FocusField from "./FocusField.svelte";
     import Toggle from "./Toggle.svelte";
-    import type { FieldSpec } from "./fields";
+    import { hintFor, type FieldSpec } from "./fields";
 
     interface Props {
         fields: FieldSpec[];
@@ -43,10 +43,11 @@
 
 {#each fields as spec (spec.level + spec.path)}
     {@const value = read(spec.path)}
+    {@const hint = hintFor(spec)}
     {#if spec.kind === "toggle"}
         <Toggle
             label={spec.label}
-            hint={spec.hint}
+            {hint}
             checked={value === true}
             onchange={(v) => write(spec.path, v || undefined)} />
     {:else if spec.kind === "select"}
@@ -68,7 +69,7 @@
                         <option value={option.value}>{option.label}</option>
                     {/each}
                 </select>
-                {#if spec.hint}<span class="hint">{spec.hint}</span>{/if}
+                {#if hint}<span class="hint" class:unread={spec.unread}>{hint}</span>{/if}
             </div>
         </div>
     {:else}
@@ -87,8 +88,8 @@
                         spec.kind === "number"
                             ? writeNumber(spec.path, v)
                             : write(spec.path, v)} />
-                {#if spec.hint}<span class="hint" title={spec.hint}
-                        >{spec.hint}</span
+                {#if hint}<span class="hint" class:unread={spec.unread} title={hint}
+                        >{hint}</span
                     >{/if}
             </div>
         </div>

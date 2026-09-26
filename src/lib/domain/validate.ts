@@ -156,7 +156,8 @@ function checkBindings(doc: CourseV2, index: DocIndex, add: Add) {
 			if (minutes !== undefined && minutes > 0) withDuration++;
 		}
 		if (withDuration > 0 && withDuration < resolved) {
-			add('warning', 'W_PARTIAL_DURATION', { lessonId: lesson.lesson_id, field: 'duration' },
+			// No field: a lesson has no length of its own. It is fixed on its cards.
+			add('warning', 'W_PARTIAL_DURATION', { lessonId: lesson.lesson_id },
 				`V lekci „${lessonName}“ má délku vyplněno jen ${withDuration} z ${resolved} bloků. Na kartě lekce se žákovi ukáže součet jen z nich, takže čas bude výrazně nižší než skutečný.`);
 		}
 	}
