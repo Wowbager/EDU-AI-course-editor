@@ -147,6 +147,32 @@ describe('following a played run', () => {
 	});
 });
 
+describe("the tests' own question", () => {
+	it('is answered to them and moves nothing in the editor', () => {
+		// `inspected` is the reply to the e2e suite's `inspect`. A position in it is
+		// not a move: the editor follows a run from `stepChanged` alone.
+		const calls: string[] = [];
+		const bridge = new PreviewBridge({
+			onready: () => calls.push('ready'),
+			onstepChanged: () => calls.push('stepChanged'),
+			onnavState: () => calls.push('navState'),
+			onclicked: () => calls.push('clicked'),
+			oncompleted: () => calls.push('completed')
+		});
+		bridge.receive({
+			type: 'inspected',
+			view: 'play',
+			content: 'lesson',
+			blockId: 'B1',
+			stepId: 's2',
+			shownStepIds: ['s1', 's2'],
+			canGoBack: true
+		});
+		expect(calls).toEqual([]);
+		expect(bridge.pending).toBeNull();
+	});
+});
+
 describe('a player that announces itself again', () => {
 	it('is given the last content again instead of staying empty', () => {
 		vi.useFakeTimers();

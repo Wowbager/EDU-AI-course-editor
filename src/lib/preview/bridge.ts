@@ -1,8 +1,12 @@
 /**
  * The editor half of the preview contract (plan §4).
  *
- *   editor → player: setBlock, setLesson, highlight, back, restart, reset
- *   player → editor: ready, stepChanged, clicked, completed, navState
+ *   editor → player: setBlock, setLesson, highlight, back, restart, reset, inspect
+ *   player → editor: ready, stepChanged, clicked, completed, navState, inspected
+ *
+ * `inspect` / `inspected` belong to the browser tests (`e2e/player.ts`): the reply
+ * says what the player shows, once it is painted. The editor itself never sends
+ * `inspect`, and ignores the reply.
  *
  * Two rules matter more than the message shapes. Updates are debounced, and the
  * iframe is **never reloaded to refresh content** — a reload costs seconds of Flutter
@@ -55,14 +59,31 @@ export type EditorMessage =
 	| { type: 'highlight'; ref: Ref }
 	| { type: 'back' }
 	| { type: 'restart' }
-	| { type: 'reset' };
+	| { type: 'reset' }
+	| { type: 'inspect'; id?: number };
+
+/** What the player says is on screen — the reply to `inspect`. */
+export interface PlayerState {
+	id?: number;
+	view: PreviewView;
+	/** `none` is the placeholder; `error` a draft that did not parse. */
+	content: 'none' | 'block' | 'lesson' | 'error';
+	error?: string;
+	lessonId?: string;
+	blockId?: string;
+	/** Náhled: the focused step. Playing: where the pupil is. */
+	stepId?: string;
+	shownStepIds: string[];
+	canGoBack: boolean;
+}
 
 export type PlayerMessage =
 	| { type: 'ready' }
 	| { type: 'stepChanged'; stepId: string; blockId: string; shownStepIds?: string[] }
 	| { type: 'clicked'; ref: Ref }
 	| { type: 'completed'; xp: number; scoreKoef: number; mark?: string }
-	| { type: 'navState'; canGoBack: boolean };
+	| { type: 'navState'; canGoBack: boolean }
+	| ({ type: 'inspected' } & PlayerState);
 
 export interface BridgeHandlers {
 	onready?: () => void;
@@ -180,6 +201,9 @@ export class PreviewBridge {
 				break;
 			case 'completed':
 				this.#handlers.oncompleted?.(message);
+				break;
+			case 'inspected':
+				// The tests' question, answered to them; nothing for the editor.
 				break;
 			default: {
 				// Every player message has a case. A new one fails to compile here
