@@ -10,6 +10,7 @@
  * the target; `delete*` refuses to run until each of those pointers has a repair.
  * Deleting without repair is a bug, not a warning (§3 invariant 3).
  */
+import { applyVisibility, visibilityOf, VISIBILITY_LABEL, type Visibility } from './versions';
 import type {
 	BlockStep,
 	BlockV2,
@@ -956,4 +957,29 @@ export function blockTopics(block: BlockV2): BlockTopic[] {
 		topics.push({ dimensionIndex: i, relation: value, elo: elo[i] ?? ELO_BASELINE });
 	}
 	return topics;
+}
+
+// ──────────────────────────────────────── versions ────────────────────────────────────────
+
+/** Who can see the course once it is published (`domain/versions.ts`). */
+export function setVisibility(doc: CourseV2, visibility: Visibility): CommandResult {
+	if (visibilityOf(doc) === visibility) return { doc, description: 'Viditelnost se nezměnila' };
+	return {
+		doc: applyVisibility(doc, visibility),
+		description: `Kurz: ${VISIBILITY_LABEL[visibility].label.toLowerCase()}`
+	};
+}
+
+/**
+ * Bring a saved version back as the working copy — an ordinary, undoable edit, so a
+ * restore made by mistake is one "Zpět" away. The course keeps its identity and its
+ * current visibility: those describe the course, not the version being returned to.
+ */
+export function restoreVersion(doc: CourseV2, saved: CourseV2, number: number): CommandResult {
+	const restored: CourseV2 = { ...structuredClone(saved), course_id: doc.course_id, version: doc.version };
+	if (doc.status === undefined) delete restored.status;
+	else restored.status = doc.status;
+	if (doc.logged_only === undefined) delete restored.logged_only;
+	else restored.logged_only = doc.logged_only;
+	return { doc: restored, description: `Obnovena verze ${number}` };
 }
