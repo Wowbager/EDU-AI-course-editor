@@ -140,6 +140,15 @@ export const blockSchema = z.looseObject({
 	 * block keys, so it is inert for the student until the app chooses to read it.
 	 */
 	name: z.string().optional(),
+	/**
+	 * The teacher's card this block is part of (`groups.ts`). Every question is its
+	 * own block, because the app grades a block as one item; the blocks one card
+	 * became share this key, whose value is the card's id. New, like `name`: the app
+	 * ignores unknown block keys.
+	 */
+	group: z.string().optional(),
+	/** Set by the advanced author: this block's questions are graded as one, on purpose. */
+	multi_question: z.boolean().optional(),
 	type: z.enum(BLOCK_TYPES),
 	status: z.enum(STATUSES).optional(),
 	version: z.number().int().optional(),
@@ -246,7 +255,8 @@ export const KEY_ORDER = {
 	block: [
 		// `name` sits where `lesson.name` sits — after the id and the version — so the
 		// three levels of the document read the same way in a diff.
-		'export_type', 'block_id', 'version', 'name', 'language', 'author', 'updated', 'status', 'type',
+		'export_type', 'block_id', 'version', 'name', 'group', 'multi_question', 'language', 'author',
+		'updated', 'status', 'type',
 		'duration', 'xp', 'default_practice', 'hint', 'help', 'gpf', 'learning', 'fsrs',
 		'adaptation', 'steps'
 	],

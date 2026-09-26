@@ -13,6 +13,7 @@ import {
 	groupsOf,
 	mergeQuestionCard,
 	questionCount,
+	resplitChanged,
 	segmentSteps,
 	splitQuestionCard,
 	splitQuestionCards,
@@ -267,6 +268,40 @@ describe('the advanced toggle', () => {
 		const block = after.blocks.find((b) => b.block_id === 'L3_B3_mc')!;
 		expect(questionCount(block)).toBe(3);
 		expect(after.blocks.some((b) => groupOf(b) === 'L3_B3_mc')).toBe(false);
+	});
+});
+
+describe('an edit made on the document itself (Pokročilý)', () => {
+	const { doc } = splitQuestionCards(fixture('corpus/zlomky-5-trida.json'));
+
+	it('splits a block that was given a second question', () => {
+		// Its answers jump to its own feedback texts (s3, s4), and a jump lands on a
+		// block's first step, so those start blocks: the wrong-answer text on its own.
+		const after = resplitChanged(doc, addStep(doc, 'L1_B3_poznej', 'question').doc);
+		const card = groupsOf(after).get('L1_B3_poznej')!;
+		expect(card.map((b) => b.steps.map((s) => s.id))).toEqual([['s1', 's2'], ['s3'], ['s4', 's5']]);
+		expect(card.map((b) => b.type)).toEqual(['question', 'display', 'question']);
+		expect(card[0].steps[1].question!.options!.map((o) => o.go_to)).toEqual([card[2].block_id, card[1].block_id, 'L1_B2_casti']);
+		for (const block of after.blocks) {
+			if ((block as Record<string, unknown>)[TOGETHER_KEY] === true) continue;
+			expect(questionCount(block), block.block_id).toBeLessThanOrEqual(1);
+		}
+	});
+
+	it('re-splits a card when one of its blocks gains a question', () => {
+		const after = resplitChanged(doc, addStep(doc, 'L1_B4_cviceni_2', 'question').doc);
+		expect(groupsOf(after).get('L1_B4_cviceni')?.map(questionCount)).toEqual([1, 1, 1]);
+	});
+
+	it('leaves everything else alone', () => {
+		const edited = setField(doc, { blockId: 'L1_B1_uvod', stepId: 's1', field: 'content' }, 'Jinak').doc;
+		const after = resplitChanged(doc, edited);
+		expect(after.blocks.filter((b, i) => b !== doc.blocks[i]).map((b) => b.block_id)).toEqual(['L1_B1_uvod']);
+	});
+
+	it('keeps a block its author keeps together whole', () => {
+		const after = resplitChanged(doc, addStep(doc, 'L3_B3_mc', 'question').doc);
+		expect(questionCount(after.blocks.find((b) => b.block_id === 'L3_B3_mc')!)).toBe(3);
 	});
 });
 

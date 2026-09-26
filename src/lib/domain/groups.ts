@@ -515,11 +515,20 @@ export function splitQuestionCards(
 	return { doc: fromView(base, view, edited, reserved), split, keptTogether };
 }
 
-/** Whether any answer in the block jumps to one of the block's own steps. */
+/**
+ * Whether the block's flow depends on its questions being one block: an answer jumps
+ * to one of the block's own steps, or ends the block (`END`) before its last
+ * question — split, that would end only its own question.
+ */
 export function branchesInside(block: BlockV2): boolean {
 	const ids = new Set(block.steps.map((s) => s.id));
+	const last = block.steps.filter(isQuestion).at(-1);
 	return block.steps.some((step) =>
-		(step.question?.options ?? []).some((o) => typeof o.go_to === 'string' && ids.has(o.go_to))
+		(step.question?.options ?? []).some(
+			(o) =>
+				typeof o.go_to === 'string' &&
+				(ids.has(o.go_to) || (o.go_to === 'END' && step !== last))
+		)
 	);
 }
 
@@ -557,6 +566,33 @@ export function mergeQuestionCard(doc: CourseV2, key: string): CourseV2 {
 		return { ...lesson, blocks: renumber(bindings, lesson.blocks) };
 	});
 	return { ...doc, blocks, lessons };
+}
+
+/**
+ * After an edit made on the document itself (the advanced mode edits it directly),
+ * write every card the edit touched back through the view, so a question added to a
+ * block becomes its own block there too. Blocks kept together are left whole.
+ * Untouched cards are not looked at.
+ */
+export function resplitChanged(before: CourseV2, after: CourseV2, reserved?: Reservations): CourseV2 {
+	if (after === before || after.blocks === before.blocks) return after;
+	const old = new Set(before.blocks);
+	const touched = new Set<string>();
+	for (const block of after.blocks) {
+		if (old.has(block)) continue;
+		touched.add(groupOf(block) ?? block.block_id);
+	}
+	if (touched.size === 0) return after;
+	const view = toView(after);
+	const needs = view.blocks.some(
+		(card) => touched.has(card.block_id) && (membersOf(card) !== undefined || splits(card))
+	);
+	if (!needs) return after;
+	const edited = {
+		...view,
+		blocks: view.blocks.map((card) => (touched.has(card.block_id) ? { ...card } : card))
+	};
+	return fromView(after, view, edited, reserved);
 }
 
 /** The advanced toggle's other way: split a block kept together into its group. */
