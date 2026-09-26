@@ -88,8 +88,10 @@ npm run test:e2e # the flows of plan §7, in a real browser
 npm run check    # types
 ```
 
-The browser suite includes three tests that drive the real player. They skip
-themselves when the Flutter build is absent.
+The browser suite runs against the built editor, in two Playwright projects. `editor`
+tests the editor with a stand-in for the player. `player` (`e2e/preview*.spec.ts`)
+drives the real Flutter player through its accessibility layer, and skips when the
+Flutter build is absent. `AGENTS.md` → "Playwright" has the details.
 
 ## Layout
 

@@ -103,28 +103,47 @@ CI (`.github/workflows/ci.yml`) runs only `check` and `npm test`. The e2e suite 
 yours to run locally. If CI on `main` is red, fix it or say why before you push more.
 
 **Playwright:**
-- The suite starts its own dev server on port **5178** (`playwright.config.ts`).
-  It reuses one already running there, so a stale server on 5178 can make the tests
-  run against old code.
-- The preview suites (`preview.spec.ts`, `preview-image-proxy.spec.ts`) need the
-  Flutter web build and **skip without it**. A green run without the player hasn't
-  tested the preview. When you have changed anything in `src/lib/preview/`,
-  `vite-plugin-player.ts`, `scripts/inject-player-shim.mjs` or `routes/preview-image`,
-  run with the player and `REQUIRE_PLAYER=1` so a missing build fails loudly:
+- Two projects (`playwright.config.ts`). `editor` runs every suite about the editor
+  itself with a **fake player** (`e2e/fake-player.html`, switched in by
+  `e2e/fixtures.ts`), fully parallel. `player` runs `preview*.spec.ts` against the
+  real Flutter build, on **2 workers**: each page boots the whole player, and more at
+  once saturates the machine. Don't raise it to "speed things up". A new suite about
+  the preview is named `preview-….spec.ts`; everything else is in `editor`.
+- Suites import `test`, `expect` and the types from `./fixtures`, not from
+  `@playwright/test`, so the project decides which player they get.
+- The suite runs against the **built** editor (`vite build` + `vite preview`) on port
+  **5178**, and reuses a server already there, so a stale server on 5178 runs the
+  tests against old code. `E2E_DEV=1` uses the dev server instead, for a quick loop.
+  To run it several times without rebuilding, start `npm run build && npm run
+  preview -- --port 5178` yourself and stop it when you are done.
+- Without the Flutter build the `player` project **skips**, so a green run without
+  it hasn't tested the preview. When you have changed anything in
+  `src/lib/preview/`, `vite-plugin-player.ts`, `scripts/inject-player-shim.mjs` or
+  `routes/preview-image`, run with the player and `REQUIRE_PLAYER=1`, so a missing
+  build fails loudly:
   ```bash
   PLAYER_BUILD=../EDU-AI-asistent-APP/build/web REQUIRE_PLAYER=1 npm run test:e2e
   ```
-- `workers: 4` is deliberate: every page boots the Flutter/CanvasKit player. Don't
-  raise it to "speed things up", because that makes the suite flaky.
-- The full suite takes several minutes. Run it in the background and wait for it to
-  exit. Don't poll it with fixed sleeps.
-- Wait for `html[data-hydrated="true"]` before interacting. Handlers are client-only
-  and the SSR shell looks ready before it is.
+- The full suite takes about a minute once built. Run it in the background and wait
+  for it to exit. Don't poll it with fixed sleeps.
+- Open the page with `openEditor(page)` from `./fixtures`. It waits for
+  `html[data-hydrated="true"]` (handlers are client-only, and the SSR shell looks
+  ready before it is), and loads once more if the network dropped the first load
+  (OPEN-PROBLEMS 17), recording `load retried` on the test.
 - Tests find elements by their Czech accessible names (`getByRole('button', { name:
   'Stáhnout' })`). **When you change any visible label, `aria-label` or dialog title,
-  grep `e2e/` for the old text and update it in the same commit.**
-- The player draws to a canvas, so there's no DOM to assert inside the iframe. Preview
-  tests assert the postMessage contract instead.
+  grep `e2e/` for the old text and update it in the same commit.** That includes the
+  player's own labels (the fork's `app_strings.dart`, `action*`).
+- **Inside the player**, the preview keeps Flutter's accessibility layer on, so its
+  buttons, answer options and markers have roles and names too. Use the helpers in
+  `e2e/player.ts`: `button(page, name)` / `player(page)` to find a target, `press` to
+  click it with the real mouse (it scrolls the player first), `inspect` /
+  `waitForPlayer` to ask the player what it shows, and `recordMessages` for what went
+  between the two. Never click a guessed pixel, and never sleep: wait on `inspect`,
+  on a recorded message, or on the editor's DOM.
+- Step text in the player has no name in the accessibility layer (Markdown and LaTeX
+  are painted, not labelled). A test about text asserts on the message the click
+  sends, or on `inspect`, not on the text.
 
 ## Code conventions that are tested, not just preferred
 

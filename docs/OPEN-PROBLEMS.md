@@ -183,13 +183,22 @@ landing on a card whose field is not drawn — is what this replaced.
 (`CheckConnection: getaddrinfo() failed` in `dmesg`). Each time, Chrome aborts every
 request in flight with `net::ERR_NETWORK_CHANGED`, localhost included. A page caught
 mid-load never hydrates, and a player caught mid-boot never starts. The preview now
-retries a stalled player (DECISIONS Round 5). The e2e suite does not retry. A full run
-shows a few tests timing out on `data-hydrated` at page load, different ones each
-time. Run with `--retries=2` to tell those apart from real failures. Round 5's run:
-44 passed, 7 flaky, and 1 failed three times on page load, none of them on an
-assertion. The player still makes requests to other origins while it runs (Google
-Fonts, `accounts.google.com`). They do not block its boot, but they are app-side
-(fonts via `google_fonts`, Google Sign-In's client).
+retries a stalled player (DECISIONS Round 5).
+
+**Mitigated in the e2e suite (Round 6), not fixed.** During a run on 2026-09-26 the
+drops came every 10 to 30 seconds. Most suites no longer load the Flutter player at
+all, the suite runs against the built editor, and a page load that neither hydrated
+nor came back within 15 s is loaded once more (`openEditor` in `e2e/fixtures.ts`).
+That retry is recorded on the test as `load retried`, and a page that fails twice
+still fails. Before, on `main` at `cde6f33`, one run without retries: 49 passed,
+3 failed, all on `data-hydrated` at page load, in 3 min 25 s. After: 53 of 53 in
+1 min 24 s including the build, and 159 of 159 with `--repeat-each=3`. The drops
+themselves are this machine's, and a load retry cannot help a test that is caught
+mid-assertion, so a flaky test here is still possible.
+
+The player still makes requests to other origins while it runs (Google Fonts,
+`accounts.google.com`). They do not block its boot, but they are app-side (fonts via
+`google_fonts`, Google Sign-In's client).
 
 ### 11. Folding is remembered for the session only
 **By design for now.** `StepView` lives as long as the page. A reload opens every step

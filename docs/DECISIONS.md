@@ -1132,6 +1132,63 @@ Fork commits `f90a384`, `8ec5352` and `2ea48b4`, pinned by `PLAYER_REF`.
 
 ---
 
+## Round 6 — a preview the tests can see into
+
+The owner: problems with the preview were slow and complicated to fix. Looking at what
+recent agents ran into, the loop was the problem as much as any bug. The browser tests
+could not see inside the canvas, so they clicked guessed pixels with fixed sleeps.
+Every page of every suite booted the whole Flutter app in its iframe. And the suite
+ran on a cold dev server, on a machine that drops its network every few seconds
+(OPEN-PROBLEMS 17). A red run said little about the code. The goal is a preview that
+stays the real Flutter render, with a test loop that says what is wrong.
+
+**The preview keeps Flutter's accessibility layer on.** The owner's choice: always, not
+only for tests. `PreviewPage` holds `ensureSemantics()`, so the frame holds an
+invisible element with a role and a name for every answer option, marker and button.
+Tests find a target by name and click it with the real mouse at its box, so the click
+still goes through Flutter's hit-testing. Nothing is painted differently. *Rejected:*
+a test-only "tap this ref" message. It would skip the hit-testing that the preview's
+click-to-edit depends on. *Rejected:* on only when a test asks. That is a second
+configuration of the player to keep working, and a screen reader is served by it too.
+
+**The card's icons have names.** The bookmark, thumbs, "?" and the round button were
+bare icons with nothing for a screen reader or a test to find. The owner chose to name
+them in the app's own `block_action_buttons.dart` (a file the fork created). The
+student's app gets the names too. Upstream's inline buttons need the same labels when
+it is merged (the fork's README says so). *Rejected:* finding them by position in the
+row, which breaks on the next icon added.
+
+**The player answers `inspect`.** The reply, `inspected`, says what is on screen: the
+view, whether it shows a card, a lesson, the placeholder or an error, the card, the
+step, the steps shown and whether back is possible. It comes after the next painted
+frame, so it also means "everything sent before this is showing". Tests wait on it
+instead of sleeping. It reports state the page already holds; the editor ignores it.
+
+**Most suites get a fake player.** `e2e/fake-player.html` speaks the smallest part of
+the contract. It announces itself, keeps what it is sent and answers `inspect`. The
+`editor` project uses it, fully parallel, and the `player` project runs
+`preview*.spec.ts` against the real build on two workers. So only the suites about the
+preview prove the preview. One new test covers the case the others do not: the real
+player on a plain page open, with nothing imported. *Rejected:* keeping the real
+player everywhere. 41 suites paid a Flutter boot to test nothing about it.
+
+**The suite runs against the built editor.** `vite preview` serves the player the same
+way the dev server does (`vite-plugin-player.ts`). A cold dev server compiles every
+module on the first load, which gave a dropped connection a long window. `E2E_DEV=1`
+keeps the dev server for a quick loop.
+
+**A dropped page load is loaded once more, and says so.** `openEditor` loads the page
+again when the first load has neither hydrated nor come back within 15 s, and records
+`load retried` on the test. *Rejected:* `retries: 2` for the whole suite, which would
+also retry a real assertion failure until it passed by chance.
+
+Measured on this machine: `main` before this, one run without retries, 49 of 52 passed
+in 3 min 25 s, with all three failures at page load. After, 53 of 53 in 1 min 24 s
+including the build, and 159 of 159 with `--repeat-each=3`. The `editor` project takes
+22 s. Fork commit `06662c2`, pinned by `PLAYER_REF`.
+
+---
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today
