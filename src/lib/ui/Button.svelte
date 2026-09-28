@@ -26,6 +26,8 @@
         title?: string;
         /** Set when the visible text is a glyph — the accessible name must be a word. */
         ariaLabel?: string;
+        /** For a toggle button: the on/off state, rendered as `aria-pressed`. */
+        pressed?: boolean;
         onclick?: (event: MouseEvent) => void;
         /** Extra classes for the button itself (the menu trigger uses this). */
         class?: string;
@@ -38,6 +40,7 @@
         disabled = false,
         title,
         ariaLabel,
+        pressed,
         onclick,
         class: extraClass = "",
         children,
@@ -52,6 +55,7 @@
     {disabled}
     {title}
     aria-label={ariaLabel}
+    aria-pressed={pressed ?? undefined}
     {onclick}>
     {@render children()}
 </button>
