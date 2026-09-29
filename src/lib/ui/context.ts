@@ -17,3 +17,11 @@ const VERSIONS = Symbol('edu-editor-versions');
 
 export const setVersions = (versions: VersionStore) => setContext(VERSIONS, versions);
 export const useVersions = (): VersionStore => getContext(VERSIONS);
+
+const MENU = Symbol('edu-editor-menu');
+
+/** What a `MenuItem` may ask of the `Menu` it sits in. */
+export type MenuContext = { close: () => void };
+
+export const setMenu = (menu: MenuContext) => setContext(MENU, menu);
+export const useMenu = (): MenuContext => getContext(MENU);

@@ -1,4 +1,6 @@
 <script lang="ts">
+    import type { HTMLButtonAttributes } from "svelte/elements";
+
     /**
      * Every button in the editor, so that "how loud is this?" is a decision made once.
      *
@@ -16,7 +18,7 @@
      *  - `danger-solid` the same act, confirmed: the red is already there, because a
      *    dialog that exists to ask "are you sure" must not hide its answer.
      */
-    interface Props {
+    interface Props extends Omit<HTMLButtonAttributes, "class" | "children"> {
         variant?: "primary" | "secondary" | "ghost" | "danger" | "danger-solid";
         size?: "s" | "m";
         type?: "button" | "submit";
@@ -25,6 +27,8 @@
         /** Set when the visible text is a glyph — the accessible name must be a word. */
         ariaLabel?: string;
         onclick?: (event: MouseEvent) => void;
+        /** Extra classes for the button itself (the menu trigger uses this). */
+        class?: string;
         children: import("svelte").Snippet;
     }
     let {
@@ -35,13 +39,16 @@
         title,
         ariaLabel,
         onclick,
+        class: extraClass = "",
         children,
+        ...rest
     }: Props = $props();
 </script>
 
 <button
+    {...rest}
     {type}
-    class="btn {variant} {size}"
+    class="btn {variant} {size} {extraClass}"
     {disabled}
     {title}
     aria-label={ariaLabel}
