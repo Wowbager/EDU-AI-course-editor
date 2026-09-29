@@ -92,6 +92,28 @@ test('teacher mode hides nothing behind a disclosure', async ({ page }) => {
 	await expect(page.getByRole('dialog')).toContainText('Podrobná pomoc');
 });
 
+test('the practice switch agrees with the Opakování chip, and off means off', async ({ page }) => {
+	// The second card is in practice through the flag on its one step, not its own.
+	await importCourse(page, 'spec-16-course.json');
+	await page.getByRole('radio', { name: 'Metodik' }).click();
+	await page.locator('.tree-card').nth(1).click();
+	const chip = page.locator('main .card header').getByText('Opakování', { exact: true });
+	await expect(chip).toBeVisible();
+
+	await page.getByRole('button', { name: 'Nastavení karty' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Nastavení karty' });
+	const practice = dialog.getByRole('checkbox', { name: /^Zařadit do cvičení/ });
+	await expect(practice).toBeChecked();
+	// The box itself is drawn as a track; the label is what a teacher clicks.
+	const label = dialog.locator('label.toggle').filter({ hasText: 'Zařadit do cvičení' });
+	await label.click();
+	await expect(chip).toBeHidden();
+	await expect(practice).not.toBeChecked();
+	await label.click();
+	await expect(chip).toBeVisible();
+	await expect(practice).toBeChecked();
+});
+
 test('the settings panels are real dialogs', async ({ page }) => {
 	await importCourse(page, 'spec-16-course.json');
 

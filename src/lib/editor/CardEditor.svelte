@@ -50,6 +50,7 @@
     import {
         blockDurationMinutes,
         derivedBlockXp,
+        bindingFlagsPractice,
         effectiveBlockXp,
         isPracticeBlock,
     } from "$lib/domain/derive";
@@ -330,7 +331,7 @@
             {cardTypeLabel(block.type)}
         </Chip>
 
-        {#if isPracticeBlock(block, binding?.default_practice === true)}
+        {#if isPracticeBlock(block, bindingFlagsPractice(doc, block.block_id))}
             <!--
 				This chip is the practice queue, not the card's type — and on a card of
 				type Cvičení the two chips sat next to each other reading the same word.
