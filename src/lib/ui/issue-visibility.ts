@@ -73,6 +73,7 @@ export const TIMING: Record<string, Timing> = {
 	W_UNREACHABLE_STEP: 'review',
 	W_NO_WRONG_OPTION_FEEDBACK: 'review',
 	W_PARTIAL_CREDIT_ON_WRONG: 'review',
+	W_OPTION_OUTCOMES_IGNORED: 'review',
 	W_IMAGE_NO_ALT: 'review',
 	W_TOO_MANY_STRONG_RELATIONS: 'review',
 	W_RELATION_VECTOR_ALL_ZERO: 'review',

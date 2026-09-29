@@ -211,26 +211,56 @@
     /**
      * A press on a step's handle, before the library has measured anything: fold
      * every step now, so the list it measures — and the gap it leaves for the
-     * carried step — is the short one. Folding moves the handle, so the column is
-     * scrolled by the same amount to keep it under the pointer; otherwise the step
-     * would be picked up from wherever it landed.
+     * carried step — is the short one. The library records the pointer where it was
+     * pressed, but builds the clone from the handle's rect at the first move, so the
+     * handle has to end up where it was pressed, or the step stays offset from the
+     * pointer for the whole drag (and the drop follows the clone, not the pointer).
+     *
+     * Folding moves the handle up by whatever the folded steps above it gave back.
+     * The column is scrolled by the same amount, with three things done first:
+     *  - the scrolling column is found before the fold, while it still overflows;
+     *  - the list is pinned to its height, so the column keeps its scroll height and
+     *    the browser cannot clamp `scrollTop` down under a shorter list;
+     *  - whatever the scroll could not give back (`scrollTop` cannot go below 0) is
+     *    padded on top of the list. That gap is cleared on drop, or on release.
      */
     async function grab(handle: HTMLElement) {
         if (document.activeElement instanceof HTMLElement)
             document.activeElement.blur();
+        const zone = handle.closest<HTMLElement>(".steps");
+        const scroller = scrollParent(handle);
         const before = handle.getBoundingClientRect().top;
+        if (zone !== null) {
+            zone.style.minHeight = `${zone.getBoundingClientRect().height}px`;
+            zone.style.paddingTop = "";
+        }
         stepView.dragging = true;
         await tick();
         const shift = handle.getBoundingClientRect().top - before;
-        if (shift !== 0) scrollParent(handle)?.scrollBy({ top: shift });
+        if (shift !== 0) scroller?.scrollBy({ top: shift, behavior: "instant" });
+        const rest = handle.getBoundingClientRect().top - before;
+        if (rest < -0.5 && zone !== null)
+            zone.style.paddingTop = `${-rest}px`;
+        zoneOf = zone;
         // A press that never became a drag gets no `finalize`.
         const release = () => {
             window.removeEventListener("pointerup", release);
             window.removeEventListener("keyup", release);
-            if (dragging === null) stepView.dragging = false;
+            if (dragging === null) {
+                stepView.dragging = false;
+                unpinSteps();
+            }
         };
         window.addEventListener("pointerup", release);
         window.addEventListener("keyup", release);
+    }
+
+    /** The list `grab` pinned and padded, until the drop or release clears it. */
+    let zoneOf: HTMLElement | null = null;
+    function unpinSteps() {
+        zoneOf?.style.removeProperty("min-height");
+        zoneOf?.style.removeProperty("padding-top");
+        zoneOf = null;
     }
 
     function scrollParent(node: HTMLElement): HTMLElement | null {
@@ -254,6 +284,8 @@
         dragging = null;
         carried = null;
         stepView.dragging = false;
+        // After the library's own unlock, which put the pinned min-height back.
+        unpinSteps();
         store.apply((d) =>
             reorderSteps(
                 d,

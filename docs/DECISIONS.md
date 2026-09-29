@@ -858,7 +858,9 @@ components.
   instead of scrolling to a header whose field was not rendered.
 - Steps move by a grip handle. The press folds every step *before* the library
   measures the list, and scrolls the column by however far the handle moved, so the
-  step is picked up from under the pointer. *Rejected:* folding on the first
+  step is picked up from under the pointer (Round 9 made that hold at the top and
+  bottom of the column too, see "The handle goes back under the pointer").
+  *Rejected:* folding on the first
   `consider` — by then `preventShrinking` has fixed the zone's height and the clone
   has been sized to the old placeholder. *Rejected:* keeping the whole row as the
   handle — a press on a chevron and 3 px of movement started a drag.
@@ -1611,6 +1613,83 @@ name the card has when left empty ("Karta 2"), and in 20 px heavy italic it read
 half-written content. `FocusField` takes `placeholderKind="stand-in"` for it: upright
 and quieter. Invitations to write ("Napiš odpověď…") stay italic. The question prompt
 placeholder lost its full stop and the text step's its `$LaTeX$` jargon.
+
+### The handle goes back under the pointer
+
+A press on a step's grip folds every step, and the grip moves up by what the folded
+steps above it gave back. `svelte-dnd-action` measures the pointer from where it was
+*pressed* but builds the clone from the grip's rect at the first move, so any grip that
+did not end up where it was pressed left the clone offset from the pointer for the whole
+drag, and the drop follows the clone. It failed three ways: near the top (`scrollTop`
+cannot go below 0, so the scroll `grab()` made fell short), near the bottom (the folded
+list is shorter, so the browser clamped `scrollTop` and moved the grip again) and with
+the wrong scroller (`scrollParent()` ran after the fold, when a short list no longer
+overflowed, and picked the document).
+
+`CardEditor.grab()` now, before the fold, finds the scrolling column, records the grip's
+top and pins `.steps` to its current height; after the fold it scrolls by the shift and,
+if the scroll fell short, pads the top of `.steps` by what is left. Both inline styles
+are cleared on drop (`onfinalize`, after the library's own min-height restore) and on a
+release that never became a drag. Three e2e tests in `step-list.spec.ts` (column at the
+top, column at the bottom, and the placeholder index a drag lands on) fail on the old
+code and pass on the new.
+
+*Rejected:* padding instead of scrolling, always: the list would start with a gap
+whenever a drag begins, even where the scroll would have done. *Rejected:* the
+library's `centreDraggedOnCursor`, which centres the clone on the pointer: it hides the
+symptom by moving the element under the cursor, but it also moves it *horizontally*, so
+the step would jump sideways out of its column on every drag, and it does nothing for
+where the drop lands. *Rejected:* `useCursorForDetection`, which is the right idea —
+detect by the cursor, not the clone's centre — but it is global to the zone and changes
+the hit test for narrow steps that were landing correctly, so the compensation stays a
+local fix in `grab()`. *Rejected:* moving the
+library's recorded pointer start: it is private to the dragged-element helper, and
+patching a dependency is not ours to ship.
+
+### Errors about the answer list are said under the answer table
+
+`E_MC_TOO_FEW_OPTIONS` and `E_MC_NO_CORRECT` point at `question.options`, which no field
+drew, so they showed only in the topbar count and the panel. `AnswerTable` now prints
+whatever `store.issuesAt({..., field: 'question.options'})` returns under the rows, with
+the ordinary timing (an error once the card is left, a warning after a review). The
+trash of an answer is disabled at `MIN_CHOICE_OPTIONS` (2, the number the check uses —
+exported from `validate.ts` so the title and the check can never disagree) with a title
+that says why. Its accessible name is unchanged.
+*Rejected:* letting the last answers go and shouting about it afterwards; a teacher
+who has deleted the second answer meant to type another.
+
+### A question with several picks has no "Kam dál" and no grade
+
+The app reads an answer's `go_to` and `mark` only in the single-select branch of
+`BlockStepEngine._confirmAnswer` (`block_step_engine.dart:620-633`). The `allowMultiple`
+branch (`:597-601`) judges the whole set and reads neither, `_continueAfterSolution`
+follows `selectedOptionId` only (`:735-747`), and `QuizPage._checkAnswer`
+(`quiz_page.dart:499-525`) reads no outcome on an option at all. So
+`optionOutcomesApply(question)` (`domain/derive.ts`, tested) is false for "víc správných
+možností", and `AnswerTable` drops the two columns. `validate()` says
+`W_OPTION_OUTCOMES_IGNORED` (review timing) when such a question still carries values:
+they stay in the document, since the author may switch the option off again, but the
+columns that would let the author clear them are gone, so the warning says they are not used.
+*Rejected:* deleting the values when the switch turns on: a mis-click would cost the
+whole branching. *Rejected:* keeping the columns and only warning: the table would offer
+a choice that does nothing.
+
+### A calmer answer table
+
+- The trash of an answer is a ghost button: it appears on the row's hover or
+  `:focus-within` (so a keyboard reaches it), is red only under the pointer, and is
+  always there on a screen without hover.
+- Right and wrong are the shape of a radio button (circle), or of a checkbox (rounded
+  square) where several answers may be picked, empty for wrong and filled with a tick
+  for right. The table now shows the kind of question, and nothing beside the trash
+  reads as "remove" (the X did). The buttons keep their names (`Správná odpověď: …`,
+  `aria-pressed`).
+- The heading row is dropped when "Odpověď" would be its only label, and so is the
+  same label the narrow layout puts above the field.
+- The "several picks" switch takes its label ("Víc správných možností") and its hint from
+  `fieldSpec('question', 'allow_multiple')`, so the text is in `fields.ts` once, and the
+  hint shows only while the switch is on. The old hand-written label ("Žák může vybrat víc
+  možností") is gone.
 
 ---
 

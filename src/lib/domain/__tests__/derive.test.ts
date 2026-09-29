@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { BlockV2 } from '../schema';
-import { blockPreview, derivedBlockName, mediaFileName, stepSummary } from '../derive';
+import { blockPreview, derivedBlockName, mediaFileName, optionOutcomesApply, stepSummary } from '../derive';
 
 const block = (over: Partial<BlockV2> = {}): BlockV2 => ({
 	block_id: 'B1',
@@ -158,5 +158,28 @@ describe('the line a folded step shows', () => {
 		expect(mediaFileName('obrazky/list.png')).toBe('list.png');
 		expect(mediaFileName('https://example.org/')).toBe('example.org');
 		expect(mediaFileName('https://example.org/%E0%A4%A.png')).toBe('%E0%A4%A.png');
+	});
+});
+
+describe('when an answer’s own outcome counts', () => {
+	// The app reads an option's go_to and mark only for a single pick
+	// (block_step_engine.dart:620-633); the rule is in derive.ts.
+	it('counts for a single pick and a yes/no question', () => {
+		expect(optionOutcomesApply({ type: 'multiple_choice' })).toBe(true);
+		expect(optionOutcomesApply({ type: 'multiple_choice', allow_multiple: false })).toBe(true);
+		expect(optionOutcomesApply({ type: 'true_false' })).toBe(true);
+	});
+
+	it('does not count when the pupil may pick several', () => {
+		expect(optionOutcomesApply({ type: 'multiple_choice', allow_multiple: true })).toBe(false);
+	});
+
+	it('does not count for a question with nothing to pick', () => {
+		expect(optionOutcomesApply({ type: 'open' })).toBe(false);
+		expect(optionOutcomesApply({ type: 'numeric' })).toBe(false);
+	});
+
+	it('leaves a step with no question alone', () => {
+		expect(optionOutcomesApply(undefined)).toBe(true);
 	});
 });

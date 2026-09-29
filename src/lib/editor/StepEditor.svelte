@@ -168,6 +168,7 @@
 
     const hintSpec = fieldSpec("step", "hint");
     const helpSpec = fieldSpec("step", "help");
+    const multipleSpec = fieldSpec("question", "allow_multiple");
 
     /**
      * Whether the app's question mark can ever open this step's hint. A question or
@@ -781,8 +782,10 @@
                     <AnswerTable {doc} {block} {step} />
                     {#if step.question?.type === "multiple_choice"}
                         <Toggle
-                            label="Žák může vybrat víc možností"
-                            hint="Hodnotí se přesná shoda celé sady — za částečně správný výběr nejsou body."
+                            label={multipleSpec?.label ?? "Víc správných možností"}
+                            hint={step.question.allow_multiple === true
+                                ? multipleSpec?.hint
+                                : undefined}
                             checked={step.question.allow_multiple === true}
                             onchange={(v) =>
                                 set(

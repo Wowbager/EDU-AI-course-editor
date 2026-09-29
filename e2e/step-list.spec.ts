@@ -171,3 +171,78 @@ test('a step can be inserted between two others', async ({ page }) => {
 	await expect(list.nth(1).getByText(' · Text')).toBeVisible();
 	await expect(list.nth(2).getByText(' · Otázka')).toBeVisible();
 });
+
+/**
+ * Pressing a handle folds every step, which moves the handle. `grab` scrolls the
+ * column back by the shift; where that scroll cannot happen (the column is at its top,
+ * or has shrunk under the bottom) the step used to be picked up from wherever it
+ * landed, and stayed offset from the pointer for the whole drag.
+ */
+const column = (page: Page) => page.locator('main.editor');
+
+/** A card of one text step and `questions` question steps, which are tall while open. */
+async function openTallCard(page: Page, questions: number) {
+	for (let i = 0; i < questions; i++) await addStep(page, 'Otázka');
+	await expect(steps(page)).toHaveCount(questions + 1);
+	// Every step's text says which one it is, so a reorder can be told from the outside.
+	for (let i = 0; i <= questions; i++) {
+		await steps(page).nth(i).locator('.cm-content').first().click();
+		await page.keyboard.type(`krok-${i + 1}`);
+	}
+	await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+}
+
+const order = (page: Page) =>
+	steps(page).evaluateAll((els) => els.map((el) => /krok-\d+/.exec(el.textContent ?? '')?.[0]));
+
+/** Whether the pointer is inside the carried step's box, and by how much it is not. */
+async function pointerMissesClone(page: Page, y: number) {
+	const clone = page.locator('#dnd-action-dragged-el');
+	await expect(clone).toBeVisible();
+	const box = (await clone.boundingBox())!;
+	return Math.max(box.y - y, y - (box.y + box.height), 0);
+}
+
+test('a step grabbed under tall steps, with the column at its top, is under the pointer', async ({ page }) => {
+	await openTallCard(page, 3);
+	await column(page).evaluate((el) => (el.scrollTop = 0));
+	const from = await press(page, 3);
+	await page.mouse.move(from.x, from.y + 20, { steps: 4 });
+	expect(await pointerMissesClone(page, from.y + 20)).toBe(0);
+
+	// Put back where it was picked up, it stays put: the drop follows the pointer.
+	await page.mouse.move(from.x, from.y, { steps: 4 });
+	await page.mouse.up();
+	await expect.poll(() => order(page)).toEqual(['krok-1', 'krok-2', 'krok-3', 'krok-4']);
+});
+
+const placeholderIndex = (page: Page) =>
+	page
+		.locator('main .steps > *')
+		.evaluateAll((els) => els.findIndex((el) => el.hasAttribute('data-is-dnd-shadow-item-internal') || el.hasAttribute('data-is-dnd-shadow-item-hint')));
+
+test('a step grabbed under tall steps drops where the pointer is', async ({ page }) => {
+	await openTallCard(page, 3);
+	await column(page).evaluate((el) => (el.scrollTop = 0));
+	const from = await press(page, 3);
+	await page.mouse.move(from.x, from.y + 20, { steps: 4 });
+	// The list is folded now: step 2 is a short row, and the pointer goes to its middle.
+	const second = (await steps(page).nth(1).boundingBox())!;
+	await page.mouse.move(from.x, second.y + second.height / 2, { steps: 8 });
+	// The gap follows the carried step's centre; it is where the step will land.
+	await expect.poll(() => placeholderIndex(page)).toBe(1);
+	await page.mouse.up();
+	await expect.poll(() => order(page)).toEqual(['krok-1', 'krok-3', 'krok-2', 'krok-4']);
+});
+
+test('the last step grabbed with the column scrolled to the bottom is under the pointer', async ({ page }) => {
+	await openTallCard(page, 4);
+	await column(page).evaluate((el) => (el.scrollTop = el.scrollHeight));
+	const from = await press(page, 5);
+	await page.mouse.move(from.x, from.y + 20, { steps: 4 });
+	expect(await pointerMissesClone(page, from.y + 20)).toBe(0);
+
+	await page.mouse.move(from.x, from.y, { steps: 4 });
+	await page.mouse.up();
+	await expect.poll(() => order(page)).toEqual(['krok-1', 'krok-2', 'krok-3', 'krok-4', 'krok-5']);
+});

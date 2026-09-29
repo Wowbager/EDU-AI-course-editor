@@ -20,7 +20,7 @@
 import type { BlockStep, BlockV2, CourseV2, QuestionConfig } from './schema';
 import type { Ref } from './ref';
 import { buildIndex, isGoToKeyword, reachableSteps, type DocIndex } from './index-doc';
-import { blockDurationMinutes, isPracticeBlock } from './derive';
+import { blockDurationMinutes, isPracticeBlock, optionOutcomesApply } from './derive';
 import { dimensionCount, ELO_MAX, ELO_MIN, type SkillConfig } from './skill-config';
 import { blockLabel, capitalize, lessonLabel, optionLabel, stepLabel, stepPosition } from './naming';
 
@@ -37,6 +37,13 @@ export interface ValidationResult {
 	errors: Issue[];
 	warnings: Issue[];
 }
+
+/**
+ * The fewest answers a multiple-choice question can have and still leave the pupil
+ * something to choose from (`E_MC_TOO_FEW_OPTIONS`). The answer table disables the
+ * trash of an answer at this number, so its title and this check can never disagree.
+ */
+export const MIN_CHOICE_OPTIONS = 2;
 
 export interface ValidateOptions {
 	/** The last published version, for the "not bumped" warning (§14 warning 1). */
@@ -203,6 +210,7 @@ function checkBlocks(doc: CourseV2, index: DocIndex, skillConfig: SkillConfig | 
 
 			checkGoToTargets(index, block, step, question, exerciseCourse, add);
 			checkFeedbackQuality(block, step, question, add);
+			checkIgnoredOutcomes(block, step, question, add);
 		}
 
 		checkEloOutlier(doc, block, courseEloMean, add);
@@ -336,7 +344,7 @@ function checkQuestionShape(block: BlockV2, step: BlockStep, question: QuestionC
 			break;
 		}
 		case 'multiple_choice': {
-			if (options.length < 2) {
+			if (options.length < MIN_CHOICE_OPTIONS) {
 				add('error', 'E_MC_TOO_FEW_OPTIONS', { ...ref, field: 'question.options' },
 					`Otázka v kroku ${position} má jen ${options.length} možnost(í). Žák nemá z čeho vybírat.`);
 			}
@@ -390,6 +398,24 @@ function checkGoToTargets(
 		add('error', 'E_GOTO_UNRESOLVED', ref,
 			`${optionName} v kroku ${position} vede na „${target}“, což není krok tohoto bloku ani blok v tomto kurzu. Žák, který ji zvolí, uvízne.`);
 	}
+}
+
+/**
+ * A question that takes several answers judges the whole set, so the "Kam dál" and the
+ * grade set on single answers are never used (`optionOutcomesApply`). They stay in the
+ * file — the author may switch the option back — which is why this only warns.
+ */
+function checkIgnoredOutcomes(block: BlockV2, step: BlockStep, question: QuestionConfig, add: Add) {
+	if (question.allow_multiple !== true || optionOutcomesApply(question)) return;
+	const options = question.options ?? [];
+	const branches = options.some((o) => typeof o.go_to === 'string' && o.go_to !== '');
+	const marks = options.some((o) => typeof o.mark === 'string' && o.mark !== '');
+	if (!branches && !marks) return;
+	const what = branches && marks ? 'větvení ani známka' : branches ? 'větvení' : 'známka';
+	const outcome = branches && marks ? 'Žák půjde vždy dál a známka se nezapočítá.' : branches ? 'Žák půjde vždy dál.' : 'Známka se nezapočítá.';
+	add('warning', 'W_OPTION_OUTCOMES_IGNORED',
+		{ blockId: block.block_id, stepId: step.id, field: 'question.allow_multiple' },
+		`Žák může v kroku ${stepPosition(block, step)} vybrat víc možností, a pak se u jednotlivých odpovědí nepoužije ${what}. ${outcome} Nastavení v kurzu zůstává, jen se nebere v úvahu.`);
 }
 
 function checkFeedbackQuality(block: BlockV2, step: BlockStep, question: QuestionConfig, add: Add) {
