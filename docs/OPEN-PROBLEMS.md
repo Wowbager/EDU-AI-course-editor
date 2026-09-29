@@ -85,13 +85,17 @@ editor will not, and uses `status: private` for "PIN only".
 purpose: that is the number the app shows a student (`course_model.dart` floors the
 estimate at five), and the editor's totals mirror the app's arithmetic.
 
-### 2. Dragging a card to reorder it only grabs on the text
-**Verified: no** — reported by a scripted author, traced by them to
-`svelte-dnd-action`'s nested-interactive-element guard combined with the row's `<li>`
-being pixel-identical to the `<button>` inside it. Not reproduced independently.
+### 2. ~~Dragging a card to reorder it only grabs on the text~~ — fixed (Round 8)
+**Reproduced: yes** (`e2e/tree.spec.ts`, which fails without the fix). The cause was as
+reported: `svelte-dnd-action` refuses to start a drag when the press lands on an element
+that has a `value` and is not the draggable itself, and every `<button>` has one. The
+card's row was a `<button>` inside the `<li>` the library drags, so a press on the
+button's padding did nothing and only a press on the text inside it (a `<span>`) grabbed.
 
-If it holds, it is the same class as the click-to-jump hit target fixed in the player
-this round: the affordance is the row, so the row should be the handle.
+The cards in the open lesson are now `<div role="button" tabindex="0">`; Enter and Space
+select them, and the library's own keyboard drag is off for them (`zoneItemTabIndex: -1`,
+and the key is claimed before the `<li>` sees it). The list of cards outside any lesson is
+not a drag zone and keeps real buttons.
 
 ### 3. ~~`block.status` is authored and read by nothing~~ — no longer offered (Round 4)
 New cards carry no status, the chip is gone, and no mode offers the field. Imported

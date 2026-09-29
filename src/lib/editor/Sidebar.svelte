@@ -124,13 +124,14 @@
     const openLesson = $derived(
         doc.lessons.find((l) => l.lesson_id === selectedLesson),
     );
-    const cards = $derived(
-        draggingCards ??
-            (openLesson?.blocks ?? []).map((binding, i) => ({
-                id: `${binding.block_id}#${i}`,
-                binding,
-            })),
-    );
+    // Keyed by the card's own id, so a card keeps its DOM (and its focus) when it
+    // moves; a duplicated id in a broken course still gets a distinct key.
+    const cards = $derived.by(() => {
+        if (draggingCards !== null) return draggingCards;
+        const bindings = openLesson?.blocks ?? [];
+        const keys = uniqueKeys(bindings.map((b) => b.block_id));
+        return bindings.map((binding, i) => ({ id: keys[i], binding }));
+    });
 
     function oncardConsider(event: CustomEvent<DndEvent<CardItem>>) {
         draggingCards = event.detail.items;
@@ -263,6 +264,9 @@
                                 flipDurationMs: 150,
                                 dropTargetStyle: {},
                                 type: "bindings",
+                                // The card inside is the one tab stop; the library's own
+                                // keyboard drag on the <li> would be a second, unlabelled one.
+                                zoneItemTabIndex: -1,
                             }}
                             onconsider={oncardConsider}
                             onfinalize={oncardFinalize}>
@@ -281,8 +285,16 @@
                                             block.block_id,
                                         )}
                                         {@const Icon = cardTypeIcon(block.type)}
-                                        <button
-                                            type="button"
+                                        <!--
+											A div, not a button: svelte-dnd-action refuses to start a
+											drag from an element that has a `value` (every button does)
+											unless the press lands on a child, so only the text used to
+											grab. Enter and Space select it, as they would a button.
+										-->
+                                        <!-- svelte-ignore a11y_click_events_have_key_events (the key handler is a capture one, which the check does not see) -->
+                                        <div
+                                            role="button"
+                                            tabindex="0"
                                             class="tree-card"
                                             class:selected={block.block_id ===
                                                 selectedBlock}
@@ -290,7 +302,23 @@
                                                 select(
                                                     lesson.lesson_id,
                                                     block.block_id,
-                                                )}>
+                                                )}
+                                            onkeydowncapture={(event) => {
+                                                if (
+                                                    event.key !== "Enter" &&
+                                                    event.key !== " "
+                                                )
+                                                    return;
+                                                // Not the library's keyboard drag, which the <li> would
+                                                // start. Capture, because Svelte delegates a plain onkeydown
+                                                // to the root, after the <li>'s own listener has run.
+                                                event.preventDefault();
+                                                event.stopPropagation();
+                                                select(
+                                                    lesson.lesson_id,
+                                                    block.block_id,
+                                                );
+                                            }}>
                                             <span class="type">
                                                 <Icon size={16}></Icon>
                                             </span>
@@ -315,7 +343,7 @@
                                                 <Chip tone="error"
                                                     >{cardErrors}</Chip>
                                             {/if}
-                                        </button>
+                                        </div>
                                     {/if}
                                 </li>
                             {/each}
