@@ -383,12 +383,17 @@
         if (event.defaultPrevented) return;
         const meta = event.metaKey || event.ctrlKey;
         if (!meta) return;
+        // AltGr arrives as Ctrl+Alt on Czech keyboards; it types characters, not commands.
+        if (event.altKey) return;
         if (event.key === "z" && !event.shiftKey) {
             event.preventDefault();
             store.undo();
         } else if ((event.key === "z" && event.shiftKey) || event.key === "y") {
             event.preventDefault();
             store.redo();
+        } else if (event.key.toLowerCase() === "b" && !event.shiftKey) {
+            event.preventDefault();
+            sidebarCollapsed = !sidebarCollapsed;
         }
     }
 </script>

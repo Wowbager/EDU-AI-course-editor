@@ -190,7 +190,10 @@
         type="button"
         class="rail-toggle"
         onclick={ontoggle}
-        title={collapsed ? "Rozbalit" : "Sbalit"}>
+        aria-label={collapsed ? "Rozbalit panel lekcí" : "Sbalit panel lekcí"}
+        title={collapsed
+            ? "Rozbalit panel lekcí (Ctrl+B)"
+            : "Sbalit panel lekcí (Ctrl+B)"}>
         {#if collapsed}
             <ChevronRight size={16}></ChevronRight>
         {:else}
