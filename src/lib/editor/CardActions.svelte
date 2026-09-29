@@ -203,6 +203,16 @@
 		gap: 4px;
 	}
 
+	/* In a tree row the buttons stay in the right half, so the middle of the row is
+	   still the card: a click there selects it, however the pointer got there. */
+	.small .row {
+		gap: 2px;
+	}
+
+	.small .rule {
+		margin: 0 2px;
+	}
+
 	.action {
 		display: flex;
 		flex: none;

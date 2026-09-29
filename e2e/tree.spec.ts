@@ -112,3 +112,76 @@ test('Alt+ArrowUp on the first card changes nothing and is not an edit', async (
 	expect(await order(page)).toEqual(before);
 	await expect(undo).toBeDisabled();
 });
+
+/** A row's four actions are its own siblings, faded in on hover and on the selected row. */
+const actionsOf = (page: Page, position: number) => page.locator('.cards > li').nth(position - 1).locator('.tree-actions');
+
+test('a row shows its four actions on hover and on the selected row, and only there', async ({ page }) => {
+	await expect(actionsOf(page, 1)).toHaveCSS('opacity', '1');
+	await expect(actionsOf(page, 2)).toHaveCSS('opacity', '0');
+	await cards(page).nth(1).hover();
+	await expect(actionsOf(page, 2)).toHaveCSS('opacity', '1');
+	const row = actionsOf(page, 2);
+	for (const name of ['Nastavení 2. karty', 'Duplikovat 2. kartu', 'Odebrat 2. kartu z lekce', 'Smazat 2. kartu']) {
+		await expect(row.getByRole('button', { name, exact: true })).toBeVisible();
+	}
+	// Not inside the row that is a button, so a press on one cannot grab the card.
+	await expect(cards(page).nth(1).getByRole('button')).toHaveCount(0);
+	await page.mouse.move(700, 400);
+	await expect(actionsOf(page, 2)).toHaveCSS('opacity', '0');
+});
+
+test('a row’s Duplikovat selects the copy, and its Smazat takes two clicks', async ({ page }) => {
+	const before = await order(page);
+	await cards(page).nth(2).hover();
+	await actionsOf(page, 3).getByRole('button', { name: 'Duplikovat 3. kartu' }).click();
+	await expect(cards(page)).toHaveCount(before.length + 1);
+	await expect(cards(page).nth(3)).toHaveClass(/selected/);
+
+	// The copy is the selected row: delete it, two clicks.
+	const row = actionsOf(page, 4);
+	await row.getByRole('button', { name: 'Smazat 4. kartu', exact: true }).click();
+	await expect(cards(page)).toHaveCount(before.length + 1);
+	await row.getByRole('button', { name: 'Opravdu smazat 4. kartu? Klikni znovu' }).click();
+	await expect(cards(page)).toHaveCount(before.length);
+	// The card before it is selected, and Vrátit zpět brings the copy back.
+	await expect(cards(page).nth(2)).toHaveClass(/selected/);
+	await page.getByRole('button', { name: 'Vrátit zpět', exact: true }).click();
+	await expect(cards(page)).toHaveCount(before.length + 1);
+	await expect(cards(page).nth(3)).toHaveClass(/selected/);
+});
+
+test('keyboard: → on a row goes into its actions, Enter on Nastavení opens the dialog, Escape comes back', async ({ page }) => {
+	await cards(page).nth(1).focus();
+	await page.keyboard.press('ArrowRight');
+	const settings = page.getByRole('button', { name: 'Nastavení 2. karty', exact: true });
+	await expect(settings).toBeFocused();
+	await expect(actionsOf(page, 2)).toHaveCSS('opacity', '1');
+	await page.keyboard.press('Escape');
+	await expect(cards(page).nth(1)).toBeFocused();
+	await page.keyboard.press('ArrowRight');
+	await page.keyboard.press('Enter');
+	await expect(page.getByRole('dialog', { name: 'Nastavení karty' })).toBeVisible();
+	await expect(cards(page).nth(1)).toHaveClass(/selected/);
+});
+
+test('a card is still grabbed by its padding while the pointer is on its row', async ({ page }) => {
+	const before = await order(page);
+	// Hovering the row fades the actions in over its right end; the left edge is still the card.
+	const box = (await cards(page).nth(1).boundingBox())!;
+	await page.mouse.move(box.x + 3, box.y + box.height / 2);
+	await expect(actionsOf(page, 2)).toHaveCSS('opacity', '1');
+	await page.mouse.down();
+	await page.mouse.move(box.x + 3, box.y + box.height / 2 + 12, { steps: 4 });
+	await page.mouse.move(box.x + 3, box.y - 4, { steps: 8 });
+	await expect
+		.poll(async () => {
+			await page.mouse.move(box.x + 3, box.y - 4);
+			return page
+				.locator('.cards > li')
+				.evaluateAll((items) => items.findIndex((li) => li.hasAttribute('data-is-dnd-shadow-item-internal')));
+		})
+		.toBe(0);
+	await page.mouse.up();
+	await expect.poll(() => order(page)).toEqual([before[1], before[0], ...before.slice(2)]);
+});
