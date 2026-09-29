@@ -1447,6 +1447,21 @@ back after the DOM has moved it. *Rejected:* the library's own keyboard drag (pi
 arrows, drop): two more keys to learn and a mode to be stuck in, when one chord does the
 one thing a teacher wants, and the drag's aria announcements are the library's English.
 
+### The folded lesson panel is a rail of circles and tiles, not a smaller tree
+
+64px wide (`--e-sidebar-rail`, `SidebarRail.svelte`): a circle per lesson (its name, card
+count, minutes and XP in the tooltip, an error dot from the same `errorsIn` the tree
+uses) and, under the open lesson, a tile per card (type icon and position, its name and
+error count as the accessible name, never an id). A tile is a drag item like the tree's
+row, moves with Alt+Arrow, and has a gear beside it (not inside: a button in a button)
+that opens the card's settings; "Přidat kartu" is a `Menu` of the three card types.
+The gears are drawn with `opacity`, so a keyboard reaches them as a mouse does; only the
+selected tile's is a tab stop. The card zone's state stays in `Sidebar` and is handed
+down, so a card is reordered by the same code from either. *Rejected:* a rail of
+lesson numbers only (what it was): it left the teacher one click from every card, and the
+rail is exactly where a lesson is worked on with the editor column wide. *Rejected:*
+a second copy of the drag handlers in the rail: two reorder paths to keep equal.
+
 ### The preview folds to a rail, and the player stays mounted, whole and running
 
 Folded, the column is `--e-preview-rail` wide and the player is *clipped*, not touched:
