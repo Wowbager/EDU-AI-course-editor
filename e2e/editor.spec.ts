@@ -92,6 +92,25 @@ test('teacher mode hides nothing behind a disclosure', async ({ page }) => {
 	await expect(page.getByRole('dialog')).toContainText('Podrobná pomoc');
 });
 
+test('a type change that loses answers says Zpět brings them back, even from another card', async ({ page }) => {
+	await page.locator('.tree-add').getByRole('button', { name: 'Otázka', exact: true }).click();
+	const answer = page.locator('.answers').getByRole('textbox', { name: 'Text odpovědi' }).first();
+	await answer.fill('Čitatel je 5');
+	await page.getByRole('radio', { name: 'Otevřená odpověď' }).click();
+
+	const dialog = page.getByRole('dialog', { name: 'Změnit typ otázky?' });
+	await expect(dialog).toContainText('Zpět se dá vrátit tlačítkem Zpět v liště.');
+	// The promise is not limited to the card: undo is the course's.
+	await expect(dialog).not.toContainText('neopustíš');
+	await dialog.getByRole('button', { name: 'Přesto změnit' }).click();
+	await expect(dialog).toBeHidden();
+
+	await page.locator('.tree-card').first().click();
+	await expect(page.locator('.answers')).toHaveCount(0);
+	await page.getByRole('button', { name: 'Zpět', exact: true }).click();
+	await expect(answer).toHaveValue('Čitatel je 5');
+});
+
 test('the practice switch agrees with the Opakování chip, and off means off', async ({ page }) => {
 	// The second card is in practice through the flag on its one step, not its own.
 	await importCourse(page, 'spec-16-course.json');

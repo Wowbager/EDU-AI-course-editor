@@ -316,7 +316,7 @@
         if (loss.correctNumber !== undefined) {
             parts.push(`smaže zadaný správný výsledek ${loss.correctNumber}`);
         }
-        return `Tato změna ${parts.join(" a ")}. Zpět se dá vrátit tlačítkem Zpět v liště, ale jen dokud kartu neopustíš.`;
+        return `Tato změna ${parts.join(" a ")}. Zpět se dá vrátit tlačítkem Zpět v liště.`;
     }
 
     let pendingTypeChange = $state<{
