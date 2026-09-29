@@ -2,6 +2,8 @@
 
 Per plan §5, each milestone ends with a short written record of what was decided and
 why. Read this with `docs/spec/PLAN.md` and `docs/spec/COURSE-AUTHORING-SPEC.md`.
+This file records why the code is the way it is. It is not the design target: for what
+the UI should become, `DESIGN.md` wins.
 
 ---
 
