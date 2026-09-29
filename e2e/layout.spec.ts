@@ -46,6 +46,35 @@ test('AltGr+B (Ctrl+Alt+B) does not fold the panel', async ({ page }) => {
 	await expect(fold(page)).toBeVisible();
 });
 
+test('Ctrl+B while typing is left to the text, and Ctrl+Shift+B still works there', async ({ page }) => {
+	await openEditor(page);
+	await expect(fold(page)).toBeVisible();
+
+	// In a field and in the Markdown editor, where Ctrl+B means bold, the panel stays.
+	const name = page.getByRole('textbox', { name: 'Název kurzu', exact: true });
+	await name.click();
+	await page.keyboard.press('Control+b');
+	await expect(name).toBeFocused();
+	await expect(fold(page)).toBeVisible();
+	const text = page.locator('.cm-content').first();
+	await text.click();
+	await page.keyboard.press('Control+b');
+	await expect(text).toBeFocused();
+	await expect(fold(page)).toBeVisible();
+
+	// The preview shortcut has no meaning to a text, so it works from inside one.
+	await expect(hide(page)).toBeVisible();
+	await page.keyboard.press('Control+Shift+B');
+	await expect(show(page)).toBeVisible();
+	await page.keyboard.press('Control+Shift+B');
+	await expect(hide(page)).toBeVisible();
+
+	// Out of any text, Ctrl+B folds the panel as before.
+	await page.getByRole('heading', { level: 2, name: 'Lekce' }).click();
+	await page.keyboard.press('Control+b');
+	await expect(unfold(page)).toBeVisible();
+});
+
 test('another tab does not see a layout change as a conflicting edit', async ({ page, context }) => {
 	await openEditor(page);
 	// The first tab saves its new course once on open. Opening the second tab before

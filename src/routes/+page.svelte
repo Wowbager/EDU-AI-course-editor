@@ -394,11 +394,19 @@
             event.preventDefault();
             store.redo();
         } else if (event.key.toLowerCase() === "b") {
+            // Plain Ctrl+B is "bold" to anyone typing; only Ctrl+Shift+B is ours there.
+            if (!event.shiftKey && typing(event.target)) return;
             event.preventDefault();
             if (event.shiftKey) togglePreview();
             else sidebarCollapsed = !sidebarCollapsed;
         }
     }
+
+    /** Whether the keys go into a text: a field, a menu of choices, or the Markdown editor. */
+    const typing = (target: EventTarget | null) =>
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+            target.closest("input, textarea, select") !== null);
 </script>
 
 <svelte:window {onkeydown} />
