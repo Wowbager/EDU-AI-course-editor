@@ -29,6 +29,7 @@
     import PreviewColumn from "$lib/editor/PreviewColumn.svelte";
     import ValidationPanel from "$lib/editor/ValidationPanel.svelte";
     import RepairDialog from "$lib/editor/RepairDialog.svelte";
+    import Toast from "$lib/editor/Toast.svelte";
     import CourseSettings from "$lib/editor/CourseSettings.svelte";
     import LessonSettings from "$lib/editor/LessonSettings.svelte";
     import CardSettings from "$lib/editor/CardSettings.svelte";
@@ -578,6 +579,11 @@
             lessonId={lesson?.lesson_id}
             collapsed={previewCollapsed}
             ontoggle={togglePreview} />
+
+        <!-- Over the editor column, bottom left: where the eye is after clicking a card. -->
+        <div class="toast-slot" class:folded={sidebarCollapsed}>
+            <Toast />
+        </div>
     </div>
 
     {#if modal?.kind === "course"}
@@ -614,9 +620,27 @@
     }
 
     .columns {
+        position: relative;
         display: flex;
         flex: 1;
         min-height: 0;
+    }
+
+    .toast-slot {
+        position: absolute;
+        bottom: 16px;
+        left: calc(var(--e-sidebar-width) + 16px);
+        z-index: 5;
+        transition: left 0.5s;
+        pointer-events: none;
+    }
+
+    .toast-slot.folded {
+        left: calc(var(--e-sidebar-rail) + 16px);
+    }
+
+    .columns:not(.settled) .toast-slot {
+        transition: none;
     }
 
     /* A folded panel restored on load is already folded; it does not slide shut. */

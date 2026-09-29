@@ -33,7 +33,7 @@
     import Menu from "$lib/ui/Menu.svelte";
     import MenuItem from "$lib/ui/MenuItem.svelte";
     import MenuSeparator from "$lib/ui/MenuSeparator.svelte";
-    import type { UndoEntry } from "$lib/state/doc-store.svelte";
+    import { notices } from "$lib/state/notice.svelte";
     import type { Ref } from "$lib/domain/ref";
     import FocusField from "$lib/ui/FocusField.svelte";
     import StepEditor from "./StepEditor.svelte";
@@ -104,15 +104,6 @@
     );
     let showLessonPicker = $state(false);
     let targetLessonId = $state("");
-    let notice = $state<{ message: string; entry: UndoEntry; ref: Ref } | null>(
-        null,
-    );
-    // Never let a stale notice undo a later, unrelated edit.
-    const activeNotice = $derived(
-        notice !== null && store.undoStack.at(-1) === notice.entry
-            ? notice
-            : null,
-    );
     const xp = $derived(effectiveBlockXp(block));
     const xpIsDerived = $derived(typeof block.xp !== "number");
     const minutes = $derived(blockDurationMinutes(block));
@@ -263,7 +254,7 @@
 
     function showNotice(message: string, ref: Ref) {
         const entry = store.undoStack.at(-1);
-        if (entry !== undefined) notice = { message, entry, ref };
+        if (entry !== undefined) notices.show({ text: message, entry, ref });
     }
 
     function removeFromLesson() {
@@ -431,22 +422,6 @@
         </Menu>
     </header>
 
-    {#if activeNotice}
-        <div class="action-notice" role="status">
-            <span>{activeNotice.message}</span>
-            <Button
-                variant="secondary"
-                size="s"
-                onclick={() => {
-                    const current = activeNotice;
-                    if (current === null) return;
-                    store.undo();
-                    store.selection = current.ref;
-                    notice = null;
-                }}>Vrátit zpět</Button>
-        </div>
-    {/if}
-
     <div
         class="steps"
         use:dragHandleZone={{
@@ -522,18 +497,6 @@
 {/if}
 
 <style>
-
-    .action-notice {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 8px;
-        margin-top: 12px;
-        padding: 10px;
-        border-radius: var(--radius-s);
-        background: var(--info-bg);
-        font-size: var(--text-s);
-    }
 
     .lesson-picker {
         display: flex;
