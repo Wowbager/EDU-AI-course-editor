@@ -12,7 +12,7 @@ const fixture = readFileSync(new URL('../src/lib/domain/__tests__/fixtures/spec-
 const saved = (page: Page) => page.getByRole('button', { name: /^Koncept uložen v tomto prohlížeči\./ });
 const failed = (page: Page) => page.getByRole('button', { name: /^Koncept se nepodařilo uložit\./ });
 const paused = (page: Page) => page.getByRole('button', { name: /^Ukládání pozastaveno\./ });
-const backup = (page: Page, has: 'Bez zálohy v souboru' | 'Stáhnuto do souboru') =>
+const backup = (page: Page, has: 'Bez zálohy v souboru' | 'Staženo do souboru' | 'Uloženo v tomto prohlížeči') =>
 	page.getByRole('button', { name: new RegExp(`${has}\\.$`) });
 
 test.beforeEach(async ({ page }) => {
@@ -172,32 +172,42 @@ test('another tab pauses writes instead of silently replacing its draft', async 
  * to say whether the work on screen has ever left the browser.
  */
 test('the top bar says whether the work has ever left the browser', async ({ page }) => {
-	await expect(backup(page, 'Bez zálohy v souboru')).toHaveText('Bez zálohy v souboru');
-	// Nothing to lose yet on an untouched course, so it is not a warning; and it is
-	// one line that never reads "Ukládání…".
-	await expect(backup(page, 'Bez zálohy v souboru')).toHaveClass(/faint/);
+	// A fresh course cannot be downloaded yet (its card has no text), so "Bez zálohy"
+	// would be a warning about something the teacher cannot act on: the line is calm
+	// and true, and never reads "Ukládání…".
+	const line = page.locator('.save-status');
+	await expect(line).toHaveText('Uloženo v tomto prohlížeči');
+	await expect(line).toHaveClass(/faint/);
+	await expect(backup(page, 'Bez zálohy v souboru')).toBeVisible();
 	await expect(page.locator('.topbar')).not.toContainText('Ukládání');
 	await expect(page.locator('.topbar')).not.toContainText('XP');
 
-	await backup(page, 'Bez zálohy v souboru').click();
+	await line.click();
 	const dialog = page.getByRole('dialog');
 	await expect(dialog).toContainText('do tohoto prohlížeče');
 	await expect(dialog).toContainText('ještě ani jednou nestáhl');
 	await page.keyboard.press('Escape');
 
+	// Changed but still not downloadable: still nothing to warn about.
+	await page.getByRole('textbox', { name: 'Název kurzu', exact: true }).fill('Zlomky');
+	await expect(saved(page)).toBeVisible();
+	await expect(line).toHaveText('Uloženo v tomto prohlížeči');
+	await expect(line).toHaveClass(/faint/);
+
 	// A fresh course is invalid (its seeded card has no text), so fill it in first —
 	// export is gated on validity, and an ungated assertion would be testing nothing.
 	await page.locator('.cm-content').first().click();
 	await page.locator('.cm-content').first().fill('Zlomek popisuje část celku.');
-	// Unsaved work with nothing outside the browser is the one thing to warn about.
-	await expect(backup(page, 'Bez zálohy v souboru')).toHaveClass(/warning/);
+	// Unsaved work that could be downloaded, and has not been, is the one thing to warn about.
+	await expect(line).toHaveText('Bez zálohy v souboru');
+	await expect(line).toHaveClass(/warning/);
 	const download = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Stáhnout', exact: true }).click();
 	const anyway = page.getByRole('button', { name: 'Stáhnout i tak' });
 	if (await anyway.isVisible()) await anyway.click();
 	await download;
 
-	await expect(backup(page, 'Stáhnuto do souboru')).toHaveText('Stáhnuto do souboru');
+	await expect(backup(page, 'Staženo do souboru')).toHaveText('Staženo do souboru');
 
 	// One more edit and the file on disk is behind again.
 	await page.locator('.cm-content').first().click();

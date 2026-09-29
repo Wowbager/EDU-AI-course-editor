@@ -51,16 +51,31 @@
     /**
      * The version button says where the working copy stands: the newest saved
      * version, and whether it has been changed since. A course with nothing saved
-     * yet shows the number it will get.
+     * yet shows the number it will get, and the title and name say nothing is saved:
+     * "neuloženo" beside every new course read as a fault.
      */
     const savedVersion = $derived(versions.latest);
     const workingChanged = $derived(versions.modified(store.source));
     const versionLabel = $derived(
         savedVersion === undefined
-            ? `v${versions.next(store.source)} · neuloženo`
+            ? `v${versions.next(store.source)}`
             : workingChanged
               ? `v${savedVersion.version} · upraveno`
               : `v${savedVersion.version}`,
+    );
+    const versionTitle = $derived(
+        "Verze kurzu: uložit, vrátit se k dřívější, zveřejnit a nastavit, kdo kurz uvidí" +
+            (savedVersion === undefined
+                ? ". Zatím není uložená žádná verze."
+                : workingChanged
+                  ? `. Kurz se od uložené verze ${savedVersion.version} změnil.`
+                  : ""),
+    );
+    /** The visible text is a bare number; without a saved version the name says so. */
+    const versionName = $derived(
+        savedVersion === undefined
+            ? `${versionLabel}, zatím neuloženo`
+            : undefined,
     );
 
     /**
@@ -130,7 +145,12 @@
             return { text: "Koncept se nepodařilo uložit", tone: "error" };
         if (status === "blocked")
             return { text: "Ukládání pozastaveno", tone: "warning" };
-        if (backedUp) return { text: "Stáhnuto do souboru", tone: "faint" };
+        if (backedUp) return { text: "Staženo do souboru", tone: "faint" };
+        // "Bez zálohy" only helps a teacher who can act on it. While the course
+        // cannot be downloaded (Stáhnout shows what is left instead), the line says
+        // what is true and calm.
+        if (!store.canPublish)
+            return { text: "Uloženo v tomto prohlížeči", tone: "faint" };
         // Nothing to lose yet on a course nobody has touched.
         return {
             text: "Bez zálohy v souboru",
@@ -141,7 +161,7 @@
     /** The button's name carries all of it, the saving state too. */
     const saveLabel = $derived.by(() => {
         const backup = backedUp
-            ? "Stáhnuto do souboru."
+            ? "Staženo do souboru."
             : "Bez zálohy v souboru.";
         switch (recovery?.status) {
             case "saved":
@@ -180,7 +200,8 @@
         type="button"
         class="version"
         onclick={() => (versionsOpen = true)}
-        title="Verze kurzu: uložit, vrátit se k dřívější, zveřejnit a nastavit, kdo kurz uvidí">
+        aria-label={versionName}
+        title={versionTitle}>
         <History size={14}></History>
         {versionLabel}
     </button>
