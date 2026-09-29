@@ -120,6 +120,38 @@
         if (reviewOpen) store.reviewing = true;
     });
 
+    /** Whether saving works, and whether the work has left the browser. */
+    const saveLine = $derived.by((): { text: string; tone: "error" | "warning" | "faint" } => {
+        const status = recovery?.status;
+        if (status === "error")
+            return { text: "Koncept se nepodařilo uložit", tone: "error" };
+        if (status === "blocked")
+            return { text: "Ukládání pozastaveno", tone: "warning" };
+        if (backedUp) return { text: "Stáhnuto do souboru", tone: "faint" };
+        // Nothing to lose yet on a course nobody has touched.
+        return {
+            text: "Bez zálohy v souboru",
+            tone: store.dirty ? "warning" : "faint",
+        };
+    });
+
+    /** The button's name carries all of it, the saving state too. */
+    const saveLabel = $derived.by(() => {
+        const backup = backedUp
+            ? "Stáhnuto do souboru."
+            : "Bez zálohy v souboru.";
+        switch (recovery?.status) {
+            case "saved":
+                return `Koncept uložen v tomto prohlížeči. ${backup}`;
+            case "error":
+                return `Koncept se nepodařilo uložit. ${backup}`;
+            case "blocked":
+                return `Ukládání pozastaveno. ${backup}`;
+            default:
+                return `Koncept se ukládá do tohoto prohlížeče. ${backup}`;
+        }
+    });
+
     /** The chip shows a bare number; the accessible name has to say what it counts. */
     const checkLabel = $derived(
         store.listed.errors.length > 0
@@ -149,29 +181,25 @@
         <History size={14}></History>
         {versionLabel}
     </button>
+    <!--
+        One line, chosen by what is true now. It says what a teacher can act on —
+        whether the work has left the browser, or that saving has stopped — and never
+        "Ukládání…", which flickered on every keystroke. The full state is the name.
+    -->
     <button
         type="button"
-        class="save-status"
-        class:at-risk={!backedUp}
+        class="save-status {saveLine.tone}"
         onclick={() => (explainStorage = true)}
+        aria-label={saveLabel}
         title="Kurz je jen v tomto prohlížeči, ne na serveru. Klikni pro vysvětlení.">
-        <span class="save-state" role="status">
-            {#if recovery?.status === "saved"}Uloženo jen v tomto prohlížeči
-            {:else if recovery?.status === "error"}Koncept se nepodařilo uložit
-            {:else if recovery?.status === "blocked"}Ukládání pozastaveno
-            {:else}Ukládání…{/if}
-        </span>
-        <span class="backup">
-            {#if backedUp}Stáhnuto do souboru{:else}Bez zálohy v souboru{/if}
-        </span>
+        {saveLine.text}
     </button>
+    <!-- A live region has to be outside the button, whose children are not announced. -->
+    <span class="sr-only" role={recovery?.status === "error" ? "alert" : "status"}>
+        {#if recovery?.status === "error" || recovery?.status === "blocked"}{saveLine.text}{/if}
+    </span>
 
     <div class="spacer"></div>
-
-    <Chip tone="quiet" title="Celkový čas kurzu"
-        >{store.totals.durationMinutes} min</Chip>
-    <Chip tone="quiet" title="Nejvyšší možný zisk XP za celý kurz"
-        >{store.totals.cappedXp} XP</Chip>
 
     <button
         type="button"
@@ -372,33 +400,38 @@
     }
 
     .save-status {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0;
         padding: 2px 6px;
         border: none;
         border-radius: var(--radius-xs);
         background: none;
-        color: var(--e-text-muted);
+        color: var(--e-text-faint);
         font: inherit;
         font-size: var(--text-xs);
         line-height: 1.25;
         text-align: left;
+        white-space: nowrap;
         cursor: pointer;
+    }
+
+    .save-status.warning {
+        color: var(--e-warning);
+    }
+
+    .save-status.error {
+        color: var(--e-error);
     }
 
     .save-status:hover {
         background: var(--e-field-hover);
-        color: var(--e-text);
     }
 
-    .save-status .backup {
-        color: var(--e-text-faint);
-    }
-
-    .save-status.at-risk .backup {
-        color: var(--e-warning);
+    .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
     }
 
     .storage {

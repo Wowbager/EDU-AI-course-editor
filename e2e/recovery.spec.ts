@@ -1,8 +1,19 @@
-import { expect, test, openEditor } from './fixtures';
+import { expect, test, openEditor, type Page } from './fixtures';
 import { readFileSync } from 'node:fs';
 
 const key = 'edu-editor:draft:v1';
 const fixture = readFileSync(new URL('../src/lib/domain/__tests__/fixtures/spec-16-course.json', import.meta.url));
+
+/**
+ * The draft's state is the top bar button's accessible name, so a test that needs to
+ * know the draft has been flushed waits for "Koncept uložen…" — the same condition the
+ * teacher's screen reader hears, and the one that means `localStorage` holds the edit.
+ */
+const saved = (page: Page) => page.getByRole('button', { name: /^Koncept uložen v tomto prohlížeči\./ });
+const failed = (page: Page) => page.getByRole('button', { name: /^Koncept se nepodařilo uložit\./ });
+const paused = (page: Page) => page.getByRole('button', { name: /^Ukládání pozastaveno\./ });
+const backup = (page: Page, has: 'Bez zálohy v souboru' | 'Stáhnuto do souboru') =>
+	page.getByRole('button', { name: new RegExp(`${has}\\.$`) });
 
 test.beforeEach(async ({ page }) => {
 	// onMount has seeded/restored the document and attached every input handler.
@@ -19,7 +30,7 @@ test('unblurred feedback survives reload even when export is blocked', async ({ 
 	await expect(feedback).toBeFocused();
 	// Checked without touching the page: clicking anything would blur the field.
 	await expect(page.getByRole('button', { name: /^Kontrola kurzu: .*chyb/ })).toBeVisible();
-	await expect(page.locator(".save-state")).toHaveText('Uloženo jen v tomto prohlížeči');
+	await expect(saved(page)).toBeVisible();
 	await page.reload();
 	await expect(feedback).toHaveValue('Nezapomeň porovnat jmenovatele.\nDruhý řádek.');
 	expect(errors).toEqual([]);
@@ -42,7 +53,7 @@ test('typing groups undo, Escape cancels, and redo is saved', async ({ page }) =
 	await page.getByRole('button', { name: 'Zpět', exact: true }).click();
 	await expect(field).toHaveValue('Nový kurz');
 	await page.getByRole('button', { name: 'Vpřed', exact: true }).click();
-	await expect(page.locator(".save-state")).toHaveText('Uloženo jen v tomto prohlížeči');
+	await expect(saved(page)).toBeVisible();
 	await page.reload();
 	await expect(field).toHaveValue('Moje lekce');
 });
@@ -50,7 +61,8 @@ test('typing groups undo, Escape cancels, and redo is saved', async ({ page }) =
 test('storage failure is visible and unload is guarded', async ({ page }) => {
 	await page.evaluate(() => { Storage.prototype.setItem = () => { throw new DOMException('full', 'QuotaExceededError'); }; });
 	await page.getByRole('textbox', { name: 'Název kurzu', exact: true }).fill('Neztratit');
-	await expect(page.locator(".save-state")).toHaveText('Koncept se nepodařilo uložit');
+	await expect(failed(page)).toHaveText('Koncept se nepodařilo uložit');
+	await expect(page.getByRole('alert')).toHaveText('Koncept se nepodařilo uložit');
 	expect(await page.evaluate(() => {
 		const event = new Event('beforeunload', { cancelable: true });
 		window.dispatchEvent(event);
@@ -62,12 +74,12 @@ test('corrupt draft is not overwritten without an explicit backed-up replacement
 	// Install after this page unloads so its final save cannot replace the fixture.
 	await page.addInitScript((key) => localStorage.setItem(key, '{broken'), key);
 	await page.reload();
-	await expect(page.locator(".save-state")).toHaveText('Ukládání pozastaveno');
+	await expect(paused(page)).toHaveText('Ukládání pozastaveno');
 	await page.getByRole('textbox', { name: 'Název kurzu', exact: true }).fill('Náhradní kurz');
 	expect(await page.evaluate((key) => localStorage.getItem(key), key)).toBe('{broken');
 	page.once('dialog', (dialog) => dialog.accept());
 	await page.getByRole('button', { name: 'Zálohovat původní a uložit tento kurz' }).click();
-	await expect(page.locator(".save-state")).toHaveText('Uloženo jen v tomto prohlížeči');
+	await expect(saved(page)).toBeVisible();
 	expect(await page.evaluate((key) => Object.keys(localStorage).some((k) => k.startsWith(key + ':backup:') && localStorage.getItem(k) === '{broken'), key)).toBe(true);
 });
 
@@ -77,18 +89,18 @@ test('import replacement can be cancelled without losing current work', async ({
 	page.once('dialog', (dialog) => dialog.dismiss());
 	await page.setInputFiles('input[type=file]', { name: 'course.json', mimeType: 'application/json', buffer: fixture });
 	await expect(name).toHaveValue('Zachovat kurz');
-	await expect(page.locator(".save-state")).toHaveText('Uloženo jen v tomto prohlížeči');
+	await expect(saved(page)).toBeVisible();
 	await page.reload();
 	await expect(name).toHaveValue('Zachovat kurz');
 });
 
 test('another tab pauses writes instead of silently replacing its draft', async ({ page, context }) => {
-	await expect(page.locator(".save-state")).toHaveText('Uloženo jen v tomto prohlížeči');
+	await expect(saved(page)).toBeVisible();
 	const other = await context.newPage();
 	await openEditor(other);
 	await other.getByRole('textbox', { name: 'Název kurzu', exact: true }).fill('Druhá karta');
-	await expect(other.locator(".save-state")).toHaveText('Uloženo jen v tomto prohlížeči');
-	await expect(page.locator(".save-state")).toHaveText('Ukládání pozastaveno');
+	await expect(saved(other)).toBeVisible();
+	await expect(paused(page)).toHaveText('Ukládání pozastaveno');
 	await page.getByRole('textbox', { name: 'Název kurzu', exact: true }).fill('První karta');
 	expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).doc.name, key)).toBe('Druhá karta');
 });
@@ -99,9 +111,14 @@ test('another tab pauses writes instead of silently replacing its draft', async 
  * to say whether the work on screen has ever left the browser.
  */
 test('the top bar says whether the work has ever left the browser', async ({ page }) => {
-	await expect(page.locator('.save-status .backup')).toHaveText('Bez zálohy v souboru');
+	await expect(backup(page, 'Bez zálohy v souboru')).toHaveText('Bez zálohy v souboru');
+	// Nothing to lose yet on an untouched course, so it is not a warning; and it is
+	// one line that never reads "Ukládání…".
+	await expect(backup(page, 'Bez zálohy v souboru')).toHaveClass(/faint/);
+	await expect(page.locator('.topbar')).not.toContainText('Ukládání');
+	await expect(page.locator('.topbar')).not.toContainText('XP');
 
-	await page.locator('.save-status').click();
+	await backup(page, 'Bez zálohy v souboru').click();
 	const dialog = page.getByRole('dialog');
 	await expect(dialog).toContainText('do tohoto prohlížeče');
 	await expect(dialog).toContainText('ještě ani jednou nestáhl');
@@ -111,16 +128,18 @@ test('the top bar says whether the work has ever left the browser', async ({ pag
 	// export is gated on validity, and an ungated assertion would be testing nothing.
 	await page.locator('.cm-content').first().click();
 	await page.locator('.cm-content').first().fill('Zlomek popisuje část celku.');
+	// Unsaved work with nothing outside the browser is the one thing to warn about.
+	await expect(backup(page, 'Bez zálohy v souboru')).toHaveClass(/warning/);
 	const download = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Stáhnout', exact: true }).click();
 	const anyway = page.getByRole('button', { name: 'Stáhnout i tak' });
 	if (await anyway.isVisible()) await anyway.click();
 	await download;
 
-	await expect(page.locator('.save-status .backup')).toHaveText('Stáhnuto do souboru');
+	await expect(backup(page, 'Stáhnuto do souboru')).toHaveText('Stáhnuto do souboru');
 
 	// One more edit and the file on disk is behind again.
 	await page.locator('.cm-content').first().click();
 	await page.keyboard.type(' Jmenovatel říká, na kolik dílů.');
-	await expect(page.locator('.save-status .backup')).toHaveText('Bez zálohy v souboru');
+	await expect(backup(page, 'Bez zálohy v souboru')).toHaveText('Bez zálohy v souboru');
 });
