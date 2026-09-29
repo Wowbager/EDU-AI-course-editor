@@ -24,7 +24,8 @@
 	 * a card is its own block (`domain/groups.ts`). What it reports back names those
 	 * blocks, and `store.toView` turns them into the card the editor shows.
 	 */
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
+	import { PanelRightClose, PanelRightOpen } from '@lucide/svelte';
 	import type { BlockV2, CourseV2, ExportType } from '$lib/domain/schema';
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import Chip from '$lib/ui/Chip.svelte';
@@ -40,8 +41,20 @@
 		doc: CourseV2;
 		block: BlockV2 | undefined;
 		lessonId: string | undefined;
+		/**
+		 * Folded to a thin rail. `null` until the remembered layout has been read; the
+		 * column is then neither shown nor hidden, and starts no player yet.
+		 *
+		 * Folding never resizes, hides or unmounts the player. It is clipped: the
+		 * column keeps its full size inside a narrower window and is `inert`. Unmounting
+		 * would cost a slow reboot and lose a run in progress; `display: none` or
+		 * `visibility: hidden` pauses the frame's animation callbacks, which Flutter
+		 * boots on, and the boot watchdog below would call that a failed start.
+		 */
+		collapsed: boolean | null;
+		ontoggle: () => void;
 	}
-	let { doc, block, lessonId }: Props = $props();
+	let { doc, block, lessonId, collapsed, ontoggle }: Props = $props();
 
 	const store = useStore();
 	const stepView = useStepView();
@@ -71,6 +84,28 @@
 	let available = $state<boolean | null>(null);
 
 	const PLAYER_URL = '/player/preview';
+
+	/**
+	 * A column that starts folded does not boot the player until it is first opened:
+	 * a teacher who keeps the preview shut should not pay for it. Once mounted it
+	 * stays mounted.
+	 */
+	let everRevealed = $state(false);
+	$effect(() => {
+		if (collapsed === false) everRevealed = true;
+	});
+
+	let hideHost = $state<HTMLElement>();
+	let showButton = $state<HTMLButtonElement>();
+
+	/** A click moves the control the pointer was on out of reach; focus its counterpart. */
+	async function toggle() {
+		const opening = collapsed === true;
+		ontoggle();
+		await tick();
+		if (opening) hideHost?.querySelector('button')?.focus();
+		else showButton?.focus();
+	}
 
 	/**
 	 * The step the author is working on, when it is in the card on screen.
@@ -216,15 +251,19 @@
 	$effect(() => {
 		if (frame === null) return;
 		bridge.attach(frame);
+		return () => bridge.detach();
+	});
+
+	// Folded, the watchdog is off (the frame is alive but nobody is waiting on it);
+	// opening the column arms a fresh 20 s.
+	$effect(() => {
+		if (frame === null || collapsed === true) return;
 		const timeout = setTimeout(() => {
 			if (bridge.ready) return;
 			if (untrack(() => attempt) + 1 < BOOT_ATTEMPTS) attempt++;
 			else failed = 'stalled';
 		}, BOOT_TIMEOUT_MS);
-		return () => {
-			clearTimeout(timeout);
-			bridge.detach();
-		};
+		return () => clearTimeout(timeout);
 	});
 
 	function retry() {
@@ -240,6 +279,9 @@
 			if (playLessonId === undefined) return;
 			bridge.showLesson(source, playLessonId, exportMode, serialise, playStart);
 		} else if (block !== undefined) {
+			// A folded column draws nothing anyone can see; it catches up when opened.
+			// Only here: re-sending a played lesson would restart the run.
+			if (collapsed === true) return;
 			bridge.showBlocks(
 				blocksOfCard(block.block_id),
 				exportMode,
@@ -269,7 +311,8 @@
 	});
 </script>
 
-<aside class="preview" aria-label="Náhled pro žáka">
+<aside class="preview" class:collapsed={collapsed === true} aria-label="Náhled pro žáka">
+	<div class="inner" inert={collapsed === true}>
 	<header>
 		<Segmented
 			label="Co je v náhledu"
@@ -328,6 +371,18 @@
 				Od začátku
 			</Button>
 		{/if}
+
+		<div class="hide" bind:this={hideHost}>
+			<Button
+				variant="ghost"
+				size="s"
+				ariaLabel="Skrýt náhled"
+				title="Skrýt náhled (Ctrl+Shift+B)"
+				onclick={toggle}
+			>
+				<PanelRightClose size={16}></PanelRightClose>
+			</Button>
+		</div>
 	</header>
 
 	<div class="frame">
@@ -352,7 +407,7 @@
 				</p>
 			</div>
 		{/if}
-		{#if available === true && failed !== 'stalled'}
+		{#if available === true && everRevealed && failed !== 'stalled'}
 			{#key attempt}
 				<iframe bind:this={frame} src={PLAYER_URL} title="Náhled kurzu očima žáka"></iframe>
 			{/key}
@@ -369,16 +424,75 @@
 			{/if}
 		</span>
 	</footer>
+	</div>
+
+	{#if collapsed === true}
+		<button
+			type="button"
+			class="rail"
+			bind:this={showButton}
+			aria-label="Ukázat náhled"
+			title="Ukázat náhled (Ctrl+Shift+B)"
+			onclick={toggle}
+		>
+			<PanelRightOpen size={18}></PanelRightOpen>
+			<span class="rail-text" aria-hidden="true">Náhled</span>
+		</button>
+	{/if}
 </aside>
 
 <style>
 	.preview {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		width: var(--e-preview-width);
 		flex: none;
 		border-left: 1px solid var(--e-border);
 		background: var(--surface);
+		overflow: hidden;
+	}
+
+	/* No transition: animating the width would make the player lay itself out on every frame. */
+	.preview.collapsed {
+		width: var(--e-preview-rail);
+	}
+
+	/* Always the column's full size, whatever the window around it is. */
+	.inner {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		width: calc(var(--e-preview-width) - 1px);
+		min-height: 0;
+	}
+
+	.hide {
+		margin-left: auto;
+	}
+
+	.rail {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 12px;
+		padding: 14px 0;
+		border: none;
+		background: var(--surface);
+		color: var(--e-text-muted);
+		cursor: pointer;
+	}
+
+	.rail:hover {
+		background: var(--surface-light);
+		color: var(--e-text);
+	}
+
+	.rail-text {
+		font: var(--type-meta-bold);
+		writing-mode: vertical-rl;
 	}
 
 	header {

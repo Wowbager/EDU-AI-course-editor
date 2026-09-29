@@ -379,6 +379,8 @@
         };
     });
 
+    const togglePreview = () => (previewCollapsed = previewCollapsed !== true);
+
     function onkeydown(event: KeyboardEvent) {
         if (event.defaultPrevented) return;
         const meta = event.metaKey || event.ctrlKey;
@@ -391,9 +393,10 @@
         } else if ((event.key === "z" && event.shiftKey) || event.key === "y") {
             event.preventDefault();
             store.redo();
-        } else if (event.key.toLowerCase() === "b" && !event.shiftKey) {
+        } else if (event.key.toLowerCase() === "b") {
             event.preventDefault();
-            sidebarCollapsed = !sidebarCollapsed;
+            if (event.shiftKey) togglePreview();
+            else sidebarCollapsed = !sidebarCollapsed;
         }
     }
 </script>
@@ -568,7 +571,12 @@
             {/if}
         </main>
 
-        <PreviewColumn {doc} block={card} lessonId={lesson?.lesson_id} />
+        <PreviewColumn
+            {doc}
+            block={card}
+            lessonId={lesson?.lesson_id}
+            collapsed={previewCollapsed}
+            ontoggle={togglePreview} />
     </div>
 
     {#if modal?.kind === "course"}
