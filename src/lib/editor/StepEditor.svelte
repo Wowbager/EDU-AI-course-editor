@@ -74,6 +74,7 @@
     const mode = $derived(store.mode);
     /** Ids key a student's saved answers, so only the advanced mode ever shows one. */
     const showIds = $derived(allows("step", "id", mode));
+    const typeInfo = $derived(STEP_TYPES.find((t) => t.type === step.type));
     /**
      * Zpětná vazba (`store.showFeedback`): what the pupil is told aside from the
      * question — the solution, the hint and help ladder, and whatever `fieldsFor`
@@ -527,18 +528,18 @@
             {/if}
         </Chip>
 
-        <Chip tone="accent" title="Typ kroku">
-            {@const type = STEP_TYPES.find((t) => t.type === step.type)}
-            {#if type}
-                {@const Icon = type.icon}
-                <Icon size={14}></Icon>
-                {type.label}
-            {/if}
-        </Chip>
-
-        <!-- Ids key a student's saved answers, so a teacher never sees or types one. -->
+        <!--
+            One quiet fact instead of two chips: what kind of step, and which. "Krok N"
+            stays in its own span — a teacher finds a step by its place, and never sees
+            an id (§8), which only the advanced mode shows in its place.
+        -->
         <Chip tone="quiet" title={showIds ? "Identifikátor kroku" : undefined}>
-            {showIds ? step.id : `Krok ${position}`}
+            {#if typeInfo}
+                {@const Icon = typeInfo.icon}
+                <Icon size={14}></Icon>
+            {/if}
+            <span>{showIds ? step.id : `Krok ${position}`}</span>
+            {#if typeInfo}<span> · {typeInfo.label}</span>{/if}
         </Chip>
         {#if inboundBranches > 0}
             <Chip
@@ -559,27 +560,28 @@
         {:else}
             <div class="spacer"></div>
         {/if}
-        <Button
-            variant="ghost"
-            size="s"
-            onclick={() =>
-                store.apply((d, r) =>
-                    duplicateStep(d, block.block_id, step.id, r),
-                )}
-            title="Duplikovat krok"
-            ariaLabel="Duplikovat krok">
-            <Copy size={16}></Copy>
-            <span class="action-label">Duplikovat</span>
-        </Button>
-        <Button
-            variant="danger"
-            size="s"
-            onclick={remove}
-            title="Smazat krok"
-            ariaLabel="Smazat krok">
-            <Trash size={16}></Trash>
-            <span class="action-label">Smazat</span>
-        </Button>
+        <!-- Out of the way until the step is the one being worked on. -->
+        <div class="actions">
+            <Button
+                variant="ghost"
+                size="s"
+                onclick={() =>
+                    store.apply((d, r) =>
+                        duplicateStep(d, block.block_id, step.id, r),
+                    )}
+                title="Duplikovat krok"
+                ariaLabel="Duplikovat krok">
+                <Copy size={16}></Copy>
+            </Button>
+            <Button
+                variant="danger"
+                size="s"
+                onclick={remove}
+                title="Smazat krok"
+                ariaLabel="Smazat krok">
+                <Trash size={16}></Trash>
+            </Button>
+        </div>
     </header>
 
     {#if !collapsed}
@@ -890,8 +892,6 @@
     }
 
     .step {
-        /* The row's own width decides how much its header can say, not the window's. */
-        container-type: inline-size;
         padding: 12px 14px;
         border: 1px solid var(--e-border);
         border-radius: var(--radius-m);
@@ -927,7 +927,16 @@
         border-radius: var(--radius-s);
         background: none;
         color: var(--e-text-faint);
+        opacity: 0.45;
+        transition: opacity 120ms;
         cursor: grab;
+    }
+
+    .step:hover .grip,
+    .step:focus-within .grip,
+    .grip:hover,
+    .grip:focus-visible {
+        opacity: 1;
     }
 
     .grip:hover,
@@ -936,10 +945,29 @@
         background: var(--surface-light);
     }
 
-    /* A narrow step keeps its actions as icons, so the summary still has room. */
-    @container (max-width: 620px) {
-        .action-label {
-            display: none;
+    /*
+     * Duplicate and delete show on the step being pointed at, typed into or targeted.
+     * Every other step is just its content. A screen with no hover shows them always,
+     * since there is no other way to reach them.
+     */
+    .actions {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        opacity: 0;
+        transition: opacity 120ms;
+    }
+
+    .step:hover .actions,
+    .step:focus-within .actions,
+    .step.targeted .actions {
+        opacity: 1;
+    }
+
+    @media (hover: none) {
+        .actions,
+        .grip {
+            opacity: 1;
         }
     }
 

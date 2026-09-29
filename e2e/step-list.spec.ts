@@ -127,3 +127,22 @@ test('folding a step in one card does not fold the step with the same id in anot
 	await page.locator('.tree-card').nth(2).click();
 	await expect(isFolded(steps(page).nth(0))).toBeVisible();
 });
+
+/** What a step's action button looks like right now; the reveal is a 120 ms transition. */
+const opacityOf = (step: Locator, name: string) =>
+	step.getByRole('button', { name, exact: true }).evaluate((el) => Number(getComputedStyle(el.parentElement!).opacity));
+
+test('a step shows Duplikovat and Smazat only while it is the one being worked on', async ({ page }) => {
+	await openQuizCard(page);
+	const list = steps(page);
+
+	// Focus goes into step 2, and the pointer is over it: step 1 is just its content.
+	await list.nth(1).getByRole('textbox', { name: 'Text odpovědi' }).first().click();
+	await expect.poll(() => opacityOf(list.nth(1), 'Smazat krok')).toBe(1);
+	await expect.poll(() => opacityOf(list.nth(0), 'Smazat krok')).toBe(0);
+	await expect.poll(() => opacityOf(list.nth(0), 'Duplikovat krok')).toBe(0);
+
+	// Pointing at step 1 brings its own back.
+	await list.nth(0).hover();
+	await expect.poll(() => opacityOf(list.nth(0), 'Smazat krok')).toBe(1);
+});
