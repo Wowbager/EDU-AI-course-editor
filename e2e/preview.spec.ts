@@ -269,6 +269,20 @@ test.describe('live preview', () => {
 		await expect(page.locator('aside .chip.ok', { hasText: 'Náhled' })).toBeVisible();
 	});
 
+	test('folding the preview keeps the player alive, and opening it shows the card chosen meanwhile', async ({ page }) => {
+		await openCard(page, 0, INTRO);
+		const mark = log.mark();
+
+		await page.getByRole('button', { name: 'Skrýt náhled' }).click();
+		await page.locator('.tree-card').nth(2).click();
+		await page.getByRole('button', { name: 'Ukázat náhled' }).click();
+		// Folded, nothing was drawn; opened, the card the teacher is on is.
+		await waitForPlayer(page, { view: 'expanded', blockId: QUIZ });
+
+		expect(log.up('ready', mark)).toHaveLength(0);
+		await expect(page.locator('aside .chip.ok', { hasText: 'Náhled' })).toBeVisible();
+	});
+
 	test('switching to a card with different steps keeps the player alive', async ({ page }) => {
 		await openCard(page, 0, INTRO);
 		const mark = log.mark();
