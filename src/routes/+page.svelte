@@ -45,6 +45,7 @@
     import type { ImportNote } from "$lib/domain/legacy";
     import { X } from "@lucide/svelte";
     import { cardsCount, counted } from "$lib/ui/plural";
+    import { cardTypeLabel } from "$lib/ui/card-types";
 
     const store = new DocStore();
     setStore(store);
@@ -158,12 +159,6 @@
         card !== undefined &&
             (store.index.lessonsByBlock.get(card.block_id) ?? []).length === 0,
     );
-
-    const TYPE_LABEL = {
-        display: "Výklad",
-        question: "Otázka",
-        exercise: "Cvičení",
-    } as const;
 
     /**
      * The card's place in its lesson, used only to name a card that has no text yet.
@@ -494,7 +489,7 @@
                                 {lesson.name ?? "Lekce"}
                             </button>
                             <span aria-hidden="true">›</span>
-                            <span>{TYPE_LABEL[card.type]}</span>
+                            <span>{cardTypeLabel(card.type)}</span>
                         {/if}
                     </p>
                     <!--

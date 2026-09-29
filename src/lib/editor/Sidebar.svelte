@@ -38,13 +38,11 @@
     import { cardsCount, stepsCount } from "$lib/ui/plural";
     import { uniqueKeys } from "$lib/ui/keys";
     import { groupOf, groupsOf } from "$lib/domain/groups";
+    import { CARD_TYPES, cardTypeIcon } from "$lib/ui/card-types";
     import {
         ChevronLeft,
         ChevronRight,
         Settings,
-        BookOpenText,
-        MessageCircleQuestionMark,
-        Dumbbell,
         Plus,
     } from "@lucide/svelte";
 
@@ -173,49 +171,6 @@
     );
     const orphanKeys = $derived(uniqueKeys(orphans.map((b) => b.block_id)));
 
-    const TYPE_ICON = {
-        display: BookOpenText,
-        question: MessageCircleQuestionMark,
-        exercise: Dumbbell,
-    } as const;
-
-    /**
-     * The three card types, described by what the *student* does — because from the
-     * author's side all three scaffold nearly identically and the names do not say
-     * what changes. The difference is real and it is in `block_step_engine.dart`:
-     *
-     *  - `display` renders one step per card and only up to `_currentStepIndex`, so
-     *    the student is shown a step at a time and taps to continue;
-     *  - `question` and `exercise` go through `_buildExerciseCard()` — one bubble
-     *    that grows question by question — and `_skipToNextQuestion()` runs on mount and after every
-     *    answer, so the cursor lands straight on the question and the text around it
-     *    is passive context that is never a stop;
-     *  - `exercise` additionally has `go_to` ignored (`step_navigation.dart`:
-     *    `if (blockType == BlockType.exercise) return nextStep`).
-     *
-     * "Cvičení" is also the name of a whole course type in Nastavení kurzu and of the
-     * daily practice queue, so this one says which of the three it is.
-     */
-    const ADD_CARD = [
-        {
-            type: "display",
-            label: "Výklad",
-            title: "Karta typu Výklad — čtení po krocích. Žák vidí jeden krok, klikne Pokračovat a teprve pak se objeví další; hotové kroky mu zůstanou nad tím. Otázka vložená dovnitř výkladu je zastávka: dokud na ni neodpoví, další krok neuvidí.",
-            icon: BookOpenText,
-        },
-        {
-            type: "question",
-            label: "Otázka",
-            title: "Karta typu Otázka — jedna bublina, ve které je žák rovnou u otázky. Text, který napíšeš před ni, čte jako zadání, ne jako samostatnou zastávku. Podle zvolené odpovědi ho umí poslat na jiný krok nebo na jinou kartu. Použij, když má odpověď rozhodnout, co bude dál.",
-            icon: MessageCircleQuestionMark,
-        },
-        {
-            type: "exercise",
-            label: "Cvičení",
-            title: "Karta typu Cvičení (jedna karta v lekci — ne typ celého kurzu v Nastavení kurzu ani zařazení do denního opakování). Chová se jako Otázka, ale větvení se ignoruje: žák projde úlohy vždy ve stejném pořadí. Pro drilování postupu, který už zná.",
-            icon: Dumbbell,
-        },
-    ] as const;
 
     function select(lessonId: string, blockId: string) {
         store.selection = { lessonId, blockId };
@@ -322,7 +277,7 @@
                                         {@const cardErrors = errorsOn(
                                             block.block_id,
                                         )}
-                                        {@const Icon = TYPE_ICON[block.type]}
+                                        {@const Icon = cardTypeIcon(block.type)}
                                         <button
                                             type="button"
                                             class="tree-card"
@@ -365,7 +320,7 @@
 
                         <div class="tree-add">
                             <span class="add-label">Přidat kartu:</span>
-                            {#each ADD_CARD as option (option.type)}
+                            {#each CARD_TYPES as option (option.type)}
                                 <Button
                                     variant="secondary"
                                     size="s"
@@ -409,7 +364,7 @@
             <h2 class="secondary">Karty mimo lekce</h2>
             <ul class="orphans">
                 {#each orphans as block, i (orphanKeys[i])}
-                    {@const Icon = TYPE_ICON[block.type]}
+                    {@const Icon = cardTypeIcon(block.type)}
                     <li>
                         <button
                             type="button"

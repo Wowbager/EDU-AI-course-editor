@@ -52,16 +52,14 @@
         isPracticeBlock,
     } from "$lib/domain/derive";
     import {
-        BookOpenText,
         Copy,
-        Dumbbell,
         ListPlus,
         ListX,
-        MessageCircleQuestionMark,
         Settings,
         Trash,
     } from "@lucide/svelte";
     import { STEP_TYPES } from "$lib/lang";
+    import { cardTypeIcon, cardTypeLabel } from "$lib/ui/card-types";
 
     interface Props {
         doc: CourseV2;
@@ -120,17 +118,6 @@
         store.apply((d) =>
             setField(d, { blockId: block.block_id, field }, value),
         );
-
-    const typeLabel = {
-        display: "Výklad",
-        question: "Otázka",
-        exercise: "Cvičení",
-    } as const;
-    const typeIcon = {
-        display: BookOpenText,
-        question: MessageCircleQuestionMark,
-        exercise: Dumbbell,
-    } as const;
 
     /** What this card's type does to the student — see `stepTitle` below for why. */
     const TYPE_TITLE = {
@@ -321,9 +308,9 @@
 <Card tone={binding?.bg_color}>
     <header>
         <Chip tone="accent" title={TYPE_TITLE[block.type]}>
-            {@const Icon = typeIcon[block.type]}
+            {@const Icon = cardTypeIcon(block.type)}
             <Icon size={16}></Icon>
-            {typeLabel[block.type]}
+            {cardTypeLabel(block.type)}
         </Chip>
 
         {#if isPracticeBlock(block, binding?.default_practice === true)}
