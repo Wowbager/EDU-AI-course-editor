@@ -1402,6 +1402,83 @@ lessons in it, and why nothing in the ⋯ menu is a toggle. *Rejected:* a menu o
 pick from: it grows with the course, and a menu that scrolls is a dialog without the
 title.
 
+### The layout is remembered in its own key, not in the draft
+
+Which panels are folded is kept in `edu-editor:ui:v1` (`state/layout-prefs.ts`), read on
+mount and written by one effect that stays quiet until it has read
+(`previewCollapsed` is `null` until then). A damaged value, or storage that throws, is
+the default layout. *Rejected:* keeping it in the draft, next to the mode and the
+feedback flag: the draft's key is the one every other tab watches to detect a conflicting
+edit, so folding a panel in one tab would freeze saving in the next with "Koncept se
+změnil v jiné kartě". A layout is not a course, and it is per browser anyway. *Rejected:*
+restoring it before hydration finishes: the sidebar's width transition would then play on
+every load, so the transition is off until two frames after mount (`.columns.settled`).
+
+### Ctrl+B folds the lesson panel, Ctrl+Shift+B the preview
+
+The buttons say so in their titles, and their names say what they fold ("Sbalit panel
+lekcí", "Skrýt náhled"), because a bare "Sbalit" next to "Sbalit krok" was ambiguous.
+Both shortcuts skip a chord that has Alt: on a Czech keyboard AltGr arrives as Ctrl+Alt.
+*Rejected:* Ctrl+\, the usual "toggle sidebar" in editors: it is AltGr+Q or a dead
+sequence on Czech layouts, so a teacher typing a character would fold the panel.
+*Rejected:* one shortcut for both panels: they are opened and closed independently.
+
+### Tree cards are `div role="button"` inside the drag item
+
+`svelte-dnd-action` will not start a drag from an element that has a `value` unless it is
+the draggable itself, and every `<button>` has one, so only a press on the text inside
+the button grabbed the card (OPEN-PROBLEMS 2, fixed). The row is now a `div` with
+`role="button"` and `tabindex="0"`; Enter and Space select it, claimed in the capture
+phase because Svelte delegates a plain `onkeydown` to the root, after the `<li>` has
+handed the key to the library's keyboard drag. The zone sets `zoneItemTabIndex: -1`, so a
+card is one tab stop, and its items are keyed by the card's id (`uniqueKeys`), so a card
+keeps its DOM and focus when it moves. *Rejected:* `pointer-events: none` on the button:
+it would make the whole row inert to a click on its padding, the opposite of the fix.
+*Rejected:* a drag handle: it adds a target to hit for the sake of a library rule, and
+the row is the affordance. The orphan list is not a drag zone and keeps buttons.
+
+### Alt+Arrow moves a card
+
+`moveBlockInLesson(doc, lessonId, blockId, delta)` swaps a card with its neighbour, built
+on `reorderBindings` so renumbering and the "nothing moved" rule are the drag's. At an
+edge, or for an unknown card, it returns the same document, and `store.apply` records
+nothing. In the tree, Alt+ArrowUp/Down on a card calls it and gives the card its focus
+back after the DOM has moved it. *Rejected:* the library's own keyboard drag (pick up,
+arrows, drop): two more keys to learn and a mode to be stuck in, when one chord does the
+one thing a teacher wants, and the drag's aria announcements are the library's English.
+
+### The preview folds to a rail, and the player stays mounted, whole and running
+
+Folded, the column is `--e-preview-rail` wide and the player is *clipped*, not touched:
+its column keeps its full size, is `inert`, and the aside has `overflow: hidden`. The boot
+watchdog is paused while folded and starts a fresh 20 s when the column opens; Náhled
+re-sends its card on opening, while a played lesson is never re-sent (that would restart
+the run). *Rejected:* unmounting the iframe: a slow Flutter reboot on every unfold, and a
+run in progress lost. *Rejected:* `display: none` or `visibility: hidden`: the frame's
+animation callbacks pause, Flutter's boot waits on them, and the watchdog would report a
+player that is only asleep as failed. *Rejected:* animating the width: Flutter lays the
+whole page out again on every frame of it (the same reason as Round 4's "never re-lays
+itself out").
+
+### A column that starts folded does not boot the player until it is opened
+
+A teacher who keeps the preview shut should not pay for eleven megabytes of player they
+never look at. The iframe mounts the first time `collapsed` is `false` and stays. The
+column's `collapsed` is `null` until the layout is read, so a folded preview cannot flash
+open and start a boot on the way. *Rejected:* booting it in the background so that
+opening is instant: it is the cost being avoided, and a boot that nobody waits on is the
+one an aborted request kills unnoticed.
+
+### The card column is capped at 880px
+
+`--e-editor-max`. Past about 1440 the card stretched with the window and lines of text and
+answers ran across it. The children of the column (card header, card, banners, empty
+states) are capped and centred; a `dialog` is left alone, it is drawn over the page. The
+step's container query (620px) and the answer table's (760px) look at their own
+container, and at 1440 the column was already narrower than the cap, so nothing changes
+there. *Rejected:* capping the whole column: the scrollbar would then sit against the
+card and not at the window's edge.
+
 ---
 
 ## Still open
