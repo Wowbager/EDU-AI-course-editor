@@ -316,7 +316,7 @@
         if (loss.correctNumber !== undefined) {
             parts.push(`smaže zadaný správný výsledek ${loss.correctNumber}`);
         }
-        return `Tato změna ${parts.join(" a ")}. Zpět se dá vrátit tlačítkem Zpět v liště, ale jen dokud kartu neopustíš.`;
+        return `Tato změna ${parts.join(" a ")}. Zpět se dá vrátit tlačítkem Zpět v liště.`;
     }
 
     let pendingTypeChange = $state<{
@@ -597,8 +597,10 @@
                 class:invalid={missingText !== undefined}
                 use:markdownEditor={{
                     value: step.content ?? "",
-                    placeholder: "Text kroku. Markdown a $LaTeX$ fungují.",
+                    placeholder: "Napiš, co si má žák přečíst.",
                     onchange: (v) => set("content", v === "" ? undefined : v),
+                    onbeginedit: () => store.beginEdit(),
+                    onendedit: () => store.endEdit(),
                 }}>
             </div>
             {#if missingText}
@@ -699,9 +701,11 @@
                     class="markdown"
                     use:markdownEditor={{
                         value: step.content ?? "",
-                        placeholder: "Zadání otázky.",
+                        placeholder: "Zadání otázky",
                         onchange: (v) =>
                             set("content", v === "" ? undefined : v),
+                        onbeginedit: () => store.beginEdit(),
+                        onendedit: () => store.endEdit(),
                     }}>
                 </div>
 

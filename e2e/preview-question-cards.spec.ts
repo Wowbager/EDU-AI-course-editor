@@ -34,7 +34,7 @@ test.describe('a card with two questions in the preview', () => {
 		await openEditor(page);
 		await page.setInputFiles('input[type=file]', { name: 'zlomky-5-trida.json', mimeType: 'application/json', buffer: FILE });
 		await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-		await expect(page.locator('aside .chip.ok', { hasText: 'Náhled' })).toBeVisible({ timeout: 60_000 });
+		await expect(page.locator('aside.preview')).toHaveAttribute('data-player', 'ready', { timeout: 60_000 });
 	});
 
 	test('Náhled shows both of its cards, and a click in the second lands on the teacher’s card', async ({ page }) => {

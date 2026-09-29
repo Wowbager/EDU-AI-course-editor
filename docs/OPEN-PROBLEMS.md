@@ -146,10 +146,8 @@ All three are fixed and tested. Close this if nobody reproduces it again.
 preview-only notes, so it misleads nobody about what the student sees, but it reads
 badly. Fix is in the fork (render them with `MarkdownLatexWidget`), not done.
 
-### 10. The preview's status chip says "Náhled" in Vyzkoušet too
-**Verified: yes.** The green chip means "the player is running", and it is labelled
-with the name of the other mode. Cosmetic; the whole browser suite waits on that chip,
-so renaming it is a change to every preview test and was left for its own commit.
+### 10. ~~The preview's status chip says "Náhled" in Vyzkoušet too~~ — fixed (Round 9)
+A running player has no chip now; the column's `data-player` is what tests read.
 
 ### 12. Server versions are reachable only from the browser that made them
 **By design until sign-in.** The owner is a random key in this browser's
@@ -288,6 +286,15 @@ growing if teachers use the rail.
 **Reproduced by reading the code.** The preview goes `inert` when folded. The buttons move
 focus to the other toggle, but the shortcut does not, so focus inside the preview drops
 to the page body.
+
+### 31. Ctrl+Z in a plain input undoes the course, not the text
+**Reproduced by reading the code.** The page's key handler undoes the store for any Ctrl+Z
+that nothing else consumed. `FocusField` consumes it, and since Round 9 the Markdown editor
+leaves it to the store on purpose. The other inputs (the knowledge vector's numbers, the
+topic and competency searches, the prerequisite picker, the field in the versions dialog) do not, so
+Ctrl+Z inside one of them takes back the last course edit instead of the last characters
+typed there. Not tried by hand. A fix is to let the page handler stand aside for an input
+that keeps no store state of its own, the way Ctrl+B now does.
 
 ### 11. Folding is remembered for the session only
 **By design for now.** `StepView` lives as long as the page. A reload opens every step

@@ -36,7 +36,12 @@ import type { SkillConfig } from "$lib/domain/skill-config";
 import type { CommandResult } from "$lib/domain/commands";
 import type { Mode } from "$lib/ui/fields";
 import { isFeedbackRef } from "$lib/ui/fields";
-import { fieldKey, heldBack, isVisible } from "$lib/ui/issue-visibility";
+import {
+    fieldKey,
+    heldBack,
+    isVisible,
+    issueKey,
+} from "$lib/ui/issue-visibility";
 import type { Issue } from "$lib/domain/validate";
 
 export interface UndoEntry {
@@ -150,10 +155,29 @@ export class DocStore {
     touchedFields = $state<ReadonlySet<string>>(new Set());
 
     /**
-     * Set once the author has asked to export and been shown what is left. From
-     * then on every issue shows inline: they are fixing now, not writing.
+     * The issues the export review listed when the author opened it (`issueKey`s),
+     * or null while there is no review to act on. Those show inline from then on:
+     * the author is fixing them now, not writing. A problem that arises afterwards
+     * keeps its own timing, so a card added mid-review is not red at birth. Cleared
+     * by a download and by `load`.
      */
-    reviewing = $state(false);
+    #reviewed = $state<ReadonlySet<string> | null>(null);
+
+    /** Whether the author has looked at the review and not yet exported. */
+    get reviewing(): boolean {
+        return this.#reviewed !== null;
+    }
+
+    /** The author opened the export review: what it lists is now to be fixed. */
+    beginReview() {
+        const { errors, warnings } = this.validation;
+        this.#reviewed = new Set([...errors, ...warnings].map(issueKey));
+    }
+
+    /** The course went out; what was left over is advice again, not a to-do list. */
+    endReview() {
+        this.#reviewed = null;
+    }
 
     /**
      * Bumped when the selection came from somewhere the author was not looking — a
@@ -224,7 +248,7 @@ export class DocStore {
         this.lastPublished = options.published ?? null;
         this.touchedCards = new Set();
         this.touchedFields = new Set();
-        this.reviewing = false;
+        this.#reviewed = null;
     }
 
     touchCard(blockId: string) {
@@ -243,7 +267,7 @@ export class DocStore {
         isVisible(
             issue,
             { cards: this.touchedCards, fields: this.touchedFields },
-            this.reviewing,
+            this.#reviewed,
         );
 
     /**
@@ -348,8 +372,24 @@ export class DocStore {
         }
         this.#redo = [];
         this.dirty = true;
-        if (result.ref !== undefined) this.selection = result.ref;
+        if (result.ref !== undefined) this.selection = this.#inSameLesson(result.ref);
         return result;
+    }
+
+    /**
+     * A ref from a command or an undo entry addresses a card and does not say which
+     * of its lessons it was reached through (`setField` returns the ref it was
+     * given, and entries are recorded that way). Taken as it is, editing a card two
+     * lessons share would move the screen to the first of them. Keep the lesson
+     * being worked in while it still holds the card.
+     */
+    #inSameLesson(ref: Ref): Ref {
+        const lessonId = this.#selection?.lessonId;
+        if (ref.lessonId !== undefined || ref.blockId === undefined || lessonId === undefined) {
+            return ref;
+        }
+        const owners = this.index.lessonsByBlock.get(ref.blockId) ?? [];
+        return owners.includes(lessonId) ? { ...ref, lessonId } : ref;
     }
 
     undo() {
@@ -360,7 +400,7 @@ export class DocStore {
         this.#redo = [...this.#redo, entry];
         this.source = entry.before;
         this.dirty = true;
-        if (entry.ref !== undefined) this.selection = entry.ref;
+        if (entry.ref !== undefined) this.selection = this.#inSameLesson(entry.ref);
     }
 
     redo() {
@@ -372,7 +412,7 @@ export class DocStore {
         this.source = entry.after;
         this.#reserve(entry.after);
         this.dirty = true;
-        if (entry.ref !== undefined) this.selection = entry.ref;
+        if (entry.ref !== undefined) this.selection = this.#inSameLesson(entry.ref);
     }
 
     /**

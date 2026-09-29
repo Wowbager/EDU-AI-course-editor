@@ -164,6 +164,16 @@ export function isPracticeBlock(block: BlockV2, bindingFlag = false): boolean {
 	);
 }
 
+/**
+ * Whether any lesson flags its binding of the block for practice — the legacy flag
+ * (`bindingFlag` of `isPracticeBlock`) for a card that more than one lesson binds.
+ */
+export function bindingFlagsPractice(doc: CourseV2, blockId: string): boolean {
+	return doc.lessons.some((lesson) =>
+		lesson.blocks.some((b) => b.block_id === blockId && b.default_practice === true)
+	);
+}
+
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
 const truncate = (text: string, max: number) =>

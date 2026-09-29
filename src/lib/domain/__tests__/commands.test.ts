@@ -23,12 +23,14 @@ import {
 	reorderBindings,
 	reorderSteps,
 	setField,
+	setPractice,
 	setQuestionType,
 	unbindBlock,
 	setTopics,
 	blockTopics,
 	type Repair
 } from '../commands';
+import { bindingFlagsPractice, isPracticeBlock } from '../derive';
 import { stepReservation, type Reservations } from '../ids';
 
 const fixture = (name: string): unknown =>
@@ -330,6 +332,73 @@ describe('setField', () => {
 		const after = setField(before, { field: 'name' }, 'Nový název').doc;
 		expect(after.name).toBe('Nový název');
 		expect(after.blocks).toBe(before.blocks);
+	});
+});
+
+describe('setPractice', () => {
+	const id = 'L1_B3_poznej';
+	const blockOf = (doc: CourseV2) => doc.blocks.find((b) => b.block_id === id)!;
+	const practice = (doc: CourseV2) => isPracticeBlock(blockOf(doc), bindingFlagsPractice(doc, id));
+
+	/** The card is in practice three ways at once, and a second lesson binds it too. */
+	function flaggedEverywhere() {
+		let doc = base();
+		const lessonId = doc.lessons.find((l) => l.blocks.some((b) => b.block_id === id))!.lesson_id;
+		const stepId = blockOf(doc).steps[0].id;
+		doc = setField(doc, { blockId: id, field: 'default_practice' }, true).doc;
+		doc = setField(doc, { blockId: id, stepId, field: 'default_practice' }, true).doc;
+		doc = setField(doc, { lessonId, blockId: id, field: 'default_practice' }, true).doc;
+		const other = addLesson(doc, 'Druhá lekce').doc;
+		doc = bindBlock(other, other.lessons.at(-1)!.lesson_id, id).doc;
+		doc = setField(doc, { lessonId: doc.lessons.at(-1)!.lesson_id, blockId: id, field: 'default_practice' }, true).doc;
+		return doc;
+	}
+
+	it('switching off clears the flag on the block, its steps and every binding', () => {
+		const doc = flaggedEverywhere();
+		expect(practice(doc)).toBe(true);
+		const off = setPractice(doc, id, false).doc;
+		expect(practice(off)).toBe(false);
+		expect(blockOf(off)).not.toHaveProperty('default_practice');
+		for (const step of blockOf(off).steps) expect(step).not.toHaveProperty('default_practice');
+		for (const lesson of off.lessons) {
+			for (const binding of lesson.blocks) expect(binding).not.toHaveProperty('default_practice');
+		}
+	});
+
+	it('clearing only the block flag would have left the card in practice', () => {
+		const doc = flaggedEverywhere();
+		const naive = setField(doc, { blockId: id, field: 'default_practice' }, undefined).doc;
+		expect(practice(naive)).toBe(true);
+	});
+
+	it('switching off leaves every other card and every other field alone', () => {
+		const doc = flaggedEverywhere();
+		const off = setPractice(doc, id, false).doc;
+		for (const block of doc.blocks) {
+			if (block.block_id !== id) expect(off.blocks.find((b) => b.block_id === block.block_id)).toBe(block);
+		}
+		expect(blockOf(off).steps.map((st) => st.id)).toEqual(blockOf(doc).steps.map((st) => st.id));
+		expect(off.lessons.map((l) => l.blocks.map((b) => b.block_id))).toEqual(
+			doc.lessons.map((l) => l.blocks.map((b) => b.block_id))
+		);
+	});
+
+	it('switching off a card that is not in practice changes nothing', () => {
+		const doc = setPractice(flaggedEverywhere(), id, false).doc;
+		expect(practice(doc)).toBe(false);
+		expect(setPractice(doc, id, false).doc).toBe(doc);
+	});
+
+	it('switching on flags the block', () => {
+		const doc = setPractice(flaggedEverywhere(), id, false).doc;
+		const on = setPractice(doc, id, true).doc;
+		expect(blockOf(on).default_practice).toBe(true);
+		expect(practice(on)).toBe(true);
+	});
+
+	it('refuses a card that is not there', () => {
+		expect(() => setPractice(base(), 'nope', false)).toThrow(CommandError);
 	});
 });
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { DocStore } from './doc-store.svelte';
 import { importCourse } from '$lib/domain/document';
-import { addBlock, addStep, setField } from '$lib/domain/commands';
+import { addBlock, addLesson, addStep, bindBlock, setField, unbindBlock } from '$lib/domain/commands';
 import { emptyCourse } from '$lib/domain/document';
 import { groupOf, questionCount } from '$lib/domain/groups';
 
@@ -192,5 +192,131 @@ describe('jumping onto a hidden feedback field', () => {
 		store.follow(hint);
 		expect(store.showFeedback).toBe(false);
 		expect(store.selection).toEqual(hint);
+	});
+});
+
+describe('a run of typing', () => {
+	function typing() {
+		const store = loaded();
+		const block = store.doc.blocks.find((b) => b.steps?.some((s) => s.type === 'text'))!;
+		const step = block.steps!.find((s) => s.type === 'text')!;
+		const ref = { blockId: block.block_id, stepId: step.id, field: 'content' };
+		const type = (text: string) => store.apply((d) => setField(d, ref, text));
+		return { store, type, step };
+	}
+
+	it('is one undo entry between beginEdit and endEdit', () => {
+		const { store, type } = typing();
+		const before = store.source;
+		store.beginEdit();
+		for (const text of ['Z', 'Zl', 'Zlo', 'Zlom']) type(text);
+		store.endEdit();
+		store.undo();
+		expect(store.source).toBe(before);
+	});
+
+	it('is one entry per keystroke without them, which is what the editor must avoid', () => {
+		const { store, type } = typing();
+		const before = store.source;
+		for (const text of ['Z', 'Zl', 'Zlo']) type(text);
+		store.undo();
+		expect(store.source).not.toBe(before);
+	});
+
+	it('leaves nothing behind when it nets out to no change', () => {
+		const { store, type, step } = typing();
+		const before = store.source;
+		store.beginEdit();
+		type('rozepsáno');
+		type(step.content ?? '');
+		store.endEdit();
+		store.undo();
+		// The one undo went past the run to the split of the import, not into it.
+		expect(store.source).not.toBe(before);
+		expect(store.source.blocks.length).toBeLessThan(before.blocks.length);
+	});
+});
+
+describe('editing a card two lessons share', () => {
+	function shared() {
+		const store = new DocStore();
+		store.apply((d, r) => addLesson(d, 'První', r));
+		store.apply((d, r) => addLesson(d, 'Druhá', r));
+		const [first, second] = store.doc.lessons.map((l) => l.lesson_id);
+		const card = store.apply((d, r) => addBlock(d, first, 'display', undefined, r)).ref!.blockId!;
+		store.apply((d) => bindBlock(d, second, card));
+		store.apply((d, r) => addStep(d, card, 'text', undefined, r));
+		const step = store.doc.blocks.find((b) => b.block_id === card)!.steps![0];
+		const ref = { blockId: card, stepId: step.id, field: 'content' };
+		return { store, first, second, card, ref };
+	}
+
+	it('stays in the lesson the teacher came from', () => {
+		const { store, first, second, card, ref } = shared();
+		expect(store.index.lessonsByBlock.get(card)).toEqual([first, second]);
+		store.selection = { lessonId: second, blockId: card };
+		store.apply((d) => setField(d, ref, 'Text'));
+		expect(store.selection?.lessonId).toBe(second);
+		expect(store.selection?.blockId).toBe(card);
+	});
+
+	it('stays there through undo and redo', () => {
+		const { store, second, card, ref } = shared();
+		store.selection = { lessonId: second, blockId: card };
+		store.apply((d) => setField(d, ref, 'Text'));
+		store.undo();
+		expect(store.selection?.lessonId).toBe(second);
+		store.redo();
+		expect(store.selection?.lessonId).toBe(second);
+	});
+
+	it('follows the card when the lesson no longer holds it', () => {
+		const { store, first, second, card, ref } = shared();
+		store.selection = { lessonId: second, blockId: card };
+		store.apply((d) => setField(d, { ...ref, lessonId: first }, 'Text'));
+		expect(store.selection?.lessonId).toBe(first);
+		store.selection = { lessonId: second, blockId: card };
+		store.apply((d) => ({ ...unbindBlock(d, second, card), ref }));
+		expect(store.selection?.lessonId).toBeUndefined();
+	});
+});
+
+describe('the export review', () => {
+	function unfinished() {
+		const store = new DocStore();
+		store.apply((d, r) => addLesson(d, 'První', r));
+		const lesson = store.doc.lessons[0].lesson_id;
+		store.apply((d, r) => addBlock(d, lesson, 'display', undefined, r));
+		return { store, lesson };
+	}
+	const shownCodes = (store: DocStore) => store.shown.errors.map((i) => i.code);
+
+	it('shows what it listed, and only that, until the course is downloaded', () => {
+		const { store, lesson } = unfinished();
+		expect(shownCodes(store)).not.toContain('E_DISPLAY_NO_TEXT');
+		store.beginReview();
+		expect(store.reviewing).toBe(true);
+		expect(shownCodes(store)).toContain('E_DISPLAY_NO_TEXT');
+		// A card added while fixing is unfinished like any new card, not red at birth.
+		const added = store.apply((d, r) => addBlock(d, lesson, 'display', undefined, r)).ref!.blockId;
+		const at = (blockId: string | undefined) => store.shown.errors.filter((i) => i.ref.blockId === blockId);
+		expect(store.validation.errors.some((i) => i.ref.blockId === added)).toBe(true);
+		expect(at(added)).toEqual([]);
+	});
+
+	it('stops showing it early once the course has been downloaded', () => {
+		const { store } = unfinished();
+		store.beginReview();
+		expect(shownCodes(store)).toContain('E_DISPLAY_NO_TEXT');
+		store.endReview();
+		expect(store.reviewing).toBe(false);
+		expect(shownCodes(store)).not.toContain('E_DISPLAY_NO_TEXT');
+	});
+
+	it('is forgotten when another course is loaded', () => {
+		const { store } = unfinished();
+		store.beginReview();
+		store.load(emptyCourse('NEW', 'Nový kurz'));
+		expect(store.reviewing).toBe(false);
 	});
 });

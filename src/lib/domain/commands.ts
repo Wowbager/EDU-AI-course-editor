@@ -386,6 +386,53 @@ export function moveBlockToLesson(
 // ───────────────────────────────────────── blocks ─────────────────────────────────────────
 
 /**
+ * Put a card into daily practice, or take it out (§11). A card is in practice when
+ * the block, any of its steps or a lesson's binding of it says so
+ * (`isPracticeBlock`), so switching it off clears all of them: clearing only the
+ * block's own flag would leave the card in practice, and the switch that just went
+ * off would be lying. Only a flag that is set is removed; nothing else is written.
+ * Switching on flags the block, which is where the spec says new content sets it.
+ */
+export function setPractice(doc: CourseV2, blockId: string, on: boolean): CommandResult {
+	requireBlock(doc, blockId);
+	const ref: Ref = { blockId };
+	if (on) {
+		return {
+			...setField(doc, { blockId, field: 'default_practice' }, true),
+			ref,
+			description: 'Karta zařazena do cvičení'
+		};
+	}
+	const cleared = <T extends { default_practice?: boolean }>(node: T): T => {
+		if (node.default_practice !== true) return node;
+		const { default_practice: _flag, ...rest } = node;
+		return rest as T;
+	};
+	const each = <T>(items: T[], fn: (item: T) => T): T[] => {
+		const next = items.map(fn);
+		return next.some((item, i) => item !== items[i]) ? next : items;
+	};
+	const blocks = each(doc.blocks, (b) => {
+		if (b.block_id !== blockId) return b;
+		const own = cleared(b);
+		const steps = each(own.steps, cleared);
+		return steps === own.steps ? own : { ...own, steps };
+	});
+	const lessons = each(doc.lessons, (lesson) => {
+		const bindings = each(lesson.blocks, (b) => (b.block_id === blockId ? cleared(b) : b));
+		return bindings === lesson.blocks ? lesson : { ...lesson, blocks: bindings };
+	});
+	if (blocks === doc.blocks && lessons === doc.lessons) {
+		return { doc, ref, description: 'Karta ve cvičení není' };
+	}
+	return {
+		doc: { ...doc, blocks, lessons },
+		ref,
+		description: 'Karta vyřazena ze cvičení'
+	};
+}
+
+/**
  * Add a block and bind it into a lesson. The block type follows from the card the
  * teacher chose to add; it is never edited as a raw field (plan §5, M4).
  *

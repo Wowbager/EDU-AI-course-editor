@@ -92,6 +92,47 @@ test('teacher mode hides nothing behind a disclosure', async ({ page }) => {
 	await expect(page.getByRole('dialog')).toContainText('Podrobná pomoc');
 });
 
+test('a type change that loses answers says Zpět brings them back, even from another card', async ({ page }) => {
+	await page.locator('.tree-add').getByRole('button', { name: 'Otázka', exact: true }).click();
+	const answer = page.locator('.answers').getByRole('textbox', { name: 'Text odpovědi' }).first();
+	await answer.fill('Čitatel je 5');
+	await page.getByRole('radio', { name: 'Otevřená odpověď' }).click();
+
+	const dialog = page.getByRole('dialog', { name: 'Změnit typ otázky?' });
+	await expect(dialog).toContainText('Zpět se dá vrátit tlačítkem Zpět v liště.');
+	// The promise is not limited to the card: undo is the course's.
+	await expect(dialog).not.toContainText('neopustíš');
+	await dialog.getByRole('button', { name: 'Přesto změnit' }).click();
+	await expect(dialog).toBeHidden();
+
+	await page.locator('.tree-card').first().click();
+	await expect(page.locator('.answers')).toHaveCount(0);
+	await page.getByRole('button', { name: 'Zpět', exact: true }).click();
+	await expect(answer).toHaveValue('Čitatel je 5');
+});
+
+test('the practice switch agrees with the Opakování chip, and off means off', async ({ page }) => {
+	// The second card is in practice through the flag on its one step, not its own.
+	await importCourse(page, 'spec-16-course.json');
+	await page.getByRole('radio', { name: 'Metodik' }).click();
+	await page.locator('.tree-card').nth(1).click();
+	const chip = page.locator('main .card header').getByText('Opakování', { exact: true });
+	await expect(chip).toBeVisible();
+
+	await page.getByRole('button', { name: 'Nastavení karty' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Nastavení karty' });
+	const practice = dialog.getByRole('checkbox', { name: /^Zařadit do cvičení/ });
+	await expect(practice).toBeChecked();
+	// The box itself is drawn as a track; the label is what a teacher clicks.
+	const label = dialog.locator('label.toggle').filter({ hasText: 'Zařadit do cvičení' });
+	await label.click();
+	await expect(chip).toBeHidden();
+	await expect(practice).not.toBeChecked();
+	await label.click();
+	await expect(chip).toBeVisible();
+	await expect(practice).toBeChecked();
+});
+
 test('the settings panels are real dialogs', async ({ page }) => {
 	await importCourse(page, 'spec-16-course.json');
 
@@ -228,15 +269,23 @@ test('unfinished content stays quiet until the card is left, and the review show
 	await page.keyboard.press('Escape');
 	await expect(check).not.toContainText('k dokončení');
 	await expect(check.locator('.chip.error')).toBeVisible();
+
+	// What the review listed is now to fix, but a card added afterwards is a new
+	// draft like any other, not red at birth.
+	await page.locator('.tree-add').getByRole('button', { name: 'Otázka', exact: true }).click();
+	await expect(page.locator('.tree-card')).toHaveCount(4);
+	await expect(page.locator('.tree-card').first().locator('.chip.error')).toBeVisible();
+	await expect(page.locator('.tree-card').nth(3).locator('.chip.error')).toHaveCount(0);
 });
 
 test('an imported course with problems says so once, calmly', async ({ page }) => {
 	await importCourse(page, 'spec-16-course-broken.json');
 	const banner = page.locator('.banner.unfinished');
 	await expect(banner).toContainText('k dokončení');
+	// It leads to the same list the top bar's count opens, not to the download review.
 	await banner.getByRole('button', { name: 'Zobrazit' }).click();
-	await expect(page.getByRole('dialog', { name: 'Než kurz stáhneš' })).toBeVisible();
-	await page.keyboard.press('Escape');
+	await expect(page.getByRole('complementary', { name: 'Kontrola kurzu' })).toBeVisible();
+	await expect(page.getByRole('dialog', { name: 'Než kurz stáhneš' })).toHaveCount(0);
 	// Seen: the banner has done its job.
 	await expect(banner).toHaveCount(0);
 });
@@ -319,4 +368,17 @@ test('an image step asks for the picture first, and for its description once the
 	await url.fill('');
 	await url.press('Enter');
 	await expect(alt).toHaveCount(0);
+});
+
+test('the card title\'s placeholder is a name, not a cue: upright, while a cue stays italic', async ({ page }) => {
+	await page.locator('.tree-add').getByRole('button', { name: 'Otázka', exact: true }).click();
+	const style = (selector: string) =>
+		page.locator(selector).first().evaluate((el) => getComputedStyle(el, '::placeholder').fontStyle);
+	const title = 'h1 input[placeholder]';
+	await expect(page.locator(title).first()).toHaveAttribute('placeholder', /^Karta \d+$/);
+	expect(await style(title)).toBe('normal');
+	// An invitation to write is still set as one.
+	expect(await style('.answers textarea, .answers input[aria-label="Text odpovědi"]')).toBe('italic');
+	// No stray full stop, no markup jargon on the step prompts.
+	await expect(page.locator('.cm-placeholder', { hasText: 'Zadání otázky' }).first()).toHaveText('Zadání otázky');
 });

@@ -9,6 +9,13 @@
         value: string | undefined;
         label: string;
         placeholder?: string;
+        /**
+         * What the placeholder is. A `cue` ("Napiš odpověď…") is an invitation and
+         * is set in italic. A `stand-in` is the value the field takes when it is left
+         * empty, like a card's derived name: upright, so it does not read as a
+         * sentence the teacher forgot to finish, and quieter than real content.
+         */
+        placeholderKind?: "cue" | "stand-in";
         multiline?: boolean;
         /** Shown instead of the value when it is empty — the author's cue to fill it. */
         emptyText?: string;
@@ -35,6 +42,7 @@
         value,
         label,
         placeholder = "",
+        placeholderKind = "cue",
         multiline = false,
         emptyText,
         monospace = false,
@@ -165,6 +173,7 @@
             class="field"
             class:mono={monospace}
             class:invalid={flagged}
+            class:stand-in={placeholderKind === "stand-in"}
             class:compact={density === "compact"}
             {disabled}
             oninput={input}
@@ -215,6 +224,10 @@
     .field::placeholder {
         color: var(--e-text-faint);
         font-style: italic;
+    }
+    .field.stand-in::placeholder {
+        font-style: normal;
+        opacity: 0.7;
     }
     .field:placeholder-shown {
         border-bottom-style: dashed;

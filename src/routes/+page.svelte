@@ -78,6 +78,25 @@
         if (session) untrack(() => session.schedule());
     });
 
+    /** The notice has buttons when saving is stuck; those stay until dealt with. */
+    const recoveryStuck = $derived(
+        recovery?.status === "blocked" || recovery?.status === "error",
+    );
+    // "Obnoven koncept…" is news for a moment, not a state: it goes by itself unless
+    // it carries a button. Only the message is tracked, so typing (which flips the
+    // status) does not restart the clock.
+    $effect(() => {
+        const session = recovery;
+        const message = session?.message;
+        if (!session || !message) return;
+        const timer = setTimeout(() => {
+            const stuck =
+                session.status === "blocked" || session.status === "error";
+            if (!stuck && session.message === message) session.message = "";
+        }, 8000);
+        return () => clearTimeout(timer);
+    });
+
     let sidebarCollapsed = $state(false);
     /**
      * `null` until the remembered layout has been read on mount; the preview shows
@@ -106,10 +125,11 @@
     let reviewOpen = $state(false);
 
     /**
-     * Set when the document on screen was not written in this session — a file
-     * that was imported, a draft restored from the browser. Nothing in it has been
-     * "touched", so its unfinished parts would stay quiet (`ui/issue-visibility.ts`);
-     * one calm line says there is something left, instead of painting it all red.
+     * Set when a file was imported. Nothing in it has been "touched", so its
+     * unfinished parts would stay quiet (`ui/issue-visibility.ts`); one calm line
+     * says there is something left, instead of painting it all red. A restored draft
+     * does not set it: its unfinished parts are the teacher's own, and the top bar's
+     * "N k dokončení" already counts them.
      */
     let inherited = $state(false);
     let importError = $state<string | null>(null);
@@ -310,7 +330,6 @@
         // dirty; seeding or restoring now would silently discard it.
         const restored = !store.dirty && session.restore();
         if (restored) {
-            inherited = true;
             store.splitQuestions();
         }
         if (!store.dirty && !restored) {
@@ -394,11 +413,19 @@
             event.preventDefault();
             store.redo();
         } else if (event.key.toLowerCase() === "b") {
+            // Plain Ctrl+B is "bold" to anyone typing; only Ctrl+Shift+B is ours there.
+            if (!event.shiftKey && typing(event.target)) return;
             event.preventDefault();
             if (event.shiftKey) togglePreview();
             else sidebarCollapsed = !sidebarCollapsed;
         }
     }
+
+    /** Whether the keys go into a text: a field, a menu of choices, or the Markdown editor. */
+    const typing = (target: EventTarget | null) =>
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+            target.closest("input, textarea, select") !== null);
 </script>
 
 <svelte:window {onkeydown} />
@@ -411,7 +438,7 @@
         {onimport}
         bind:reviewOpen />
     {#if recovery?.message}
-        <div class="recovery" role="status">
+        <div class="recovery" class:stuck={recoveryStuck} role="status">
             <p>
                 {recovery.message}
             </p>
@@ -467,10 +494,10 @@
                 </div>
             {/if}
 
-            {#if inherited && !store.reviewing && store.validation.errors.length > 0}
+            {#if inherited && !showValidation && !store.reviewing && store.listed.errors.length > 0}
                 <div class="banner unfinished" role="status">
                     V kurzu je ještě {counted(
-                        store.validation.errors.length,
+                        store.listed.errors.length,
                         "věc",
                         "věci",
                         "věcí",
@@ -478,7 +505,11 @@
                     <button
                         type="button"
                         class="show"
-                        onclick={() => (reviewOpen = true)}>Zobrazit</button>
+                        onclick={() => {
+                            // The same list the top bar's count opens.
+                            showValidation = true;
+                            inherited = false;
+                        }}>Zobrazit</button>
                     <button
                         type="button"
                         aria-label="Skrýt oznámení"
@@ -542,6 +573,7 @@
                                 70,
                                 cardPosition,
                             )}
+                            placeholderKind="stand-in"
                             density="compact"
                             onchange={(v) =>
                                 store.apply((d) =>
@@ -754,9 +786,16 @@
         gap: 8px;
         padding: 12px 36px 12px 14px;
         border-radius: var(--radius-s);
+        background: var(--surface);
+        border: 1px solid var(--e-border);
+        color: var(--e-text-muted);
+        font: var(--type-body-small);
+    }
+
+    .recovery.stuck {
+        border-color: transparent;
         background: var(--e-warning-bg);
         color: var(--e-warning);
-        font: var(--type-body-small);
     }
 
     .recovery p {

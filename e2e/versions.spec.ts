@@ -18,7 +18,10 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('a teacher saves a version, publishes it for signed-in students, and changes their mind', async ({ page }) => {
-	await expect(page.locator('header .version')).toContainText('neuloženo');
+	// Nothing saved yet reads as the bare number; the name and title say so.
+	await expect(page.locator('header .version')).toHaveText(/^\s*v1\s*$/);
+	await expect(page.getByRole('button', { name: 'v1, zatím neuloženo' })).toBeVisible();
+	await expect(page.locator('header .version')).toHaveAttribute('title', /Zatím není uložená žádná verze/);
 	await page.locator('header .version').click();
 
 	const dialog = page.getByRole('dialog', { name: 'Verze kurzu' });

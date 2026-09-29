@@ -146,3 +146,19 @@ test('the card keeps Nastavení karty in view and the rest in one menu, deleting
 	await page.keyboard.press('Escape');
 	await expect(menu).toBeHidden();
 });
+
+test('in Učitel mode Nastavení karty is a gear that lists what it holds; Metodik keeps the words', async ({ page }) => {
+	await load(page);
+	const settings = page.getByRole('button', { name: 'Nastavení karty', exact: true });
+	await expect(settings).toHaveText('');
+	// The tooltip is what the teacher's dialog holds, not the metodik's list.
+	await expect(settings).toHaveAttribute('title', /délka, nápověda ke kartě/);
+	await expect(settings).not.toHaveAttribute('title', /klasifikace/);
+	await settings.click();
+	const dialog = page.getByRole('dialog', { name: 'Nastavení karty' });
+	await expect(dialog).toContainText('Délka');
+	await page.keyboard.press('Escape');
+
+	await page.getByRole('radio', { name: 'Metodik' }).click();
+	await expect(settings).toHaveText('Nastavení karty');
+});

@@ -46,6 +46,35 @@ test('AltGr+B (Ctrl+Alt+B) does not fold the panel', async ({ page }) => {
 	await expect(fold(page)).toBeVisible();
 });
 
+test('Ctrl+B while typing is left to the text, and Ctrl+Shift+B still works there', async ({ page }) => {
+	await openEditor(page);
+	await expect(fold(page)).toBeVisible();
+
+	// In a field and in the Markdown editor, where Ctrl+B means bold, the panel stays.
+	const name = page.getByRole('textbox', { name: 'Název kurzu', exact: true });
+	await name.click();
+	await page.keyboard.press('Control+b');
+	await expect(name).toBeFocused();
+	await expect(fold(page)).toBeVisible();
+	const text = page.locator('.cm-content').first();
+	await text.click();
+	await page.keyboard.press('Control+b');
+	await expect(text).toBeFocused();
+	await expect(fold(page)).toBeVisible();
+
+	// The preview shortcut has no meaning to a text, so it works from inside one.
+	await expect(hide(page)).toBeVisible();
+	await page.keyboard.press('Control+Shift+B');
+	await expect(show(page)).toBeVisible();
+	await page.keyboard.press('Control+Shift+B');
+	await expect(hide(page)).toBeVisible();
+
+	// Out of any text, Ctrl+B folds the panel as before.
+	await page.getByRole('heading', { level: 2, name: 'Lekce' }).click();
+	await page.keyboard.press('Control+b');
+	await expect(unfold(page)).toBeVisible();
+});
+
 test('another tab does not see a layout change as a conflicting edit', async ({ page, context }) => {
 	await openEditor(page);
 	// The first tab saves its new course once on open. Opening the second tab before
@@ -80,7 +109,7 @@ const startWith = (page: Page, layout: { sidebarCollapsed: boolean; previewColla
 const player = (page: Page) => page.locator('iframe[title="Náhled kurzu očima žáka"]');
 const hide = (page: Page) => page.getByRole('button', { name: 'Skrýt náhled' });
 const show = (page: Page) => page.getByRole('button', { name: 'Ukázat náhled' });
-const booted = (page: Page) => page.locator('aside .chip.ok', { hasText: 'Náhled' });
+const booted = (page: Page) => page.locator('aside.preview');
 const sent = async (page: Page, type: string) =>
 	(await player(page).elementHandle().then((h) => h!.contentFrame()))!.evaluate(
 		(t) => (window as unknown as { received: { type: string }[] }).received.filter((m) => m.type === t).length,
@@ -89,7 +118,7 @@ const sent = async (page: Page, type: string) =>
 
 test('folding the preview keeps the same player running, untouched', async ({ page }) => {
 	await openEditor(page);
-	await expect(booted(page)).toBeVisible();
+	await expect(booted(page)).toHaveAttribute('data-player', 'ready');
 	await player(page).evaluate((el) => (el.dataset.probe = '1'));
 	await page.getByRole('radio', { name: 'Vyzkoušet' }).click();
 	await expect.poll(() => sent(page, 'setLesson')).toBe(1);
@@ -108,7 +137,7 @@ test('folding the preview keeps the same player running, untouched', async ({ pa
 	await expect(player(page)).toHaveCount(1);
 	await expect(page.locator('iframe[data-probe="1"]')).toHaveCount(1);
 	await expect(page.getByRole('radio', { name: 'Vyzkoušet' })).toBeChecked();
-	await expect(booted(page)).toBeVisible();
+	await expect(booted(page)).toHaveAttribute('data-player', 'ready');
 	expect(await sent(page, 'setLesson')).toBe(1);
 });
 
@@ -124,7 +153,7 @@ test('a preview remembered as folded boots no player until it is opened', async 
 
 	await show(page).click();
 	await expect(player(page)).toHaveCount(1);
-	await expect(booted(page)).toBeVisible();
+	await expect(booted(page)).toHaveAttribute('data-player', 'ready');
 	await expect(hide(page)).toBeFocused();
 });
 
@@ -139,6 +168,29 @@ test('Ctrl+Shift+B folds and opens the preview, and the choice survives a reload
 	await page.keyboard.press('Control+Shift+B');
 	await expect(hide(page)).toBeVisible();
 	await expect(page.locator('aside.preview.collapsed')).toHaveCount(0);
+});
+
+test('the preview header has no chip while the player runs, and names the states that need attention', async ({ page }) => {
+	await openEditor(page);
+	await expect(booted(page)).toHaveAttribute('data-player', 'ready');
+	await expect(page.locator('aside.preview header .chip')).toHaveCount(0);
+});
+
+test('a player that never starts shows "spouští se…", then "přehrávač neběží"', async ({ page }) => {
+	await page.route('**/player/**', (route) =>
+		route.fulfill({ contentType: 'text/html; charset=utf-8', body: '<!doctype html><p>silent</p>' })
+	);
+	await page.clock.install();
+	await openEditor(page);
+	const preview = page.locator('aside.preview');
+	await expect(preview).toHaveAttribute('data-player', 'starting');
+	await expect(preview.getByText('spouští se…')).toBeVisible();
+	// Three attempts of 20 s each, and it gives up.
+	await page.clock.runFor(21_000);
+	await page.clock.runFor(21_000);
+	await page.clock.runFor(21_000);
+	await expect(preview).toHaveAttribute('data-player', 'failed');
+	await expect(preview.getByText('přehrávač neběží')).toBeVisible();
 });
 
 test('a folded preview does not run the boot watchdog, and opening it starts a fresh one', async ({ page }) => {

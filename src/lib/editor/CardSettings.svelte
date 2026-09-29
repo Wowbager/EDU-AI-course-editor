@@ -24,7 +24,8 @@
 	import VectorEditor from './VectorEditor.svelte';
 	import { useStore } from '$lib/ui/context';
 	import { allows, fieldsFor } from '$lib/ui/fields';
-	import { setField } from '$lib/domain/commands';
+	import { setField, setPractice } from '$lib/domain/commands';
+	import { bindingFlagsPractice, isPracticeBlock } from '$lib/domain/derive';
 	import {
 		groupOf,
 		keepsQuestionsTogether,
@@ -59,12 +60,24 @@
 	const advancedFields = $derived(blockFields.filter((f) => f.mode === 'advanced'));
 	const bindingFields = $derived(binding === undefined ? [] : fieldsFor('binding', mode));
 
+	/**
+	 * Whether the card is in practice, however it got there: the block, a step or a
+	 * lesson's binding (`isPracticeBlock`). The switch shows this, not the block's
+	 * own flag, so it never disagrees with the „Opakování“ chip on the card.
+	 */
+	const practice = $derived(isPracticeBlock(block, bindingFlagsPractice(doc, block.block_id)));
+
 	const set = (field: string, value: unknown) =>
-		store.apply((d) => setField(d, { blockId: block.block_id, field }, value));
+		store.apply((d) =>
+			field === 'default_practice'
+				? setPractice(d, block.block_id, value === true)
+				: setField(d, { blockId: block.block_id, field }, value)
+		);
 	const setBinding = (field: string, value: unknown) =>
 		store.apply((d) => setField(d, { lessonId, blockId: block.block_id, field }, value));
 
 	function read(path: string): unknown {
+		if (path === 'default_practice') return practice;
 		return path.split('.').reduce<unknown>(
 			(node, key) =>
 				node === undefined || node === null ? undefined : (node as Record<string, unknown>)[key],
