@@ -7,10 +7,9 @@
      * container, and a container's settings are worth one click, not permanent
      * residence at the top of the screen.
      *
-     * Which fields exist is decided by the mode, from `$lib/ui/fields.ts`. The two
-     * additions here are the didactics summary — the only place the tool tells an
-     * author their lesson is under-explained — and the lesson's own removal, which
-     * was reachable only by hovering a sidebar row.
+     * Which fields exist is decided by the mode, from `$lib/ui/fields.ts`. What is
+     * added here is the lesson's own removal, which was reachable only by hovering a
+     * sidebar row, and the chips that say what is in the lesson.
      */
     import type { CourseV2 } from "$lib/domain/schema";
     import Modal from "$lib/ui/Modal.svelte";
@@ -89,13 +88,6 @@
                         Cvičení {Math.round(didactics.practiceShare * 100)} %
                     </Chip>
                 </div>
-                {#if didactics.wrongOptionFeedbackShare < 0.5}
-                    <p class="warn">
-                        Většina chybných odpovědí žákovi neřekne, kde udělal
-                        chybu. Zpětná vazba u možnosti je to jediné, co z chyby
-                        udělá učení.
-                    </p>
-                {/if}
             </section>
         {/if}
 
@@ -167,13 +159,6 @@
         display: flex;
         flex-wrap: wrap;
         gap: 6px;
-    }
-
-    .warn {
-        margin: 8px 0 0;
-        color: var(--e-warning);
-        font-size: var(--text-xs);
-        line-height: 1.5;
     }
 
     .row {

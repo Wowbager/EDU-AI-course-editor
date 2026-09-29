@@ -35,7 +35,6 @@
     } from "$lib/domain/commands";
     import {
         blockPreview,
-        lessonDidactics,
         lessonTotals,
     } from "$lib/domain/derive";
     import { cardsCount, stepsCount } from "$lib/ui/plural";
@@ -306,7 +305,6 @@
             {#each items as item (item.id)}
                 {@const lesson = item.lesson}
                 {@const totals = lessonTotals(lesson, store.index)}
-                {@const didactics = lessonDidactics(lesson, store.index)}
                 {@const errors = errorsIn(lesson.lesson_id)}
                 {@const open = lesson.lesson_id === selectedLesson}
                 <li class="tree-lesson" class:open>
@@ -335,16 +333,6 @@
                     </div>
 
                     {#if open}
-                        {#if didactics.wrongOptionFeedbackShare < 0.5 && totals.blockCount > 0}
-                            <p
-                                class="nudge"
-                                title="Podíl chybných odpovědí, které žákovi řeknou, kde udělal chybu">
-                                Zpětná vazba jen u {Math.round(
-                                    didactics.wrongOptionFeedbackShare * 100,
-                                )} % chybných odpovědí
-                            </p>
-                        {/if}
-
                         <ul
                             class="cards"
                             use:dndzone={{
@@ -688,15 +676,6 @@
     .meta {
         color: var(--e-text-faint);
         font: var(--type-caption);
-    }
-
-
-
-    .nudge {
-        margin: 0 10px 6px;
-        color: var(--e-warning);
-        font-size: var(--text-xs);
-        line-height: 1.4;
     }
 
     /*
