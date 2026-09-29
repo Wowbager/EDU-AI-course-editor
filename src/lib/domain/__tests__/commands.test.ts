@@ -19,6 +19,7 @@ import {
 	planDeleteBlock,
 	planDeleteStep,
 	renameBlock,
+	moveBlockInLesson,
 	reorderBindings,
 	reorderSteps,
 	setField,
@@ -149,6 +150,57 @@ describe('a reorder that changes nothing', () => {
 		const block = doc.blocks.find((b) => b.block_id === 'L1_B3_poznej')!;
 		const ids = block.steps.map((s) => s.id).reverse();
 		expect(reorderSteps(doc, block.block_id, ids).doc).not.toBe(doc);
+	});
+});
+
+describe('moving a card with the keyboard', () => {
+	const ids = (doc: CourseV2, lessonId: string) =>
+		doc.lessons.find((l) => l.lesson_id === lessonId)!.blocks.map((b) => b.block_id);
+
+	it('moves a card one place and renumbers', () => {
+		const doc = base();
+		const lesson = doc.lessons[0];
+		const [a, b, c] = lesson.blocks.map((x) => x.block_id);
+		const down = moveBlockInLesson(doc, lesson.lesson_id, a, 1).doc;
+		expect(ids(down, lesson.lesson_id).slice(0, 3)).toEqual([b, a, c]);
+		expect(down.lessons[0].blocks.map((x) => x.order)).toEqual(down.lessons[0].blocks.map((_, i) => i + 1));
+		const up = moveBlockInLesson(down, lesson.lesson_id, a, -1).doc;
+		expect(ids(up, lesson.lesson_id)).toEqual(ids(doc, lesson.lesson_id));
+		// The input is not touched.
+		expect(ids(doc, lesson.lesson_id).slice(0, 3)).toEqual([a, b, c]);
+	});
+
+	it('leaves the document alone at either edge', () => {
+		const doc = base();
+		const lesson = doc.lessons[0];
+		const first = lesson.blocks[0].block_id;
+		const last = lesson.blocks[lesson.blocks.length - 1].block_id;
+		expect(moveBlockInLesson(doc, lesson.lesson_id, first, -1).doc).toBe(doc);
+		expect(moveBlockInLesson(doc, lesson.lesson_id, last, 1).doc).toBe(doc);
+	});
+
+	it('leaves the document alone for a card the lesson does not hold', () => {
+		const doc = base();
+		expect(moveBlockInLesson(doc, doc.lessons[0].lesson_id, 'NO_SUCH_CARD', 1).doc).toBe(doc);
+	});
+
+	it('handles a card bound twice: neighbouring bindings are indistinguishable, and the first one moves', () => {
+		const doc = base();
+		const lesson = doc.lessons[0];
+		const a = lesson.blocks[0].block_id;
+		const b = lesson.blocks[1].block_id;
+		const withOrder = (order: string[]): CourseV2 => ({
+			...doc,
+			lessons: [
+				{ ...lesson, blocks: order.map((block_id, i) => ({ ...lesson.blocks[0], block_id, order: i + 1 })) },
+				...doc.lessons.slice(1)
+			]
+		});
+		// Nothing to tell the two apart, so nothing to record.
+		const twice = withOrder([a, a, b]);
+		expect(moveBlockInLesson(twice, lesson.lesson_id, a, 1).doc).toBe(twice);
+		expect(ids(moveBlockInLesson(twice, lesson.lesson_id, b, -1).doc, lesson.lesson_id)).toEqual([a, b, a]);
+		expect(ids(moveBlockInLesson(withOrder([a, b, a]), lesson.lesson_id, a, 1).doc, lesson.lesson_id)).toEqual([b, a, a]);
 	});
 });
 

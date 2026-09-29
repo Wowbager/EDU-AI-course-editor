@@ -335,6 +335,22 @@ export function reorderBindings(doc: CourseV2, lessonId: string, orderedIds: str
 	};
 }
 
+/**
+ * Move a card one place up (`-1`) or down (`1`) in its lesson — the keyboard's
+ * version of a drag. At either edge, or for a card the lesson does not hold, nothing
+ * moves and the same document comes back, so it is not an edit. If the lesson binds
+ * the same card twice, the first binding is the one that moves.
+ */
+export function moveBlockInLesson(doc: CourseV2, lessonId: string, blockId: string, delta: -1 | 1): CommandResult {
+	const lesson = requireLesson(doc, lessonId);
+	const ids = lesson.blocks.map((b) => b.block_id);
+	const from = ids.indexOf(blockId);
+	const to = from + delta;
+	if (from < 0 || to < 0 || to >= ids.length) return { doc, description: 'Pořadí karet se nezměnilo' };
+	[ids[from], ids[to]] = [ids[to], ids[from]];
+	return reorderBindings(doc, lessonId, ids);
+}
+
 /** Move a block from one lesson to another, keeping its per-lesson presentation. */
 export function moveBlockToLesson(
 	doc: CourseV2,
