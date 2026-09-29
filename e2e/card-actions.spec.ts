@@ -109,18 +109,30 @@ test('an undo notice cannot undo a later content edit', async ({ page }) => {
 test('automatic XP explains incomplete steps and keeps the existing arithmetic', async ({ page }) => {
 	await openEditor(page);
 	const card = page.locator('main .card');
-	await expect(card).toContainText('1 XP · automaticky');
 	// The explanation is on the chip itself, so it does not take a line on every card.
 	const xpChip = card.getByTitle(/8 XP za každý krok s otázkou, 1 XP za obsahový krok/);
+	await expect(xpChip).toHaveText('1 XP');
 	await expect(xpChip).toHaveAttribute('title', /i když je karta ještě rozepsaná/);
 	await addStep(page, 'Otázka', card);
-	await expect(card).toContainText('9 XP · automaticky');
+	await expect(xpChip).toHaveText('9 XP');
 	await addStep(page, 'Text', card);
-	await expect(card).toContainText('10 XP · automaticky');
+	await expect(xpChip).toHaveText('10 XP');
 	await load(page);
-	await expect(card).toContainText('5 XP · vlastní hodnota');
+	const own = card.getByTitle('Zadaná odměna');
+	await expect(own).toHaveText('5 XP · vlastní hodnota');
 	await addStep(page, 'Text', card);
-	await expect(card).toContainText('5 XP · vlastní hodnota');
+	await expect(own).toHaveText('5 XP · vlastní hodnota');
+});
+
+test('a card says how long it takes only once someone has said so', async ({ page }) => {
+	await openEditor(page);
+	const card = page.locator('main .card');
+	const length = card.getByTitle('Očekávaný čas na kartu');
+	await expect(card.getByTitle(/8 XP za každý krok/)).toBeVisible();
+	await expect(length).toHaveCount(0);
+	await expect(card).not.toContainText('odhadem');
+	await load(page);
+	await expect(length).toHaveText(/\d+ min/);
 });
 
 test('the card keeps Nastavení karty in view and the rest in one menu, deleting last', async ({ page }) => {

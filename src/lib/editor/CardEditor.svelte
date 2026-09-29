@@ -47,7 +47,6 @@
         setField,
         unbindBlock,
     } from "$lib/domain/commands";
-    import { errorsCount, warningsCount } from "$lib/ui/plural";
     import {
         blockDurationMinutes,
         derivedBlockXp,
@@ -87,7 +86,6 @@
     }: Props = $props();
 
     const store = useStore();
-    const issues = $derived(store.issuesAt({ blockId: block.block_id }));
     const boundLessons = $derived(
         doc.lessons.filter((lesson) =>
             lesson.blocks.some(
@@ -352,28 +350,16 @@
         {/if}
         <!--
             A card without a length is not a mistake: the app then estimates the
-            lesson at about four minutes a card, the way the XP beside this is derived
-            from the steps. It was a warning on every new card, which a teacher could
-            only clear by typing a number they did not have. The one case that does
-            mislead a student — some cards of a lesson with a length and some without
-            — is W_PARTIAL_DURATION, and it is said where the rest of the review is.
+            lesson at about four minutes a card, so there is nothing to say until a
+            teacher sets one. It was a warning on every new card, and then a chip
+            saying "délka odhadem" on every card. The one case that does mislead a
+            student — some cards of a lesson with a length and some without — is
+            W_PARTIAL_DURATION, and it is said where the rest of the review is.
         -->
-        <Chip
-            tone="quiet"
-            title={minutes === undefined
-                ? "Délka není zadaná. Aplikace odhadne čas lekce zhruba na 4 minuty na kartu. Vlastní délku nastavíš v Nastavení karty."
-                : "Očekávaný čas na kartu"}>
-            {minutes === undefined ? "délka odhadem" : `${minutes} min`}
-        </Chip>
-
-        {#if issues.errors.length > 0}
-            <Chip tone="error" title={errorsCount(issues.errors.length)}
-                >{issues.errors.length}</Chip>
-        {:else if issues.warnings.length > 0}
-            <Chip
-                tone="warning"
-                title={warningsCount(issues.warnings.length)}
-                >{issues.warnings.length}</Chip>
+        {#if minutes !== undefined}
+            <Chip tone="quiet" title="Očekávaný čas na kartu">
+                {minutes} min
+            </Chip>
         {/if}
 
         <div class="spacer"></div>
@@ -383,7 +369,7 @@
             title={xpIsDerived
                 ? `Dopočteno z kroků: 8 XP za každý krok s otázkou, 1 XP za obsahový krok (${derivedBlockXp(block)} XP). Platí hned, i když je karta ještě rozepsaná. Vlastní hodnotu nastavíš v Nastavení karty.`
                 : "Zadaná odměna"}>
-            {xp} XP · {xpIsDerived ? "automaticky" : "vlastní hodnota"}
+            {xp} XP{xpIsDerived ? "" : " · vlastní hodnota"}
         </Chip>
 
         <!--
