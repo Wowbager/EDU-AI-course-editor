@@ -16,8 +16,9 @@
     import { uniqueKeys } from "$lib/ui/keys";
     import { allows } from "$lib/ui/fields";
     import { addOption, deleteOption, setField } from "$lib/domain/commands";
+    import { optionOutcomesApply } from "$lib/domain/derive";
     import { MIN_CHOICE_OPTIONS } from "$lib/domain/validate";
-    import { CircleCheck, Plus, Trash, X } from "@lucide/svelte";
+    import { Check, Plus, Trash } from "@lucide/svelte";
 
     interface Props {
         doc: CourseV2;
@@ -30,12 +31,16 @@
     const options = $derived(step.question?.options ?? []);
     // Duplicate option ids are a warning (`W_DUPLICATE_OPTION_ID`), not a crash.
     const optionKeys = $derived(uniqueKeys(options.map((o) => o.id)));
+    // The app reads an answer's "Kam dál" and grade only when the pupil picks one
+    // answer (`optionOutcomesApply`), so a question with several picks has neither.
+    const outcomes = $derived(optionOutcomesApply(step.question));
     const branching = $derived(
-        block.type === "question" && doc.export_type !== "exercise_v2",
+        outcomes && block.type === "question" && doc.export_type !== "exercise_v2",
     );
     const quizMarks = $derived(
-        doc.export_type === "quiz_v2" || doc.quiz_evaluate === true,
+        outcomes && (doc.export_type === "quiz_v2" || doc.quiz_evaluate === true),
     );
+    const multiple = $derived(step.question?.allow_multiple === true);
     const advanced = $derived(allows("option", "score_koef", store.mode));
     // Zpětná vazba off: the column that tells the pupil what went wrong goes, and its
     // track with it — the rest of the row keeps its alignment.
@@ -43,6 +48,8 @@
         allows("option", "feedback", store.mode, store.showFeedback),
     );
     const fixedOptions = $derived(step.question?.type === "true_false");
+    // "Odpověď" alone is not worth a heading: the column is the only one there is.
+    const headed = $derived(quizMarks || feedback || branching);
     // The last answers have to stay: a question with nothing to choose from is not a
     // question (`E_MC_TOO_FEW_OPTIONS`, which `MIN_CHOICE_OPTIONS` bounds).
     const lastAnswers = $derived(
@@ -109,15 +116,17 @@
     }
 </script>
 
-<div class="answers" style:--answer-tracks={tracks}>
-    <div class="head" aria-hidden="true">
-        <span></span>
-        <span>Odpověď</span>
-        {#if quizMarks}<span>Známka</span>{/if}
-        {#if feedback}<span>Co se žák dozví</span>{/if}
-        {#if branching}<span>Kam dál</span>{/if}
-        <span></span>
-    </div>
+<div class="answers" class:bare={!headed} style:--answer-tracks={tracks}>
+    {#if headed}
+        <div class="head" aria-hidden="true">
+            <span></span>
+            <span>Odpověď</span>
+            {#if quizMarks}<span>Známka</span>{/if}
+            {#if feedback}<span>Co se žák dozví</span>{/if}
+            {#if branching}<span>Kam dál</span>{/if}
+            <span></span>
+        </div>
+    {/if}
 
     {#each options as option, i (optionKeys[i])}
         <div class="row">
@@ -126,17 +135,17 @@
                     type="button"
                     class="verb"
                     class:correct={option.is_correct}
+                    class:multiple
                     aria-pressed={option.is_correct === true}
                     aria-label={`Správná odpověď: ${option.text || "bez textu"}`}
                     title={option.is_correct
                         ? "Správná odpověď — klikni pro označení jako chybná"
                         : "Chybná odpověď — klikni pro označení jako správná"}
                     onclick={() => toggleChecked(option.id)}>
-                    {#if option.is_correct}
-                        <CircleCheck></CircleCheck>
-                    {:else}
-                        <X></X>
-                    {/if}
+                    <!-- The mark of a radio button, or of a checkbox when several may be picked. -->
+                    <span class="mark-box">
+                        {#if option.is_correct}<Check size={14} strokeWidth={3} />{/if}
+                    </span>
                 </button>
             </div>
 
@@ -213,25 +222,27 @@
                             )} />
                 {/if}
                 {#if !fixedOptions}
-                    <Button
-                        variant="danger"
-                        size="s"
-                        disabled={lastAnswers}
-                        title={lastAnswers
-                            ? "Otázka potřebuje aspoň dvě odpovědi, ze kterých žák vybírá"
-                            : "Smazat odpověď"}
-                        ariaLabel={`Smazat odpověď ${option.text || "bez textu"}`}
-                        onclick={() =>
-                            store.apply((d) =>
-                                deleteOption(
-                                    d,
-                                    block.block_id,
-                                    step.id,
-                                    option.id,
-                                ),
-                            )}>
-                        <Trash size={14}></Trash>
-                    </Button>
+                    <span class="trash">
+                        <Button
+                            variant="ghost"
+                            size="s"
+                            disabled={lastAnswers}
+                            title={lastAnswers
+                                ? "Otázka potřebuje aspoň dvě odpovědi, ze kterých žák vybírá"
+                                : "Smazat odpověď"}
+                            ariaLabel={`Smazat odpověď ${option.text || "bez textu"}`}
+                            onclick={() =>
+                                store.apply((d) =>
+                                    deleteOption(
+                                        d,
+                                        block.block_id,
+                                        step.id,
+                                        option.id,
+                                    ),
+                                )}>
+                            <Trash size={14}></Trash>
+                        </Button>
+                    </span>
                 {/if}
             </div>
         </div>
@@ -337,6 +348,9 @@
         .text::before {
             content: "Odpověď";
         }
+        .bare .text::before {
+            display: none;
+        }
         .feedback::before {
             content: "Co se žák dozví";
         }
@@ -348,23 +362,89 @@
         }
     }
 
+    /*
+     * Right or wrong is the shape of a radio button, or of a checkbox where several
+     * answers may be picked, so the table itself says which kind of question this is.
+     * Wrong is the empty shape; right is the same shape filled and ticked.
+     */
     .verb {
-        border: 1px solid var(--e-border);
-        border-radius: var(--radius-pill);
-        background: var(--surface);
-        color: var(--e-text-muted);
-        font: var(--type-chip-label);
-        cursor: pointer;
         display: flex;
         align-items: center;
+        justify-content: center;
         width: 36px;
         height: 36px;
+        padding: 0;
+        border: none;
+        border-radius: var(--radius-pill);
+        background: none;
+        color: var(--surface);
+        cursor: pointer;
     }
 
-    .verb.correct {
-        border-color: transparent;
-        background: var(--e-ok-bg);
-        color: var(--e-ok);
+    .mark-box {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        border: 2px solid var(--e-border-strong);
+        border-radius: 50%;
+        background: var(--surface);
+        transition:
+            border-color 120ms,
+            background-color 120ms;
+    }
+
+    .multiple .mark-box {
+        border-radius: 5px;
+    }
+
+    .verb:hover .mark-box {
+        border-color: var(--e-ok);
+    }
+
+    .verb.correct .mark-box {
+        border-color: var(--e-ok);
+        background: var(--e-ok);
+    }
+
+    /*
+     * Removing an answer is rare, so its button is not part of the table's look: it
+     * is there when the row is pointed at or worked in, and red only under the pointer.
+     * A screen with no hover shows it always.
+     */
+    .trash {
+        display: inline-flex;
+        opacity: 0;
+        transition: opacity 120ms;
+    }
+
+    .row:hover .trash,
+    .row:focus-within .trash {
+        opacity: 1;
+    }
+
+    @media (hover: none) {
+        .trash {
+            opacity: 1;
+        }
+    }
+
+    .trash :global(.btn:hover:not(:disabled)) {
+        border-color: var(--e-error);
+        background: var(--e-error-bg);
+        color: var(--e-error);
+    }
+
+    .list-issue {
+        margin: 4px 0 0;
+        padding-left: 8px;
+        color: var(--e-error);
+        font-size: var(--text-xs);
+    }
+
+    .list-issue.warning {
+        color: var(--e-warning);
     }
 
     .mark {
@@ -383,19 +463,6 @@
         margin-top: 6px;
     }
 
-    /*
-     * What is wrong with the list as a whole — too few answers, none right — has no
-     * field of its own, so it is said here, quietly, under the rows it is about.
-     */
-    .list-issue {
-        margin: 4px 0 0;
-        padding-left: 8px;
-        color: var(--e-error);
-        font-size: var(--text-xs);
-    }
 
-    .list-issue.warning {
-        color: var(--e-warning);
-    }
 
 </style>

@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs';
 import { expect, openEditor, test, type Page } from './fixtures';
 
 /**
- * The answer table of a question step: what is wrong with the list of answers is said
- * under the list, not only in the topbar count.
+ * The answer table of a question step: what it hides until it is needed, what its
+ * markers say, and which columns a question with several picks has.
  */
 const fixture = () =>
 	JSON.parse(
@@ -11,6 +11,13 @@ const fixture = () =>
 	);
 
 const trash = (page: Page) => page.getByRole('button', { name: /^Smazat odpověď/ });
+const multipleBox = (page: Page) => page.getByRole('checkbox', { name: 'Víc správných možností' });
+/** The switch's box is drawn as a track, so it is the label that gets clicked. */
+const multiple = (page: Page) => ({
+	check: () => page.getByText('Víc správných možností', { exact: true }).click().then(() => expect(multipleBox(page)).toBeChecked()),
+	uncheck: () => page.getByText('Víc správných možností', { exact: true }).click().then(() => expect(multipleBox(page)).not.toBeChecked())
+});
+const head = (page: Page) => page.locator('.answers .head');
 
 /** A fresh question card: two answers, one right. */
 async function addQuestionCard(page: Page) {
@@ -31,9 +38,34 @@ async function loadCourse(page: Page, edit: (doc: ReturnType<typeof fixture>) =>
 }
 
 test.beforeEach(async ({ page }) => {
-	// Wide enough for the table's own columns; below 760px it stacks.
+	// Wide enough for the table's own columns; below 760px it stacks and has no heading.
 	await page.setViewportSize({ width: 2200, height: 1100 });
 	await openEditor(page);
+});
+
+test('the trash of an answer shows when its row is pointed at, and is red only under the pointer', async ({ page }) => {
+	await addQuestionCard(page);
+	await page.getByRole('button', { name: 'Další odpověď' }).click();
+	await expect(trash(page)).toHaveCount(3);
+
+	const opacity = (i: number) => trash(page).nth(i).evaluate((el) => Number(getComputedStyle(el.parentElement!).opacity));
+	const color = (i: number) => trash(page).nth(i).evaluate((el) => getComputedStyle(el).color);
+	await page.mouse.move(0, 0);
+	await expect.poll(() => opacity(0)).toBe(0);
+
+	const rows = page.locator('.answers .row');
+	await rows.nth(0).hover();
+	await expect.poll(() => opacity(0)).toBe(1);
+	await expect.poll(() => opacity(1)).toBe(0);
+	const rest = await color(0);
+
+	await trash(page).nth(0).hover();
+	await expect.poll(() => color(0)).not.toBe(rest);
+
+	// Working in a row shows it too, so a keyboard can reach it.
+	await page.mouse.move(0, 0);
+	await rows.nth(1).getByRole('textbox', { name: 'Text odpovědi' }).click();
+	await expect.poll(() => opacity(1)).toBe(1);
 });
 
 test('a question cannot lose answers below the two it needs, and says why', async ({ page }) => {
@@ -50,6 +82,72 @@ test('a question cannot lose answers below the two it needs, and says why', asyn
 	await trash(page).first().click({ force: true });
 	await expect(trash(page)).toHaveCount(2);
 	await expect(trash(page).first()).toBeDisabled();
+});
+
+test('the marker is a circle, or a square when several answers may be picked, and filled when right', async ({ page }) => {
+	await addQuestionCard(page);
+	const markers = page.getByRole('button', { name: /^Správná odpověď:/ });
+	const shape = (i: number) =>
+		markers.nth(i).locator('.mark-box').evaluate((el) => {
+			const style = getComputedStyle(el);
+			return { radius: parseFloat(style.borderTopLeftRadius), fill: style.backgroundColor };
+		});
+
+	const right = await shape(0);
+	const wrong = await shape(1);
+	expect(wrong.radius).toBeGreaterThanOrEqual(10);
+	expect(right.fill).not.toBe(wrong.fill);
+	// The right one carries a tick, the wrong one is empty.
+	await expect(markers.nth(0).locator('svg')).toHaveCount(1);
+	await expect(markers.nth(1).locator('svg')).toHaveCount(0);
+
+	await multiple(page).check();
+	expect((await shape(1)).radius).toBeLessThan(10);
+	await multiple(page).uncheck();
+	expect((await shape(1)).radius).toBeGreaterThanOrEqual(10);
+});
+
+test('the several-picks switch is worded once, and explains itself only while it is on', async ({ page }) => {
+	await addQuestionCard(page);
+	const hint = page.getByText('za částečný výběr nejsou body');
+	await expect(multipleBox(page)).not.toBeChecked();
+	await expect(hint).toHaveCount(0);
+	await multiple(page).check();
+	await expect(hint).toBeVisible();
+	await multiple(page).uncheck();
+	await expect(hint).toHaveCount(0);
+});
+
+test('a question with several picks has no "Kam dál" and no grade, since the app reads neither', async ({ page }) => {
+	await loadCourse(page, (doc) => {
+		doc.quiz_evaluate = true;
+	});
+	await expect(head(page)).toContainText('Kam dál');
+	await expect(head(page)).toContainText('Známka');
+	await expect(page.getByRole('combobox', { name: 'Známka za tuto odpověď' }).first()).toBeVisible();
+
+	await multiple(page).check();
+	await expect(head(page)).not.toContainText('Kam dál');
+	await expect(head(page)).not.toContainText('Známka');
+	await expect(page.getByRole('combobox', { name: 'Známka za tuto odpověď' })).toHaveCount(0);
+	await expect(page.getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' })).toHaveCount(0);
+
+	// The values are still in the card; switching back shows them again.
+	await multiple(page).uncheck();
+	await expect(head(page)).toContainText('Kam dál');
+	await expect(page.getByRole('combobox', { name: 'Známka za tuto odpověď' }).first()).toHaveValue('1');
+});
+
+test('the heading row goes when "Odpověď" would be its only label', async ({ page }) => {
+	await addQuestionCard(page);
+	await expect(head(page)).toBeVisible();
+	await page.getByRole('button', { name: 'Zpětná vazba', exact: true }).click();
+	// Feedback is off but "Kam dál" is still a column.
+	await expect(head(page)).toHaveText(/Kam dál/);
+	await multiple(page).check();
+	await expect(head(page)).toHaveCount(0);
+	await multiple(page).uncheck();
+	await expect(head(page)).toBeVisible();
 });
 
 test('what is wrong with the list of answers is said under it', async ({ page }) => {
