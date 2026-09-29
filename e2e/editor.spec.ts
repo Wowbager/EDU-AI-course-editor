@@ -1,4 +1,4 @@
-import { expect, test, type Page, openEditor } from './fixtures';
+import { cardAction, expect, test, type Page, openEditor } from './fixtures';
 import { readFileSync } from 'node:fs';
 
 const fixture = (name: string) =>
@@ -116,7 +116,7 @@ test('a card that is in no lesson can still be opened', async ({ page }) => {
 	// Unbinding the last card in a lesson leaves the block in the course with nothing
 	// pointing at it. It used to be unselectable: the click registered and the
 	// "always keep a card open" effect immediately threw the selection back.
-	await page.getByRole('button', { name: 'Odebrat' }).click();
+	await cardAction(page, 'Odebrat z lekce');
 	const orphan = page.locator('.orphans .tree-card').first();
 	await expect(orphan).toBeVisible();
 
@@ -187,7 +187,7 @@ test('a course with errors cannot be exported, one with warnings can', async ({ 
 
 	// Warnings alone never block: the review offers the download. (Edited after the
 	// import on purpose — importing over an edited course asks for confirmation.)
-	await page.getByRole('button', { name: 'Odebrat z lekce', exact: true }).click();
+	await cardAction(page, 'Odebrat z lekce');
 	await download.click();
 	const advice = page.getByRole('dialog', { name: 'Stáhnout kurz' });
 	await expect(advice).toContainText('dá se stáhnout');
@@ -274,7 +274,7 @@ test('undo puts back what a delete took away', async ({ page }) => {
 	await expect(inLesson).toHaveCount(3);
 
 	await inLesson.first().click();
-	await page.getByRole('button', { name: 'Odebrat z lekce', exact: true }).click();
+	await cardAction(page, 'Odebrat z lekce');
 	// The removed card stays selected in the orphan bucket; its old lesson closes.
 	await expect(page.locator('.tree-lesson .meta').first()).toContainText('2 karty');
 	await expect(page.locator('.orphans .tree-card')).toHaveCount(1);

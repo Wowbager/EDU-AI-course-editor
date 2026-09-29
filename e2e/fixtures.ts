@@ -87,3 +87,25 @@ export async function addStep(page: Page, type: StepKind, within: Pick<Page, 'lo
 	const menu = await openMenu(page, trigger, 'Přidat krok');
 	await menu.getByRole('menuitem', { name: type, exact: true }).click();
 }
+
+/** The card's ⋯ menu, opened: Duplikovat kartu, Zařadit do / Odebrat z lekce, Smazat kartu. */
+export const cardMenu = (page: Page) =>
+	openMenu(page, page.getByRole('button', { name: 'Další akce s kartou', exact: true }), 'Další akce s kartou');
+
+/** Do one of the card's actions by its name in the ⋯ menu. */
+export async function cardAction(page: Page, name: string) {
+	const menu = await cardMenu(page);
+	await menu.getByRole('menuitem', { name, exact: true }).click();
+}
+
+/**
+ * How many items of that name the ⋯ menu offers. A closed menu has none, so a bare
+ * `toHaveCount(0)` on an item would pass whatever the card allows; this opens it first.
+ */
+export async function cardActionCount(page: Page, name: string): Promise<number> {
+	const menu = await cardMenu(page);
+	const count = await menu.getByRole('menuitem', { name, exact: true }).count();
+	await page.keyboard.press('Escape');
+	await expect(menu).toBeHidden();
+	return count;
+}

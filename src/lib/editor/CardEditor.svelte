@@ -32,6 +32,7 @@
     import Modal from "$lib/ui/Modal.svelte";
     import Menu from "$lib/ui/Menu.svelte";
     import MenuItem from "$lib/ui/MenuItem.svelte";
+    import MenuSeparator from "$lib/ui/MenuSeparator.svelte";
     import type { UndoEntry } from "$lib/state/doc-store.svelte";
     import type { Ref } from "$lib/domain/ref";
     import FocusField from "$lib/ui/FocusField.svelte";
@@ -55,6 +56,7 @@
     } from "$lib/domain/derive";
     import {
         Copy,
+        Ellipsis,
         ListPlus,
         ListX,
         Plus,
@@ -383,8 +385,7 @@
                 : "Zadaná odměna"}>
             {xp} XP · {xpIsDerived ? "automaticky" : "vlastní hodnota"}
         </Chip>
-    </header>
-    <header>
+
         <!--
 			Always visible, and it says what is behind it. A settings button that only
 			appears on hover is a setting nobody finds.
@@ -397,53 +398,51 @@
             <Settings size={16}></Settings>
             Nastavení karty
         </Button>
-        <Button
-            variant="ghost"
-            size="s"
-            onclick={() =>
-                store.apply((d, r) =>
-                    duplicateBlock(d, block.block_id, lessonId, r),
-                )}
-            ariaLabel="Duplikovat kartu">
-            <Copy size={16}></Copy>
-            Duplikovat
-        </Button>
-        {#if sharedWith === 0}
-            <Button
-                variant="ghost"
-                size="s"
-                onclick={() => {
-                    targetLessonId = "";
-                    showLessonPicker = true;
-                }}
-                disabled={availableLessons.length === 0}
-                title={availableLessons.length === 0
-                    ? "Nejprve vytvoř lekci"
-                    : "Zařadit existující kartu do lekce bez kopírování obsahu"}>
-                <ListPlus size={16}></ListPlus>
-                Zařadit do lekce
-            </Button>
-        {:else if binding !== undefined && lessonId !== undefined}
-            <Button
-                variant="danger"
-                size="s"
-                onclick={removeFromLesson}
-                title={sharedWith > 1
-                    ? "Odebere kartu jen z této lekce — ostatní lekce a všechen obsah zůstanou"
-                    : "Odebere kartu z této lekce. Obsah zůstává v části Karty mimo lekci; smazat jde přes Smazat."}>
-                <ListX size={16}></ListX>
-                Odebrat z lekce
-            </Button>
-        {/if}
-        <Button
-            variant="danger"
-            size="s"
-            onclick={() => onrepairBlock(block.block_id)}
-            title="Otevře potvrzení smazání karty z celého kurzu a opravu odkazů"
-            ariaLabel="Smazat kartu">
-            <Trash size={16}></Trash>
-            Smazat
-        </Button>
+        <Menu
+            label="Další akce s kartou"
+            icon={Ellipsis}
+            placement="bottom-end">
+            <MenuItem
+                icon={Copy}
+                onclick={() =>
+                    store.apply((d, r) =>
+                        duplicateBlock(d, block.block_id, lessonId, r),
+                    )}>
+                Duplikovat kartu
+            </MenuItem>
+            {#if sharedWith === 0}
+                <MenuItem
+                    icon={ListPlus}
+                    onclick={() => {
+                        targetLessonId = "";
+                        showLessonPicker = true;
+                    }}
+                    disabled={availableLessons.length === 0}
+                    title={availableLessons.length === 0
+                        ? "Nejprve vytvoř lekci"
+                        : "Zařadit existující kartu do lekce bez kopírování obsahu"}>
+                    Zařadit do lekce
+                </MenuItem>
+            {:else if binding !== undefined && lessonId !== undefined}
+                <!-- Neutral, not red: it is undoable, and the content stays. -->
+                <MenuItem
+                    icon={ListX}
+                    onclick={removeFromLesson}
+                    title={sharedWith > 1
+                        ? "Odebere kartu jen z této lekce — ostatní lekce a všechen obsah zůstanou"
+                        : "Odebere kartu z této lekce. Obsah zůstává v části Karty mimo lekci; smazat jde přes Smazat kartu."}>
+                    Odebrat z lekce
+                </MenuItem>
+            {/if}
+            <MenuSeparator />
+            <MenuItem
+                icon={Trash}
+                danger
+                onclick={() => onrepairBlock(block.block_id)}
+                title="Otevře potvrzení smazání karty z celého kurzu a opravu odkazů">
+                Smazat kartu
+            </MenuItem>
+        </Menu>
     </header>
 
     {#if activeNotice}

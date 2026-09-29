@@ -1,4 +1,4 @@
-import { addStep, expect, test, type Page, openEditor } from './fixtures';
+import { addStep, cardAction, cardActionCount, cardMenu, expect, test, type Page, openEditor } from './fixtures';
 import { readFileSync } from 'node:fs';
 
 const course = () => JSON.parse(readFileSync(new URL(
@@ -29,31 +29,31 @@ async function exported(page: Page) {
 	return JSON.parse(Buffer.concat(chunks).toString());
 }
 
-const remove = (page: Page) => page.getByRole('button', { name: 'Odebrat z lekce', exact: true });
-const erase = (page: Page) => page.getByRole('button', { name: 'Smazat kartu', exact: true });
-const assign = (page: Page) => page.getByRole('button', { name: 'Zařadit do lekce', exact: true });
+const REMOVE = 'Odebrat z lekce';
+const ERASE = 'Smazat kartu';
+const ASSIGN = 'Zařadit do lekce';
 
 test('unlinking creates an editable orphan; picker cancels, binds once and undoes', async ({ page }) => {
 	const doc = course();
 	await load(page, doc);
-	await remove(page).click();
+	await cardAction(page, REMOVE);
 	await expect(page.getByRole('dialog')).toHaveCount(0);
 	await expect(page.locator('.orphans .tree-card')).toHaveCount(1);
 	await expect(page.locator('.action-notice')).toContainText('Karty mimo lekci');
-	await expect(remove(page)).toHaveCount(0);
+	expect(await cardActionCount(page, REMOVE)).toBe(0);
 	await page.getByRole('button', { name: 'Vrátit zpět', exact: true }).click();
 	await expect(page.locator('.orphans .tree-card')).toHaveCount(0);
-	await remove(page).click();
-	await assign(page).click();
+	await cardAction(page, REMOVE);
+	await cardAction(page, ASSIGN);
 	const dialog = page.getByRole('dialog', { name: 'Zařadit do lekce', exact: true });
 	await expect(dialog.getByRole('button', { name: 'Zařadit', exact: true })).toBeDisabled();
 	await page.keyboard.press('Escape');
 	await expect(page.locator('.orphans .tree-card')).toHaveCount(1);
-	await assign(page).click();
+	await cardAction(page, ASSIGN);
 	await dialog.getByRole('combobox', { name: 'Lekce', exact: true }).selectOption(doc.lessons[0].lesson_id);
 	await dialog.getByRole('button', { name: 'Zařadit', exact: true }).click();
 	await expect(page.locator('.orphans .tree-card')).toHaveCount(0);
-	await expect(assign(page)).toHaveCount(0);
+	expect(await cardActionCount(page, ASSIGN)).toBe(0);
 	const result = await exported(page);
 	expect(result.blocks).toEqual(doc.blocks);
 	expect(result.lessons[0].blocks.filter((b: { block_id: string }) => b.block_id === doc.blocks[0].block_id)).toHaveLength(1);
@@ -68,7 +68,7 @@ test('unlinking a shared and referenced card preserves content, references and o
 	doc.blocks[1].learning!.prerequisites = [{ block_id: id, min_level: 1 }];
 	doc.blocks[2].steps.find((s: { type: string }) => s.type === 'question').question.options[0].go_to = id;
 	await load(page, doc);
-	await remove(page).click();
+	await cardAction(page, REMOVE);
 	await expect(page.getByRole('dialog')).toHaveCount(0);
 	await expect(page.locator('.action-notice')).toContainText('Karta zůstává v lekcích (1): „Další lekce“');
 	await expect(page.locator('.action-notice')).not.toContainText('Karty mimo lekci');
@@ -83,14 +83,14 @@ test('unlinking a shared and referenced card preserves content, references and o
 for (const orphan of [false, true]) {
 	test(`delete always opens RepairDialog (${orphan ? 'unreferenced orphan' : 'bound card'})`, async ({ page }) => {
 		await load(page);
-		if (orphan) await remove(page).click();
-		await erase(page).click();
+		if (orphan) await cardAction(page, REMOVE);
+		await cardAction(page, ERASE);
 		const dialog = page.getByRole('dialog', { name: /Smazat kartu/ });
 		await expect(dialog).toBeVisible();
 		await expect(dialog).toContainText(orphan ? 'Na tuto část nic neodkazuje' : 'tuto kartu obsahuje');
 		await dialog.getByRole('button', { name: 'Zpět', exact: true }).click();
 		expect((await exported(page)).blocks).toHaveLength(3);
-		await erase(page).click();
+		await cardAction(page, ERASE);
 		await dialog.getByRole('button', { name: 'Smazat a opravit odkazy' }).click();
 		expect((await exported(page)).blocks).toHaveLength(2);
 	});
@@ -99,7 +99,7 @@ for (const orphan of [false, true]) {
 
 test('an undo notice cannot undo a later content edit', async ({ page }) => {
 	await load(page);
-	await remove(page).click();
+	await cardAction(page, REMOVE);
 	await expect(page.locator('.action-notice')).toBeVisible();
 	await addStep(page, 'Text');
 	await expect(page.getByRole('button', { name: 'Vrátit zpět', exact: true })).toHaveCount(0);
@@ -121,4 +121,16 @@ test('automatic XP explains incomplete steps and keeps the existing arithmetic',
 	await expect(card).toContainText('5 XP · vlastní hodnota');
 	await addStep(page, 'Text', card);
 	await expect(card).toContainText('5 XP · vlastní hodnota');
+});
+
+test('the card keeps Nastavení karty in view and the rest in one menu, deleting last', async ({ page }) => {
+	await load(page);
+	await expect(page.getByRole('button', { name: 'Nastavení karty', exact: true })).toBeVisible();
+	// Nothing else on the card is a loose button any more.
+	await expect(page.getByRole('button', { name: 'Smazat kartu', exact: true })).toHaveCount(0);
+
+	const menu = await cardMenu(page);
+	await expect(menu.getByRole('menuitem')).toHaveText(['Duplikovat kartu', 'Odebrat z lekce', 'Smazat kartu']);
+	await page.keyboard.press('Escape');
+	await expect(menu).toBeHidden();
 });
