@@ -12,8 +12,8 @@
  * font shorthand, so one variable sets family, weight, size and leading together.
  *
  * The `--e-` prefixed tokens are the editor's own chrome: sizes the plan fixes in §4
- * (sidebar 260, rail 56, preview 400) and the semantic roles the editor needs and the
- * player does not (an error state on a field, a warning chip).
+ * (sidebar 320, rail 64, preview 400, preview rail 44) and the semantic roles the
+ * editor needs and the player does not (an error state on a field, a warning chip).
  */
 
 :root {
@@ -162,7 +162,7 @@
 
     /* ── Editor chrome (plan §4) ────────────────────────────── */
     --e-sidebar-width: 320px;
-    --e-sidebar-rail: 56px;
+    --e-sidebar-rail: 64px;
     --e-preview-width: 400px;
     --e-preview-rail: 44px;
     --e-editor-max: 880px;

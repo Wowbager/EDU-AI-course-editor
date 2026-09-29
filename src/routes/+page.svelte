@@ -454,7 +454,8 @@
             ontoggle={() => (sidebarCollapsed = !sidebarCollapsed)}
             oncourseSettings={() => (modal = { kind: "course" })}
             onlessonSettings={(lessonId) =>
-                (modal = { kind: "lesson", lessonId })} />
+                (modal = { kind: "lesson", lessonId })}
+            oncardSettings={(blockId) => (modal = { kind: "card", blockId })} />
 
         <main class="editor">
             {#if importError !== null}

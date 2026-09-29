@@ -11,8 +11,9 @@
      * definition the selected one, so it carries no "you are here" marker of its own;
      * two markers for one fact is how a screen stops being scannable.
      *
-     * Collapses to a 56px rail (plan §4) — which cannot carry two legible levels, so
-     * it keeps the lesson numbers and nothing else.
+     * Collapses to a 64px rail (`SidebarRail.svelte`). It cannot carry two legible
+     * levels of text, so it keeps a circle per lesson and, under the open one, a tile
+     * per card: enough to see where you are, jump, reorder and add.
      */
     import { tick } from "svelte";
     import { dndzone, type DndEvent } from "svelte-dnd-action";
@@ -41,6 +42,7 @@
     import { uniqueKeys } from "$lib/ui/keys";
     import { groupOf, groupsOf } from "$lib/domain/groups";
     import { CARD_TYPES, cardTypeIcon } from "$lib/ui/card-types";
+    import SidebarRail from "./SidebarRail.svelte";
     import {
         ChevronLeft,
         ChevronRight,
@@ -61,6 +63,7 @@
         ontoggle: () => void;
         oncourseSettings: () => void;
         onlessonSettings: (lessonId: string) => void;
+        oncardSettings: (blockId: string) => void;
     }
     let {
         doc,
@@ -70,6 +73,7 @@
         ontoggle,
         oncourseSettings,
         onlessonSettings,
+        oncardSettings,
     }: Props = $props();
 
     const store = useStore();
@@ -150,12 +154,11 @@
         );
     }
 
-    let cardList = $state<HTMLElement>();
-
     /**
-     * A card's keys. Enter and Space select it; Alt+Arrow moves it. Both are claimed
-     * in the capture phase, because Svelte delegates a plain `onkeydown` to the root,
-     * after the `<li>` has already handed the key to svelte-dnd-action's keyboard drag.
+     * A card's keys, for a row of the tree and a tile of the rail alike. Enter and
+     * Space select it; Alt+Arrow moves it. Both are claimed in the capture phase,
+     * because Svelte delegates a plain `onkeydown` to the root, after the `<li>` has
+     * already handed the key to svelte-dnd-action's keyboard drag.
      */
     async function oncardkey(
         event: KeyboardEvent,
@@ -178,10 +181,13 @@
             const delta = event.key === "ArrowUp" ? -1 : 1;
             const target = position + delta;
             if (target < 0 || target >= cards.length) return;
+            const list = (event.currentTarget as HTMLElement).closest("ul");
             store.apply((d) => moveBlockInLesson(d, lessonId, blockId, delta));
             // Moving a node in the DOM drops its focus; give it back to the same card.
             await tick();
-            cardList?.querySelectorAll<HTMLElement>(".tree-card")[target]?.focus();
+            list
+                ?.querySelectorAll<HTMLElement>(':scope > li > [role="button"]')
+                [target]?.focus();
         }
     }
 
@@ -296,7 +302,6 @@
 
                         <ul
                             class="cards"
-                            bind:this={cardList}
                             use:dndzone={{
                                 items: cards,
                                 flipDurationMs: 150,
@@ -444,20 +449,18 @@
             </ul>
         {/if}
     {:else}
-        <ul class="rail">
-            {#each doc.lessons as lesson, i (`${lesson.lesson_id}#${i}`)}
-                <li>
-                    <button
-                        type="button"
-                        class="rail-item"
-                        class:selected={lesson.lesson_id === selectedLesson}
-                        title={lesson.name ?? lesson.lesson_id}
-                        onclick={() => selectLesson(lesson.lesson_id)}>
-                        {i + 1}
-                    </button>
-                </li>
-            {/each}
-        </ul>
+        <SidebarRail
+            {doc}
+            activeLessonId={selectedLesson}
+            activeBlockId={selectedBlock}
+            {cards}
+            {oncardConsider}
+            {oncardFinalize}
+            {oncardkey}
+            {errorsIn}
+            {errorsOn}
+            {onlessonSettings}
+            {oncardSettings} />
     {/if}
 
     {#if !collapsed}
@@ -728,28 +731,6 @@
 
     .orphans {
         gap: 1px;
-    }
-
-    .rail {
-        margin-top: 28px;
-        align-items: center;
-    }
-
-    .rail-item {
-        width: 32px;
-        height: 32px;
-        border: 1px solid var(--e-border);
-        border-radius: 50%;
-        background: var(--surface);
-        color: var(--e-text-muted);
-        font-size: var(--text-s);
-        cursor: pointer;
-    }
-
-    .rail-item.selected {
-        border-color: transparent;
-        background: var(--primary);
-        color: var(--surface);
     }
 
     footer {
