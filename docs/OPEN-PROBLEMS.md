@@ -101,6 +101,23 @@ not a drag zone and keeps real buttons.
 New cards carry no status, the chip is gone, and no mode offers the field. Imported
 values survive. Publishing moves to the course (version control, in progress).
 
+### Round 9 audit #10. ~~A chip that computes its own warning~~ — removed
+The tree's open lesson row and Nastavení lekce drew "Zpětná vazba jen u X % chybných
+odpovědí" under the "Zpětná vazba X %" chip. It broke two rules at once: no chip states a
+verdict of its own, and a warning waits while the teacher is still writing. It also stayed
+on screen with Zpětná vazba switched off. The chip that states the share stays, and every
+question is covered by `W_NO_WRONG_OPTION_FEEDBACK`; the second line, its `.nudge` and
+`.warn` rules and the `lessonDidactics` call behind them are gone.
+
+### Round 9 audit #8. ~~A deleted lesson said nothing and left the editor in a lesson that was gone~~ — fixed
+`deleteLesson` returned no `ref`, so after deleting the lesson the editor was standing in,
+the column kept showing the lesson that no longer existed. The command now returns the
+neighbouring lesson (the next, else the previous), `editor/lesson-actions.ts` moves the
+selection only when it was inside the deleted one, and the shared notice says "Lekce
+smazána. Její karty jsou v Kartách mimo lekce." with "Vrátit zpět". The lesson's cards are
+left in the course by design (`deleteLesson` never deleted blocks); the message now says so
+instead of leaving the teacher to find out.
+
 ---
 
 ## Working as designed, but surprising
@@ -265,10 +282,18 @@ query, and it has not been tried on a tablet or in device emulation with touch. 
 touch device reports `hover: hover` (some do, with a paired mouse), the actions show only
 after a first tap on the step, which focuses it.
 
+The rail's tile and the tree's row follow the same pattern, but they are the first places
+where the pattern has a stated fallback: on `@media (hover: none)` tapping the selected
+tile toggles its panel, and the tile's panel is also what a right-click, Shift+F10 and the
+ContextMenu key pin. The tree's rows have no touch path of their own yet. Still unverified
+on a device that reports `hover: hover` without a mouse.
+
 ### 27. Removing the card's crumb removed the way to a lesson's settings from the card
 **By design, recorded because it is a change.** The crumb's lesson name opened the lesson's
 settings. A card in a lesson has no crumb now (DECISIONS Round 8); the lesson's settings
-are on its row in the tree.
+are on its row in the tree, and since Round 9 also in the panel beside a lesson circle in
+the folded rail. The lesson's own deletion and duplication are in that dialog, so nothing
+a teacher needs is reachable only from a hover.
 
 ### 28. A menu opened while the column is still scrolling closes at once
 **Reproduced in e2e, not by hand.** `Menu` closes on any scroll outside its panel, so the
@@ -278,11 +303,45 @@ e2e helper `openMenu` retries the click. A teacher would see a menu that flicker
 click again. A fix could ignore scrolls that start before the menu opened, or reposition
 instead of closing.
 
-### 29. The gear on a rail tile is a small target
-**Seen in a screenshot, not tested with people.** In the folded lesson panel, a card
-tile's settings gear is a badge of about 14px on the tile's corner. It is a second way in,
-since "Nastavení karty" stays in the card header, but a tired hand will miss it. Worth
-growing if teachers use the rail.
+### 29. ~~The gear on a rail tile is a small target~~ — fixed (Round 9)
+The folded panel's tile has no gear at all now: it is a 36×36 icon, and its four actions
+(Nastavení, Duplikovat, Odebrat z lekce, Smazat) are 32px circles in a panel that opens
+beside it, in the top layer so the sidebar's overflow cannot clip it. A lesson circle's
+gear went the same way into its own, lighter panel. The 14px target is gone.
+
+### 31. Focus does not follow what was added or deleted (audit #14)
+**Reproduced by reading the code.** Adding a step, an answer or a card leaves focus where
+it was, and deleting one leaves it on nothing. A keyboard author does Enter, Enter, Enter
+to add answers and is then somewhere they did not choose. It also covers Enter adding the
+*next* answer (today it does not) and the delete dialog for a plain card (#15: a card with
+nothing pointing at it still asks). Left for a later round: the fix is one focus
+convention across every "add" and every "delete", and half of one is worse than none.
+
+### 32. The validation panel (audit #16)
+**Seen in a session, not fixed.** It has no Escape, a dismissal is forgotten on the next
+validation run, and it says "publikovat" where the rest of the editor says "zveřejnit".
+Not chosen this round: the panel is being reworked with the topbar, and the wording is part
+of that.
+
+### 33. Labels the editor uses in two senses (audit #19)
+**By design so far, but it costs a teacher.** "Blok" and "karta" are both used for the same
+thing depending on the mode; "Zpět" is the undo in one place and the way out in three
+others; "Cvičení" and "Opakování" name the same property in the chip and the field. Renaming
+touches every spec that locates by accessible name, so it wants its own round with the e2e
+suite in hand.
+
+### 34. Metodik noise (audit #17, #18)
+**Not reproduced by a teacher, seen in the interface.** The per-step practice switch is
+offered on every step of a card whose lesson already answers the question, and unread
+fields are drawn as empty rather than as "not asked yet". Not chosen this round: it needs a
+rule about which fields a card of a given type actually earns, and that rule is the same
+one #25 is waiting on.
+
+### 35. Changing a card's type (audit #21)
+**Reproduced in the UI.** A card's type is chosen when it is added and there is no way to
+change it afterwards, so a text card that should have been a question is deleted and
+written again. Not chosen this round: it is a command, a dialog and a rule about which
+fields survive the conversion.
 
 ### 30. Ctrl+Shift+B leaves focus on the page when it folds the preview
 **Reproduced by reading the code.** The preview goes `inert` when folded. The buttons move
