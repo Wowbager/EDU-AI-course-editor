@@ -307,6 +307,11 @@ The folded panel's tile has no gear at all now: it is a 36×36 icon, and its fou
 beside it, in the top layer so the sidebar's overflow cannot clip it. A lesson circle's
 gear went the same way into its own, lighter panel. The 14px target is gone.
 
+### 30. Ctrl+Shift+B leaves focus on the page when it folds the preview
+**Reproduced by reading the code.** The preview goes `inert` when folded. The buttons move
+focus to the other toggle, but the shortcut does not, so focus inside the preview drops
+to the page body.
+
 ### 31. Focus does not follow what was added or deleted (audit #14)
 **Reproduced by reading the code.** Adding a step, an answer or a card leaves focus where
 it was, and deleting one leaves it on nothing. A keyboard author does Enter, Enter, Enter
@@ -341,12 +346,7 @@ change it afterwards, so a text card that should have been a question is deleted
 written again. Not chosen this round: it is a command, a dialog and a rule about which
 fields survive the conversion.
 
-### 30. Ctrl+Shift+B leaves focus on the page when it folds the preview
-**Reproduced by reading the code.** The preview goes `inert` when folded. The buttons move
-focus to the other toggle, but the shortcut does not, so focus inside the preview drops
-to the page body.
-
-### 31. Ctrl+Z in a plain input undoes the course, not the text
+### 37. Ctrl+Z in a plain input undoes the course, not the text
 **Reproduced by reading the code.** The page's key handler undoes the store for any Ctrl+Z
 that nothing else consumed. `FocusField` consumes it, and since Round 9 the Markdown editor
 leaves it to the store on purpose. The other inputs (the knowledge vector's numbers, the
@@ -355,7 +355,7 @@ Ctrl+Z inside one of them takes back the last course edit instead of the last ch
 typed there. Not tried by hand. A fix is to let the page handler stand aside for an input
 that keeps no store state of its own, the way Ctrl+B now does.
 
-### 32. A question with several picks still carries "Kam dál" and grades nobody can see or clear
+### 38. A question with several picks still carries "Kam dál" and grades nobody can see or clear
 **Reproduced in unit tests.** With "Víc správných možností" on, the table hides the
 columns the app ignores (DECISIONS Round 9), so an answer's old branch and grade stay in
 the file with no field to clear them, except by switching the option off and on again.
