@@ -1,4 +1,4 @@
-import { expect, test, type Page, openEditor } from './fixtures';
+import { addStep, expect, test, type Page, openEditor } from './fixtures';
 import { readFileSync } from 'node:fs';
 
 const course = () => JSON.parse(readFileSync(new URL(
@@ -101,7 +101,7 @@ test('an undo notice cannot undo a later content edit', async ({ page }) => {
 	await load(page);
 	await remove(page).click();
 	await expect(page.locator('.action-notice')).toBeVisible();
-	await page.locator('main .card .add-step').getByRole('button', { name: 'Text', exact: true }).click();
+	await addStep(page, 'Text');
 	await expect(page.getByRole('button', { name: 'Vrátit zpět', exact: true })).toHaveCount(0);
 	await expect(page.locator('.orphans .tree-card')).toHaveCount(1);
 });
@@ -113,12 +113,12 @@ test('automatic XP explains incomplete steps and keeps the existing arithmetic',
 	// The explanation is on the chip itself, so it does not take a line on every card.
 	const xpChip = card.getByTitle(/8 XP za každý krok s otázkou, 1 XP za obsahový krok/);
 	await expect(xpChip).toHaveAttribute('title', /i když je karta ještě rozepsaná/);
-	await card.locator('.add-step').getByRole('button', { name: 'Otázka', exact: true }).click();
+	await addStep(page, 'Otázka', card);
 	await expect(card).toContainText('9 XP · automaticky');
-	await card.locator('.add-step').getByRole('button', { name: 'Text', exact: true }).click();
+	await addStep(page, 'Text', card);
 	await expect(card).toContainText('10 XP · automaticky');
 	await load(page);
 	await expect(card).toContainText('5 XP · vlastní hodnota');
-	await card.locator('.add-step').getByRole('button', { name: 'Text', exact: true }).click();
+	await addStep(page, 'Text', card);
 	await expect(card).toContainText('5 XP · vlastní hodnota');
 });

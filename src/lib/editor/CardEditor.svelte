@@ -30,6 +30,8 @@
     import Chip from "$lib/ui/Chip.svelte";
     import Button from "$lib/ui/Button.svelte";
     import Modal from "$lib/ui/Modal.svelte";
+    import Menu from "$lib/ui/Menu.svelte";
+    import MenuItem from "$lib/ui/MenuItem.svelte";
     import type { UndoEntry } from "$lib/state/doc-store.svelte";
     import type { Ref } from "$lib/domain/ref";
     import FocusField from "$lib/ui/FocusField.svelte";
@@ -55,6 +57,7 @@
         Copy,
         ListPlus,
         ListX,
+        Plus,
         Settings,
         Trash,
     } from "@lucide/svelte";
@@ -305,6 +308,20 @@
     }
 </script>
 
+{#snippet stepItems(at: number | undefined)}
+    {#each STEP_TYPES as option (option.type)}
+        <MenuItem
+            icon={option.icon}
+            title={stepTitle(option.type)}
+            onclick={() =>
+                store.apply((d, r) =>
+                    addStep(d, block.block_id, option.type, at, r),
+                )}>
+            {option.label}
+        </MenuItem>
+    {/each}
+{/snippet}
+
 <Card tone={binding?.bg_color}>
     <header>
         <Chip tone="accent" title={TYPE_TITLE[block.type]}>
@@ -465,26 +482,32 @@
                     position={i + 1}
                     ongrab={grab}
                     onrepair={onrepairStep} />
+                <!--
+                    Inside the dnd item, never beside it: every direct child of the zone
+                    is a drag item. It stays a tab stop — the menu at the foot only adds
+                    at the end, and without this a keyboard has no way to insert between.
+                -->
+                {#if i < items.length - 1 && !stepView.dragging}
+                    <Menu
+                        label="Vložit krok za krok {i + 1}"
+                        icon={Plus}
+                        class="insert"
+                        title="Vložit krok sem">
+                        {@render stepItems(i + 1)}
+                    </Menu>
+                {/if}
             </div>
         {/each}
     </div>
 
     <div class="add-step">
-        <span class="add-label">Přidat krok:</span>
-        {#each STEP_TYPES as option (option.type)}
-            <Button
-                variant="secondary"
-                size="s"
-                title={stepTitle(option.type)}
-                onclick={() =>
-                    store.apply((d, r) =>
-                        addStep(d, block.block_id, option.type, undefined, r),
-                    )}>
-                {@const Icon = option.icon}
-                <Icon size={14}></Icon>
-                {option.label}
-            </Button>
-        {/each}
+        <Menu
+            label="Přidat krok"
+            text="Přidat krok"
+            icon={Plus}
+            variant={block.steps.length === 0 ? "secondary" : "ghost"}>
+            {@render stepItems(undefined)}
+        </Menu>
     </div>
 
 </Card>
@@ -561,8 +584,43 @@
         margin-top: 12px;
     }
 
+    .step-wrap {
+        position: relative;
+    }
+
     .step-wrap:focus {
         outline: none;
+    }
+
+    /*
+     * The insert-between button straddles the gap under a step, out of sight until
+     * the step is pointed at or focused. A screen with no hover shows it always.
+     */
+    .step-wrap :global(.insert) {
+        position: absolute;
+        bottom: -16px;
+        left: 50%;
+        z-index: 1;
+        transform: translateX(-50%);
+        opacity: 0;
+        transition: opacity 120ms;
+    }
+
+    .step-wrap :global(.insert .menu-trigger) {
+        padding: 2px;
+        border-color: var(--e-border-strong);
+        background: var(--surface);
+    }
+
+    .step-wrap:hover :global(.insert),
+    .step-wrap:focus-within :global(.insert) {
+        opacity: 1;
+    }
+
+    @media (hover: none) {
+        .step-wrap :global(.insert) {
+            opacity: 1;
+        }
     }
 
     .add-step {
@@ -573,9 +631,4 @@
         margin-top: 12px;
     }
 
-    .add-label {
-        margin-right: 2px;
-        color: var(--e-text-faint);
-        font-size: var(--text-xs);
-    }
 </style>

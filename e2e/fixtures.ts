@@ -1,4 +1,4 @@
-import { test as base, expect, type Page } from '@playwright/test';
+import { test as base, expect, type Locator, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
 /**
@@ -35,6 +35,7 @@ export const test = base.extend<{ player: PlayerKind; playerRoute: void }>({
 
 export { expect };
 export type { Download, Locator, Page } from '@playwright/test';
+export type StepKind = 'Text' | 'Otázka' | 'Obrázek' | 'Video' | 'Audio';
 
 /**
  * Open the editor and wait until it has hydrated.
@@ -60,4 +61,29 @@ export async function openEditor(page: Page, url = '/'): Promise<boolean> {
 	await page.reload();
 	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true', { timeout: 15_000 });
 	return true;
+}
+
+/**
+ * Open a menu by its trigger and return the menu. A menu closes on any scroll, and the
+ * editor scrolls itself smoothly to a card it has just selected, so a click that lands
+ * during that scroll opens a menu that is shut again at once. The click is repeated
+ * until the menu is really open, which is the condition the caller wants.
+ */
+export async function openMenu(page: Page, trigger: Locator, name: string): Promise<Locator> {
+	const menu = page.getByRole('menu', { name, exact: true });
+	await expect(async () => {
+		if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click();
+		await expect(menu).toBeVisible({ timeout: 1_000 });
+	}).toPass({ timeout: 10_000 });
+	return menu;
+}
+
+/**
+ * Add a step at the end of the open card, through the "Přidat krok" menu. `within`
+ * narrows it to one card when the column holds more than one.
+ */
+export async function addStep(page: Page, type: StepKind, within: Pick<Page, 'locator'> = page) {
+	const trigger = within.locator('.add-step').getByRole('button', { name: 'Přidat krok', exact: true });
+	const menu = await openMenu(page, trigger, 'Přidat krok');
+	await menu.getByRole('menuitem', { name: type, exact: true }).click();
 }

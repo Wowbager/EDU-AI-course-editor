@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { expect, openEditor, test, type Page } from './fixtures';
+import { addStep, expect, openEditor, test, type Page } from './fixtures';
 
 /**
  * Every question is its own card in the app, because the app grades a card as one
@@ -41,8 +41,8 @@ test('a second question stays in the teacher’s card, and is its own card for t
 	await page.locator('.tree-add').getByRole('button', { name: 'Cvičení', exact: true }).click();
 	await expect(page.locator('.tree-card')).toHaveCount(2);
 
-	await page.locator('main .add-step').getByRole('button', { name: 'Text', exact: true }).click();
-	await page.locator('main .add-step').getByRole('button', { name: 'Otázka', exact: true }).click();
+	await addStep(page, 'Text');
+	await addStep(page, 'Otázka');
 
 	// One card in the tree, with every step in it.
 	await expect(page.locator('.tree-card')).toHaveCount(2);

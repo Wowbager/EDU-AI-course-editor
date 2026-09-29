@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, openEditor } from './fixtures';
+import { addStep, expect, openMenu, test, type Locator, type Page, openEditor } from './fixtures';
 import { readFileSync } from 'node:fs';
 
 /**
@@ -102,7 +102,7 @@ test('a folded step opens while it is focused and folds again when left', async 
 
 test('a validation jump opens the folded step it points at', async ({ page }) => {
 	// A new course: one card, one empty text step. Add a question step and fold it.
-	await page.locator('main .add-step').getByRole('button', { name: 'Otázka', exact: true }).click();
+	await addStep(page, 'Otázka');
 	const list = steps(page);
 	await expect(list).toHaveCount(2);
 	await fold(list.nth(1));
@@ -145,4 +145,29 @@ test('a step shows Duplikovat and Smazat only while it is the one being worked o
 	// Pointing at step 1 brings its own back.
 	await list.nth(0).hover();
 	await expect.poll(() => opacityOf(list.nth(0), 'Smazat krok')).toBe(1);
+});
+
+test('the add-step menu closes on Escape and gives focus back to its button', async ({ page }) => {
+	await openQuizCard(page);
+	const trigger = page.locator('main .add-step').getByRole('button', { name: 'Přidat krok', exact: true });
+	const menu = await openMenu(page, trigger, 'Přidat krok');
+	await expect(menu.getByRole('menuitem')).toHaveCount(5);
+	await page.keyboard.press('Escape');
+	await expect(menu).toBeHidden();
+	await expect(trigger).toBeFocused();
+	await expect(steps(page)).toHaveCount(4);
+});
+
+test('a step can be inserted between two others', async ({ page }) => {
+	await openQuizCard(page);
+	const list = steps(page);
+	await list.nth(0).hover();
+	await page.getByRole('button', { name: 'Vložit krok za krok 1', exact: true }).click();
+	await page.getByRole('menuitem', { name: 'Text', exact: true }).click();
+
+	await expect(list).toHaveCount(5);
+	// The new step is second, and the old second one is third now.
+	await expect(list.nth(1).getByText('Krok 2', { exact: true })).toBeVisible();
+	await expect(list.nth(1).getByText(' · Text')).toBeVisible();
+	await expect(list.nth(2).getByText(' · Otázka')).toBeVisible();
 });
