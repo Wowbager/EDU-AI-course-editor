@@ -74,6 +74,16 @@
     const mode = $derived(store.mode);
     /** Ids key a student's saved answers, so only the advanced mode ever shows one. */
     const showIds = $derived(allows("step", "id", mode));
+    /**
+     * Zpětná vazba (`store.showFeedback`): what the pupil is told aside from the
+     * question — the solution, the hint and help ladder, and whatever `fieldsFor`
+     * would add of the same kind — is not drawn while it is off.
+     */
+    const feedbackOn = $derived(store.showFeedback);
+    const showSolution = $derived(
+        allows("question", "solution", mode, feedbackOn),
+    );
+    const showLadder = $derived(allows("step", "hint", mode, feedbackOn));
     const issues = $derived(
         store.issuesAt({ blockId: block?.block_id, stepId: step?.id }),
     );
@@ -145,10 +155,12 @@
      * empty, which is the point — nothing in this editor needs expanding to be found.
      */
     const extraFields = $derived(
-        fieldsFor("step", mode).filter((f) => !INLINE_STEP.includes(f.path)),
+        fieldsFor("step", mode, feedbackOn).filter(
+            (f) => !INLINE_STEP.includes(f.path),
+        ),
     );
     const questionExtras = $derived(
-        fieldsFor("question", mode).filter(
+        fieldsFor("question", mode, feedbackOn).filter(
             (f) => !INLINE_QUESTION.includes(f.path),
         ),
     );
@@ -771,20 +783,22 @@
                     {/if}
                 {/if}
 
-                <div class="field-row">
-                    <span class="field-label">Řešení</span>
-                    <FocusField
-                        label="Vysvětlení řešení"
-                        value={step.question?.solution}
-                        multiline
-                        ref={{
-                            blockId: block.block_id,
-                            stepId: step.id,
-                            field: "question.solution",
-                        }}
-                        emptyText="Napiš postup, ne jen výsledek — tohle je nejčtenější text v kurzu."
-                        onchange={(v) => set("question.solution", v)} />
-                </div>
+                {#if showSolution}
+                    <div class="field-row">
+                        <span class="field-label">Řešení</span>
+                        <FocusField
+                            label="Vysvětlení řešení"
+                            value={step.question?.solution}
+                            multiline
+                            ref={{
+                                blockId: block.block_id,
+                                stepId: step.id,
+                                field: "question.solution",
+                            }}
+                            emptyText="Napiš postup, ne jen výsledek — tohle je nejčtenější text v kurzu."
+                            onchange={(v) => set("question.solution", v)} />
+                    </div>
+                {/if}
             </div>
         {/if}
 
@@ -793,7 +807,7 @@
 		teaches the method. The app's question mark offers the second only after the
 		first, and shows nothing at all if these are empty.
 	-->
-        {#if ladderShown}
+        {#if showLadder && ladderShown}
             <div class="help-ladder">
                 <!--
     			The consequence of each rung lives in the tooltip, not under the field. It

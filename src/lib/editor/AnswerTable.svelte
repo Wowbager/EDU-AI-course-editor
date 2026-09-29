@@ -36,6 +36,11 @@
         doc.export_type === "quiz_v2" || doc.quiz_evaluate === true,
     );
     const advanced = $derived(allows("option", "score_koef", store.mode));
+    // Zpětná vazba off: the column that tells the pupil what went wrong goes, and its
+    // track with it — the rest of the row keeps its alignment.
+    const feedback = $derived(
+        allows("option", "feedback", store.mode, store.showFeedback),
+    );
     const fixedOptions = $derived(step.question?.type === "true_false");
     // Shared, content-independent tracks keep headings and all rows aligned.
     const tracks = $derived(
@@ -43,7 +48,7 @@
             "36px",
             "minmax(0, 1.4fr)",
             ...(quizMarks ? ["3.5rem"] : []),
-            "minmax(0, 1.6fr)",
+            ...(feedback ? ["minmax(0, 1.6fr)"] : []),
             ...(branching ? ["minmax(0, 1fr)"] : []),
             advanced ? "5rem" : "2rem",
         ].join(" "),
@@ -93,7 +98,7 @@
         <span></span>
         <span>Odpověď</span>
         {#if quizMarks}<span>Známka</span>{/if}
-        <span>Co se žák dozví</span>
+        {#if feedback}<span>Co se žák dozví</span>{/if}
         {#if branching}<span>Kam dál</span>{/if}
         <span></span>
     </div>
@@ -149,17 +154,19 @@
                 </div>
             {/if}
 
-            <div class="cell feedback">
-                <FocusField
-                    label="Zpětná vazba k této odpovědi"
-                    value={option.feedback}
-                    multiline
-                    emptyText={option.is_correct === true
-                        ? "Potvrď, proč je to správně…"
-                        : "Pojmenuj chybu, která k této odpovědi vede…"}
-                    ref={ref(option.id, "feedback")}
-                    onchange={(v) => set(option.id, "feedback", v)} />
-            </div>
+            {#if feedback}
+                <div class="cell feedback">
+                    <FocusField
+                        label="Zpětná vazba k této odpovědi"
+                        value={option.feedback}
+                        multiline
+                        emptyText={option.is_correct === true
+                            ? "Potvrď, proč je to správně…"
+                            : "Pojmenuj chybu, která k této odpovědi vede…"}
+                        ref={ref(option.id, "feedback")}
+                        onchange={(v) => set(option.id, "feedback", v)} />
+                </div>
+            {/if}
 
             {#if branching}
                 <div class="cell destination">

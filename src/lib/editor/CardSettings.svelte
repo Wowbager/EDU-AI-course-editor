@@ -51,7 +51,7 @@
 
 	const didactics = $derived(allows('block', 'default_practice', mode));
 	const machinery = $derived(allows('block', 'xp', mode));
-	const allBlockFields = $derived(fieldsFor('block', mode));
+	const allBlockFields = $derived(fieldsFor('block', mode, store.showFeedback));
 	const ladderFields = $derived(allBlockFields.filter((f) => LADDER.includes(f.path)));
 	const blockFields = $derived(allBlockFields.filter((f) => !LADDER.includes(f.path)));
 	const teacherFields = $derived(blockFields.filter((f) => f.mode === 'teacher'));
@@ -114,11 +114,13 @@
 		{/if}
 	</div>
 
-	<div class="section">
-		<h3>Nápověda pro celou kartu</h3>
-		<p class="note">Použije se u kroků, které nemají nápovědu vlastní.</p>
-		<FieldGroup fields={ladderFields} {read} write={set} />
-	</div>
+	{#if ladderFields.length > 0}
+		<div class="section">
+			<h3>Nápověda pro celou kartu</h3>
+			<p class="note">Použije se u kroků, které nemají nápovědu vlastní.</p>
+			<FieldGroup fields={ladderFields} {read} write={set} />
+		</div>
+	{/if}
 
 	{#if didactics}
 		<div class="section">
