@@ -48,6 +48,9 @@ test('AltGr+B (Ctrl+Alt+B) does not fold the panel', async ({ page }) => {
 
 test('another tab does not see a layout change as a conflicting edit', async ({ page, context }) => {
 	await openEditor(page);
+	// The first tab saves its new course once on open. Opening the second tab before
+	// that lands would make the save, not the layout, the conflicting edit.
+	await expect(page.getByRole('button', { name: /^Koncept uložen v tomto prohlížeči\./ })).toBeVisible();
 	const other = await context.newPage();
 	await openEditor(other);
 	const heard = other.evaluate(
@@ -57,12 +60,12 @@ test('another tab does not see a layout change as a conflicting edit', async ({ 
 	expect(await heard).toBe('edu-editor:ui:v1');
 	await page.keyboard.press('Control+Shift+B');
 	await expect(other.getByText(/změnil v jiné kartě/)).toHaveCount(0);
-	await expect(other.locator('.save-state')).not.toHaveText('Ukládání pozastaveno');
+	await expect(other.getByRole('button', { name: /^Ukládání pozastaveno\./ })).toHaveCount(0);
 
 	// Control: the draft's own key still is a conflict for the second tab.
 	await page.evaluate(() => localStorage.setItem('edu-editor:draft:v1', '{}'));
 	await expect(other.getByText(/změnil v jiné kartě/)).toBeVisible();
-	await expect(other.locator('.save-state')).toHaveText('Ukládání pozastaveno');
+	await expect(other.getByRole('button', { name: /^Ukládání pozastaveno\./ })).toBeVisible();
 });
 
 // ─────────────────────────────── the preview column ───────────────────────────────
