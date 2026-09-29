@@ -1,4 +1,4 @@
-import { cardAction, expect, test, type Page, openEditor } from './fixtures';
+import { addStep, cardAction, expect, test, type Page, openEditor } from './fixtures';
 import { readFileSync } from 'node:fs';
 
 const fixture = (name: string) =>
@@ -302,4 +302,21 @@ test('the card heading carries no breadcrumb, and its help shows only while it i
 	await page.getByRole('textbox', { name: 'Název kurzu', exact: true }).click();
 	await expect.poll(opacity).toBe(0);
 	expect(await cardTop()).toBe(before);
+});
+
+test('an image step asks for the picture first, and for its description once there is one', async ({ page }) => {
+	await addStep(page, 'Obrázek');
+	const url = page.getByRole('textbox', { name: 'Adresa obrázku', exact: true });
+	const alt = page.getByRole('textbox', { name: 'Popis obrázku pro čtečku obrazovky', exact: true });
+	await expect(url).toBeVisible();
+	await expect(url).toHaveAttribute('placeholder', 'Vlož odkaz na obrázek (např. https://…/obrazek.jpg)');
+	await expect(alt).toHaveCount(0);
+
+	await url.fill('https://example.com/zlomek.png');
+	await url.press('Enter');
+	await expect(alt).toBeVisible();
+
+	await url.fill('');
+	await url.press('Enter');
+	await expect(alt).toHaveCount(0);
 });

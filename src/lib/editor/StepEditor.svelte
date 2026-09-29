@@ -609,7 +609,7 @@
                 <FocusField
                     label="Adresa obrázku"
                     value={step.image?.url}
-                    emptyText="https://… (veřejná adresa obrázku)"
+                    emptyText="Vlož odkaz na obrázek (např. https://…/obrazek.jpg)"
                     monospace
                     onchange={(v) => {
                         set("image.url", v ?? "");
@@ -621,16 +621,19 @@
                         field: "image.url",
                     }}
                     onblur={() => imagePreview.flush(step.image?.url ?? "")} />
-                <FocusField
-                    label="Popis obrázku pro čtečku obrazovky"
-                    value={step.image?.alt}
-                    emptyText="Popiš, co je na obrázku — přečte to čtečka obrazovky"
-                    ref={{
-                        blockId: block.block_id,
-                        stepId: step.id,
-                        field: "image.alt",
-                    }}
-                    onchange={(v) => set("image.alt", v)} />
+                <!-- Nothing to describe until there is a picture. -->
+                {#if (step.image?.url ?? "") !== ""}
+                    <FocusField
+                        label="Popis obrázku pro čtečku obrazovky"
+                        value={step.image?.alt}
+                        emptyText="Popiš, co je na obrázku — přečte to čtečka obrazovky"
+                        ref={{
+                            blockId: block.block_id,
+                            stepId: step.id,
+                            field: "image.alt",
+                        }}
+                        onchange={(v) => set("image.alt", v)} />
+                {/if}
                 {#if imagePreview.value}
                     <img src={imagePreview.value} alt={step.image?.alt ?? ""} />
                 {/if}
