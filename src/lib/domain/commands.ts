@@ -269,10 +269,18 @@ export function duplicateLesson(
 	};
 }
 
+/**
+ * The lesson goes with its bindings; its cards stay in the course, so a card held by
+ * no other lesson is now in "Karty mimo lekce". `ref` is the neighbouring lesson (the
+ * next, else the previous), for an editor that was on the deleted one.
+ */
 export function deleteLesson(doc: CourseV2, lessonId: string): CommandResult {
 	const lesson = requireLesson(doc, lessonId);
+	const at = doc.lessons.indexOf(lesson);
+	const neighbour = doc.lessons[at + 1] ?? doc.lessons[at - 1];
 	return {
 		doc: { ...doc, lessons: renumberOrder(doc.lessons.filter((l) => l.lesson_id !== lessonId)) },
+		ref: neighbour === undefined ? undefined : { lessonId: neighbour.lesson_id },
 		description: `Smazána lekce „${lessonLabel(doc, lesson)}“`
 	};
 }

@@ -747,3 +747,27 @@ describe('a lesson without a name is never called by its id', () => {
 		expect(deleteLesson(blank, lessonId).description).toBe('Smazána lekce „Lekce 1“');
 	});
 });
+
+describe('deleting a lesson', () => {
+	const three = () => {
+		const doc = base();
+		const lesson = (id: string) => ({ lesson_id: id, version: 1, name: id, blocks: [] });
+		return { ...doc, lessons: [doc.lessons[0], lesson('B'), lesson('C')] };
+	};
+
+	it('points at the next lesson, else the previous, and at none when it was the only one', () => {
+		const doc = three();
+		expect(deleteLesson(doc, doc.lessons[0].lesson_id).ref).toEqual({ lessonId: 'B' });
+		expect(deleteLesson(doc, 'B').ref).toEqual({ lessonId: 'C' });
+		expect(deleteLesson(doc, 'C').ref).toEqual({ lessonId: 'B' });
+		const only = { ...doc, lessons: [doc.lessons[0]] };
+		expect(deleteLesson(only, only.lessons[0].lesson_id).ref).toBeUndefined();
+	});
+
+	it('keeps the lesson’s cards in the course', () => {
+		const doc = three();
+		const next = deleteLesson(doc, doc.lessons[0].lesson_id).doc;
+		expect(next.blocks).toBe(doc.blocks);
+		expect(next.lessons.map((l) => l.order)).toEqual([1, 2]);
+	});
+});

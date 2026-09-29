@@ -18,11 +18,8 @@
     import FieldGroup from "$lib/ui/FieldGroup.svelte";
     import { useStore } from "$lib/ui/context";
     import { fieldsFor, allows } from "$lib/ui/fields";
-    import {
-        deleteLesson,
-        duplicateLesson,
-        setField,
-    } from "$lib/domain/commands";
+    import { duplicateLesson, setField } from "$lib/domain/commands";
+    import { removeLesson } from "./lesson-actions";
     import { lessonDidactics, lessonTotals } from "$lib/domain/derive";
     import { cardsCount } from "$lib/ui/plural";
     import { Copy, Trash } from "@lucide/svelte";
@@ -122,7 +119,7 @@
     <Button
         variant="danger"
         onclick={() => {
-            store.apply((d) => deleteLesson(d, lessonId));
+            removeLesson(store, lessonId);
             onclose();
         }}
         ariaLabel="Smazat lekci">

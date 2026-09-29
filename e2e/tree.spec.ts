@@ -186,6 +186,44 @@ test('a card is still grabbed by its padding while the pointer is on its row', a
 	await expect.poll(() => order(page)).toEqual([before[1], before[0], ...before.slice(2)]);
 });
 
+/**
+ * A lesson deleted from its own settings: two more lessons are added so there is a
+ * neighbour to move to, and the first lesson's settings are opened from its row.
+ */
+test('deleting a lesson from its settings says so, moves on, and Vrátit zpět brings it back', async ({ page }) => {
+	const doc = JSON.parse(fixture);
+	doc.lessons.push(
+		{ lesson_id: 'L2', version: 1, name: 'Druhá lekce', order: 2, blocks: [] },
+		{ lesson_id: 'L3', version: 1, name: 'Třetí lekce', order: 3, blocks: [] }
+	);
+	await page.setInputFiles('input[type=file]', {
+		name: 'three-lessons.json',
+		mimeType: 'application/json',
+		buffer: Buffer.from(JSON.stringify(doc))
+	});
+	page.on('dialog', (dialog) => dialog.accept());
+
+	const rows = page.locator('.tree-lesson > button.lesson');
+	await expect(rows).toHaveCount(3);
+	await expect(rows.nth(0)).toHaveClass(/selected/);
+
+	await page.getByRole('button', { name: 'Nastavení lekce Co je zlomek?' }).click();
+	await page.getByRole('button', { name: 'Smazat lekci' }).click();
+
+	// One sentence about what the lesson left behind, wherever the teacher looks.
+	const toast = page.locator('.toast');
+	await expect(toast).toContainText('Lekce smazána. Její karty jsou v Kartách mimo lekci.');
+	await expect(rows).toHaveCount(2);
+	// The editor was in the lesson, so it is on the next one.
+	await expect(rows.nth(0)).toHaveClass(/selected/);
+	await expect(rows.nth(0)).toHaveText(/Druhá lekce/);
+
+	await toast.getByRole('button', { name: 'Vrátit zpět' }).click();
+	await expect(rows).toHaveCount(3);
+	await expect(rows.nth(0)).toHaveText(/Co je zlomek\?/);
+	await expect(rows.nth(0)).toHaveClass(/selected/);
+});
+
 test('a lesson without a name reads "Lekce 1" in the tree and the rail, never its id', async ({ page }) => {
 	const doc = JSON.parse(fixture);
 	const id = doc.lessons[0].lesson_id;
