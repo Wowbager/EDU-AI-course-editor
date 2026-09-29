@@ -95,3 +95,21 @@ describe('the store and question cards', () => {
 		expect(store.touchedCards.has('L1_B4_cviceni_2')).toBe(true);
 	});
 });
+
+describe('the Zpětná vazba flag', () => {
+	it('starts on and flips', () => {
+		const store = new DocStore();
+		expect(store.showFeedback).toBe(true);
+		store.showFeedback = false;
+		expect(store.showFeedback).toBe(false);
+		store.showFeedback = true;
+		expect(store.showFeedback).toBe(true);
+	});
+
+	it('is a view preference: loading another course keeps it', () => {
+		const store = new DocStore();
+		store.showFeedback = false;
+		store.load(fixture());
+		expect(store.showFeedback).toBe(false);
+	});
+});

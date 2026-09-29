@@ -56,6 +56,7 @@ export class DocStore {
     skillConfig = $state<SkillConfig | null>(null);
     #mode = $state<Mode>("teacher");
     #selection = $state<Ref | null>(null);
+    #showFeedback = $state(true);
 
     /**
      * What the editor shows and edits. In Pokročilý the source; otherwise each
@@ -78,6 +79,19 @@ export class DocStore {
         const inSource = ref === null ? null : this.toSource(ref);
         this.#mode = next;
         if (inSource !== null) this.#selection = this.toView(inSource);
+    }
+
+    /**
+     * Whether what the pupil is told aside from the question — option feedback, hints,
+     * help, the solution — is on screen (`feedback` in `ui/fields.ts`). A view
+     * preference, like the mode: one flag for the whole course, kept with the draft,
+     * and untouched by `load`.
+     */
+    get showFeedback(): boolean {
+        return this.#showFeedback;
+    }
+    set showFeedback(next: boolean) {
+        this.#showFeedback = next;
     }
 
     /**

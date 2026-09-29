@@ -7,6 +7,8 @@ export const draftSchema = z.object({
 	savedAt: z.string(),
 	doc: courseSchema,
 	mode: z.enum(['teacher', 'metodik', 'advanced']),
+	/** Absent in drafts from before the Zpětná vazba toggle, which showed everything. */
+	feedbackVisible: z.boolean().optional(),
 	selection: z.object({
 		lessonId: z.string().optional(), blockId: z.string().optional(),
 		stepId: z.string().optional(), optionId: z.string().optional(), field: z.string().optional()

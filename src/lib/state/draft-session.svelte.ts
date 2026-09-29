@@ -19,6 +19,7 @@ export class DraftSession {
 			this.#store.load(draft.doc);
 			this.#store.restoreReservations(draft.reserved);
 			this.#store.mode = draft.mode;
+			this.#store.showFeedback = draft.feedbackVisible ?? true;
 			this.#store.selection = draft.selection;
 			this.#store.dirty = true;
 			this.status = 'saved';
@@ -49,6 +50,7 @@ export class DraftSession {
 			const store = this.#store;
 			const draft: Draft = {
 				format: 1, savedAt: new Date().toISOString(), doc: store.source, mode: store.mode,
+				feedbackVisible: store.showFeedback,
 				selection: store.selection,
 				reserved: { blocks: [...store.reservations.blocks], lessons: [...store.reservations.lessons], steps: [...store.reservations.steps] }
 			};

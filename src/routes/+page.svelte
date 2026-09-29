@@ -74,6 +74,7 @@
         void JSON.stringify(store.source);
         void JSON.stringify(store.selection);
         void store.mode;
+        void store.showFeedback;
         if (session) untrack(() => session.schedule());
     });
 
