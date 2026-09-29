@@ -161,6 +161,12 @@ describe('empty media steps (problem 1 — a silent, invisible card)', () => {
 		expect(issue!.severity).toBe('error');
 	});
 
+	it('does not ask for a description of a picture that is not there yet', () => {
+		// The editor draws the description field only once there is an address, so a
+		// warning about it before then would point at nothing.
+		expect(result.warnings.map((w) => w.code)).not.toContain('W_IMAGE_NO_ALT');
+	});
+
 	it('does not fire E_DISPLAY_NO_TEXT — the block does have media steps, just empty ones', () => {
 		expect(result.errors.map((e) => e.code)).not.toContain('E_DISPLAY_NO_TEXT');
 	});

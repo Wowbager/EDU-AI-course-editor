@@ -465,8 +465,9 @@ function checkMedia(block: BlockV2, step: BlockStep, add: Add) {
 			`Obrázek u řešení v kroku ${position}`, add);
 	}
 
-	// §15 accessibility nudge.
-	if (step.type === 'image' && step.image !== undefined) {
+	// §15 accessibility nudge. Only for a picture that is there: with no address the
+	// error above is the one to fix, and the editor draws no description field yet.
+	if (step.type === 'image' && step.image !== undefined && (step.image.url ?? '').trim() !== '') {
 		const alt = step.image.alt;
 		if (typeof alt !== 'string' || alt.trim() === '') {
 			add('warning', 'W_IMAGE_NO_ALT', { ...ref, field: 'image.alt' },
