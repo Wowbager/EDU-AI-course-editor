@@ -170,8 +170,8 @@ spec says.
 ### 15. A card's own XP is shown as its reward, and the app ignores it
 **Verified: yes**, per the spec (§6.1 `xp` ⚠️ Inert) and "Still open" 8. The field is
 marked unread now, but the card header still says "N XP · vlastní hodnota" when one is
-set. Worth showing the derived figure with the authored one crossed out, or not
-offering the field.
+typed (and just "N XP" when it is derived, since Round 8 dropped "· automaticky"). Worth
+showing the derived figure with the authored one crossed out, or not offering the field.
 
 Since Round 7 it also makes the totals differ between modes. A card with its own XP
 keeps it on its first block only, so the view shows the card's 20 XP while Pokročilý
@@ -252,6 +252,19 @@ candidate fix is a domain rule, once, in `src/lib/domain/` (AGENTS.md rule 1): w
 those fields the app shows for an `export_type` and `quiz_evaluate`, cited from
 `lesson_detail_page.dart` and `block_step_engine.dart`, used by validation and the
 registry alike. It should be checked against the app before it is written.
+
+### 26. Hover-hidden actions on a touch screen are unverified
+**Not reproduced.** A step's Duplikovat and Smazat, its drag grip, and the + between steps
+are drawn faint or invisible until hover or focus, and always drawn under
+`@media (hover: none)`. Playwright's desktop Chrome has a hover, so no test runs that
+query, and it has not been tried on a tablet or in device emulation with touch. If a
+touch device reports `hover: hover` (some do, with a paired mouse), the actions show only
+after a first tap on the step, which focuses it.
+
+### 27. Removing the card's crumb removed the way to a lesson's settings from the card
+**By design, recorded because it is a change.** The crumb's lesson name opened the lesson's
+settings. A card in a lesson has no crumb now (DECISIONS Round 8); the lesson's settings
+are on its row in the tree.
 
 ### 11. Folding is remembered for the session only
 **By design for now.** `StepView` lives as long as the page. A reload opens every step

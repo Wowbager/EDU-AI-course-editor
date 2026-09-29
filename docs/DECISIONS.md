@@ -1329,6 +1329,79 @@ in two words that can disagree, and every test finds it by a name that changes. 
 a `Segmented` like the mode: the mode is a choice of three; this is on or off. *Rejected:*
 a control on each card (see above).
 
+### The step header shows its actions on the step being worked on
+
+The owner wanted less visual load and less to scroll. A step's header was two chips (the
+type, then "Krok N"), a chevron, and two labelled buttons, on every step, all the time.
+Now it is one quiet label, "Krok 2 · Text" with the type's icon (the number in its own
+span, so a test and a reader find the step by its place; the advanced mode shows the id
+there as before), the chevron and the inbound-branch chip. Duplikovat and Smazat are
+icon-only and appear on hover, on focus inside the step and on the step the selection is
+on, always on a screen with no hover (`@media (hover: none)`), because there is no other
+way to reach them there. The drag grip is faint until then. *Rejected:* an always visible
+red Smazat on every step: a column of red buttons is the loudest thing on the screen for
+the action least often meant. *Rejected:* hiding the grip until hover: it is how a step is
+moved, and a keyboard user needs to find it; a faint grip keeps that. The 620px container
+query that folded the labels is gone with the labels.
+
+### Add step is one menu, plus a + between two steps
+
+Five "Přidat krok:" buttons on every card become one "Přidat krok" menu (Text, Otázka,
+Obrázek, Video, Audio, each with its title), secondary while the card has no steps and
+ghost after. A + on the bottom edge of every step but the last inserts after it, with the
+same items (`addStep(..., at)`). It is inside the step's own drag item, never beside it,
+because every direct child of the drag zone is an item; it is not drawn while a step is
+carried. It stays a tab stop rather than `tabindex="-1"`: the menu at the foot only adds
+at the end, so a keyboard has no other way to insert in the middle. The cost is one more
+Tab stop per gap, which the reveal on focus makes visible. *Rejected:* five buttons: they
+are five decisions on every card before one is wanted. *Rejected:* taking the between-steps
++ out of the tab order: an insert only a mouse can do. *Rejected:* dragging a new step in
+from a palette: a second drag interaction to build and explain.
+
+### A card's other actions live in a ⋯ menu
+
+Nastavení karty stays a visible button, since a setting that appears on hover is a
+setting nobody finds. Duplikovat kartu, Zařadit do lekce / Odebrat z lekce and Smazat
+kartu are items of a "Další akce s kartou" menu, on the same row as the card's chips and
+XP (the second header row is gone), with Smazat kartu last behind a separator and in the
+error colour. **Odebrat z lekce is not red any more**: it is undoable and keeps the
+content, and a red action next to Smazat taught teachers that the two were alike.
+*Rejected:* Odebrat staying red; a menu with the settings in it, for the reason above.
+
+### A quieter card header and top bar
+
+Each of these repeated something on screen or said something about nothing:
+
+- The card's issue count chip repeated the tree's chip and the inline markers. Dropped.
+- The length chip said "délka odhadem" on every card. It shows only when a length is set.
+- The XP chip read "N XP · automaticky" on nearly every card. It reads "N XP", and
+  "N XP · vlastní hodnota" only for a value someone typed (OPEN-PROBLEMS 15).
+- The crumb "lekce › typ" repeated the tree and the type chip. A card in a lesson has
+  none; a card in no lesson keeps its warning line.
+- The text under the title ("Jak se karta jmenuje…") took a line of every card. It shows
+  while the title is focused, laid over what is below it, so nothing moves.
+- The top bar's minutes and XP for the course repeated the sidebar footer. Only the
+  sidebar has them, and a collapsed sidebar hides them.
+- The save status is one line chosen by state: "Koncept se nepodařilo uložit" (error),
+  "Ukládání pozastaveno" (warning), "Bez zálohy v souboru" (warning only when there are
+  unsaved changes) or "Stáhnuto do souboru". "Ukládání…" flickered on every keystroke and
+  said nothing to act on, so it is only in the button's name, with the rest of the state;
+  a hidden live region beside it announces failure. A step's image description field also
+  waits for an address, and `W_IMAGE_NO_ALT` with it.
+
+*Rejected:* keeping the totals in both places "for the collapsed sidebar": a number that is
+only an occasional convenience does not earn a permanent slot in the one bar every screen
+has.
+
+### A menu holds actions, never fields
+
+The rule for the new `Menu` (and written in its doc comment): an item does something when
+pressed and closes. A choice that needs a value, such as a name or a number, is a dialog.
+That is why "Zařadit do lekce" opens its dialog from the menu instead of listing the
+lessons in it, and why nothing in the ⋯ menu is a toggle. *Rejected:* a menu of lessons to
+pick from: it grows with the course, and a menu that scrolls is a dialog without the
+title.
+
 ---
 
 ## Still open
