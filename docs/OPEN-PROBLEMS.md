@@ -146,10 +146,8 @@ All three are fixed and tested. Close this if nobody reproduces it again.
 preview-only notes, so it misleads nobody about what the student sees, but it reads
 badly. Fix is in the fork (render them with `MarkdownLatexWidget`), not done.
 
-### 10. The preview's status chip says "Náhled" in Vyzkoušet too
-**Verified: yes.** The green chip means "the player is running", and it is labelled
-with the name of the other mode. Cosmetic; the whole browser suite waits on that chip,
-so renaming it is a change to every preview test and was left for its own commit.
+### 10. ~~The preview's status chip says "Náhled" in Vyzkoušet too~~ — fixed (Round 9)
+A running player has no chip now; the column's `data-player` is what tests read.
 
 ### 12. Server versions are reachable only from the browser that made them
 **By design until sign-in.** The owner is a random key in this browser's

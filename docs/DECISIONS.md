@@ -1563,6 +1563,61 @@ says only that Zpět brings the answers back.
 
 ---
 
+## Round 9 — a quieter rail, steadier step drag, fewer rough edges
+
+### Less on screen: say a thing once, and say nothing when it is fine
+
+The owner: using the app should feel good, with minimal visual overload. Five places
+said the same thing twice or said something when nothing was wrong.
+
+**The unfinished-count banner is for a file just loaded.** "V kurzu je ještě N věcí k
+dokončení" showed on every page load, because a restored draft set the same flag as an
+import, and it repeated the top bar's "N k dokončení". Now only Nahrát sets it. Its
+"Zobrazit" opens the check list the top bar's count opens (`showValidation`), not the
+download review, which also set `reviewing` and turned the count red behind the
+teacher's back. *Rejected:* removing the banner altogether: after an import the
+teacher has not touched anything, so the top bar count is quiet and nothing else says
+the file has problems.
+
+**The restore notice is neutral and goes by itself.** "Obnoven koncept…" is news, not
+a warning: it uses the surface and border tone, and hides after 8 s unless it carries a
+button (paused saving, failed saving keep the warning tone and stay). The timer tracks
+only the message, so typing does not restart it. *Rejected:* dropping the notice: a
+teacher who reopens the tab wants to know the page is their draft.
+
+**The version button reads "v1".** "· neuloženo" beside every new course read as a
+fault. The title and the accessible name ("v1, zatím neuloženo") say nothing is saved
+yet; "· upraveno" stays, because it says something changed.
+
+**"Bez zálohy v souboru" only when a download is possible.** While the course has
+errors, Stáhnout shows what is left instead of downloading, so warning that no file
+exists asks for something the teacher cannot do yet. Then the line says the calm,
+true "Uloženo v tomto prohlížeči". The button's name keeps its prefixes
+("Koncept uložen…", "Ukládání pozastaveno."), which the specs wait on. "Stáhnuto" is
+now "Staženo".
+
+**Nastavení karty is a gear in Učitel mode.** The dialog holds a few fields there
+(`cardSettingsSummary` in `ui/fields.ts` lists them from the field table for the
+tooltip); a text button announced a big surface. Metodik and Pokročilý keep the text,
+where the dialog holds sections. *Rejected:* a hard-coded tooltip, which would drift
+the day a field moves between modes.
+
+**The preview header shows a chip only for states that need attention.** A running
+player no longer has one: the green chip named the other mode ("Náhled" in Vyzkoušet)
+and told nothing the picture did not (closes OPEN-PROBLEMS #10). "spouští se…" and
+"přehrávač neběží" stay. The column carries `data-player="starting|ready|failed"` and
+the preview specs wait on that, not on the chip. The permanent footer hint went; its
+text is in the titles of the Náhled and Vyzkoušet options. *Rejected:* keeping the
+hint until first use: it would need remembered state for a line of text.
+
+**A placeholder that is a value is not italic.** The card title's placeholder is the
+name the card has when left empty ("Karta 2"), and in 20 px heavy italic it read like
+half-written content. `FocusField` takes `placeholderKind="stand-in"` for it: upright
+and quieter. Invitations to write ("Napiš odpověď…") stay italic. The question prompt
+placeholder lost its full stop and the text step's its `$LaTeX$` jargon.
+
+---
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today
