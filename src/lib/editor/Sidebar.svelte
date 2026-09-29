@@ -35,14 +35,16 @@
     } from "$lib/domain/commands";
     import {
         blockPreview,
-        lessonDidactics,
         lessonTotals,
     } from "$lib/domain/derive";
     import { cardsCount, stepsCount } from "$lib/ui/plural";
     import { uniqueKeys } from "$lib/ui/keys";
     import { groupOf, groupsOf } from "$lib/domain/groups";
+    import { lessonLabel } from "$lib/domain/naming";
     import { CARD_TYPES, cardTypeIcon } from "$lib/ui/card-types";
     import SidebarRail from "./SidebarRail.svelte";
+    import CardActions from "./CardActions.svelte";
+    import { cardActions } from "./card-actions";
     import {
         ChevronLeft,
         ChevronRight,
@@ -64,6 +66,8 @@
         oncourseSettings: () => void;
         onlessonSettings: (lessonId: string) => void;
         oncardSettings: (blockId: string) => void;
+        /** A card another card points at: the repair dialog decides where those go. */
+        onrepairBlock: (blockId: string) => void;
     }
     let {
         doc,
@@ -74,9 +78,15 @@
         oncourseSettings,
         onlessonSettings,
         oncardSettings,
+        onrepairBlock,
     }: Props = $props();
 
     const store = useStore();
+    // The rows' four actions; the rail has its own copy of these calls (`card-actions.ts`).
+    const actions = cardActions(store, {
+        onsettings: (blockId) => oncardSettings(blockId),
+        onrepair: (blockId) => onrepairBlock(blockId),
+    });
 
     /**
      * In Pokročilý the tree shows the blocks the course is exported as, where one
@@ -191,6 +201,40 @@
         }
     }
 
+    /**
+     * A tree row's keys are the card's (`oncardkey`), and → besides, which goes into
+     * the row's actions. Escape or ← from the first action comes back (`backToRow`).
+     */
+    function rowKey(
+        event: KeyboardEvent,
+        lessonId: string,
+        blockId: string,
+        position: number,
+    ) {
+        if (
+            event.key === "ArrowRight" &&
+            !event.altKey &&
+            !event.ctrlKey &&
+            !event.metaKey
+        ) {
+            event.preventDefault();
+            event.stopPropagation();
+            (event.currentTarget as HTMLElement)
+                .closest("li")
+                ?.querySelector<HTMLElement>(".card-actions button")
+                ?.focus();
+            return;
+        }
+        oncardkey(event, lessonId, blockId, position);
+    }
+
+    function backToRow() {
+        document.activeElement
+            ?.closest("li")
+            ?.querySelector<HTMLElement>(':scope > [role="button"]')
+            ?.focus();
+    }
+
     // Counted from what may be shown, like every inline marker — a card nobody has
     // left yet is being written, not broken. The top bar and export review count all.
     const errorsIn = (lessonId: string) =>
@@ -261,7 +305,6 @@
             {#each items as item (item.id)}
                 {@const lesson = item.lesson}
                 {@const totals = lessonTotals(lesson, store.index)}
-                {@const didactics = lessonDidactics(lesson, store.index)}
                 {@const errors = errorsIn(lesson.lesson_id)}
                 {@const open = lesson.lesson_id === selectedLesson}
                 <li class="tree-lesson" class:open>
@@ -271,7 +314,7 @@
                         class:selected={open}
                         onclick={() => selectLesson(lesson.lesson_id)}>
                         <span class="name"
-                            >{lesson.name ?? lesson.lesson_id}</span>
+                            >{lessonLabel(doc, lesson)}</span>
                         <span class="meta">
                             {cardsCount(totals.blockCount)} · {totals.durationMinutes}
                             min · {totals.xp} XP
@@ -282,7 +325,7 @@
                         <button
                             type="button"
                             title="Nastavení lekce"
-                            aria-label={`Nastavení lekce ${lesson.name ?? lesson.lesson_id}`}
+                            aria-label={`Nastavení lekce ${lessonLabel(doc, lesson)}`}
                             onclick={() => onlessonSettings(lesson.lesson_id)}
                             class="icon-button">
                             <Settings size={16}></Settings>
@@ -290,16 +333,6 @@
                     </div>
 
                     {#if open}
-                        {#if didactics.wrongOptionFeedbackShare < 0.5 && totals.blockCount > 0}
-                            <p
-                                class="nudge"
-                                title="Podíl chybných odpovědí, které žákovi řeknou, kde udělal chybu">
-                                Zpětná vazba jen u {Math.round(
-                                    didactics.wrongOptionFeedbackShare * 100,
-                                )} % chybných odpovědí
-                            </p>
-                        {/if}
-
                         <ul
                             class="cards"
                             use:dndzone={{
@@ -317,7 +350,10 @@
                                 {@const block = doc.blocks.find(
                                     (b) => b.block_id === card.binding.block_id,
                                 )}
-                                <li>
+                                <li
+                                    class="tree-row"
+                                    class:selected={block?.block_id ===
+                                        selectedBlock}>
                                     {#if block === undefined}
                                         <span
                                             class="missing"
@@ -348,7 +384,7 @@
                                                 )}
                                             title="Alt+↑/↓ přesune kartu"
                                             onkeydowncapture={(event) =>
-                                                oncardkey(
+                                                rowKey(
                                                     event,
                                                     lesson.lesson_id,
                                                     block.block_id,
@@ -378,6 +414,38 @@
                                                 <Chip tone="error"
                                                     >{cardErrors}</Chip>
                                             {/if}
+                                        </div>
+                                        <!--
+											A sibling of the row, not inside it: the row is what a
+											drag grabs, and a press on a button must not grab it.
+											Always laid out and only faded, so it can be focused.
+										-->
+                                        <div class="tree-actions">
+                                            <CardActions
+                                                size="s"
+                                                position={position + 1}
+                                                onsettings={() =>
+                                                    actions.settings(
+                                                        lesson.lesson_id,
+                                                        block.block_id,
+                                                    )}
+                                                onduplicate={() =>
+                                                    actions.duplicate(
+                                                        block.block_id,
+                                                        lesson.lesson_id,
+                                                    )}
+                                                onremoveFromLesson={() =>
+                                                    actions.removeFromLesson(
+                                                        lesson.lesson_id,
+                                                        block.block_id,
+                                                        { follow: false },
+                                                    )}
+                                                onremove={() =>
+                                                    actions.remove(
+                                                        block.block_id,
+                                                        lesson.lesson_id,
+                                                    )}
+                                                onexit={backToRow} />
                                         </div>
                                     {/if}
                                 </li>
@@ -460,7 +528,8 @@
             {errorsIn}
             {errorsOn}
             {onlessonSettings}
-            {oncardSettings} />
+            {oncardSettings}
+            {onrepairBlock} />
     {/if}
 
     {#if !collapsed}
@@ -609,15 +678,6 @@
         font: var(--type-caption);
     }
 
-
-
-    .nudge {
-        margin: 0 10px 6px;
-        color: var(--e-warning);
-        font-size: var(--text-xs);
-        line-height: 1.4;
-    }
-
     /*
 	 * The gear on the open lesson is always there; duplicate and delete moved into
 	 * the panel it opens. An action that only exists on hover is an action nobody
@@ -669,8 +729,53 @@
         cursor: pointer;
     }
 
-    .tree-card:hover {
+    .tree-card:hover,
+    .tree-row:focus-within .tree-card {
         background: var(--surface);
+    }
+
+    /*
+	 * The row's actions: over its right end, faded in on hover, on focus inside and
+	 * on the selected row. The gradient carries the row's own background over the end
+	 * of the snippet, so the buttons never sit on running text. Faded, never
+	 * `display: none`: a control that is not laid out cannot be focused. The band
+	 * itself takes no presses (a drag can start from it); only the buttons do.
+	 */
+    .tree-actions {
+        position: absolute;
+        top: 50%;
+        right: 0;
+        display: flex;
+        align-items: center;
+        padding: 0 6px 0 28px;
+        background: linear-gradient(to right, transparent, var(--surface) 24px);
+        border-radius: var(--radius-xs);
+        opacity: 0;
+        transform: translateY(-50%);
+        transition: opacity 120ms ease;
+        pointer-events: none;
+    }
+
+    .tree-actions :global(.row) {
+        pointer-events: none;
+    }
+
+    .tree-row:hover .tree-actions,
+    .tree-row:focus-within .tree-actions,
+    .tree-row.selected .tree-actions {
+        opacity: 1;
+    }
+
+    .tree-row:hover .tree-actions :global(.row),
+    .tree-row:focus-within .tree-actions :global(.row),
+    .tree-row.selected .tree-actions :global(.row) {
+        pointer-events: auto;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .tree-actions {
+            transition: none;
+        }
     }
 
     .tree-card.selected {

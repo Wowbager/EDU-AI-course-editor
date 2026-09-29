@@ -1693,6 +1693,94 @@ a choice that does nothing.
 
 ---
 
+## Round 9 — a quieter rail, and the card's actions where the teacher is
+
+The owner: the folded sidebar is cluttered, each card tile carries an icon, a number, a
+gear and an error dot, and the only card action anywhere is settings. So the tiles shed
+everything but the icon, and one well-made panel beside the tile carries the four things
+a card can be told to do. The same four appear on the tree's rows.
+
+### A peek panel instead of four targets on a 52px tile
+
+`RailPeek.svelte` opens beside the hovered or focused tile, in the top layer
+(`popover="manual"`, placed with `placeMenu(..., 'right-start')`), and holds the card's
+type and position, its error count, its text and `CardActions`. The tile itself is a
+36×36 rounded square with one 18px icon.
+
+A 52px rail has no room for four 32px targets — the gear that used to sit on the tile's
+corner was about 14px, which is exactly why it was hard to hit (OPEN-PROBLEMS #29) — and
+it has no room for a number beside the icon either. The panel is drawn outside the
+sidebar's own box, so the tile's width is not the panel's width. *Rejected:* four
+buttons on the tile, revealed on hover: at that size they overlap the icon and each
+other, and every hover turns a quiet rail into a moving one. *Rejected:* a right-click
+context menu alone: it is the only way on a touch screen and the fastest on a mouse, but
+nothing on screen says it is there, so it opens the peek too (pinned, Shift+F10 and the
+ContextMenu key as well).
+
+The timing is the tooltip group's: 150 ms to open, at once if another panel closed within
+400 ms, and 200 ms after the pointer leaves both the tile and the panel to close, with an
+8px invisible bridge across the gap so the crossing does not close it. It never opens
+while the button is down or during a drag, and it closes on scroll or resize, so it can
+never float over a list that has moved. *Rejected:* a closing delay that ignores where
+the pointer went: running down the tiles then flickers each panel shut and open again.
+
+### One row of four actions, shared by the peek panel and the tree
+
+`CardActions.svelte` is the only place the buttons are drawn, and `card-actions.ts` is
+the only place they do anything, so the ⋯ menu, the rail and the tree cannot drift apart
+in what they say — including the toast a deletion leaves behind. The tree shows the same
+row, without the caption line and with 28px buttons, faded in on hover, on
+`:focus-within` and on the selected row, never `display: none`, so `→` from a row reaches
+them and Escape comes back. It sits beside the element that is `role=button`, not inside
+it, so a press on a button does not start a card drag. *Rejected:* two implementations,
+one for the rail and one for the tree: the same four actions with the same wording is
+what makes either of them learnable.
+
+### Smazat takes two clicks; Nastavení lekce is not confirmed
+
+The button rings red on hover or focus, fills red on the first click (the aria-label
+becomes "Opravdu smazat N. kartu? Klikni znovu", the caption "Klikni znovu pro smazání"),
+and deletes on the second. It disarms when the pointer or focus leaves the row, on
+Escape, and after 4 s. Deleting a lesson from Nastavení lekce is not confirmed at all.
+
+The owner asked for "minimal and just a little unintuitive" on purpose: a dialog for
+every deletion is the thing being avoided, and the delete is undoable either way, so the
+second click is the smallest thing that stops a mis-click from being an edit. A lesson's
+cards stay in the course and the notice says so, which is what makes a silent delete
+honest there.
+
+*Rejected:* a confirm dialog on every delete. It costs a click and a reading every time
+for the case that matters least, and `domain/card-delete.ts` already knows when a
+deletion is more than itself: a card another card branches to, needs first, or that a
+second lesson holds still opens the repair dialog, which has something real to ask.
+*Rejected:* an undo toast alone, with no arming click. It is fewer clicks, but the
+deletion happens on the first press, and a toast that is already up when the teacher
+notices the mistake has to be read and caught within 6 s.
+
+### One notice, in one place, owned by the store's undo log
+
+Everything the editor says about what it has just done goes through
+`state/notice.svelte.ts` and is drawn once, by `Toast.svelte`, bottom-left of the editor
+column, `aria-live="polite"`. It holds one message at a time, goes by itself after 6 s,
+and stops while the pointer or focus is on it. "Vrátit zpět" is offered only while
+`store.undoStack.at(-1) === entry`, so a notice can never undo an edit made after it.
+*Rejected:* a notice per surface (the card's own, the rail's own). CardEditor had one
+already, and a second is how "Odebrat z lekce" comes to say one thing in the ⋯ menu and
+another in the rail.
+
+### A lesson's deletion moves the editor, only when it was standing there
+
+`deleteLesson` returns `ref` = the next lesson, else the previous, and
+`editor/lesson-actions.ts` passes it through only if the selection was inside the deleted
+lesson. Undoing puts the editor back into the restored lesson. The rule is the same one
+the card actions use: an action taken from a list must not drag a teacher away from the
+card they had open, and an action taken where they were standing should leave them
+somewhere that exists. *Rejected:* the command always returning the neighbour. From the
+tree, deleting a lesson that is not the open one would then move the editor for no
+reason the teacher can see.
+
+---
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

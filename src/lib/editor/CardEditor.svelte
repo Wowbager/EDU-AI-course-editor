@@ -33,7 +33,7 @@
     import Menu from "$lib/ui/Menu.svelte";
     import MenuItem from "$lib/ui/MenuItem.svelte";
     import MenuSeparator from "$lib/ui/MenuSeparator.svelte";
-    import type { UndoEntry } from "$lib/state/doc-store.svelte";
+    import { notices } from "$lib/state/notice.svelte";
     import type { Ref } from "$lib/domain/ref";
     import FocusField from "$lib/ui/FocusField.svelte";
     import StepEditor from "./StepEditor.svelte";
@@ -43,11 +43,11 @@
     import {
         addStep,
         bindBlock,
-        duplicateBlock,
         reorderSteps,
         setField,
-        unbindBlock,
     } from "$lib/domain/commands";
+    import { lessonLabel } from "$lib/domain/naming";
+    import { cardActions } from "./card-actions";
     import {
         blockDurationMinutes,
         derivedBlockXp,
@@ -88,6 +88,11 @@
     }: Props = $props();
 
     const store = useStore();
+    // The same actions the rail and the tree call (`card-actions.ts`).
+    const actions = cardActions(store, {
+        onsettings: () => onsettings(),
+        onrepair: (blockId) => onrepairBlock(blockId),
+    });
     const boundLessons = $derived(
         doc.lessons.filter((lesson) =>
             lesson.blocks.some(
@@ -106,15 +111,6 @@
     );
     let showLessonPicker = $state(false);
     let targetLessonId = $state("");
-    let notice = $state<{ message: string; entry: UndoEntry; ref: Ref } | null>(
-        null,
-    );
-    // Never let a stale notice undo a later, unrelated edit.
-    const activeNotice = $derived(
-        notice !== null && store.undoStack.at(-1) === notice.entry
-            ? notice
-            : null,
-    );
     const xp = $derived(effectiveBlockXp(block));
     const xpIsDerived = $derived(typeof block.xp !== "number");
     const minutes = $derived(blockDurationMinutes(block));
@@ -297,32 +293,7 @@
 
     function showNotice(message: string, ref: Ref) {
         const entry = store.undoStack.at(-1);
-        if (entry !== undefined) notice = { message, entry, ref };
-    }
-
-    function removeFromLesson() {
-        if (lessonId === undefined || binding === undefined) return;
-        const blockId = block.block_id;
-        const fromLessonId = lessonId;
-        const name =
-            doc.lessons.find((lesson) => lesson.lesson_id === fromLessonId)
-                ?.name ?? fromLessonId;
-        // Only this binding changes. Shared cards and incoming references stay intact.
-        const result = store.apply((d) => ({
-            ...unbindBlock(d, fromLessonId, blockId),
-            ref: { blockId },
-        }));
-        const remaining = result.doc.lessons.filter((lesson) =>
-            lesson.blocks.some((binding) => binding.block_id === blockId),
-        );
-        const location =
-            remaining.length === 0
-                ? "Karta je nyní v části Karty mimo lekci."
-                : `Karta zůstává v lekcích (${remaining.length}): ${remaining.map((lesson) => `„${lesson.name}“`).join(", ")}.`;
-        showNotice(
-            `Karta odebrána z lekce „${name}“. ${location} Obsah ani odkazy se nesmazaly.`,
-            { lessonId: fromLessonId, blockId },
-        );
+        if (entry !== undefined) notices.show({ text: message, entry, ref });
     }
 
     function assignToLesson() {
@@ -333,9 +304,12 @@
         )
             return;
         const blockId = block.block_id;
-        const name = availableLessons.find(
-            (lesson) => lesson.lesson_id === targetLessonId,
-        )!.name;
+        const name = lessonLabel(
+            doc,
+            availableLessons.find(
+                (lesson) => lesson.lesson_id === targetLessonId,
+            )!,
+        );
         store.apply((d) => bindBlock(d, targetLessonId, blockId));
         showLessonPicker = false;
         showNotice(`Karta zařazena do lekce „${name}“.`, { blockId });
@@ -436,10 +410,7 @@
             placement="bottom-end">
             <MenuItem
                 icon={Copy}
-                onclick={() =>
-                    store.apply((d, r) =>
-                        duplicateBlock(d, block.block_id, lessonId, r),
-                    )}>
+                onclick={() => actions.duplicate(block.block_id, lessonId)}>
                 Duplikovat kartu
             </MenuItem>
             {#if sharedWith === 0}
@@ -459,7 +430,10 @@
                 <!-- Neutral, not red: it is undoable, and the content stays. -->
                 <MenuItem
                     icon={ListX}
-                    onclick={removeFromLesson}
+                    onclick={() =>
+                        actions.removeFromLesson(lessonId, block.block_id, {
+                            follow: true,
+                        })}
                     title={sharedWith > 1
                         ? "Odebere kartu jen z této lekce — ostatní lekce a všechen obsah zůstanou"
                         : "Odebere kartu z této lekce. Obsah zůstává v části Karty mimo lekci; smazat jde přes Smazat kartu."}>
@@ -470,28 +444,12 @@
             <MenuItem
                 icon={Trash}
                 danger
-                onclick={() => onrepairBlock(block.block_id)}
-                title="Otevře potvrzení smazání karty z celého kurzu a opravu odkazů">
+                onclick={() => actions.remove(block.block_id, lessonId)}
+                title="Smaže kartu z celého kurzu; jde vrátit zpět. Míří-li na ni odkaz odjinud, nejdřív se zeptá, kam má vést.">
                 Smazat kartu
             </MenuItem>
         </Menu>
     </header>
-
-    {#if activeNotice}
-        <div class="action-notice" role="status">
-            <span>{activeNotice.message}</span>
-            <Button
-                variant="secondary"
-                size="s"
-                onclick={() => {
-                    const current = activeNotice;
-                    if (current === null) return;
-                    store.undo();
-                    store.selection = current.ref;
-                    notice = null;
-                }}>Vrátit zpět</Button>
-        </div>
-    {/if}
 
     <div
         class="steps"
@@ -551,7 +509,8 @@
             <select bind:value={targetLessonId}>
                 <option value="" disabled>Vyber lekci…</option>
                 {#each availableLessons as lesson (lesson.lesson_id)}
-                    <option value={lesson.lesson_id}>{lesson.name}</option>
+                    <option value={lesson.lesson_id}
+                        >{lessonLabel(doc, lesson)}</option>
                 {/each}
             </select>
         </label>
@@ -568,18 +527,6 @@
 {/if}
 
 <style>
-
-    .action-notice {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 8px;
-        margin-top: 12px;
-        padding: 10px;
-        border-radius: var(--radius-s);
-        background: var(--info-bg);
-        font-size: var(--text-s);
-    }
 
     .lesson-picker {
         display: flex;

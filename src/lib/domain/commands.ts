@@ -22,6 +22,7 @@ import type {
 	StepType
 } from './schema';
 import type { Ref } from './ref';
+import { lessonLabel } from './naming';
 import { ELO_BASELINE } from './skill-config';
 import {
 	buildIndex,
@@ -256,7 +257,7 @@ export function duplicateLesson(
 	const copy: LessonV2 = {
 		...lesson,
 		lesson_id: copyId,
-		name: `${lesson.name ?? lessonId} (kopie)`
+		name: `${lessonLabel(doc, lesson)} (kopie)`
 	};
 	const at = doc.lessons.findIndex((l) => l.lesson_id === lessonId);
 	const lessons = [...doc.lessons];
@@ -264,15 +265,23 @@ export function duplicateLesson(
 	return {
 		doc: { ...doc, lessons: renumberOrder(lessons) },
 		ref: { lessonId: copyId },
-		description: `Duplikována lekce „${lesson.name ?? lessonId}“`
+		description: `Duplikována lekce „${lessonLabel(doc, lesson)}“`
 	};
 }
 
+/**
+ * The lesson goes with its bindings; its cards stay in the course, so a card held by
+ * no other lesson is now in "Karty mimo lekce". `ref` is the neighbouring lesson (the
+ * next, else the previous), for an editor that was on the deleted one.
+ */
 export function deleteLesson(doc: CourseV2, lessonId: string): CommandResult {
 	const lesson = requireLesson(doc, lessonId);
+	const at = doc.lessons.indexOf(lesson);
+	const neighbour = doc.lessons[at + 1] ?? doc.lessons[at - 1];
 	return {
 		doc: { ...doc, lessons: renumberOrder(doc.lessons.filter((l) => l.lesson_id !== lessonId)) },
-		description: `Smazána lekce „${lesson.name ?? lessonId}“`
+		ref: neighbour === undefined ? undefined : { lessonId: neighbour.lesson_id },
+		description: `Smazána lekce „${lessonLabel(doc, lesson)}“`
 	};
 }
 
