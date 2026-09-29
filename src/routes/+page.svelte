@@ -630,6 +630,16 @@
         overflow-y: auto;
     }
 
+    /*
+	 * On a wide screen the card stays a comfortable width and sits in the middle of
+	 * the column, instead of stretching lines of text across it. A dialog is left
+	 * out: it is drawn by the browser over the whole page, not in the column.
+	 */
+    .editor > :global(:not(dialog)) {
+        max-width: var(--e-editor-max);
+        margin-inline: auto;
+    }
+
     .card-head {
         position: relative;
         margin-bottom: 14px;
