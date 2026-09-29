@@ -573,6 +573,7 @@
                                 70,
                                 cardPosition,
                             )}
+                            placeholderKind="stand-in"
                             density="compact"
                             onchange={(v) =>
                                 store.apply((d) =>

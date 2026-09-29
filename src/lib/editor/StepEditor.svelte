@@ -597,7 +597,7 @@
                 class:invalid={missingText !== undefined}
                 use:markdownEditor={{
                     value: step.content ?? "",
-                    placeholder: "Text kroku. Markdown a $LaTeX$ fungují.",
+                    placeholder: "Napiš, co si má žák přečíst.",
                     onchange: (v) => set("content", v === "" ? undefined : v),
                     onbeginedit: () => store.beginEdit(),
                     onendedit: () => store.endEdit(),
@@ -701,7 +701,7 @@
                     class="markdown"
                     use:markdownEditor={{
                         value: step.content ?? "",
-                        placeholder: "Zadání otázky.",
+                        placeholder: "Zadání otázky",
                         onchange: (v) =>
                             set("content", v === "" ? undefined : v),
                         onbeginedit: () => store.beginEdit(),

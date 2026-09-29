@@ -369,3 +369,16 @@ test('an image step asks for the picture first, and for its description once the
 	await url.press('Enter');
 	await expect(alt).toHaveCount(0);
 });
+
+test('the card title\'s placeholder is a name, not a cue: upright, while a cue stays italic', async ({ page }) => {
+	await page.locator('.tree-add').getByRole('button', { name: 'Otázka', exact: true }).click();
+	const style = (selector: string) =>
+		page.locator(selector).first().evaluate((el) => getComputedStyle(el, '::placeholder').fontStyle);
+	const title = 'h1 input[placeholder]';
+	await expect(page.locator(title).first()).toHaveAttribute('placeholder', /^Karta \d+$/);
+	expect(await style(title)).toBe('normal');
+	// An invitation to write is still set as one.
+	expect(await style('.answers textarea, .answers input[aria-label="Text odpovědi"]')).toBe('italic');
+	// No stray full stop, no markup jargon on the step prompts.
+	await expect(page.locator('.cm-placeholder', { hasText: 'Zadání otázky' }).first()).toHaveText('Zadání otázky');
+});
