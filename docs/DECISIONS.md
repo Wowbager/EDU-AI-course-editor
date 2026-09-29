@@ -858,7 +858,9 @@ components.
   instead of scrolling to a header whose field was not rendered.
 - Steps move by a grip handle. The press folds every step *before* the library
   measures the list, and scrolls the column by however far the handle moved, so the
-  step is picked up from under the pointer. *Rejected:* folding on the first
+  step is picked up from under the pointer (Round 9 made that hold at the top and
+  bottom of the column too, see "The handle goes back under the pointer").
+  *Rejected:* folding on the first
   `consider` — by then `preventShrinking` has fixed the zone's height and the clone
   has been sized to the old placeholder. *Rejected:* keeping the whole row as the
   handle — a press on a chevron and 3 px of movement started a drag.
@@ -1493,6 +1495,33 @@ step's container query (620px) and the answer table's (760px) look at their own
 container, and at 1440 the column was already narrower than the cap, so nothing changes
 there. *Rejected:* capping the whole column: the scrollbar would then sit against the
 card and not at the window's edge.
+
+## Round 9
+
+### The handle goes back under the pointer
+
+A press on a step's grip folds every step, and the grip moves up by what the folded
+steps above it gave back. `svelte-dnd-action` measures the pointer from where it was
+*pressed* but builds the clone from the grip's rect at the first move, so any grip that
+did not end up where it was pressed left the clone offset from the pointer for the whole
+drag, and the drop follows the clone. It failed three ways: near the top (`scrollTop`
+cannot go below 0, so the scroll `grab()` made fell short), near the bottom (the folded
+list is shorter, so the browser clamped `scrollTop` and moved the grip again) and with
+the wrong scroller (`scrollParent()` ran after the fold, when a short list no longer
+overflowed, and picked the document).
+
+`CardEditor.grab()` now, before the fold, finds the scrolling column, records the grip's
+top and pins `.steps` to its current height; after the fold it scrolls by the shift and,
+if the scroll fell short, pads the top of `.steps` by what is left. Both inline styles
+are cleared on drop (`onfinalize`, after the library's own min-height restore) and on a
+release that never became a drag. Three e2e tests in `step-list.spec.ts` (column at the
+top, column at the bottom, and the placeholder index a drag lands on) fail on the old
+code and pass on the new.
+
+*Rejected:* padding instead of scrolling, always: the list would start with a gap
+whenever a drag begins, even where the scroll would have done. *Rejected:* moving the
+library's recorded pointer start: it is private to the dragged-element helper, and
+patching a dependency is not ours to ship.
 
 ---
 
