@@ -4,7 +4,7 @@
  * The editor shows these live because both are promises to the student that move
  * whenever a step is added or removed.
  */
-import type { BlockStep, BlockV2, CourseV2, LessonV2 } from './schema';
+import type { BlockStep, BlockV2, CourseV2, LessonV2, QuestionConfig } from './schema';
 import type { DocIndex } from './index-doc';
 
 /** `"3 min"` / `"3"` / `3` → 3. Undefined when the block declares no duration. */
@@ -310,4 +310,27 @@ export function blockPreview(block: BlockV2, max = 70, position?: number): strin
 	const authored = (block.name ?? '').trim();
 	if (authored !== '') return truncate(authored, max);
 	return derivedBlockName(block, max, position);
+}
+
+/**
+ * Whether an answer's own outcome — where it leads (`go_to`) and its grade (`mark`) —
+ * counts for this question. It does only when the pupil picks one answer.
+ *
+ * Mirrors the app: `BlockStepEngine._confirmAnswer` takes its `goToValue` and
+ * `markValue` from the chosen option only in the last branch, the single-select /
+ * true-false one (`block_step_engine.dart:620-633`). The `allowMultiple` branch above
+ * it (`:597-601`) judges the whole set and reads neither, and `numeric` and `open`
+ * questions never look at their options' outcomes (`:602-619`). `_continueAfterSolution`
+ * likewise follows only `selectedOptionId`, which a multi-select never sets
+ * (`:735-747`), and `QuizPage._checkAnswer` (`quiz_page.dart:499-525`) reads no
+ * outcome on an option either way. A multi-select question can still branch on the
+ * question as a whole (`next_actions`), which is not an option's value.
+ *
+ * (`score_koef` is skipped in the multi-select branch too, `:598-601`; that column is
+ * advanced-only and not part of this rule.)
+ */
+export function optionOutcomesApply(question: Pick<QuestionConfig, 'type' | 'allow_multiple'> | undefined): boolean {
+	if (question === undefined) return true;
+	if (question.allow_multiple === true) return false;
+	return question.type === 'multiple_choice' || question.type === 'true_false';
 }

@@ -312,3 +312,52 @@ describe('hint and help a pupil never reaches', () => {
 		expect(reached(card({ type: 'question', hint: 'H' }, [question]))).toEqual(['card.hint']);
 	});
 });
+
+describe('answers that lead somewhere or carry a grade, on a question with several picks', () => {
+	const question = (allow_multiple: boolean, options: Record<string, unknown>[]) =>
+		parseCourse({
+			export_type: 'course_v2',
+			course_id: 'K',
+			version: 1,
+			name: 'K',
+			lessons: [{ lesson_id: 'L1', name: 'L', order: 1, blocks: [{ block_id: 'B1', order: 1 }] }],
+			blocks: [
+				{
+					block_id: 'B1',
+					type: 'question',
+					steps: [
+						{
+							id: 's1',
+							type: 'question',
+							content: 'Které jsou sudé?',
+							question: {
+								type: 'multiple_choice',
+								allow_multiple,
+								options: options.map((o, i) => ({ id: `o${i + 1}`, text: `Možnost ${i + 1}`, is_correct: i === 0, feedback: 'Proto.', ...o }))
+							}
+						},
+						{ id: 's2', type: 'text', content: 'Dál' }
+					]
+				}
+			]
+		});
+	const ignored = (doc: ReturnType<typeof question>) =>
+		validate(doc, skillConfig).warnings.filter((w) => w.code === 'W_OPTION_OUTCOMES_IGNORED');
+
+	it('is said once for the step, with what will not happen', () => {
+		const found = ignored(question(true, [{ go_to: 's2' }, { mark: '3' }]));
+		expect(found).toHaveLength(1);
+		expect(found[0].ref).toEqual({ blockId: 'B1', stepId: 's1', field: 'question.allow_multiple' });
+		expect(found[0].message).toContain('větvení ani známka');
+	});
+
+	it('names only the value that is there', () => {
+		expect(ignored(question(true, [{ go_to: 's2' }, {}]))[0].message).toContain('nepoužije větvení.');
+		expect(ignored(question(true, [{ mark: '2' }, {}]))[0].message).toContain('nepoužije známka.');
+	});
+
+	it('is quiet for a single pick, and for several picks with nothing set', () => {
+		expect(ignored(question(false, [{ go_to: 's2' }, { mark: '3' }]))).toEqual([]);
+		expect(ignored(question(true, [{}, { go_to: '' }]))).toEqual([]);
+	});
+});
