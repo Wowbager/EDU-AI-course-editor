@@ -35,6 +35,9 @@ const theme = EditorView.theme({
 	'.cm-placeholder': { color: 'var(--e-text-faint)', fontStyle: 'italic' }
 });
 
+const isHighSurrogate = (code: number) => code >= 0xd800 && code <= 0xdbff;
+const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff;
+
 export function markdownEditor(node: HTMLElement, options: MarkdownEditorOptions) {
 	let current = options;
 	/**
@@ -97,6 +100,8 @@ export function markdownEditor(node: HTMLElement, options: MarkdownEditorOptions
 				let from = 0;
 				const shared = Math.min(existing.length, next.value.length);
 				while (from < shared && existing.charCodeAt(from) === next.value.charCodeAt(from)) from++;
+				// Never cut between the halves of an emoji or another astral character.
+				if (from > 0 && isHighSurrogate(existing.charCodeAt(from - 1))) from--;
 				let tail = 0;
 				while (
 					tail < shared - from &&
@@ -104,6 +109,7 @@ export function markdownEditor(node: HTMLElement, options: MarkdownEditorOptions
 						next.value.charCodeAt(next.value.length - 1 - tail)
 				)
 					tail++;
+				if (tail > 0 && isLowSurrogate(existing.charCodeAt(existing.length - tail))) tail--;
 				pushing = true;
 				try {
 					view.dispatch({
