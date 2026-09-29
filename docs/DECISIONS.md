@@ -1252,6 +1252,85 @@ the view and the document raise the same errors for the admin's course.
 
 ---
 
+## Round 8 — focus on the flow: hide what the pupil is told aside from the question
+
+The owner: when a teacher creates a course they don't need all the feedback; they want
+to focus on the flow of the course. So hide everything they don't need, like feedback to
+the student, to minimise the visual load and the distance to scroll through in the first
+phase of creating the course.
+
+### One global flag, and the line between hidden and kept
+
+**Zpětná vazba is one switch on the topbar**, on by default, for the whole course. Off,
+the editor does not draw what the pupil is told after or aside from the question: each
+option's feedback (and its image), a step's hint and help, the card-wide hint and help
+("Nápověda pro celou kartu"), the solution ("Řešení") and its image, and the advanced
+"Ukázat řešení po odpovědi". **It keeps everything a question needs to be correct**: the
+correct-answer marker, the option text, the correct answer and number, the tolerance,
+"Víc správných možností", "Vyhodnocovat odpovědi", the branch target and a quiz's
+mark. A teacher who hides feedback must still be able to fix `E_MC_NO_CORRECT`.
+*Rejected:* a per-card map of who shows feedback, and a small eye on each card: the
+teacher is in one phase for the whole course, and per-card state is state to forget,
+persist and explain. *Rejected:* gating in export or `validate()`: hiding is a view, the
+exported document and its errors are what they were. *Rejected:* hiding the quiz mark
+and the correct marker: the mark is a grade the pupil gets for the answer, not
+explanation, and a question with no visible correct answer cannot be authored.
+*Rejected:* a list of what to hide inside each component: a second copy of the mode
+table. Which fields count is the next decision.
+
+### Declared once, as `feedback: true` in `fields.ts`
+
+A `FieldSpec` says it is feedback, and `visible`, `fieldsFor` and `allows` take the flag,
+so a component asks the registry the way it already does for the mode. `isFeedbackRef`
+answers the same for an issue's ref, built on `fieldOf`. `fields.test.ts` pins the exact
+set and that the fields a question needs are never in it. *Rejected:*
+`store.feedbackVisibleFor(cardId)`: it invites the per-card map above, and puts the
+knowledge of which field is feedback in the store instead of the table.
+
+### Warnings about hidden fields are held back; errors never are
+
+A warning whose only fix is a hidden field would be a count the teacher cannot act on.
+While feedback is off, `heldBack` leaves out a warning that points at a feedback field or
+has a code in `HELD_WITH_FEEDBACK` (`W_HINT_UNREACHABLE`, `W_NO_WRONG_OPTION_FEEDBACK`,
+whose ref is the option list, not a feedback field). The store's `listed` is that
+filtered list; the topbar count, the validation panel and the inline markers read it.
+The panel says once, quietly, "Skryto N doporučení ke zpětné vazbě." with a "Ukázat"
+button. Errors are never held. **The export review, the banner and the download check
+still read the whole `validation`**: a file leaves with everything the teacher was told
+about, whatever they were looking at. *Rejected:* dropping the warnings in `validate()`,
+which would make the export review a different question from the editor's. *Rejected:* a
+collapsed heading in the panel for the held ones: it is still a list to scroll past.
+*Rejected:* un-holding them during a review: the review already lists them all.
+
+### A jump onto a hidden field turns feedback back on, and it stays on
+
+`DocStore.revealAt` sets the flag first if the ref is a feedback field. There is nothing
+to scroll to in a field that is not drawn, and the teacher asked to go there. It stays
+on: the teacher is now fixing feedback, and hiding it again under them is a second
+surprise. Following a played run (`follow`) does not, since it is not a request. The
+same rule as "Přejít" switching the mode (OPEN-PROBLEMS 16). *Rejected:* a temporary
+reveal for one jump: the field would vanish on the next click.
+
+### The flag is kept with the draft, on format 1
+
+`feedbackVisible` is an optional field of the draft, and an absent one reads as on.
+`load` does not reset it: like the mode, it is how the teacher looks at the editor, not
+part of a course. *Rejected:* bumping the draft to format 2. An older build would refuse
+a draft it could read, and a teacher who opens the editor from two builds would lose the
+draft to a preference.
+
+### A toggle keeps one label, and `aria-pressed` says the state
+
+The button is always "Zpětná vazba" (accessible name and visible text), with an eye or a
+crossed-out eye and a title that says what the state is. `Button` takes `pressed`, drawn
+as a tinted ghost button. *Rejected:* a label that flips between "Skrýt zpětnou vazbu" and
+"Ukázat zpětnou vazbu" alongside `aria-pressed`: a screen reader hears the state twice,
+in two words that can disagree, and every test finds it by a name that changes. *Rejected:*
+a `Segmented` like the mode: the mode is a choice of three; this is on or off. *Rejected:*
+a control on each card (see above).
+
+---
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

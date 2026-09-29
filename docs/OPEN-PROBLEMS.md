@@ -235,6 +235,24 @@ an advanced author gave two blocks of one card different settings, the teacher's
 shows the first block's, and the next edit to the card writes them to all its blocks.
 Nothing warns about the disagreement.
 
+### 24. A jump onto a hidden feedback field switches feedback back on
+**By design, recorded because it is surprising.** The twin of 16. While Zpětná vazba is
+off, "Přejít" (from the panel or the export review) and a click on the "?" in Náhled that
+lands on a hint, help, solution or answer feedback turns it back on, and it stays on. The
+alternative, landing on a card whose field is not drawn, is what the switch replaced.
+**Reproduced:** yes, in `e2e/feedback-toggle.spec.ts`.
+
+### 25. In quiz_v2 courses the app shows no hints, help, solution or feedback, but the editor still asks for them
+**Not reproduced in the editor; read from the spec.** COURSE-EDITOR-SPEC §2 says a
+`quiz_v2` course keeps only the hint button, and with `quiz_evaluate: false` it also
+drops solutions and per-option feedback, so a teacher writing a test is asked for text
+the pupil never sees (and `W_NO_WRONG_OPTION_FEEDBACK` says the pupil "will not learn"
+what the app does not tell). The Zpětná vazba switch is the teacher's, not a rule. A
+candidate fix is a domain rule, once, in `src/lib/domain/` (AGENTS.md rule 1): which of
+those fields the app shows for an `export_type` and `quiz_evaluate`, cited from
+`lesson_detail_page.dart` and `block_step_engine.dart`, used by validation and the
+registry alike. It should be checked against the app before it is written.
+
 ### 11. Folding is remembered for the session only
 **By design for now.** `StepView` lives as long as the page. A reload opens every step
 again. Worth persisting with the draft if authors of long cards ask for it.
