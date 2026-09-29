@@ -283,3 +283,23 @@ test('undo puts back what a delete took away', async ({ page }) => {
 	await page.getByRole('button', { name: 'Zpět', exact: true }).click();
 	await expect(inLesson).toHaveCount(3);
 });
+
+test('the card heading carries no breadcrumb, and its help shows only while it is edited', async ({ page }) => {
+	await importCourse(page, 'spec-16-course.json');
+	await expect(page.locator('.crumb')).toHaveCount(0);
+
+	const help = page.locator('.card-head-hint');
+	const opacity = () => help.evaluate((el) => Number(getComputedStyle(el).opacity));
+	const cardTop = () => page.locator('main .card').evaluate((el) => el.getBoundingClientRect().top);
+	const before = await cardTop();
+	await expect.poll(opacity).toBe(0);
+
+	await page.getByRole('textbox', { name: 'Název karty', exact: true }).click();
+	await expect.poll(opacity).toBe(1);
+	// It sits over the layout: showing it moves nothing.
+	expect(await cardTop()).toBe(before);
+
+	await page.getByRole('textbox', { name: 'Název kurzu', exact: true }).click();
+	await expect.poll(opacity).toBe(0);
+	expect(await cardTop()).toBe(before);
+});

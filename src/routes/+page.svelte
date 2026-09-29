@@ -45,8 +45,7 @@
     import type { ImportNote } from "$lib/domain/legacy";
     import { X } from "@lucide/svelte";
     import { cardsCount, counted } from "$lib/ui/plural";
-    import { cardTypeLabel } from "$lib/ui/card-types";
-
+    
     const store = new DocStore();
     setStore(store);
     setStepView(new StepView());
@@ -475,24 +474,17 @@
                 </p>
             {:else}
                 <header class="card-head">
-                    <p class="crumb">
-                        {#if orphaned}
+                    <!--
+                        A card in a lesson is named by the tree and the heading below, so
+                        there is nothing to say above it. The one thing worth saying is
+                        that no lesson holds it.
+                    -->
+                    {#if orphaned}
+                        <p class="crumb">
                             <span class="warn"
                                 >Karta mimo lekce — žák se k ní nedostane</span>
-                        {:else if lesson !== undefined}
-                            <button
-                                type="button"
-                                onclick={() =>
-                                    (modal = {
-                                        kind: "lesson",
-                                        lessonId: lesson.lesson_id,
-                                    })}>
-                                {lesson.name ?? "Lekce"}
-                            </button>
-                            <span aria-hidden="true">›</span>
-                            <span>{cardTypeLabel(card.type)}</span>
-                        {/if}
-                    </p>
+                        </p>
+                    {/if}
                     <!--
 						The card's heading is the field that names it. It was read-only text
 						derived from the first line of the card, which is why a card with a
@@ -525,6 +517,7 @@
                                     ),
                                 )} />
                     </h1>
+                    <!-- Out of flow: it appears over what is below, so focusing the title moves nothing. -->
                     <p class="card-head-hint">{nameSpec?.hint}</p>
                 </header>
 
@@ -591,6 +584,7 @@
     }
 
     .card-head {
+        position: relative;
         margin-bottom: 14px;
     }
 
@@ -601,21 +595,6 @@
         margin: 0 0 4px;
         color: var(--e-text-faint);
         font: var(--type-caption);
-    }
-
-    .crumb button {
-        padding: 0;
-        border: none;
-        background: none;
-        color: inherit;
-        font: inherit;
-        text-decoration: underline;
-        text-decoration-style: dotted;
-        cursor: pointer;
-    }
-
-    .crumb button:hover {
-        color: var(--e-text);
     }
 
     .crumb .warn {
@@ -638,10 +617,26 @@
         padding-right: 0;
     }
 
+    /* Only while the title is being edited, and over the layout rather than in it. */
     .card-head-hint {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        z-index: 2;
         margin: 2px 0 0;
-        color: var(--e-text-faint);
+        padding: 2px 8px;
+        border-radius: var(--radius-s);
+        background: var(--surface);
+        box-shadow: var(--shadow-light);
+        color: var(--e-text-muted);
         font: var(--type-caption);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 120ms;
+    }
+
+    .card-head:focus-within .card-head-hint {
+        opacity: 1;
     }
 
     .banner {
