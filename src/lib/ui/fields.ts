@@ -1171,6 +1171,18 @@ export function fieldsFor(
     );
 }
 
+/**
+ * What the card's settings dialog holds in `mode`, as a sentence for a tooltip.
+ * Read off the same table the dialog renders, so a button that says what is behind
+ * it cannot drift from the dialog when a field moves between modes.
+ */
+export function cardSettingsSummary(mode: Mode, feedback: boolean = true): string {
+    const labels = fieldsFor("block", mode, feedback).map(
+        (spec) => spec.label.charAt(0).toLowerCase() + spec.label.slice(1),
+    );
+    return labels.length === 0 ? "Nastavení karty" : `Nastavení karty: ${labels.join(", ")}`;
+}
+
 /** One field, by level and path — for the hand-written editors that want its label. */
 export function fieldSpec(
     level: FieldLevel,

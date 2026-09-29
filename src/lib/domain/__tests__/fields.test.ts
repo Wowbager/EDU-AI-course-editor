@@ -19,6 +19,7 @@ import {
 	MODE_RANK,
 	NOT_EDITABLE,
 	allows,
+	cardSettingsSummary,
 	fieldsFor,
 	hintFor,
 	isFeedbackRef,
@@ -144,6 +145,18 @@ describe('what each mode is for', () => {
 		// dead "Nerozumím tomu" button.
 		const teacher = FIELDS.filter((spec) => visible(spec, 'teacher'));
 		expect(teacher.length).toBeLessThanOrEqual(32);
+	});
+
+	it('tells a teacher what the card settings hold, from the table', () => {
+		const line = cardSettingsSummary('teacher');
+		for (const spec of fieldsFor('block', 'teacher')) {
+			expect(line.toLowerCase(), spec.path).toContain(spec.label.toLowerCase());
+		}
+		// Nothing of the machinery, and a hidden feedback field is not promised.
+		expect(line).not.toContain('Identifikátor');
+		expect(line).not.toContain('Zařadit do cvičení');
+		expect(cardSettingsSummary('teacher', false)).not.toContain('Podrobná pomoc');
+		expect(cardSettingsSummary('teacher', true)).toContain('podrobná pomoc');
 	});
 
 	it('puts practice enrolment and the knowledge vector in metodik mode', () => {

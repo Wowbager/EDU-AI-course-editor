@@ -39,6 +39,7 @@
     import StepEditor from "./StepEditor.svelte";
     import { useStepView, useStore } from "$lib/ui/context";
     import { uniqueKeys } from "$lib/ui/keys";
+    import { cardSettingsSummary } from "$lib/ui/fields";
     import {
         addStep,
         bindBlock,
@@ -377,14 +378,26 @@
 			Always visible, and it says what is behind it. A settings button that only
 			appears on hover is a setting nobody finds.
 		-->
-        <Button
-            variant="secondary"
-            size="s"
-            onclick={onsettings}
-            title="Délka, nápověda ke kartě, zařazení, klasifikace">
-            <Settings size={16}></Settings>
-            Nastavení karty
-        </Button>
+        {#if store.mode === "teacher"}
+            <!-- A teacher's dialog holds two or three things; the tooltip lists them. -->
+            <Button
+                variant="ghost"
+                size="s"
+                onclick={onsettings}
+                ariaLabel="Nastavení karty"
+                title={cardSettingsSummary(store.mode, store.showFeedback)}>
+                <Settings size={16}></Settings>
+            </Button>
+        {:else}
+            <Button
+                variant="secondary"
+                size="s"
+                onclick={onsettings}
+                title="Délka, nápověda ke kartě, zařazení, klasifikace">
+                <Settings size={16}></Settings>
+                Nastavení karty
+            </Button>
+        {/if}
         <Menu
             label="Další akce s kartou"
             icon={Ellipsis}
