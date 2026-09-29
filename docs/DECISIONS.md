@@ -1494,7 +1494,7 @@ container, and at 1440 the column was already narrower than the cap, so nothing 
 there. *Rejected:* capping the whole column: the scrollbar would then sit against the
 card and not at the window's edge.
 
-## Round 9
+## Round 9 — a quieter rail, steadier step drag, fewer rough edges
 
 ### Undo is owned by the store, and a run of typing in a text step is one entry
 
@@ -1560,10 +1560,6 @@ text is typed costs nothing outside it.
 
 Undo is the course's, not the card's, so leaving the card does not end it. The warning
 says only that Zpět brings the answers back.
-
----
-
-## Round 9 — a quieter rail, steadier step drag, fewer rough edges
 
 ### Less on screen: say a thing once, and say nothing when it is fine
 
