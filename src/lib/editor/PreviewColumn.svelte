@@ -86,6 +86,13 @@
 	const PLAYER_URL = '/player/preview';
 
 	/**
+	 * What the header chip and the browser suite read. A running player has no chip:
+	 * the segmented control beside it is the header, and a green tag naming the other
+	 * mode said nothing that the picture below it did not.
+	 */
+	const playerState = $derived(booted ? 'ready' : failed ? 'failed' : 'starting');
+
+	/**
 	 * A column that starts folded does not boot the player until it is first opened:
 	 * a teacher who keeps the preview shut should not pay for it. Once mounted it
 	 * stays mounted.
@@ -311,7 +318,12 @@
 	});
 </script>
 
-<aside class="preview" class:collapsed={collapsed === true} aria-label="Náhled pro žáka">
+<aside
+	class="preview"
+	class:collapsed={collapsed === true}
+	data-player={playerState}
+	aria-label="Náhled pro žáka"
+>
 	<div class="inner" inert={collapsed === true}>
 	<header>
 		<Segmented
@@ -321,12 +333,14 @@
 				{
 					value: 'expanded',
 					label: 'Náhled',
-					title: 'Celá karta najednou, včetně zpětné vazby, řešení a větvení. Kliknutím skočíš na pole v editoru.'
+					title:
+						'Celá karta najednou, včetně zpětné vazby, řešení a větvení. Aktualizuje se během psaní. Kliknutím do náhledu skočíš na odpovídající pole v editoru.'
 				},
 				{
 					value: 'play',
 					label: 'Vyzkoušet',
-					title: 'Projdi lekci od vybrané karty tak, jak ji potká žák'
+					title:
+						'Projdi lekci od vybrané karty tak, jak ji potká žák: kroky se odkrývají po jednom, další se objeví až tlačítkem pod kartou. Zpětem se vrátíš a můžeš zkusit druhou větev.'
 				}
 			]}
 			onchange={(next) => {
@@ -340,11 +354,10 @@
 				view = next;
 			}}
 		/>
-		{#if booted}
-			<Chip tone="ok">Náhled</Chip>
-		{:else if failed}
+		<!-- Running has no chip: only the two states a teacher has to wait out or act on. -->
+		{#if !booted && failed}
 			<Chip tone="warning">přehrávač neběží</Chip>
-		{:else if available === true}
+		{:else if !booted && available === true}
 			<Chip>spouští se…</Chip>
 		{/if}
 
@@ -414,16 +427,6 @@
 		{/if}
 	</div>
 
-	<footer>
-		<span class="hint">
-			{#if view === 'expanded'}
-				Náhled se aktualizuje během psaní. Kliknutím do něj skočíš na odpovídající pole v editoru.
-			{:else}
-				Odpovídej jako žák: kroky se odkrývají po jednom, další se objeví až tlačítkem pod
-				kartou. Zpětem se vrátíš a můžeš zkusit druhou větev.
-			{/if}
-		</span>
-	</footer>
 	</div>
 
 	{#if collapsed === true}
@@ -540,15 +543,5 @@
 		font-family: var(--font-code);
 		font-size: var(--text-xs);
 		color: var(--e-text);
-	}
-
-	footer {
-		padding: 10px 12px;
-		border-top: 1px solid var(--e-border);
-	}
-
-	.hint {
-		color: var(--e-text-faint);
-		font-size: var(--text-xs);
 	}
 </style>

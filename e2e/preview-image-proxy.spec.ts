@@ -50,7 +50,7 @@ test.describe('the player is rewritten to fetch images from this origin', () => 
 		});
 		await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 		// The player announces itself once booted (see preview.spec.ts).
-		await expect(page.locator('aside .chip.ok', { hasText: 'Náhled' })).toBeVisible({
+		await expect(page.locator('aside.preview')).toHaveAttribute('data-player', 'ready', {
 			timeout: 120_000
 		});
 

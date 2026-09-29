@@ -65,7 +65,7 @@ test.describe('live preview', () => {
 		});
 		await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 		// The player announces itself over the message channel once it has booted.
-		await expect(page.locator('aside .chip.ok', { hasText: 'Náhled' })).toBeVisible({ timeout: 60_000 });
+		await expect(page.locator('aside.preview')).toHaveAttribute('data-player', 'ready', { timeout: 60_000 });
 	});
 
 	test('clicking rendered content lands on the field that produced it', async ({ page }) => {
@@ -254,7 +254,7 @@ test.describe('live preview', () => {
 		// That is the thing the contract exists to avoid — it costs seconds and the
 		// author is typing.
 		expect(log.up('ready', mark)).toHaveLength(0);
-		await expect(page.locator('aside .chip.ok', { hasText: 'Náhled' })).toBeVisible();
+		await expect(page.locator('aside.preview')).toHaveAttribute('data-player', 'ready');
 	});
 
 	test('switching between the two modes keeps the player alive', async ({ page }) => {
@@ -266,7 +266,7 @@ test.describe('live preview', () => {
 		await waitForPlayer(page, { view: 'expanded', blockId: INTRO });
 
 		expect(log.up('ready', mark)).toHaveLength(0);
-		await expect(page.locator('aside .chip.ok', { hasText: 'Náhled' })).toBeVisible();
+		await expect(page.locator('aside.preview')).toHaveAttribute('data-player', 'ready');
 	});
 
 	test('folding the preview keeps the player alive, and opening it shows the card chosen meanwhile', async ({ page }) => {
@@ -280,7 +280,7 @@ test.describe('live preview', () => {
 		await waitForPlayer(page, { view: 'expanded', blockId: QUIZ });
 
 		expect(log.up('ready', mark)).toHaveLength(0);
-		await expect(page.locator('aside .chip.ok', { hasText: 'Náhled' })).toBeVisible();
+		await expect(page.locator('aside.preview')).toHaveAttribute('data-player', 'ready');
 	});
 
 	test('switching to a card with different steps keeps the player alive', async ({ page }) => {
@@ -291,7 +291,7 @@ test.describe('live preview', () => {
 		await openCard(page, 2, QUIZ);
 
 		expect(log.up('ready', mark)).toHaveLength(0);
-		await expect(page.locator('aside .chip.ok', { hasText: 'Náhled' })).toBeVisible();
+		await expect(page.locator('aside.preview')).toHaveAttribute('data-player', 'ready');
 	});
 });
 
@@ -303,7 +303,7 @@ test.describe('the player on a plain page open', () => {
 		// The other suites import a course first. This is the page as a teacher opens
 		// it — the case that used to show an empty preview (DECISIONS Round 5).
 		await openEditor(page);
-		await expect(page.locator('aside .chip.ok', { hasText: 'Náhled' })).toBeVisible({ timeout: 60_000 });
+		await expect(page.locator('aside.preview')).toHaveAttribute('data-player', 'ready', { timeout: 60_000 });
 		const state = await inspect(page);
 		expect(['none', 'block']).toContain(state.content);
 	});
