@@ -81,20 +81,32 @@ test('unlinking a shared and referenced card preserves content, references and o
 });
 
 for (const orphan of [false, true]) {
-	test(`delete always opens RepairDialog (${orphan ? 'unreferenced orphan' : 'bound card'})`, async ({ page }) => {
+	test(`Smazat kartu deletes a card nothing else points at, and Vrátit zpět brings it back (${orphan ? 'orphan' : 'bound card'})`, async ({ page }) => {
 		await load(page);
 		if (orphan) await cardAction(page, REMOVE);
 		await cardAction(page, ERASE);
-		const dialog = page.getByRole('dialog', { name: /Smazat kartu/ });
-		await expect(dialog).toBeVisible();
-		await expect(dialog).toContainText(orphan ? 'Na tuto část nic neodkazuje' : 'tuto kartu obsahuje');
-		await dialog.getByRole('button', { name: 'Zpět', exact: true }).click();
-		expect((await exported(page)).blocks).toHaveLength(3);
-		await cardAction(page, ERASE);
-		await dialog.getByRole('button', { name: 'Smazat a opravit odkazy' }).click();
+		await expect(page.getByRole('dialog')).toHaveCount(0);
+		await expect(page.locator('.toast')).toContainText('Karta smazána');
 		expect((await exported(page)).blocks).toHaveLength(2);
+		await page.getByRole('button', { name: 'Vrátit zpět', exact: true }).click();
+		expect((await exported(page)).blocks).toHaveLength(3);
 	});
 }
+
+test('Smazat kartu asks where the pointers should go when another card needs the card', async ({ page }) => {
+	await load(page);
+	// The second card: a branch and a prerequisite point at it.
+	await page.locator('.cards .tree-card').nth(1).click();
+	await cardAction(page, ERASE);
+	const dialog = page.getByRole('dialog', { name: /Smazat kartu/ });
+	await expect(dialog).toBeVisible();
+	await expect(dialog).toContainText('tuto kartu obsahuje');
+	await dialog.getByRole('button', { name: 'Zpět', exact: true }).click();
+	expect((await exported(page)).blocks).toHaveLength(3);
+	await cardAction(page, ERASE);
+	await dialog.getByRole('button', { name: 'Smazat a opravit odkazy' }).click();
+	expect((await exported(page)).blocks).toHaveLength(2);
+});
 
 
 test('an undo notice cannot undo a later content edit', async ({ page }) => {

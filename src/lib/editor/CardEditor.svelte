@@ -42,11 +42,10 @@
     import {
         addStep,
         bindBlock,
-        duplicateBlock,
         reorderSteps,
         setField,
-        unbindBlock,
     } from "$lib/domain/commands";
+    import { cardActions } from "./card-actions";
     import {
         blockDurationMinutes,
         derivedBlockXp,
@@ -86,6 +85,11 @@
     }: Props = $props();
 
     const store = useStore();
+    // The same actions the rail and the tree call (`card-actions.ts`).
+    const actions = cardActions(store, {
+        onsettings: () => onsettings(),
+        onrepair: (blockId) => onrepairBlock(blockId),
+    });
     const boundLessons = $derived(
         doc.lessons.filter((lesson) =>
             lesson.blocks.some(
@@ -257,31 +261,6 @@
         if (entry !== undefined) notices.show({ text: message, entry, ref });
     }
 
-    function removeFromLesson() {
-        if (lessonId === undefined || binding === undefined) return;
-        const blockId = block.block_id;
-        const fromLessonId = lessonId;
-        const name =
-            doc.lessons.find((lesson) => lesson.lesson_id === fromLessonId)
-                ?.name ?? fromLessonId;
-        // Only this binding changes. Shared cards and incoming references stay intact.
-        const result = store.apply((d) => ({
-            ...unbindBlock(d, fromLessonId, blockId),
-            ref: { blockId },
-        }));
-        const remaining = result.doc.lessons.filter((lesson) =>
-            lesson.blocks.some((binding) => binding.block_id === blockId),
-        );
-        const location =
-            remaining.length === 0
-                ? "Karta je nyní v části Karty mimo lekci."
-                : `Karta zůstává v lekcích (${remaining.length}): ${remaining.map((lesson) => `„${lesson.name}“`).join(", ")}.`;
-        showNotice(
-            `Karta odebrána z lekce „${name}“. ${location} Obsah ani odkazy se nesmazaly.`,
-            { lessonId: fromLessonId, blockId },
-        );
-    }
-
     function assignToLesson() {
         if (
             !availableLessons.some(
@@ -381,10 +360,7 @@
             placement="bottom-end">
             <MenuItem
                 icon={Copy}
-                onclick={() =>
-                    store.apply((d, r) =>
-                        duplicateBlock(d, block.block_id, lessonId, r),
-                    )}>
+                onclick={() => actions.duplicate(block.block_id, lessonId)}>
                 Duplikovat kartu
             </MenuItem>
             {#if sharedWith === 0}
@@ -404,7 +380,10 @@
                 <!-- Neutral, not red: it is undoable, and the content stays. -->
                 <MenuItem
                     icon={ListX}
-                    onclick={removeFromLesson}
+                    onclick={() =>
+                        actions.removeFromLesson(lessonId, block.block_id, {
+                            follow: true,
+                        })}
                     title={sharedWith > 1
                         ? "Odebere kartu jen z této lekce — ostatní lekce a všechen obsah zůstanou"
                         : "Odebere kartu z této lekce. Obsah zůstává v části Karty mimo lekci; smazat jde přes Smazat kartu."}>
@@ -415,8 +394,8 @@
             <MenuItem
                 icon={Trash}
                 danger
-                onclick={() => onrepairBlock(block.block_id)}
-                title="Otevře potvrzení smazání karty z celého kurzu a opravu odkazů">
+                onclick={() => actions.remove(block.block_id, lessonId)}
+                title="Smaže kartu z celého kurzu; jde vrátit zpět. Míří-li na ni odkaz odjinud, nejdřív se zeptá, kam má vést.">
                 Smazat kartu
             </MenuItem>
         </Menu>
