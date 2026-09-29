@@ -348,8 +348,24 @@ export class DocStore {
         }
         this.#redo = [];
         this.dirty = true;
-        if (result.ref !== undefined) this.selection = result.ref;
+        if (result.ref !== undefined) this.selection = this.#inSameLesson(result.ref);
         return result;
+    }
+
+    /**
+     * A ref from a command or an undo entry addresses a card and does not say which
+     * of its lessons it was reached through (`setField` returns the ref it was
+     * given, and entries are recorded that way). Taken as it is, editing a card two
+     * lessons share would move the screen to the first of them. Keep the lesson
+     * being worked in while it still holds the card.
+     */
+    #inSameLesson(ref: Ref): Ref {
+        const lessonId = this.#selection?.lessonId;
+        if (ref.lessonId !== undefined || ref.blockId === undefined || lessonId === undefined) {
+            return ref;
+        }
+        const owners = this.index.lessonsByBlock.get(ref.blockId) ?? [];
+        return owners.includes(lessonId) ? { ...ref, lessonId } : ref;
     }
 
     undo() {
@@ -360,7 +376,7 @@ export class DocStore {
         this.#redo = [...this.#redo, entry];
         this.source = entry.before;
         this.dirty = true;
-        if (entry.ref !== undefined) this.selection = entry.ref;
+        if (entry.ref !== undefined) this.selection = this.#inSameLesson(entry.ref);
     }
 
     redo() {
@@ -372,7 +388,7 @@ export class DocStore {
         this.source = entry.after;
         this.#reserve(entry.after);
         this.dirty = true;
-        if (entry.ref !== undefined) this.selection = entry.ref;
+        if (entry.ref !== undefined) this.selection = this.#inSameLesson(entry.ref);
     }
 
     /**

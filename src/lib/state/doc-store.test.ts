@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { DocStore } from './doc-store.svelte';
 import { importCourse } from '$lib/domain/document';
-import { addBlock, addStep, setField } from '$lib/domain/commands';
+import { addBlock, addLesson, addStep, bindBlock, setField, unbindBlock } from '$lib/domain/commands';
 import { emptyCourse } from '$lib/domain/document';
 import { groupOf, questionCount } from '$lib/domain/groups';
 
@@ -234,5 +234,49 @@ describe('a run of typing', () => {
 		// The one undo went past the run to the split of the import, not into it.
 		expect(store.source).not.toBe(before);
 		expect(store.source.blocks.length).toBeLessThan(before.blocks.length);
+	});
+});
+
+describe('editing a card two lessons share', () => {
+	function shared() {
+		const store = new DocStore();
+		store.apply((d, r) => addLesson(d, 'První', r));
+		store.apply((d, r) => addLesson(d, 'Druhá', r));
+		const [first, second] = store.doc.lessons.map((l) => l.lesson_id);
+		const card = store.apply((d, r) => addBlock(d, first, 'display', undefined, r)).ref!.blockId!;
+		store.apply((d) => bindBlock(d, second, card));
+		store.apply((d, r) => addStep(d, card, 'text', undefined, r));
+		const step = store.doc.blocks.find((b) => b.block_id === card)!.steps![0];
+		const ref = { blockId: card, stepId: step.id, field: 'content' };
+		return { store, first, second, card, ref };
+	}
+
+	it('stays in the lesson the teacher came from', () => {
+		const { store, first, second, card, ref } = shared();
+		expect(store.index.lessonsByBlock.get(card)).toEqual([first, second]);
+		store.selection = { lessonId: second, blockId: card };
+		store.apply((d) => setField(d, ref, 'Text'));
+		expect(store.selection?.lessonId).toBe(second);
+		expect(store.selection?.blockId).toBe(card);
+	});
+
+	it('stays there through undo and redo', () => {
+		const { store, second, card, ref } = shared();
+		store.selection = { lessonId: second, blockId: card };
+		store.apply((d) => setField(d, ref, 'Text'));
+		store.undo();
+		expect(store.selection?.lessonId).toBe(second);
+		store.redo();
+		expect(store.selection?.lessonId).toBe(second);
+	});
+
+	it('follows the card when the lesson no longer holds it', () => {
+		const { store, first, second, card, ref } = shared();
+		store.selection = { lessonId: second, blockId: card };
+		store.apply((d) => setField(d, { ...ref, lessonId: first }, 'Text'));
+		expect(store.selection?.lessonId).toBe(first);
+		store.selection = { lessonId: second, blockId: card };
+		store.apply((d) => ({ ...unbindBlock(d, second, card), ref }));
+		expect(store.selection?.lessonId).toBeUndefined();
 	});
 });
