@@ -289,6 +289,14 @@ growing if teachers use the rail.
 focus to the other toggle, but the shortcut does not, so focus inside the preview drops
 to the page body.
 
+### 31. A question with several picks still carries "Kam dál" and grades nobody can see or clear
+**Reproduced in unit tests.** With "Víc správných možností" on, the table hides the
+columns the app ignores (DECISIONS Round 9), so an answer's old branch and grade stay in
+the file with no field to clear them, except by switching the option off and on again.
+`W_OPTION_OUTCOMES_IGNORED` says so at export review. Also app-side: the multi-select
+branch of `_confirmAnswer` skips an option's `score_koef` too (`block_step_engine.dart:597-601`),
+which the advanced "Podíl bodů" column still offers. Not changed here.
+
 ### 11. Folding is remembered for the session only
 **By design for now.** `StepView` lives as long as the page. A reload opens every step
 again. Worth persisting with the draft if authors of long cards ask for it.
