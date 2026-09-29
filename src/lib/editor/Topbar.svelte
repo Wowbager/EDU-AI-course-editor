@@ -17,6 +17,8 @@
     import {
         CircleCheck,
         Download,
+        Eye,
+        EyeOff,
         History,
         Redo,
         Undo,
@@ -202,6 +204,27 @@
         value={store.mode}
         options={MODES.map((mode) => ({ value: mode, ...MODE_LABELS[mode] }))}
         onchange={(mode) => (store.mode = mode)} />
+
+    <!--
+        A toggle keeps one label; aria-pressed carries the state. The label is the
+        name of what is switched, so it never has to flip to say what a click does.
+    -->
+    <Button
+        variant="ghost"
+        size="s"
+        pressed={store.showFeedback}
+        ariaLabel="Zpětná vazba"
+        title={store.showFeedback
+            ? "Zapnuto: zpětná vazba, nápovědy a řešení jsou vidět. Vypni a soustřeď se jen na průběh kurzu."
+            : "Vypnuto: zpětná vazba, nápovědy a řešení jsou skryté. Zapni, až budeš psát zpětnou vazbu."}
+        onclick={() => (store.showFeedback = !store.showFeedback)}>
+        {#if store.showFeedback}
+            <Eye size={16}></Eye>
+        {:else}
+            <EyeOff size={16}></EyeOff>
+        {/if}
+        Zpětná vazba
+    </Button>
 
     <!-- The glyph is the label a mouse reads; the accessible name has to be a word. -->
     <Button
