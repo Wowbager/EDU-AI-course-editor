@@ -289,6 +289,15 @@ growing if teachers use the rail.
 focus to the other toggle, but the shortcut does not, so focus inside the preview drops
 to the page body.
 
+### 31. Ctrl+Z in a plain input undoes the course, not the text
+**Reproduced by reading the code.** The page's key handler undoes the store for any Ctrl+Z
+that nothing else consumed. `FocusField` consumes it, and since Round 9 the Markdown editor
+leaves it to the store on purpose. The other inputs (the knowledge vector's numbers, the
+topic and competency searches, the prerequisite picker, the field in the versions dialog) do not, so
+Ctrl+Z inside one of them takes back the last course edit instead of the last characters
+typed there. Not tried by hand. A fix is to let the page handler stand aside for an input
+that keeps no store state of its own, the way Ctrl+B now does.
+
 ### 11. Folding is remembered for the session only
 **By design for now.** `StepView` lives as long as the page. A reload opens every step
 again. Worth persisting with the draft if authors of long cards ask for it.

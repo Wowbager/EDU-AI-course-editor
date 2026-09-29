@@ -1494,6 +1494,73 @@ container, and at 1440 the column was already narrower than the cap, so nothing 
 there. *Rejected:* capping the whole column: the scrollbar would then sit against the
 card and not at the window's edge.
 
+## Round 9
+
+### Undo is owned by the store, and a run of typing in a text step is one entry
+
+The Markdown editor kept a history of its own, and every keystroke also went through
+`store.apply` as an undo entry of its own. Ctrl+Z inside the editor undid the editor's
+history, which wrote a new store entry and cleared redo; outside it, the store undid one
+character. The editor no longer has `history()` or its keymap, so Ctrl+Z and Ctrl+Y reach
+the page. It opens a run of typing (`store.beginEdit`) on its first change and closes it
+on blur or when it is destroyed, the pattern `FocusField` already uses. It does not open
+one on focus: a value pushed in from outside (undo, redo, an import) closes the run in the
+store, and the editor, still focused, must start a new one on the next keystroke. A value
+pushed in replaces only the span that differs, so the cursor of an undone edit stays where
+the edit was and does not fall to the start of the text. *Rejected:* keeping CodeMirror's
+history and syncing it with the store: two undo stacks that disagree about what the last
+step was. Opening the run on focus: after an undo in a focused field the next word would be
+one entry per character again.
+
+### A card two lessons share keeps the lesson the teacher is in
+
+A ref from a command or an undo entry names a card and not the lesson it was reached
+through (`setField` returns the ref it was given), so the screen fell back to the card's
+first lesson after every edit of a shared card. `DocStore` keeps the selection's lesson
+when the new ref names none and that lesson still binds the card; it does so for edits,
+undo and redo. *Rejected:* making every command return a `lessonId`: commands do not know
+which lesson the teacher is in, and the store does.
+
+### `reviewing` is a snapshot of the issues the review listed
+
+Opening the export review used to set a flag that showed every issue inline until the
+next `load`, so a card added afterwards was red at birth. The store now keeps the keys
+(`issueKey`: code plus ref, not the message) of the issues the review listed; only those
+show early, whatever their timing says, and everything else follows its own timing. A
+download ends the review. Closing the dialog without a download does not: the teacher is
+still fixing. The snapshot is taken when the dialog opens, and again if it is opened
+again. *Rejected:* clearing it when the dialog closes: the red they came to fix would
+vanish when they went to fix it. Clearing it on the first edit: a teacher fixing five
+things would lose the other four.
+
+### The practice switch reads `isPracticeBlock`, and off clears every flag
+
+A card is in practice when its block, any step or a lesson's binding says so, and the chip
+"Opakování" reads that rule. The switch in Nastavení karty read and wrote only the
+block's flag, so it showed off beside the chip and off did nothing to a card flagged on a
+step. It reads the same rule now (`bindingFlagsPractice` covers every lesson that binds
+the card, so the chip and the switch agree on a shared card too), and off is one command,
+`setPractice`, that removes the flag from the block, its steps and every binding of it.
+Only flags that are set are removed. Off also clears a legacy binding flag in another
+lesson that binds the same card: a card that stays in practice after its switch went off
+is the bug. *Rejected:* a switch that only shows the effective state and refuses to turn
+off a step's flag: the teacher would be told to find it in Pokročilý. The per-step switch
+in Metodik is still there (OPEN-PROBLEMS).
+
+### Ctrl+B is left to the text while typing
+
+Plain Ctrl/⌘+B does nothing when the event comes from an input, a text area, a select or
+the Markdown editor, where it means bold to anyone who has used a word processor.
+Ctrl+Shift+B, which means nothing to a text, keeps working everywhere. *Rejected:*
+moving the panel shortcut to another key: Ctrl+\ is AltGr on Czech layouts (Round 8),
+and any other letter is somebody's formatting key too. Ignoring the shortcut only where
+text is typed costs nothing outside it.
+
+### The type-change warning does not limit Zpět to the card
+
+Undo is the course's, not the card's, so leaving the card does not end it. The warning
+says only that Zpět brings the answers back.
+
 ---
 
 ## Still open
