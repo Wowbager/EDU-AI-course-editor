@@ -41,6 +41,7 @@
     import { cardsCount, stepsCount } from "$lib/ui/plural";
     import { uniqueKeys } from "$lib/ui/keys";
     import { groupOf, groupsOf } from "$lib/domain/groups";
+    import { lessonLabel } from "$lib/domain/naming";
     import { CARD_TYPES, cardTypeIcon } from "$lib/ui/card-types";
     import SidebarRail from "./SidebarRail.svelte";
     import CardActions from "./CardActions.svelte";
@@ -315,7 +316,7 @@
                         class:selected={open}
                         onclick={() => selectLesson(lesson.lesson_id)}>
                         <span class="name"
-                            >{lesson.name ?? lesson.lesson_id}</span>
+                            >{lessonLabel(doc, lesson)}</span>
                         <span class="meta">
                             {cardsCount(totals.blockCount)} · {totals.durationMinutes}
                             min · {totals.xp} XP
@@ -326,7 +327,7 @@
                         <button
                             type="button"
                             title="Nastavení lekce"
-                            aria-label={`Nastavení lekce ${lesson.name ?? lesson.lesson_id}`}
+                            aria-label={`Nastavení lekce ${lessonLabel(doc, lesson)}`}
                             onclick={() => onlessonSettings(lesson.lesson_id)}
                             class="icon-button">
                             <Settings size={16}></Settings>

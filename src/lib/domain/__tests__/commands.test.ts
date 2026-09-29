@@ -14,6 +14,8 @@ import {
 	deleteBlock,
 	deleteStep,
 	duplicateBlock,
+	deleteLesson,
+	duplicateLesson,
 	duplicateStep,
 	moveBlockToLesson,
 	planDeleteBlock,
@@ -715,5 +717,33 @@ describe('repairing a binding never binds one card twice', () => {
 		}));
 		const next = deleteBlock(doc, 'B', repairs).doc;
 		expect(next.lessons[0].blocks.map((b) => b.block_id)).toEqual(['A', 'C']);
+	});
+});
+
+describe('a lesson without a name is never called by its id', () => {
+	const unnamed = () => {
+		const doc = base();
+		const lessons = doc.lessons.map((l, i) => (i === 0 ? { ...l, name: undefined } : l));
+		return { doc: { ...doc, lessons }, lessonId: doc.lessons[0].lesson_id };
+	};
+
+	it('the undo description of deleting it says "Lekce 1"', () => {
+		const { doc, lessonId } = unnamed();
+		const description = deleteLesson(doc, lessonId).description;
+		expect(description).toBe('Smazána lekce „Lekce 1“');
+		expect(description).not.toContain(lessonId);
+	});
+
+	it('so does duplicating it, and the copy is called by the same name, not by an id', () => {
+		const { doc, lessonId } = unnamed();
+		const result = duplicateLesson(doc, lessonId);
+		expect(result.description).toBe('Duplikována lekce „Lekce 1“');
+		expect(result.doc.lessons[1].name).toBe('Lekce 1 (kopie)');
+	});
+
+	it('a name of only spaces counts as none', () => {
+		const { doc, lessonId } = unnamed();
+		const blank = { ...doc, lessons: doc.lessons.map((l, i) => (i === 0 ? { ...l, name: '  ' } : l)) };
+		expect(deleteLesson(blank, lessonId).description).toBe('Smazána lekce „Lekce 1“');
 	});
 });

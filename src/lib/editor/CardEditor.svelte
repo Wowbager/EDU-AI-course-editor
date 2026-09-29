@@ -45,6 +45,7 @@
         reorderSteps,
         setField,
     } from "$lib/domain/commands";
+    import { lessonLabel } from "$lib/domain/naming";
     import { cardActions } from "./card-actions";
     import {
         blockDurationMinutes,
@@ -269,9 +270,12 @@
         )
             return;
         const blockId = block.block_id;
-        const name = availableLessons.find(
-            (lesson) => lesson.lesson_id === targetLessonId,
-        )!.name;
+        const name = lessonLabel(
+            doc,
+            availableLessons.find(
+                (lesson) => lesson.lesson_id === targetLessonId,
+            )!,
+        );
         store.apply((d) => bindBlock(d, targetLessonId, blockId));
         showLessonPicker = false;
         showNotice(`Karta zařazena do lekce „${name}“.`, { blockId });
@@ -459,7 +463,8 @@
             <select bind:value={targetLessonId}>
                 <option value="" disabled>Vyber lekci…</option>
                 {#each availableLessons as lesson (lesson.lesson_id)}
-                    <option value={lesson.lesson_id}>{lesson.name}</option>
+                    <option value={lesson.lesson_id}
+                        >{lessonLabel(doc, lesson)}</option>
                 {/each}
             </select>
         </label>

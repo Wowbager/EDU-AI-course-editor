@@ -185,3 +185,23 @@ test('a card is still grabbed by its padding while the pointer is on its row', a
 	await page.mouse.up();
 	await expect.poll(() => order(page)).toEqual([before[1], before[0], ...before.slice(2)]);
 });
+
+test('a lesson without a name reads "Lekce 1" in the tree and the rail, never its id', async ({ page }) => {
+	const doc = JSON.parse(fixture);
+	const id = doc.lessons[0].lesson_id;
+	delete doc.lessons[0].name;
+	await page.setInputFiles('input[type=file]', {
+		name: 'unnamed.json',
+		mimeType: 'application/json',
+		buffer: Buffer.from(JSON.stringify(doc))
+	});
+	page.on('dialog', (dialog) => dialog.accept());
+	await expect(page.locator('.tree-lesson.open .name')).toHaveText('Lekce 1');
+	await expect(page.getByRole('button', { name: 'Nastavení lekce Lekce 1' })).toBeVisible();
+	await page.getByRole('button', { name: 'Sbalit panel lekcí' }).click();
+	await expect(page.getByRole('button', { name: '1. lekce: Lekce 1' })).toBeVisible();
+	await page.getByRole('button', { name: '1. lekce: Lekce 1' }).hover();
+	const panel = page.getByRole('group', { name: 'Lekce 1' });
+	await expect(panel.getByRole('button', { name: 'Nastavení lekce Lekce 1' })).toBeVisible();
+	await expect(panel).not.toContainText(id);
+});

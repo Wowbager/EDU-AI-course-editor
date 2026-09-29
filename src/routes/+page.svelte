@@ -42,6 +42,7 @@
         skillConfigFromGpfTaxonomy,
     } from "$lib/domain/skill-config";
     import { derivedBlockName } from "$lib/domain/derive";
+    import { lessonLabel } from "$lib/domain/naming";
     import { fieldSpec } from "$lib/ui/fields";
     import { loadSkillConfig } from "$lib/api/client";
     import type { ImportNote } from "$lib/domain/legacy";
@@ -509,7 +510,7 @@
                 <p class="empty">Začni přidáním lekce vlevo.</p>
             {:else if card === undefined}
                 <p class="empty">
-                    Lekce „{lesson?.name}“ zatím nemá kartu. Přidej ji v seznamu
+                    Lekce „{lesson === undefined ? '' : lessonLabel(doc, lesson)}“ zatím nemá kartu. Přidej ji v seznamu
                     vlevo — bez karty žák v lekci nic neuvidí.
                 </p>
             {:else}
