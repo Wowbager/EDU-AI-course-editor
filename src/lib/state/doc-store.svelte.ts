@@ -35,6 +35,7 @@ import {
 import type { SkillConfig } from "$lib/domain/skill-config";
 import type { CommandResult } from "$lib/domain/commands";
 import type { Mode } from "$lib/ui/fields";
+import { isFeedbackRef } from "$lib/ui/fields";
 import { fieldKey, heldBack, isVisible } from "$lib/ui/issue-visibility";
 import type { Issue } from "$lib/domain/validate";
 
@@ -409,8 +410,14 @@ export class DocStore {
         for (const id of reserved.steps) this.#reservedSteps.add(id);
     }
 
-    /** Select something and ask the editor to bring it into view. */
+    /**
+     * Select something and ask the editor to bring it into view. A jump onto a
+     * feedback field turns feedback back on, first: there is nothing to scroll to in
+     * a field that is not drawn, and it stays on, because the teacher asked to go
+     * there. Following a played run does not.
+     */
     revealAt(ref: Ref) {
+        if (!this.#showFeedback && isFeedbackRef(ref)) this.#showFeedback = true;
         this.selection = ref;
         this.reveal++;
     }

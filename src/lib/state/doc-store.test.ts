@@ -163,3 +163,34 @@ describe('warnings about hidden feedback fields', () => {
 		expect(store.listed.errors).toEqual(store.validation.errors);
 	});
 });
+
+describe('jumping onto a hidden feedback field', () => {
+	const hint = { blockId: 'B1', stepId: 's1', field: 'hint' };
+
+	it('turns feedback back on, and it stays on', () => {
+		const store = new DocStore();
+		store.showFeedback = false;
+		store.revealAt(hint);
+		expect(store.showFeedback).toBe(true);
+		expect(store.selection).toEqual(hint);
+		store.revealAt({ blockId: 'B1' });
+		expect(store.showFeedback).toBe(true);
+	});
+
+	it('leaves feedback hidden for a jump anywhere else', () => {
+		const store = new DocStore();
+		store.showFeedback = false;
+		store.revealAt({ blockId: 'B1', stepId: 's1', field: 'question.options' });
+		store.revealAt({ blockId: 'B1', stepId: 's1', optionId: 'a', field: 'text' });
+		store.revealAt({ blockId: 'B1' });
+		expect(store.showFeedback).toBe(false);
+	});
+
+	it('is not caused by following a played run', () => {
+		const store = new DocStore();
+		store.showFeedback = false;
+		store.follow(hint);
+		expect(store.showFeedback).toBe(false);
+		expect(store.selection).toEqual(hint);
+	});
+});
