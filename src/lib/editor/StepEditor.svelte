@@ -599,6 +599,8 @@
                     value: step.content ?? "",
                     placeholder: "Text kroku. Markdown a $LaTeX$ fungují.",
                     onchange: (v) => set("content", v === "" ? undefined : v),
+                    onbeginedit: () => store.beginEdit(),
+                    onendedit: () => store.endEdit(),
                 }}>
             </div>
             {#if missingText}
@@ -702,6 +704,8 @@
                         placeholder: "Zadání otázky.",
                         onchange: (v) =>
                             set("content", v === "" ? undefined : v),
+                        onbeginedit: () => store.beginEdit(),
+                        onendedit: () => store.endEdit(),
                     }}>
                 </div>
 

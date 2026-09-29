@@ -58,6 +58,52 @@ test('typing groups undo, Escape cancels, and redo is saved', async ({ page }) =
 	await expect(field).toHaveValue('Moje lekce');
 });
 
+test('a run of typing in a text step is one undo, however it ends', async ({ page }) => {
+	const text = page.locator('.cm-content').first();
+
+	// Typed key by key, then left: one Ctrl+Z takes the whole sentence back.
+	await text.click();
+	await page.keyboard.type('Zlomek popisuje část celku.');
+	await expect(text).toContainText('Zlomek popisuje část celku.');
+	await page.getByRole('heading', { level: 1 }).click();
+	await expect(text).not.toBeFocused();
+	await page.keyboard.press('Control+z');
+	await expect(text).not.toContainText('Zlomek');
+	await page.keyboard.press('Control+Shift+z');
+	await expect(text).toContainText('Zlomek popisuje část celku.');
+
+	// Still inside the field, Ctrl+Z undoes the run too, and what is typed after it
+	// is a run of its own.
+	await page.keyboard.press('Control+z');
+	await text.click();
+	await page.keyboard.type('První věta.');
+	await page.keyboard.press('Control+z');
+	await expect(text).not.toContainText('První');
+	await expect(text).toBeFocused();
+	await page.keyboard.type('Druhá věta.');
+	await expect(text).toContainText('Druhá věta.');
+	await page.keyboard.press('Control+z');
+	await expect(text).not.toContainText('Druhá');
+	await page.keyboard.press('Control+Shift+z');
+	await expect(text).toContainText('Druhá věta.');
+});
+
+test('undoing an edit in the middle of a text leaves the cursor where the edit was', async ({ page }) => {
+	const text = page.locator('.cm-content').first();
+	await text.click();
+	await page.keyboard.type('Ahoj světe');
+	await page.getByRole('heading', { level: 1 }).click();
+	await text.click();
+	await page.keyboard.press('Home');
+	for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowRight');
+	await page.keyboard.type('!');
+	await expect(text).toContainText('Ahoj! světe');
+	await page.keyboard.press('Control+z');
+	await expect(text).toContainText('Ahoj světe');
+	await page.keyboard.type('?');
+	await expect(text).toContainText('Ahoj? světe');
+});
+
 test('storage failure is visible and unload is guarded', async ({ page }) => {
 	await page.evaluate(() => { Storage.prototype.setItem = () => { throw new DOMException('full', 'QuotaExceededError'); }; });
 	await page.getByRole('textbox', { name: 'Název kurzu', exact: true }).fill('Neztratit');

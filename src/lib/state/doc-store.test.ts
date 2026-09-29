@@ -194,3 +194,45 @@ describe('jumping onto a hidden feedback field', () => {
 		expect(store.selection).toEqual(hint);
 	});
 });
+
+describe('a run of typing', () => {
+	function typing() {
+		const store = loaded();
+		const block = store.doc.blocks.find((b) => b.steps?.some((s) => s.type === 'text'))!;
+		const step = block.steps!.find((s) => s.type === 'text')!;
+		const ref = { blockId: block.block_id, stepId: step.id, field: 'content' };
+		const type = (text: string) => store.apply((d) => setField(d, ref, text));
+		return { store, type, step };
+	}
+
+	it('is one undo entry between beginEdit and endEdit', () => {
+		const { store, type } = typing();
+		const before = store.source;
+		store.beginEdit();
+		for (const text of ['Z', 'Zl', 'Zlo', 'Zlom']) type(text);
+		store.endEdit();
+		store.undo();
+		expect(store.source).toBe(before);
+	});
+
+	it('is one entry per keystroke without them, which is what the editor must avoid', () => {
+		const { store, type } = typing();
+		const before = store.source;
+		for (const text of ['Z', 'Zl', 'Zlo']) type(text);
+		store.undo();
+		expect(store.source).not.toBe(before);
+	});
+
+	it('leaves nothing behind when it nets out to no change', () => {
+		const { store, type, step } = typing();
+		const before = store.source;
+		store.beginEdit();
+		type('rozepsáno');
+		type(step.content ?? '');
+		store.endEdit();
+		store.undo();
+		// The one undo went past the run to the split of the import, not into it.
+		expect(store.source).not.toBe(before);
+		expect(store.source.blocks.length).toBeLessThan(before.blocks.length);
+	});
+});
