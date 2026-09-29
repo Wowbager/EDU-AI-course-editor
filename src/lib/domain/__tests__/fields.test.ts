@@ -21,6 +21,7 @@ import {
 	allows,
 	fieldsFor,
 	hintFor,
+	isFeedbackRef,
 	visible,
 	type FieldLevel,
 	type FieldSpec
@@ -275,5 +276,101 @@ describe('every issue can be fixed somewhere', async () => {
 			}
 		}
 		expect(unknown).toEqual([]);
+	});
+});
+
+/**
+ * The Zpětná vazba toggle hides what the pupil is told aside from the question.
+ * Which fields those are is declared once (`feedback: true`); this pins the set, so a
+ * new field cannot land in it, or a needed one cross into it, by accident.
+ */
+describe('feedback fields', () => {
+	const key = (f: FieldSpec) => `${f.level}.${f.path}`;
+	const MARKED = [
+		'block.hint',
+		'block.help',
+		'step.hint',
+		'step.help',
+		'question.solution',
+		'question.show_solution',
+		'question.solution_image',
+		'option.feedback',
+		'option.feedback_image'
+	];
+	const NEEDED_TO_AUTHOR = [
+		'option.is_correct',
+		'option.text',
+		'option.go_to',
+		'option.mark',
+		'question.options',
+		'question.correct_answer',
+		'question.correct_number',
+		'question.tolerance',
+		'question.allow_multiple',
+		'question.show_answers'
+	];
+
+	it('marks exactly the explanations, hints and solution', () => {
+		expect(FIELDS.filter((f) => f.feedback).map(key).sort()).toEqual([...MARKED].sort());
+	});
+
+	it('never marks a field a question needs to be correct', () => {
+		const marked = new Set(FIELDS.filter((f) => f.feedback).map(key));
+		expect(NEEDED_TO_AUTHOR.filter((path) => marked.has(path))).toEqual([]);
+		for (const path of NEEDED_TO_AUTHOR) {
+			expect(FIELDS.some((f) => key(f) === path), `${path} is not in the registry`).toBe(true);
+		}
+	});
+
+	it('hides a marked field in every mode when feedback is off, and changes nothing else', () => {
+		for (const mode of MODES) {
+			for (const spec of FIELDS) {
+				expect(visible(spec, mode), key(spec)).toBe(MODE_RANK[mode] >= MODE_RANK[spec.mode]);
+				expect(visible(spec, mode, true), key(spec)).toBe(visible(spec, mode));
+				expect(visible(spec, mode, false), `${key(spec)} in ${mode}`).toBe(
+					spec.feedback ? false : visible(spec, mode)
+				);
+				const [level, ...rest] = key(spec).split('.');
+				expect(allows(level as FieldLevel, rest.join('.'), mode, false), key(spec)).toBe(
+					visible(spec, mode, false)
+				);
+			}
+		}
+	});
+
+	it('leaves fieldsFor unchanged by default and drops marked fields when off', () => {
+		for (const mode of MODES) {
+			for (const level of ['block', 'step', 'question', 'option'] as const) {
+				const on = fieldsFor(level, mode);
+				expect(fieldsFor(level, mode, true)).toEqual(on);
+				expect(fieldsFor(level, mode, false)).toEqual(on.filter((f) => !f.feedback));
+			}
+		}
+		expect(fieldsFor('step', 'teacher', false).map((f) => f.path)).not.toContain('hint');
+		expect(fieldsFor('step', 'teacher').map((f) => f.path)).toContain('hint');
+	});
+
+	it('recognises a ref to a feedback field, however deep, and no other', () => {
+		expect(isFeedbackRef({ blockId: 'b', stepId: 's', field: 'hint' })).toBe(true);
+		expect(isFeedbackRef({ blockId: 'b', stepId: 's', field: 'help' })).toBe(true);
+		expect(isFeedbackRef({ blockId: 'b', field: 'hint' })).toBe(true);
+		expect(isFeedbackRef({ blockId: 'b', field: 'help' })).toBe(true);
+		expect(isFeedbackRef({ blockId: 'b', stepId: 's', field: 'question.solution' })).toBe(true);
+		expect(isFeedbackRef({ blockId: 'b', stepId: 's', field: 'question.solution_image.url' })).toBe(true);
+		expect(isFeedbackRef({ blockId: 'b', stepId: 's', field: 'question.show_solution' })).toBe(true);
+		expect(isFeedbackRef({ blockId: 'b', stepId: 's', optionId: 'o', field: 'feedback' })).toBe(true);
+		expect(isFeedbackRef({ blockId: 'b', stepId: 's', optionId: 'o', field: 'feedback_image.url' })).toBe(true);
+
+		expect(isFeedbackRef({ blockId: 'b', stepId: 's', field: 'question.options' })).toBe(false);
+		expect(isFeedbackRef({ blockId: 'b', stepId: 's', field: 'question.correct_answer' })).toBe(false);
+		expect(isFeedbackRef({ blockId: 'b', stepId: 's', field: 'content' })).toBe(false);
+		expect(isFeedbackRef({ blockId: 'b', stepId: 's', optionId: 'o', field: 'is_correct' })).toBe(false);
+		expect(isFeedbackRef({ blockId: 'b', stepId: 's', optionId: 'o', field: 'go_to' })).toBe(false);
+		// A prefix match is on whole path segments: `hint` must not match `hints`.
+		expect(isFeedbackRef({ blockId: 'b', stepId: 's', field: 'hints' })).toBe(false);
+		expect(isFeedbackRef({ blockId: 'b', stepId: 's' })).toBe(false);
+		expect(isFeedbackRef({})).toBe(false);
+		// A lesson has no hint of its own.
+		expect(isFeedbackRef({ lessonId: 'l', field: 'hint' })).toBe(false);
 	});
 });

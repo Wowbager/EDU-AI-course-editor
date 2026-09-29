@@ -89,6 +89,12 @@ export interface FieldSpec {
      * `fields.test.ts` checks this flag against the spec in both directions.
      */
     unread?: true;
+    /**
+     * Told to the pupil aside from the question: explanations, hints, solution. The
+     * Zpětná vazba toggle hides it while a teacher is shaping the flow of a course.
+     * Never on a field needed to make a question correct.
+     */
+    feedback?: true;
     ref?: Ref;
 }
 
@@ -405,6 +411,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "hint",
+        feedback: true,
         mode: "teacher",
         kind: "multiline",
         label: "Nápověda ke kartě",
@@ -413,6 +420,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "block",
         path: "help",
+        feedback: true,
         mode: "teacher",
         kind: "multiline",
         label: "Podrobná pomoc",
@@ -794,6 +802,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "step",
         path: "hint",
+        feedback: true,
         mode: "teacher",
         kind: "multiline",
         label: "Nápověda",
@@ -802,6 +811,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "step",
         path: "help",
+        feedback: true,
         mode: "teacher",
         kind: "multiline",
         label: "Podrobná pomoc",
@@ -904,6 +914,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "question",
         path: "solution",
+        feedback: true,
         mode: "teacher",
         kind: "multiline",
         label: "Řešení",
@@ -921,6 +932,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "question",
         path: "show_solution",
+        feedback: true,
         mode: "advanced",
         kind: "toggle",
         label: "Ukázat řešení po odpovědi",
@@ -946,6 +958,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "question",
         path: "solution_image",
+        feedback: true,
         mode: "advanced",
         kind: "custom",
         label: "Obrázek k řešení",
@@ -973,6 +986,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "option",
         path: "feedback",
+        feedback: true,
         mode: "teacher",
         kind: "custom",
         label: "Zpětná vazba",
@@ -1016,6 +1030,7 @@ export const FIELDS: readonly FieldSpec[] = [
     {
         level: "option",
         path: "feedback_image",
+        feedback: true,
         mode: "advanced",
         kind: "custom",
         label: "Obrázek ke zpětné vazbě",
@@ -1130,15 +1145,29 @@ export const NOT_EDITABLE: Record<string, string> = {
         "Patří ke kartě, ne k samostatnému uzlu — v registru je uvedeno jako block.adaptation.full.",
 };
 
-/** Cumulative: a field shows in its own mode and every mode above it. */
-export const visible = (spec: FieldSpec, mode: Mode): boolean =>
-    MODE_RANK[mode] >= MODE_RANK[spec.mode];
+/**
+ * Cumulative: a field shows in its own mode and every mode above it. A `feedback`
+ * field also needs `feedback` (the Zpětná vazba toggle) to be on.
+ */
+export const visible = (
+    spec: FieldSpec,
+    mode: Mode,
+    feedback: boolean = true,
+): boolean =>
+    MODE_RANK[mode] >= MODE_RANK[spec.mode] &&
+    (feedback || spec.feedback !== true);
 
 /** The fields of one level that `mode` may edit, minus the hand-written ones. */
-export function fieldsFor(level: FieldLevel, mode: Mode): FieldSpec[] {
+export function fieldsFor(
+    level: FieldLevel,
+    mode: Mode,
+    feedback: boolean = true,
+): FieldSpec[] {
     return FIELDS.filter(
         (spec) =>
-            spec.level === level && spec.custom !== true && visible(spec, mode),
+            spec.level === level &&
+            spec.custom !== true &&
+            visible(spec, mode, feedback),
     );
 }
 
@@ -1151,9 +1180,14 @@ export function fieldSpec(
 }
 
 /** Whether a hand-written control should render at all. */
-export function allows(level: FieldLevel, path: string, mode: Mode): boolean {
+export function allows(
+    level: FieldLevel,
+    path: string,
+    mode: Mode,
+    feedback: boolean = true,
+): boolean {
     const spec = fieldSpec(level, path);
-    return spec === undefined ? true : visible(spec, mode);
+    return spec === undefined ? true : visible(spec, mode, feedback);
 }
 
 /**
@@ -1173,6 +1207,21 @@ export function fieldOf(ref: Ref): { level: FieldLevel; path: string } | null {
     if (ref.blockId !== undefined) return { level: "block", path };
     if (ref.lessonId !== undefined) return { level: "lesson", path };
     return { level: "course", path };
+}
+
+/**
+ * Whether a ref points at a `feedback` field (or inside one, as
+ * `question.solution_image.url` does): the fields the Zpětná vazba toggle hides.
+ */
+export function isFeedbackRef(ref: Ref): boolean {
+    const field = fieldOf(ref);
+    if (field === null) return false;
+    return FIELDS.some(
+        (spec) =>
+            spec.feedback === true &&
+            spec.level === field.level &&
+            (field.path === spec.path || field.path.startsWith(`${spec.path}.`)),
+    );
 }
 
 /**
