@@ -95,7 +95,7 @@
 				{#if errors > 0}<span class="dot" aria-hidden="true"></span>{/if}
 				<button
 					type="button"
-					class="gear"
+					class="rail-gear"
 					title="Nastavení lekce"
 					aria-label={`Nastavení lekce ${name}`}
 					onclick={() => onlessonSettings(lesson.lesson_id)}>
@@ -120,7 +120,7 @@
 						{@const block = doc.blocks.find((b) => b.block_id === card.binding.block_id)}
 						<li class="tile-item">
 							{#if block === undefined}
-								<span class="tile missing" title="Chybějící karta" aria-label="Chybějící karta">!</span>
+								<span class="rail-tile missing" title="Chybějící karta" aria-label="Chybějící karta">!</span>
 							{:else}
 								{@const cardErrors = errorsOn(block.block_id)}
 								{@const selected = block.block_id === activeBlockId}
@@ -135,7 +135,7 @@
 								<div
 									role="button"
 									tabindex="0"
-									class="tile"
+									class="rail-tile"
 									class:selected
 									aria-current={selected ? 'true' : undefined}
 									aria-label={`${n}. ${cardTypeLabel(block.type)}: ${blockPreview(block, 60, n)}${
@@ -150,7 +150,7 @@
 								{#if cardErrors > 0}<span class="dot" aria-hidden="true"></span>{/if}
 								<button
 									type="button"
-									class="gear"
+									class="rail-gear"
 									class:pinned={selected}
 									tabindex={selected ? 0 : -1}
 									title="Nastavení karty"
@@ -262,7 +262,7 @@
 		width: 100%;
 	}
 
-	.tile {
+	.rail-tile {
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -275,18 +275,18 @@
 		cursor: pointer;
 	}
 
-	.tile:hover {
+	.rail-tile:hover {
 		background: var(--surface);
 	}
 
-	.tile.selected {
+	.rail-tile.selected {
 		border-left-color: var(--primary);
 		background: var(--surface);
 		color: var(--e-text);
 		box-shadow: var(--shadow-light);
 	}
 
-	.tile.missing {
+	.rail-tile.missing {
 		color: var(--e-error);
 		cursor: default;
 	}
@@ -308,7 +308,7 @@
 		pointer-events: none;
 	}
 
-	.gear {
+	.rail-gear {
 		position: absolute;
 		top: -3px;
 		right: 1px;
@@ -326,15 +326,15 @@
 		opacity: 0;
 	}
 
-	.gear:hover {
+	.rail-gear:hover {
 		color: var(--e-text);
 	}
 
-	.lesson-row:hover .gear,
-	.lesson-row:focus-within .gear,
-	.tile-item:hover .gear,
-	.tile-item:focus-within .gear,
-	.gear.pinned {
+	.lesson-row:hover .rail-gear,
+	.lesson-row:focus-within .rail-gear,
+	.tile-item:hover .rail-gear,
+	.tile-item:focus-within .rail-gear,
+	.rail-gear.pinned {
 		opacity: 1;
 	}
 
