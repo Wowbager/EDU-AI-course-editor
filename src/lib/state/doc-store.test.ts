@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { DocStore } from './doc-store.svelte';
 import { importCourse } from '$lib/domain/document';
-import { addStep, setField } from '$lib/domain/commands';
+import { addBlock, addStep, setField } from '$lib/domain/commands';
+import { emptyCourse } from '$lib/domain/document';
 import { groupOf, questionCount } from '$lib/domain/groups';
 
 /**
@@ -111,5 +112,54 @@ describe('the Zpětná vazba flag', () => {
 		store.showFeedback = false;
 		store.load(fixture());
 		expect(store.showFeedback).toBe(false);
+	});
+});
+
+describe('warnings about hidden feedback fields', () => {
+	/** A question card whose only step has a detailed help but no hint to open it from. */
+	function withUnreachableHelp() {
+		const store = new DocStore();
+		store.load({
+			...emptyCourse('KURZ', 'Kurz'),
+			lessons: [{ lesson_id: 'L1', version: 1, name: 'Lekce', order: 1, blocks: [] }]
+		});
+		const added = store.apply((d) => addBlock(d, 'L1', 'question'));
+		const blockId = added.ref!.blockId!;
+		const step = store.apply((d) => addStep(d, blockId, 'question'));
+		const stepRef = { blockId, stepId: step.ref!.stepId, field: 'help' };
+		store.apply((d) => setField(d, stepRef, 'Nejdřív si to nakresli.'));
+		return { store, stepRef };
+	}
+
+	it('are in the full validation but not in what is listed, while feedback is hidden', () => {
+		const { store } = withUnreachableHelp();
+		const unreachable = (issues: readonly { code: string }[]) =>
+			issues.filter((i) => i.code === 'W_HINT_UNREACHABLE').length;
+		expect(unreachable(store.validation.warnings)).toBe(1);
+		expect(unreachable(store.listed.warnings)).toBe(1);
+
+		store.showFeedback = false;
+		expect(unreachable(store.validation.warnings)).toBe(1);
+		expect(unreachable(store.listed.warnings)).toBe(0);
+
+		store.showFeedback = true;
+		expect(unreachable(store.listed.warnings)).toBe(1);
+	});
+
+	it('are not marked inline while hidden', () => {
+		const { store, stepRef } = withUnreachableHelp();
+		expect(store.issuesAt(stepRef).warnings.map((i) => i.code)).toEqual(['W_HINT_UNREACHABLE']);
+		store.showFeedback = false;
+		expect(store.shown.warnings.map((i) => i.code)).not.toContain('W_HINT_UNREACHABLE');
+		expect(store.issuesAt(stepRef).warnings).toEqual([]);
+	});
+
+	it('never hold back an error', () => {
+		const { store } = withUnreachableHelp();
+		const before = store.listed.errors.map((i) => i.code);
+		expect(before.length).toBeGreaterThan(0);
+		store.showFeedback = false;
+		expect(store.listed.errors.map((i) => i.code)).toEqual(before);
+		expect(store.listed.errors).toEqual(store.validation.errors);
 	});
 });

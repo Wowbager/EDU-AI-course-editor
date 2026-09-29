@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { fieldKey, isVisible, TIMING, timingOf, type Touched } from '$lib/ui/issue-visibility';
+import {
+	fieldKey,
+	heldBack,
+	HELD_WITH_FEEDBACK,
+	isVisible,
+	TIMING,
+	timingOf,
+	type Touched
+} from '$lib/ui/issue-visibility';
 import type { Issue } from '../validate';
 
 const nothing: Touched = { cards: new Set(), fields: new Set() };
@@ -34,6 +42,42 @@ describe('the timing table', () => {
 	it('falls back by severity for a code nobody classified', () => {
 		expect(timingOf({ code: 'E_NEW', severity: 'error' })).toBe('onLeave');
 		expect(timingOf({ code: 'W_NEW', severity: 'warning' })).toBe('review');
+	});
+});
+
+describe('warnings held back with the feedback fields', () => {
+	const source = readFileSync(fileURLToPath(new URL('../validate.ts', import.meta.url)), 'utf8');
+	const emitted = [...new Set([...source.matchAll(/'([EW]_[A-Z0-9_]+)'/g)].map((m) => m[1]))];
+	const help = { blockId: 'B1', stepId: 's1', field: 'help' };
+	const noFeedbackOnWrong = issue('W_NO_WRONG_OPTION_FEEDBACK', { blockId: 'B1', stepId: 's1', field: 'question.options' }, 'warning');
+	const unreachable = issue('W_HINT_UNREACHABLE', help, 'warning');
+
+	it('names only warnings the validator emits', () => {
+		expect([...HELD_WITH_FEEDBACK].filter((code) => !emitted.includes(code) || !code.startsWith('W_'))).toEqual([]);
+	});
+
+	it('holds a warning about a hidden field, and one that only feedback fixes', () => {
+		expect(heldBack(unreachable, false)).toBe(true);
+		expect(heldBack(noFeedbackOnWrong, false)).toBe(true);
+		// Held by where it points, whatever its code.
+		expect(heldBack(issue('W_NEW', { blockId: 'B1', stepId: 's1', optionId: 'a', field: 'feedback' }, 'warning'), false)).toBe(true);
+	});
+
+	it('holds nothing while feedback is shown', () => {
+		expect(heldBack(unreachable, true)).toBe(false);
+		expect(heldBack(noFeedbackOnWrong, true)).toBe(false);
+	});
+
+	it('leaves other warnings alone', () => {
+		expect(heldBack(issue('W_IMAGE_NO_ALT', { blockId: 'B1', stepId: 's3', field: 'image.alt' }, 'warning'), false)).toBe(false);
+		expect(heldBack(issue('W_EMPTY_LESSON', { lessonId: 'L1' }, 'warning'), false)).toBe(false);
+	});
+
+	it('never holds an error, even one on a feedback field or with a held code', () => {
+		expect(heldBack(issue('E_MC_NO_CORRECT', { blockId: 'B1', stepId: 's1', field: 'question.options' }), false)).toBe(false);
+		expect(heldBack(issue('E_ANY', help), false)).toBe(false);
+		expect(heldBack(issue('W_HINT_UNREACHABLE', help, 'error'), false)).toBe(false);
+		expect([...HELD_WITH_FEEDBACK].filter((code) => code.startsWith('E_'))).toEqual([]);
 	});
 });
 

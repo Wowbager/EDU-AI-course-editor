@@ -8,6 +8,8 @@
 	import type { Issue } from '$lib/domain/validate';
 	import { issueLessonId, issuePlace } from '$lib/domain/issue-groups';
 	import { useStore } from '$lib/ui/context';
+	import { heldBack } from '$lib/ui/issue-visibility';
+	import Button from '$lib/ui/Button.svelte';
 
 	interface Props {
 		onclose: () => void;
@@ -18,7 +20,13 @@
 	let dismissed = $state<Set<string>>(new Set());
 
 	const key = (issue: Issue) => `${issue.code}|${JSON.stringify(issue.ref)}`;
-	const warnings = $derived(store.validation.warnings.filter((w) => !dismissed.has(key(w))));
+	const warnings = $derived(store.listed.warnings.filter((w) => !dismissed.has(key(w))));
+	// Advice about a field the Zpětná vazba toggle has hidden: said once, quietly,
+	// with the way to see it — not dropped, and not counted.
+	const held = $derived(
+		store.validation.warnings.filter((w) => heldBack(w, store.showFeedback) && !dismissed.has(key(w)))
+			.length
+	);
 
 	function jump(issue: Issue) {
 		// Fixed in a mode above this one: switch first, or the jump lands on nothing.
@@ -44,14 +52,14 @@
 		<button type="button" class="close" onclick={onclose} aria-label="Zavřít">×</button>
 	</header>
 
-	{#if store.validation.errors.length === 0 && warnings.length === 0}
+	{#if store.listed.errors.length === 0 && warnings.length === 0}
 		<p class="clean">Kurz je v pořádku. Můžeš publikovat.</p>
 	{/if}
 
-	{#if store.validation.errors.length > 0}
-		<h3 class="error">Chyby — brání publikaci ({store.validation.errors.length})</h3>
+	{#if store.listed.errors.length > 0}
+		<h3 class="error">Chyby — brání publikaci ({store.listed.errors.length})</h3>
 		<ul>
-			{#each store.validation.errors as issue (key(issue))}
+			{#each store.listed.errors as issue (key(issue))}
 				<li>
 					<button type="button" class="issue" onclick={() => jump(issue)}>
 						<span class="message">{issue.message}</span>
@@ -77,6 +85,13 @@
 				</li>
 			{/each}
 		</ul>
+	{/if}
+
+	{#if held > 0}
+		<p class="held">
+			Skryto {held} doporučení ke zpětné vazbě.
+			<Button variant="ghost" size="s" onclick={() => (store.showFeedback = true)}>Ukázat</Button>
+		</p>
 	{/if}
 </aside>
 
@@ -173,6 +188,15 @@
 		color: var(--e-text-faint);
 		font-size: var(--text-l);
 		cursor: pointer;
+	}
+
+	.held {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin: 16px 0 0;
+		color: var(--e-text-faint);
+		font: var(--type-body-small);
 	}
 
 	.clean {

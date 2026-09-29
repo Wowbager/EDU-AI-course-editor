@@ -22,6 +22,7 @@
  */
 import type { Ref } from '$lib/domain/ref';
 import type { Issue } from '$lib/domain/validate';
+import { isFeedbackRef } from '$lib/ui/fields';
 
 export type Timing = 'immediate' | 'onLeave' | 'review';
 
@@ -82,6 +83,28 @@ export const TIMING: Record<string, Timing> = {
 /** A code nobody classified still surfaces: an error once left, a warning in review. */
 export function timingOf(issue: Pick<Issue, 'code' | 'severity'>): Timing {
 	return TIMING[issue.code] ?? (issue.severity === 'error' ? 'onLeave' : 'review');
+}
+
+/**
+ * Warnings whose only fix is a feedback field, though their ref does not say so
+ * (`W_NO_WRONG_OPTION_FEEDBACK` points at the option list). While the Zpětná vazba
+ * toggle hides those fields, these are held back too, as is any warning whose ref
+ * is a feedback field (`heldBack`).
+ */
+export const HELD_WITH_FEEDBACK: ReadonlySet<string> = new Set([
+	'W_HINT_UNREACHABLE',
+	'W_NO_WRONG_OPTION_FEEDBACK'
+]);
+
+/**
+ * Whether an issue is left out of the topbar count, the validation panel and the
+ * inline markers because the field that fixes it is hidden. Only warnings: an error
+ * blocks the file, and a teacher must be told whether or not the field is on screen.
+ * The export review and the banner read the full `validation`.
+ */
+export function heldBack(issue: Pick<Issue, 'code' | 'severity' | 'ref'>, feedbackVisible: boolean): boolean {
+	if (feedbackVisible || issue.severity !== 'warning') return false;
+	return HELD_WITH_FEEDBACK.has(issue.code) || isFeedbackRef(issue.ref);
 }
 
 /** What the author has finished with: whole cards they left, single fields they left. */

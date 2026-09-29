@@ -35,7 +35,7 @@ import {
 import type { SkillConfig } from "$lib/domain/skill-config";
 import type { CommandResult } from "$lib/domain/commands";
 import type { Mode } from "$lib/ui/fields";
-import { fieldKey, isVisible } from "$lib/ui/issue-visibility";
+import { fieldKey, heldBack, isVisible } from "$lib/ui/issue-visibility";
 import type { Issue } from "$lib/domain/validate";
 
 export interface UndoEntry {
@@ -246,12 +246,25 @@ export class DocStore {
         );
 
     /**
-     * The issues that may be on screen right now. Inline markers read this; the
-     * export review and the validation panel read `validation`, which is all of them.
+     * The issues the editor lists while the author is writing: every error, and the
+     * warnings that are not about a field the Zpětná vazba toggle has hidden
+     * (`heldBack`). The topbar count and the validation panel read this; the export
+     * review and the banner read `validation`, which is all of them.
+     */
+    listed = $derived({
+        errors: this.validation.errors,
+        warnings: this.validation.warnings.filter(
+            (issue) => !heldBack(issue, this.#showFeedback),
+        ),
+    });
+
+    /**
+     * The issues that may be on screen right now. Inline markers read this: what is
+     * listed, and then only once its timing allows (`ui/issue-visibility.ts`).
      */
     shown = $derived({
-        errors: this.validation.errors.filter(this.#shown),
-        warnings: this.validation.warnings.filter(this.#shown),
+        errors: this.listed.errors.filter(this.#shown),
+        warnings: this.listed.warnings.filter(this.#shown),
     });
 
     /**

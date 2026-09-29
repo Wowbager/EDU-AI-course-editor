@@ -120,10 +120,10 @@
 
     /** The chip shows a bare number; the accessible name has to say what it counts. */
     const checkLabel = $derived(
-        store.validation.errors.length > 0
-            ? `Kontrola kurzu: ${errorsCount(store.validation.errors.length)}`
-            : store.validation.warnings.length > 0
-              ? `Kontrola kurzu: ${warningsCount(store.validation.warnings.length)}`
+        store.listed.errors.length > 0
+            ? `Kontrola kurzu: ${errorsCount(store.listed.errors.length)}`
+            : store.listed.warnings.length > 0
+              ? `Kontrola kurzu: ${warningsCount(store.listed.warnings.length)}`
               : "Kontrola kurzu: v pořádku",
     );
 </script>
@@ -182,16 +182,16 @@
             emergency. It turns red once the author has asked to export and seen
             what is left, which is when the count starts to mean "still to fix".
         -->
-        {#if store.validation.errors.length > 0 && !store.reviewing}
+        {#if store.listed.errors.length > 0 && !store.reviewing}
             <Chip tone="quiet"
-                >{store.validation.errors.length} k dokončení</Chip>
-        {:else if store.validation.errors.length > 0}
-            <Chip tone="error">{store.validation.errors.length}</Chip>
-        {:else if store.validation.warnings.length > 0 && !store.reviewing}
+                >{store.listed.errors.length} k dokončení</Chip>
+        {:else if store.listed.errors.length > 0}
+            <Chip tone="error">{store.listed.errors.length}</Chip>
+        {:else if store.listed.warnings.length > 0 && !store.reviewing}
             <Chip tone="quiet"
-                >{store.validation.warnings.length} doporučení</Chip>
-        {:else if store.validation.warnings.length > 0}
-            <Chip tone="warning">{store.validation.warnings.length}</Chip>
+                >{store.listed.warnings.length} doporučení</Chip>
+        {:else if store.listed.warnings.length > 0}
+            <Chip tone="warning">{store.listed.warnings.length}</Chip>
         {:else}
             <Chip tone="ok"><CircleCheck size={16}></CircleCheck> 0</Chip>
         {/if}
