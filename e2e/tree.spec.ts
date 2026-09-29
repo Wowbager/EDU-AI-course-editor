@@ -86,3 +86,29 @@ test('each card is one tab stop', async ({ page }) => {
 		await expect(cards(page).nth(i)).toBeFocused();
 	}
 });
+
+test('Alt+ArrowDown moves the focused card down and keeps it focused', async ({ page }) => {
+	const before = await order(page);
+	await cards(page).nth(0).focus();
+	await page.keyboard.press('Alt+ArrowDown');
+	await expect.poll(() => order(page)).toEqual([before[1], before[0], ...before.slice(2)]);
+	await expect(cards(page).nth(1)).toBeFocused();
+	// Again, then back up: the card is still the one being moved.
+	await page.keyboard.press('Alt+ArrowDown');
+	await expect.poll(() => order(page)).toEqual([before[1], before[2], before[0], ...before.slice(3)]);
+	await expect(cards(page).nth(2)).toBeFocused();
+	await page.keyboard.press('Alt+ArrowUp');
+	await expect.poll(() => order(page)).toEqual([before[1], before[0], ...before.slice(2)]);
+	await expect(cards(page).nth(1)).toBeFocused();
+});
+
+test('Alt+ArrowUp on the first card changes nothing and is not an edit', async ({ page }) => {
+	const before = await order(page);
+	const undo = page.getByRole('button', { name: 'Zpět', exact: true });
+	await expect(undo).toBeDisabled();
+	await cards(page).nth(0).focus();
+	await page.keyboard.press('Alt+ArrowUp');
+	await expect(cards(page).nth(0)).toBeFocused();
+	expect(await order(page)).toEqual(before);
+	await expect(undo).toBeDisabled();
+});

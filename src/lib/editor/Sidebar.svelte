@@ -14,6 +14,7 @@
      * Collapses to a 56px rail (plan §4) — which cannot carry two legible levels, so
      * it keeps the lesson numbers and nothing else.
      */
+    import { tick } from "svelte";
     import { dndzone, type DndEvent } from "svelte-dnd-action";
     import type {
         BlockV2,
@@ -27,6 +28,7 @@
     import {
         addBlock,
         addLesson,
+        moveBlockInLesson,
         reorderBindings,
         reorderLessons,
     } from "$lib/domain/commands";
@@ -148,6 +150,41 @@
         );
     }
 
+    let cardList = $state<HTMLElement>();
+
+    /**
+     * A card's keys. Enter and Space select it; Alt+Arrow moves it. Both are claimed
+     * in the capture phase, because Svelte delegates a plain `onkeydown` to the root,
+     * after the `<li>` has already handed the key to svelte-dnd-action's keyboard drag.
+     */
+    async function oncardkey(
+        event: KeyboardEvent,
+        lessonId: string,
+        blockId: string,
+        position: number,
+    ) {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            event.stopPropagation();
+            select(lessonId, blockId);
+        } else if (
+            event.altKey &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            (event.key === "ArrowUp" || event.key === "ArrowDown")
+        ) {
+            event.preventDefault();
+            event.stopPropagation();
+            const delta = event.key === "ArrowUp" ? -1 : 1;
+            const target = position + delta;
+            if (target < 0 || target >= cards.length) return;
+            store.apply((d) => moveBlockInLesson(d, lessonId, blockId, delta));
+            // Moving a node in the DOM drops its focus; give it back to the same card.
+            await tick();
+            cardList?.querySelectorAll<HTMLElement>(".tree-card")[target]?.focus();
+        }
+    }
+
     // Counted from what may be shown, like every inline marker — a card nobody has
     // left yet is being written, not broken. The top bar and export review count all.
     const errorsIn = (lessonId: string) =>
@@ -259,6 +296,7 @@
 
                         <ul
                             class="cards"
+                            bind:this={cardList}
                             use:dndzone={{
                                 items: cards,
                                 flipDurationMs: 150,
@@ -303,22 +341,14 @@
                                                     lesson.lesson_id,
                                                     block.block_id,
                                                 )}
-                                            onkeydowncapture={(event) => {
-                                                if (
-                                                    event.key !== "Enter" &&
-                                                    event.key !== " "
-                                                )
-                                                    return;
-                                                // Not the library's keyboard drag, which the <li> would
-                                                // start. Capture, because Svelte delegates a plain onkeydown
-                                                // to the root, after the <li>'s own listener has run.
-                                                event.preventDefault();
-                                                event.stopPropagation();
-                                                select(
+                                            title="Alt+↑/↓ přesune kartu"
+                                            onkeydowncapture={(event) =>
+                                                oncardkey(
+                                                    event,
                                                     lesson.lesson_id,
                                                     block.block_id,
-                                                );
-                                            }}>
+                                                    position,
+                                                )}>
                                             <span class="type">
                                                 <Icon size={16}></Icon>
                                             </span>
