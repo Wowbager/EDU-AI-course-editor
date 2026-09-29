@@ -16,6 +16,7 @@
     import { uniqueKeys } from "$lib/ui/keys";
     import { allows } from "$lib/ui/fields";
     import { addOption, deleteOption, setField } from "$lib/domain/commands";
+    import { MIN_CHOICE_OPTIONS } from "$lib/domain/validate";
     import { CircleCheck, Plus, Trash, X } from "@lucide/svelte";
 
     interface Props {
@@ -42,6 +43,21 @@
         allows("option", "feedback", store.mode, store.showFeedback),
     );
     const fixedOptions = $derived(step.question?.type === "true_false");
+    // The last answers have to stay: a question with nothing to choose from is not a
+    // question (`E_MC_TOO_FEW_OPTIONS`, which `MIN_CHOICE_OPTIONS` bounds).
+    const lastAnswers = $derived(
+        step.question?.type === "multiple_choice" &&
+            options.length <= MIN_CHOICE_OPTIONS,
+    );
+    // What is wrong with the list as a whole (too few answers, none right), said where
+    // the list is, under the same timing as every other warning.
+    const listIssues = $derived(
+        store.issuesAt({
+            blockId: block.block_id,
+            stepId: step.id,
+            field: "question.options",
+        }),
+    );
     // Shared, content-independent tracks keep headings and all rows aligned.
     const tracks = $derived(
         [
@@ -200,7 +216,10 @@
                     <Button
                         variant="danger"
                         size="s"
-                        title="Smazat odpověď"
+                        disabled={lastAnswers}
+                        title={lastAnswers
+                            ? "Otázka potřebuje aspoň dvě odpovědi, ze kterých žák vybírá"
+                            : "Smazat odpověď"}
                         ariaLabel={`Smazat odpověď ${option.text || "bez textu"}`}
                         onclick={() =>
                             store.apply((d) =>
@@ -216,6 +235,12 @@
                 {/if}
             </div>
         </div>
+    {/each}
+
+    {#each [...listIssues.errors, ...listIssues.warnings] as issue (issue.code)}
+        <p class="list-issue" class:warning={issue.severity === "warning"}>
+            {issue.message}
+        </p>
     {/each}
 
     {#if !fixedOptions}
@@ -358,6 +383,19 @@
         margin-top: 6px;
     }
 
+    /*
+     * What is wrong with the list as a whole — too few answers, none right — has no
+     * field of its own, so it is said here, quietly, under the rows it is about.
+     */
+    .list-issue {
+        margin: 4px 0 0;
+        padding-left: 8px;
+        color: var(--e-error);
+        font-size: var(--text-xs);
+    }
 
+    .list-issue.warning {
+        color: var(--e-warning);
+    }
 
 </style>
