@@ -15,6 +15,7 @@
     import { onMount, untrack } from "svelte";
     import { DraftSession } from "$lib/state/draft-session.svelte";
     import { DRAFT_KEY } from "$lib/state/draft";
+    import { readLayout, writeLayout } from "$lib/state/layout-prefs";
     import { DocStore } from "$lib/state/doc-store.svelte";
     import { setStepView, setStore, setVersions } from "$lib/ui/context";
     import { StepView } from "$lib/state/step-view.svelte";
@@ -78,6 +79,25 @@
     });
 
     let sidebarCollapsed = $state(false);
+    /**
+     * `null` until the remembered layout has been read on mount; the preview shows
+     * as expanded meanwhile. Nothing is written back while it is `null`, so the
+     * defaults of a page that has not looked yet never overwrite what was saved.
+     */
+    let previewCollapsed = $state<boolean | null>(null);
+    /** Set two frames after mount, so restoring a folded panel does not animate. */
+    let settled = $state(false);
+
+    $effect(() => {
+        const preview = previewCollapsed;
+        const sidebar = sidebarCollapsed;
+        if (preview === null) return;
+        writeLayout(localStorage, {
+            sidebarCollapsed: sidebar,
+            previewCollapsed: preview,
+        });
+    });
+
     let showValidation = $state(false);
     let repairTarget = $state<{ blockId: string; stepId?: string } | null>(
         null,
@@ -313,6 +333,9 @@
             store.dirty = false;
         }
         void loadConfig();
+        const layout = readLayout(localStorage);
+        sidebarCollapsed = layout.sidebarCollapsed;
+        previewCollapsed = layout.previewCollapsed;
         const flush = () => session.flush();
         const hidden = () => {
             if (document.visibilityState === "hidden") flush();
@@ -327,6 +350,8 @@
             }
         };
         const changed = (event: StorageEvent) => {
+        // Only DRAFT_KEY (and a cleared storage) count as another tab's edit; the
+        // layout lives under its own key, so folding a panel there is not a conflict.
             if (event.key === DRAFT_KEY || event.key === null)
                 session.conflict();
         };
@@ -340,7 +365,11 @@
         // a test that types as soon as it appears must not have its first
         // keystrokes discarded by the seed that follows.
         document.documentElement.dataset.hydrated = "true";
+        const frame = requestAnimationFrame(() =>
+            requestAnimationFrame(() => (settled = true)),
+        );
         return () => {
+            cancelAnimationFrame(frame);
             flush();
             session.dispose();
             window.removeEventListener("beforeunload", unload);
@@ -408,7 +437,7 @@
         <ValidationPanel onclose={() => (showValidation = false)} />
     {/if}
 
-    <div class="columns">
+    <div class="columns" class:settled>
         <Sidebar
             {doc}
             activeLessonId={lesson?.lesson_id}
@@ -574,6 +603,11 @@
         display: flex;
         flex: 1;
         min-height: 0;
+    }
+
+    /* A folded panel restored on load is already folded; it does not slide shut. */
+    .columns:not(.settled) :global(.sidebar) {
+        transition: none;
     }
 
     .editor {
