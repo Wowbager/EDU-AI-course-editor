@@ -270,6 +270,25 @@ after a first tap on the step, which focuses it.
 settings. A card in a lesson has no crumb now (DECISIONS Round 8); the lesson's settings
 are on its row in the tree.
 
+### 28. A menu opened while the column is still scrolling closes at once
+**Reproduced in e2e, not by hand.** `Menu` closes on any scroll outside its panel, so the
+menu stays anchored to its trigger. Selecting a card smooth-scrolls the editor column, and
+a click on "Přidat krok" or ⋯ during that scroll opens the menu and shuts it again. The
+e2e helper `openMenu` retries the click. A teacher would see a menu that flickers and
+click again. A fix could ignore scrolls that start before the menu opened, or reposition
+instead of closing.
+
+### 29. The gear on a rail tile is a small target
+**Seen in a screenshot, not tested with people.** In the folded lesson panel, a card
+tile's settings gear is a badge of about 14px on the tile's corner. It is a second way in,
+since "Nastavení karty" stays in the card header, but a tired hand will miss it. Worth
+growing if teachers use the rail.
+
+### 30. Ctrl+Shift+B leaves focus on the page when it folds the preview
+**Reproduced by reading the code.** The preview goes `inert` when folded. The buttons move
+focus to the other toggle, but the shortcut does not, so focus inside the preview drops
+to the page body.
+
 ### 11. Folding is remembered for the session only
 **By design for now.** `StepView` lives as long as the page. A reload opens every step
 again. Worth persisting with the draft if authors of long cards ask for it.
