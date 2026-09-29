@@ -26,7 +26,10 @@
         title?: string;
         /** Set when the visible text is a glyph — the accessible name must be a word. */
         ariaLabel?: string;
-        /** For a toggle button: the on/off state, rendered as `aria-pressed`. */
+        /**
+         * For a toggle button: the on/off state, rendered as `aria-pressed`. A toggle
+         * keeps one label; aria-pressed carries the state.
+         */
         pressed?: boolean;
         onclick?: (event: MouseEvent) => void;
         /** Extra classes for the button itself (the menu trigger uses this). */
@@ -123,6 +126,17 @@
         border-color: var(--e-border-strong);
         background: var(--primary-dark-06);
         color: var(--e-text);
+    }
+
+    .ghost[aria-pressed="true"] {
+        border-color: var(--primary-dark-16);
+        background: var(--primary-dark-08);
+        color: var(--e-text);
+    }
+
+    .ghost[aria-pressed="true"]:hover:not(:disabled) {
+        border-color: var(--e-border-strong);
+        background: var(--primary-dark-12);
     }
 
     .danger {
