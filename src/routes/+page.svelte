@@ -456,7 +456,8 @@
             oncourseSettings={() => (modal = { kind: "course" })}
             onlessonSettings={(lessonId) =>
                 (modal = { kind: "lesson", lessonId })}
-            oncardSettings={(blockId) => (modal = { kind: "card", blockId })} />
+            oncardSettings={(blockId) => (modal = { kind: "card", blockId })}
+            onrepairBlock={(blockId) => (repairTarget = { blockId })} />
 
         <main class="editor">
             {#if importError !== null}

@@ -64,6 +64,8 @@
         oncourseSettings: () => void;
         onlessonSettings: (lessonId: string) => void;
         oncardSettings: (blockId: string) => void;
+        /** A card another card points at: the repair dialog decides where those go. */
+        onrepairBlock: (blockId: string) => void;
     }
     let {
         doc,
@@ -74,6 +76,7 @@
         oncourseSettings,
         onlessonSettings,
         oncardSettings,
+        onrepairBlock,
     }: Props = $props();
 
     const store = useStore();
@@ -460,7 +463,8 @@
             {errorsIn}
             {errorsOn}
             {onlessonSettings}
-            {oncardSettings} />
+            {oncardSettings}
+            {onrepairBlock} />
     {/if}
 
     {#if !collapsed}

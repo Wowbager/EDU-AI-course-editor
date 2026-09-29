@@ -40,12 +40,16 @@ test('there is a circle per lesson, and Nová lekce adds one', async ({ page }) 
 	await expect(circles(page).last()).toHaveAttribute('aria-current', 'true');
 });
 
-test('a lesson circle says what is in the lesson, and its gear opens the lesson', async ({ page }) => {
+test('a lesson circle’s panel says what is in the lesson, and opens its settings', async ({ page }) => {
 	const circle = circles(page).first();
-	await expect(circle).toHaveAttribute('title', /karty · \d+ min · \d+ XP/);
+	// No native tooltip and no gear on the circle: the panel beside it carries both.
+	await expect(circle).not.toHaveAttribute('title', /.*/);
 	await circle.hover();
-	await page.getByRole('button', { name: /^Nastavení lekce / }).first().click();
+	const panel = page.getByRole('group', { name: 'Lekce 1' });
+	await expect(panel).toContainText(/karty · \d+ min · \d+ XP/);
+	await panel.getByRole('button', { name: /^Nastavení lekce / }).click();
 	await expect(page.getByRole('dialog', { name: 'Nastavení lekce' })).toBeVisible();
+	await expect(panel).toBeHidden();
 });
 
 test('clicking a tile selects its card', async ({ page }) => {
@@ -118,16 +122,157 @@ test('Přidat kartu offers the three types and adds a selected card', async ({ p
 	await expect(tiles(page).last()).toHaveAttribute('aria-label', new RegExp(`^${count + 1}\\. Cvičení: `));
 });
 
-test('the gear on a tile opens that card’s settings, and is there on the selected tile without hovering', async ({ page }) => {
-	const gears = page.getByRole('button', { name: /^Nastavení \d+\. karty$/ });
-	// Selected: visible and reachable by Tab. Others: out of the tab order.
-	await expect(gears.first()).toHaveCSS('opacity', '1');
-	await expect(gears.nth(1)).toHaveAttribute('tabindex', '-1');
+test('a tile is only an icon, and its actions come out beside it on hover', async ({ page }) => {
+	const tile = tiles(page).nth(1);
+	// Nothing on the tile or its row but the icon: no number, no gear, no native tooltip.
+	await expect(tile).not.toHaveAttribute('title', /.*/);
+	await expect(tile).toHaveText('');
+	await expect(page.getByRole('button', { name: /^Nastavení \d+\. karty$/ })).toHaveCount(0);
+	await tile.hover();
+	const panel = page.getByRole('group', { name: 'Karta 2' });
+	await expect(panel).toBeVisible();
+	await expect(panel).toContainText('2 · ');
+	for (const name of ['Nastavení 2. karty', 'Duplikovat 2. kartu', 'Odebrat 2. kartu z lekce', 'Smazat 2. kartu']) {
+		await expect(panel.getByRole('button', { name, exact: true })).toBeVisible();
+	}
+	// The panel names the button under the pointer, and rests on the card's place.
+	await expect(panel.getByText(/^2\. karta z \d+$/)).toBeVisible();
+	await panel.getByRole('button', { name: 'Duplikovat 2. kartu' }).hover();
+	await expect(panel.locator('.caption')).toHaveText('Duplikovat');
+	// Away from the tile and the panel, it goes.
+	await page.mouse.move(700, 400);
+	await expect(panel).toBeHidden();
+});
+
+test('Nastavení in the panel opens that card’s settings, not the selected card’s', async ({ page }) => {
 	await tiles(page).nth(1).hover();
-	await gears.nth(1).click();
+	await page.getByRole('button', { name: 'Nastavení 2. karty', exact: true }).click();
 	await expect(page.getByRole('dialog', { name: 'Nastavení karty' })).toBeVisible();
 	// It was the second card that was opened, not the one that was selected before.
 	await expect(tiles(page).nth(1)).toHaveAttribute('aria-current', 'true');
+});
+
+test('Duplikovat adds a tile after the card, and the copy is selected', async ({ page }) => {
+	const count = await tiles(page).count();
+	await tiles(page).first().hover();
+	await page.getByRole('button', { name: 'Duplikovat 1. kartu' }).click();
+	await expect(tiles(page)).toHaveCount(count + 1);
+	await expect(tiles(page).nth(1)).toHaveAttribute('aria-current', 'true');
+	await expect(page.getByRole('group', { name: /^Karta \d+$/ })).toBeHidden();
+});
+
+test('Odebrat z lekce takes a tile away, the editor keeps the selection, and Vrátit zpět brings it back', async ({ page }) => {
+	const before = await order(page);
+	await tiles(page).nth(2).hover();
+	await page.getByRole('button', { name: 'Odebrat 3. kartu z lekce' }).click();
+	await expect(tiles(page)).toHaveCount(before.length - 1);
+	// The card that was selected still is.
+	await expect(tiles(page).first()).toHaveAttribute('aria-current', 'true');
+	await expect(page.locator('.toast')).toContainText('Karta odebrána z lekce');
+	await page.getByRole('button', { name: 'Vrátit zpět', exact: true }).click();
+	await expect.poll(() => order(page)).toEqual(before);
+});
+
+test('Smazat needs two clicks: the first arms it, moving away disarms it, the second deletes', async ({ page }) => {
+	const before = await order(page);
+	await tiles(page).nth(2).click();
+	await tiles(page).nth(2).hover();
+	const panel = page.getByRole('group', { name: 'Karta 3' });
+	const erase = panel.getByRole('button', { name: 'Smazat 3. kartu', exact: true });
+	await erase.click();
+	// Armed: the card is still there, the button says what a second click does.
+	await expect(tiles(page)).toHaveCount(before.length);
+	const armed = panel.getByRole('button', { name: 'Opravdu smazat 3. kartu? Klikni znovu' });
+	await expect(armed).toBeVisible();
+	await expect(panel.locator('.caption')).toHaveText('Klikni znovu pro smazání');
+	// The pointer leaves the row for the tile, and the panel stays: disarmed.
+	await tiles(page).nth(2).hover();
+	await expect(panel).toBeVisible();
+	await expect(panel.getByRole('button', { name: 'Smazat 3. kartu', exact: true })).toBeVisible();
+	await expect(panel.locator('.caption')).toHaveText(/^3\. karta z \d+$/);
+	// Arm again and delete: the card it was, and the neighbour before it is selected.
+	await panel.getByRole('button', { name: 'Smazat 3. kartu', exact: true }).click();
+	await panel.getByRole('button', { name: 'Opravdu smazat 3. kartu? Klikni znovu' }).click();
+	await expect(tiles(page)).toHaveCount(before.length - 1);
+	await expect(tiles(page).nth(1)).toHaveAttribute('aria-current', 'true');
+	await expect(page.locator('.toast')).toContainText('Karta smazána');
+	await page.getByRole('button', { name: 'Vrátit zpět', exact: true }).click();
+	await expect.poll(() => order(page)).toEqual(before);
+	await expect(tiles(page).nth(2)).toHaveAttribute('aria-current', 'true');
+});
+
+test('Escape disarms Smazat and takes the focus back to the tile', async ({ page }) => {
+	await tiles(page).nth(1).focus();
+	await page.keyboard.press('ArrowRight');
+	const panel = page.getByRole('group', { name: 'Karta 2' });
+	await expect(panel.getByRole('button', { name: 'Nastavení 2. karty' })).toBeFocused();
+	await page.keyboard.press('End');
+	await page.keyboard.press('Enter');
+	await expect(panel.getByRole('button', { name: /^Opravdu smazat 2\. kartu/ })).toBeFocused();
+	await page.keyboard.press('Escape');
+	await expect(tiles(page).nth(1)).toBeFocused();
+	await expect(panel.getByRole('button', { name: 'Smazat 2. kartu', exact: true })).toBeVisible();
+	// A second Escape, on the tile, closes the panel.
+	await page.keyboard.press('Escape');
+	await expect(panel).toBeHidden();
+});
+
+test('Smazat on a card another card branches to asks where the pointers go', async ({ page }) => {
+	const before = await order(page);
+	// The second card is the target of a branch and of a prerequisite.
+	await tiles(page).nth(1).hover();
+	const panel = page.getByRole('group', { name: 'Karta 2' });
+	await panel.getByRole('button', { name: 'Smazat 2. kartu', exact: true }).click();
+	await panel.getByRole('button', { name: /^Opravdu smazat/ }).click();
+	const dialog = page.getByRole('dialog', { name: /Smazat kartu/ });
+	await expect(dialog).toBeVisible();
+	await expect(tiles(page)).toHaveCount(before.length);
+	await dialog.getByRole('button', { name: 'Zpět', exact: true }).click();
+	await expect(tiles(page)).toHaveCount(before.length);
+});
+
+test('keyboard: a focused tile shows its panel, → goes into the actions and Enter opens the settings', async ({ page }) => {
+	await tiles(page).nth(1).focus();
+	// Focus by keyboard (not the mouse) shows the panel at once.
+	await page.keyboard.press('ArrowRight');
+	await expect(page.getByRole('button', { name: 'Nastavení 2. karty', exact: true })).toBeFocused();
+	await page.keyboard.press('ArrowRight');
+	await expect(page.getByRole('button', { name: 'Duplikovat 2. kartu' })).toBeFocused();
+	await page.keyboard.press('ArrowLeft');
+	await page.keyboard.press('Enter');
+	await expect(page.getByRole('dialog', { name: 'Nastavení karty' })).toBeVisible();
+	await expect(tiles(page).nth(1)).toHaveAttribute('aria-current', 'true');
+});
+
+test('Shift+F10 on a tile opens its panel, and it stays until Escape', async ({ page }) => {
+	await tiles(page).nth(1).focus();
+	await page.keyboard.press('Shift+F10');
+	const panel = page.getByRole('group', { name: 'Karta 2' });
+	await expect(panel).toBeVisible();
+	await page.mouse.move(700, 400);
+	await expect(panel).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(tiles(page).nth(1)).toBeFocused();
+	await page.keyboard.press('Escape');
+	await expect(panel).toBeHidden();
+});
+
+test('running down the tiles moves one panel from tile to tile, and a drag opens none', async ({ page }) => {
+	await tiles(page).first().hover();
+	await expect(page.getByRole('group', { name: 'Karta 1' })).toBeVisible();
+	await tiles(page).nth(1).hover();
+	await expect(page.getByRole('group', { name: 'Karta 2' })).toBeVisible();
+	// Only ever one panel.
+	await expect(page.getByRole('group', { name: /^Karta \d+$/ })).toHaveCount(1);
+	await page.mouse.move(700, 400);
+	await expect(page.getByRole('group', { name: /^Karta \d+$/ })).toHaveCount(0);
+
+	const box = (await tiles(page).nth(0).boundingBox())!;
+	await page.mouse.move(box.x + 3, box.y + box.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(box.x + 3, box.y + box.height / 2 + 30, { steps: 6 });
+	await expect(page.getByRole('group', { name: /^Karta \d+$/ })).toHaveCount(0);
+	await page.mouse.up();
 });
 
 test('an error on a card is in its tile’s name, and a card without one says nothing', async ({ page }) => {
