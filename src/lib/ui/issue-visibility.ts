@@ -15,8 +15,10 @@
  *  - `review`    didactic advice. Never shown while editing; it is listed in the
  *                export review, and inline only once a review has happened.
  *
- * Once the author has tried to export (`reviewing`), everything is shown: they are
- * now fixing, not writing. None of this touches severity — errors still block the
+ * Once the author has looked at the export review, what that review listed is shown
+ * (`reviewed`, the keys of those issues): they are now fixing, not writing. An issue
+ * that comes up afterwards, on a card they have just added, keeps its own timing.
+ * None of this touches severity — errors still block the
  * file whether or not they are on screen (§3 invariant 5), and the export review
  * and validation panel always list every issue.
  */
@@ -117,8 +119,18 @@ export interface Touched {
 export const fieldKey = (ref: Ref): string =>
 	[ref.lessonId, ref.blockId, ref.stepId, ref.optionId, ref.field].map((p) => p ?? '').join('|');
 
-export function isVisible(issue: Issue, touched: Touched, reviewing: boolean): boolean {
-	if (reviewing) return true;
+/**
+ * The identity of an issue across edits: what it is and where. Its message is not
+ * part of it, since a message can carry a count that changes while the problem stays.
+ */
+export const issueKey = (issue: Pick<Issue, 'code' | 'ref'>): string => `${issue.code}|${fieldKey(issue.ref)}`;
+
+/**
+ * Whether an issue may be on screen. `reviewed` holds the keys of the issues the
+ * export review listed when it was opened, or is `null` while no review is pending.
+ */
+export function isVisible(issue: Issue, touched: Touched, reviewed: ReadonlySet<string> | null): boolean {
+	if (reviewed?.has(issueKey(issue))) return true;
 	switch (timingOf(issue)) {
 		case 'immediate':
 			return true;

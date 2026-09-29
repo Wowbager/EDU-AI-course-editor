@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { untrack } from "svelte";
     import type { CourseV2 } from "$lib/domain/schema";
     import Chip from "$lib/ui/Chip.svelte";
     import Segmented from "$lib/ui/Segmented.svelte";
@@ -100,6 +101,7 @@
         link.click();
         URL.revokeObjectURL(url);
         exportedJson = json;
+        store.endReview();
     }
 
     /**
@@ -114,10 +116,11 @@
         else reviewOpen = true;
     }
 
-    // Having seen the review, the author is fixing rather than writing: every issue
-    // may now show where it is (`ui/issue-visibility.ts`).
+    // Having seen the review, the author is fixing rather than writing: what it
+    // listed may now show where it is (`ui/issue-visibility.ts`). Untracked, or every
+    // edit would take a new snapshot and the review would list whatever is new too.
     $effect(() => {
-        if (reviewOpen) store.reviewing = true;
+        if (reviewOpen) untrack(() => store.beginReview());
     });
 
     /** Whether saving works, and whether the work has left the browser. */

@@ -6,6 +6,7 @@ import {
 	heldBack,
 	HELD_WITH_FEEDBACK,
 	isVisible,
+	issueKey,
 	TIMING,
 	timingOf,
 	type Touched
@@ -88,34 +89,61 @@ describe('isVisible', () => {
 	const noAlt = issue('W_IMAGE_NO_ALT', { blockId: 'B1', stepId: 's3', field: 'image.alt' }, 'warning');
 
 	it('keeps a card that is still being written quiet', () => {
-		for (const each of [noText, emptyAnswer, noAlt]) expect(isVisible(each, nothing, false)).toBe(false);
+		for (const each of [noText, emptyAnswer, noAlt]) expect(isVisible(each, nothing, null)).toBe(false);
 	});
 
 	it('shows a real contradiction at once', () => {
-		expect(isVisible(youtube, nothing, false)).toBe(true);
+		expect(isVisible(youtube, nothing, null)).toBe(true);
 	});
 
 	it('shows unfinished content once its card has been left', () => {
 		const left: Touched = { cards: new Set(['B1']), fields: new Set() };
-		expect(isVisible(noText, left, false)).toBe(true);
-		expect(isVisible(emptyAnswer, left, false)).toBe(true);
+		expect(isVisible(noText, left, null)).toBe(true);
+		expect(isVisible(emptyAnswer, left, null)).toBe(true);
 		// Another card being left says nothing about this one.
-		expect(isVisible(noText, { cards: new Set(['B2']), fields: new Set() }, false)).toBe(false);
+		expect(isVisible(noText, { cards: new Set(['B2']), fields: new Set() }, null)).toBe(false);
 	});
 
 	it('shows an unfinished field once that field has been left', () => {
 		const blurred: Touched = { cards: new Set(), fields: new Set([fieldKey(emptyAnswer.ref)]) };
-		expect(isVisible(emptyAnswer, blurred, false)).toBe(true);
+		expect(isVisible(emptyAnswer, blurred, null)).toBe(true);
 		// …and only that field: the card-level problem waits for the card.
-		expect(isVisible(noText, blurred, false)).toBe(false);
+		expect(isVisible(noText, blurred, null)).toBe(false);
 	});
 
 	it('keeps advice for the review, even on a card that was left', () => {
-		expect(isVisible(noAlt, { cards: new Set(['B1']), fields: new Set() }, false)).toBe(false);
+		expect(isVisible(noAlt, { cards: new Set(['B1']), fields: new Set() }, null)).toBe(false);
 	});
 
-	it('shows everything once the author has seen the review', () => {
-		for (const each of [noText, emptyAnswer, youtube, noAlt]) expect(isVisible(each, nothing, true)).toBe(true);
+	describe('after the export review has been opened', () => {
+		const all = [noText, emptyAnswer, youtube, noAlt];
+		const reviewed = new Set(all.map(issueKey));
+
+		it('shows what the review listed', () => {
+			for (const each of all) expect(isVisible(each, nothing, reviewed)).toBe(true);
+		});
+
+		it('keeps an issue that arose afterwards to its own timing', () => {
+			const newCard = issue('E_DISPLAY_NO_TEXT', { blockId: 'B9' });
+			const newAlt = issue('W_IMAGE_NO_ALT', { blockId: 'B9', stepId: 's1', field: 'image.alt' }, 'warning');
+			const newLink = issue('E_MEDIA_NOT_DIRECT', { blockId: 'B9', stepId: 's2', field: 'video.url' });
+			expect(isVisible(newCard, nothing, reviewed)).toBe(false);
+			expect(isVisible(newAlt, nothing, reviewed)).toBe(false);
+			expect(isVisible(newCard, { cards: new Set(['B9']), fields: new Set() }, reviewed)).toBe(true);
+			expect(isVisible(newLink, nothing, reviewed)).toBe(true);
+		});
+
+		it('recognises the same problem in the same place, whatever its message says', () => {
+			const reworded = { ...noText, message: 'jiný text' };
+			expect(isVisible(reworded, nothing, reviewed)).toBe(true);
+			// The same code somewhere else, or another code in the same place, is another issue.
+			expect(issueKey(issue('E_DISPLAY_NO_TEXT', { blockId: 'B2' }))).not.toBe(issueKey(noText));
+			expect(issueKey(issue('E_IMAGE_NO_URL', { blockId: 'B1' }))).not.toBe(issueKey(noText));
+		});
+
+		it('shows nothing early for an empty review', () => {
+			for (const each of [noText, emptyAnswer, noAlt]) expect(isVisible(each, nothing, new Set())).toBe(false);
+		});
 	});
 });
 
@@ -144,7 +172,7 @@ describe('a card is born quiet', () => {
 			expect(block.status, 'a new card carries no status').toBeUndefined();
 
 			const result = validate(doc, null);
-			const shown = [...result.errors, ...result.warnings].filter((i) => isVisible(i, nothing, false));
+			const shown = [...result.errors, ...result.warnings].filter((i) => isVisible(i, nothing, null));
 			expect(shown.map((i) => i.code)).toEqual([]);
 		});
 	}

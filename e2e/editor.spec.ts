@@ -228,6 +228,13 @@ test('unfinished content stays quiet until the card is left, and the review show
 	await page.keyboard.press('Escape');
 	await expect(check).not.toContainText('k dokončení');
 	await expect(check.locator('.chip.error')).toBeVisible();
+
+	// What the review listed is now to fix, but a card added afterwards is a new
+	// draft like any other, not red at birth.
+	await page.locator('.tree-add').getByRole('button', { name: 'Otázka', exact: true }).click();
+	await expect(page.locator('.tree-card')).toHaveCount(4);
+	await expect(page.locator('.tree-card').first().locator('.chip.error')).toBeVisible();
+	await expect(page.locator('.tree-card').nth(3).locator('.chip.error')).toHaveCount(0);
 });
 
 test('an imported course with problems says so once, calmly', async ({ page }) => {

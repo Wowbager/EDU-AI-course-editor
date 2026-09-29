@@ -280,3 +280,43 @@ describe('editing a card two lessons share', () => {
 		expect(store.selection?.lessonId).toBeUndefined();
 	});
 });
+
+describe('the export review', () => {
+	function unfinished() {
+		const store = new DocStore();
+		store.apply((d, r) => addLesson(d, 'První', r));
+		const lesson = store.doc.lessons[0].lesson_id;
+		store.apply((d, r) => addBlock(d, lesson, 'display', undefined, r));
+		return { store, lesson };
+	}
+	const shownCodes = (store: DocStore) => store.shown.errors.map((i) => i.code);
+
+	it('shows what it listed, and only that, until the course is downloaded', () => {
+		const { store, lesson } = unfinished();
+		expect(shownCodes(store)).not.toContain('E_DISPLAY_NO_TEXT');
+		store.beginReview();
+		expect(store.reviewing).toBe(true);
+		expect(shownCodes(store)).toContain('E_DISPLAY_NO_TEXT');
+		// A card added while fixing is unfinished like any new card, not red at birth.
+		const added = store.apply((d, r) => addBlock(d, lesson, 'display', undefined, r)).ref!.blockId;
+		const at = (blockId: string | undefined) => store.shown.errors.filter((i) => i.ref.blockId === blockId);
+		expect(store.validation.errors.some((i) => i.ref.blockId === added)).toBe(true);
+		expect(at(added)).toEqual([]);
+	});
+
+	it('stops showing it early once the course has been downloaded', () => {
+		const { store } = unfinished();
+		store.beginReview();
+		expect(shownCodes(store)).toContain('E_DISPLAY_NO_TEXT');
+		store.endReview();
+		expect(store.reviewing).toBe(false);
+		expect(shownCodes(store)).not.toContain('E_DISPLAY_NO_TEXT');
+	});
+
+	it('is forgotten when another course is loaded', () => {
+		const { store } = unfinished();
+		store.beginReview();
+		store.load(emptyCourse('NEW', 'Nový kurz'));
+		expect(store.reviewing).toBe(false);
+	});
+});
