@@ -36,6 +36,21 @@ test('unblurred feedback survives reload even when export is blocked', async ({ 
 	expect(errors).toEqual([]);
 });
 
+test('a restored draft says so quietly, once, and does not repeat the count', async ({ page }) => {
+	await page.locator('.cm-content').first().click();
+	await page.keyboard.type('Zlomek');
+	await expect(saved(page)).toBeVisible();
+	await page.reload();
+	// The top bar already counts what is left; the banner is for a file just loaded.
+	await expect(page.getByRole('button', { name: /^Kontrola kurzu: / })).toBeVisible();
+	await expect(page.locator('.banner.unfinished')).toHaveCount(0);
+	const notice = page.locator('.recovery');
+	await expect(notice).toContainText('Obnoven koncept uložený v tomto prohlížeči.');
+	await expect(notice).not.toHaveClass(/stuck/);
+	// It has no button to press, so it goes by itself.
+	await expect(notice).toHaveCount(0, { timeout: 15_000 });
+});
+
 test('typing groups undo, Escape cancels, and redo is saved', async ({ page }) => {
 	const field = page.getByRole('textbox', { name: 'Název kurzu', exact: true });
 	await field.click({ position: { x: 3, y: 4 } });

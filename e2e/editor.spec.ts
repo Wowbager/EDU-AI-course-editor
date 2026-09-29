@@ -282,9 +282,10 @@ test('an imported course with problems says so once, calmly', async ({ page }) =
 	await importCourse(page, 'spec-16-course-broken.json');
 	const banner = page.locator('.banner.unfinished');
 	await expect(banner).toContainText('k dokončení');
+	// It leads to the same list the top bar's count opens, not to the download review.
 	await banner.getByRole('button', { name: 'Zobrazit' }).click();
-	await expect(page.getByRole('dialog', { name: 'Než kurz stáhneš' })).toBeVisible();
-	await page.keyboard.press('Escape');
+	await expect(page.getByRole('complementary', { name: 'Kontrola kurzu' })).toBeVisible();
+	await expect(page.getByRole('dialog', { name: 'Než kurz stáhneš' })).toHaveCount(0);
 	// Seen: the banner has done its job.
 	await expect(banner).toHaveCount(0);
 });
