@@ -1,7 +1,19 @@
-# Type check and unit tests on every push to main and every PR, so a commit that
-# breaks them shows up before anyone builds on it. The e2e suite runs locally only
-# (AGENTS.md → "Before you push"): it is slow, and without the Flutter player it
-# would skip the preview suites anyway.
+# Everything that can run without a Flutter toolchain, on every push to main and
+# every PR, so a commit that breaks it shows up before anyone builds on it:
+# the type check, the unit tests, and the `editor` Playwright project.
+#
+# The `editor` project is every suite about the editor (12 files, ~113 tests) with a
+# fake player in the preview column, so it needs no player build — `vite build` and
+# the run both succeed with `PLAYER_BUILD` pointing nowhere. It used to be excluded
+# along with the `player` project, which was one job then and skipped the preview
+# suites without Flutter anyway. The projects are separate now, and this half is the
+# clicky layer (`check` and `npm test` cannot see a broken label or a lost focus),
+# which is what the round-9 commits kept fixing by hand.
+#
+# What stays local: the `player` project (`e2e/preview*.spec.ts`, the real Flutter
+# build, ~11 MB of JS and several MB of wasm per page). It skips without a build;
+# `REQUIRE_PLAYER=1` turns that skip into a failure, and it is the flag to use when
+# the preview itself is what changed. See AGENTS.md → Checks.
 name: CI
 
 on:
@@ -25,3 +37,28 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm test
+
+  # The editor's own clicky behaviour, in a real browser. Separate from `check` so a
+  # slow browser job never hides a type error, and so the two can be read apart.
+  # No `REQUIRE_PLAYER` here: a missing player build is the intended state on a
+  # runner, and the `player` project skipping is correct.
+  e2e-editor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # The distro's Chromium dependencies, then the browser.
+      - run: npx playwright install --with-deps chromium
+      # playwright.config.ts builds the editor itself (`npm run build && npm run
+      # preview` on 5178) unless E2E_DEV is set, so there is nothing to start here.
+      - run: npx playwright test --project=editor
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

@@ -48,7 +48,10 @@ npm test               # vitest: the domain invariants
 npm run test:e2e       # Playwright, against the built editor on port 5178
 ```
 
-CI runs `check` and `npm test`. The e2e suite is yours to run.
+CI runs `check`, `npm test` and `test:e2e -- --project=editor`. The `editor` project needs
+no Flutter build, so it is a real gate on every push and PR. The `player` project is
+yours to run, and so is `REQUIRE_PLAYER=1` — the one thing CI cannot check is the
+preview itself, because the runner has no player.
 
 - Two Playwright projects: `editor` (every suite about the editor, with a fake player
   from `e2e/fixtures.ts`) and `player` (`e2e/preview*.spec.ts`, the real Flutter build,
