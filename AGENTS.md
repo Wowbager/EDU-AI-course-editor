@@ -139,3 +139,28 @@ Every UX or architecture decision goes in `docs/DECISIONS.md` under the current 
 with what was rejected. Every defect you find and don't fix goes in
 `docs/OPEN-PROBLEMS.md`, with whether it was reproduced. Work in progress is fine;
 burying problems is not.
+
+**Every change carries something back, and a reason for not testing is itself a claim
+that expires.** A fix arrives with one of:
+
+- a test that fails without it (the ordinary case, and rule 4 above);
+- an `OPEN-PROBLEMS.md` entry, if it is app-side or cannot be tested from here — the
+  player is a repository this project cannot push to, and #40 is the example: production
+  `nginx.conf` is reached by no test, so the gap is written down rather than implied.
+
+The second half is the part that keeps getting missed. When a check is *deliberately*
+not run, the reason for that is a statement about the world at the time — and the world
+moves. Two working examples, both of which cost a round:
+
+- CI ran only `check` and `npm test` because "without the Flutter player it would skip
+  the preview suites anyway" (`3e5c0d0`, Sep 26). True of one Playwright project; false
+  once `playwright.config.ts` split `editor` from `player`, and nobody re-read it while
+  round 9 kept fixing clicky bugs by hand. The `editor` project is a CI job now.
+- The workspace instructions told agents to follow a design brief that only existed on an
+  unmerged branch (`OPEN-PROBLEMS.md` #39, 2026-09-30): a proposal consumed as settled.
+
+So: when you touch the thing a documented reason is about — a test config, a skip
+condition, a file the instructions point at — re-read the reason in the same commit. If
+it no longer holds, the commit that invalidates it is the commit that fixes it. A reason
+that has stopped being true reads exactly like one that is still true, which is why
+nothing else catches this.
