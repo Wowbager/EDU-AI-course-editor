@@ -21,7 +21,10 @@ export function workspaceKey(): string | null {
 		const existing = localStorage.getItem(KEY_STORAGE);
 		if (existing !== null && /^[A-Za-z0-9_-]{43}$/.test(existing)) return existing;
 		const bytes = crypto.getRandomValues(new Uint8Array(32));
-		const key = btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+		const key = btoa(String.fromCharCode(...bytes))
+			.replace(/\+/g, '-')
+			.replace(/\//g, '_')
+			.replace(/=+$/, '');
 		localStorage.setItem(KEY_STORAGE, key);
 		return key;
 	} catch {

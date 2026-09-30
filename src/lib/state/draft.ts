@@ -9,11 +9,20 @@ export const draftSchema = z.object({
 	mode: z.enum(['teacher', 'metodik', 'advanced']),
 	/** Absent in drafts from before the Zpětná vazba toggle, which showed everything. */
 	feedbackVisible: z.boolean().optional(),
-	selection: z.object({
-		lessonId: z.string().optional(), blockId: z.string().optional(),
-		stepId: z.string().optional(), optionId: z.string().optional(), field: z.string().optional()
-	}).nullable(),
-	reserved: z.object({ blocks: z.array(z.string()), lessons: z.array(z.string()), steps: z.array(z.string()) })
+	selection: z
+		.object({
+			lessonId: z.string().optional(),
+			blockId: z.string().optional(),
+			stepId: z.string().optional(),
+			optionId: z.string().optional(),
+			field: z.string().optional()
+		})
+		.nullable(),
+	reserved: z.object({
+		blocks: z.array(z.string()),
+		lessons: z.array(z.string()),
+		steps: z.array(z.string())
+	})
 });
 export type Draft = z.infer<typeof draftSchema>;
 

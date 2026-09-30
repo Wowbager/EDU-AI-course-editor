@@ -50,12 +50,16 @@ test('a card is grabbed by its padding, and Zpět puts it back', async ({ page }
 			await page.mouse.move(from.x, to);
 			return page
 				.locator('.cards > li')
-				.evaluateAll((items) => items.findIndex((li) => li.hasAttribute('data-is-dnd-shadow-item-internal')));
+				.evaluateAll((items) =>
+					items.findIndex((li) => li.hasAttribute('data-is-dnd-shadow-item-internal'))
+				);
 		})
 		.toBe(2);
 	await page.mouse.up();
 
-	await expect.poll(() => order(page)).toEqual([before[1], before[2], before[0], ...before.slice(3)]);
+	await expect
+		.poll(() => order(page))
+		.toEqual([before[1], before[2], before[0], ...before.slice(3)]);
 	await expect(undo).toBeEnabled();
 
 	await undo.click();
@@ -95,7 +99,9 @@ test('Alt+ArrowDown moves the focused card down and keeps it focused', async ({ 
 	await expect(cards(page).nth(1)).toBeFocused();
 	// Again, then back up: the card is still the one being moved.
 	await page.keyboard.press('Alt+ArrowDown');
-	await expect.poll(() => order(page)).toEqual([before[1], before[2], before[0], ...before.slice(3)]);
+	await expect
+		.poll(() => order(page))
+		.toEqual([before[1], before[2], before[0], ...before.slice(3)]);
 	await expect(cards(page).nth(2)).toBeFocused();
 	await page.keyboard.press('Alt+ArrowUp');
 	await expect.poll(() => order(page)).toEqual([before[1], before[0], ...before.slice(2)]);
@@ -114,15 +120,26 @@ test('Alt+ArrowUp on the first card changes nothing and is not an edit', async (
 });
 
 /** A row's four actions are its own siblings, faded in on hover and on the selected row. */
-const actionsOf = (page: Page, position: number) => page.locator('.cards > li').nth(position - 1).locator('.tree-actions');
+const actionsOf = (page: Page, position: number) =>
+	page
+		.locator('.cards > li')
+		.nth(position - 1)
+		.locator('.tree-actions');
 
-test('a row shows its four actions on hover and on the selected row, and only there', async ({ page }) => {
+test('a row shows its four actions on hover and on the selected row, and only there', async ({
+	page
+}) => {
 	await expect(actionsOf(page, 1)).toHaveCSS('opacity', '1');
 	await expect(actionsOf(page, 2)).toHaveCSS('opacity', '0');
 	await cards(page).nth(1).hover();
 	await expect(actionsOf(page, 2)).toHaveCSS('opacity', '1');
 	const row = actionsOf(page, 2);
-	for (const name of ['Nastavení 2. karty', 'Duplikovat 2. kartu', 'Odebrat 2. kartu z lekce', 'Smazat 2. kartu']) {
+	for (const name of [
+		'Nastavení 2. karty',
+		'Duplikovat 2. kartu',
+		'Odebrat 2. kartu z lekce',
+		'Smazat 2. kartu'
+	]) {
 		await expect(row.getByRole('button', { name, exact: true })).toBeVisible();
 	}
 	// Not inside the row that is a button, so a press on one cannot grab the card.
@@ -151,7 +168,9 @@ test('a row’s Duplikovat selects the copy, and its Smazat takes two clicks', a
 	await expect(cards(page).nth(3)).toHaveClass(/selected/);
 });
 
-test('keyboard: → on a row goes into its actions, Enter on Nastavení opens the dialog, Escape comes back', async ({ page }) => {
+test('keyboard: → on a row goes into its actions, Enter on Nastavení opens the dialog, Escape comes back', async ({
+	page
+}) => {
 	await cards(page).nth(1).focus();
 	await page.keyboard.press('ArrowRight');
 	const settings = page.getByRole('button', { name: 'Nastavení 2. karty', exact: true });
@@ -179,7 +198,9 @@ test('a card is still grabbed by its padding while the pointer is on its row', a
 			await page.mouse.move(box.x + 3, box.y - 4);
 			return page
 				.locator('.cards > li')
-				.evaluateAll((items) => items.findIndex((li) => li.hasAttribute('data-is-dnd-shadow-item-internal')));
+				.evaluateAll((items) =>
+					items.findIndex((li) => li.hasAttribute('data-is-dnd-shadow-item-internal'))
+				);
 		})
 		.toBe(0);
 	await page.mouse.up();
@@ -190,7 +211,9 @@ test('a card is still grabbed by its padding while the pointer is on its row', a
  * A lesson deleted from its own settings: two more lessons are added so there is a
  * neighbour to move to, and the first lesson's settings are opened from its row.
  */
-test('deleting a lesson from its settings says so, moves on, and Vrátit zpět brings it back', async ({ page }) => {
+test('deleting a lesson from its settings says so, moves on, and Vrátit zpět brings it back', async ({
+	page
+}) => {
 	const doc = JSON.parse(fixture);
 	doc.lessons.push(
 		{ lesson_id: 'L2', version: 1, name: 'Druhá lekce', order: 2, blocks: [] },
@@ -224,7 +247,9 @@ test('deleting a lesson from its settings says so, moves on, and Vrátit zpět b
 	await expect(rows.nth(0)).toHaveClass(/selected/);
 });
 
-test('a lesson without a name reads "Lekce 1" in the tree and the rail, never its id', async ({ page }) => {
+test('a lesson without a name reads "Lekce 1" in the tree and the rail, never its id', async ({
+	page
+}) => {
 	const doc = JSON.parse(fixture);
 	const id = doc.lessons[0].lesson_id;
 	delete doc.lessons[0].name;

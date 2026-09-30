@@ -9,7 +9,8 @@ import { resolveOwner, WORKSPACE_HEADER } from '../versions/owner';
 
 const OWNER = `ws_${'a'.repeat(64)}`;
 const now = new Date('2026-09-26T10:00:00Z');
-const version = (n: number, name = 'Kurz') => snapshot({ ...emptyCourse('KURZ_X', name), lessons: [] }, n, now);
+const version = (n: number, name = 'Kurz') =>
+	snapshot({ ...emptyCourse('KURZ_X', name), lessons: [] }, n, now);
 
 let root: string;
 let files: VersionFiles;
@@ -32,7 +33,11 @@ const status = async (work: Promise<unknown>) => {
 describe('versions on the server', () => {
 	it('stores, lists and returns a version', async () => {
 		await files.put(OWNER, 'KURZ_X', version(1));
-		await files.setPublished(OWNER, 'KURZ_X', { version: 1, visibility: 'public', at: now.toISOString() });
+		await files.setPublished(OWNER, 'KURZ_X', {
+			version: 1,
+			visibility: 'public',
+			at: now.toISOString()
+		});
 		const index = await files.index(OWNER, 'KURZ_X');
 		expect(index.versions.map((v) => v.version)).toEqual([1]);
 		expect(index.published).toMatchObject({ version: 1, visibility: 'public' });
@@ -65,15 +70,23 @@ describe('versions on the server', () => {
 		expect(await status(files.put(OWNER, 'KURZ_X', { ...good, hash: '0'.repeat(16) }))).toBe(400);
 		expect(await status(files.put(OWNER, 'KURZ_X', { ...good, version: 3 }))).toBe(400);
 		expect(await status(files.put(OWNER, 'OTHER', good))).toBe(400);
-		expect(await status(files.put(OWNER, 'KURZ_X', { ...good, doc: { not: 'a course' } }))).toBe(400);
-		expect(await status(files.setPublished(OWNER, 'KURZ_X', { version: 1, visibility: 'everyone', at: 'x' }))).toBe(400);
+		expect(await status(files.put(OWNER, 'KURZ_X', { ...good, doc: { not: 'a course' } }))).toBe(
+			400
+		);
+		expect(
+			await status(
+				files.setPublished(OWNER, 'KURZ_X', { version: 1, visibility: 'everyone', at: 'x' })
+			)
+		).toBe(400);
 		// Nothing half-written was left behind.
 		expect(await readdir(root).catch(() => [])).toEqual([]);
 	});
 
 	it('does not interleave two writes to one course', async () => {
 		await Promise.all([1, 2, 3, 4, 5].map((n) => files.put(OWNER, 'KURZ_X', version(n))));
-		expect((await files.index(OWNER, 'KURZ_X')).versions.map((v) => v.version)).toEqual([1, 2, 3, 4, 5]);
+		expect((await files.index(OWNER, 'KURZ_X')).versions.map((v) => v.version)).toEqual([
+			1, 2, 3, 4, 5
+		]);
 	});
 });
 

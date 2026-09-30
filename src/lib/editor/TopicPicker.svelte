@@ -73,9 +73,7 @@
 	const setElo = (index: number, elo: number) =>
 		commit(
 			topics.map((t) =>
-				t.dimensionIndex === index
-					? { ...t, elo: Math.min(ELO_MAX, Math.max(ELO_MIN, elo)) }
-					: t
+				t.dimensionIndex === index ? { ...t, elo: Math.min(ELO_MAX, Math.max(ELO_MIN, elo)) } : t
 			)
 		);
 
@@ -183,13 +181,15 @@
 			</select>
 			<Button variant="ghost" size="s" onclick={() => (adding = false)}>Zrušit</Button>
 		{:else}
-			<Button variant="secondary" size="s" onclick={() => (adding = true)}>+ Přidat dovednost</Button>
+			<Button variant="secondary" size="s" onclick={() => (adding = true)}
+				>+ Přidat dovednost</Button
+			>
 		{/if}
 
 		<p class="help">
-			Drž to střídmě: většina karet má jednu dvě silné vazby. Karta, která tvrdí silnou vazbu
-			k osmi dovednostem, rozmělní jednu odpověď žáka do osmi hodnocení. Obtížnost je na
-			stupnici {ELO_MIN}–{ELO_MAX}; žák začíná na {ELO_BASELINE}.
+			Drž to střídmě: většina karet má jednu dvě silné vazby. Karta, která tvrdí silnou vazbu k osmi
+			dovednostem, rozmělní jednu odpověď žáka do osmi hodnocení. Obtížnost je na stupnici {ELO_MIN}–{ELO_MAX};
+			žák začíná na {ELO_BASELINE}.
 		</p>
 	{/if}
 </section>
@@ -317,8 +317,6 @@
 		font: var(--type-meta);
 		color: var(--e-text);
 	}
-
-
 
 	.help {
 		margin: 2px 0 0;

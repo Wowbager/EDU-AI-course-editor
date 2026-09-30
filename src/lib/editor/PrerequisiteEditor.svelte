@@ -44,7 +44,10 @@
 
 	/** A rule names a block or a skill, never both — picking one clears the other. */
 	function pickBlock(index: number, blockId: string) {
-		update(index, blockId === '' ? { block_id: undefined } : { block_id: blockId, skill: undefined });
+		update(
+			index,
+			blockId === '' ? { block_id: undefined } : { block_id: blockId, skill: undefined }
+		);
 	}
 	function pickSkill(index: number, skill: string) {
 		update(index, skill === '' ? { skill: undefined } : { skill, block_id: undefined });
@@ -172,6 +175,4 @@
 	.rule button:hover {
 		color: var(--e-error);
 	}
-
-
 </style>

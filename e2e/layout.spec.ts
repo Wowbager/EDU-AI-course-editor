@@ -46,7 +46,9 @@ test('AltGr+B (Ctrl+Alt+B) does not fold the panel', async ({ page }) => {
 	await expect(fold(page)).toBeVisible();
 });
 
-test('Ctrl+B while typing is left to the text, and Ctrl+Shift+B still works there', async ({ page }) => {
+test('Ctrl+B while typing is left to the text, and Ctrl+Shift+B still works there', async ({
+	page
+}) => {
 	await openEditor(page);
 	await expect(fold(page)).toBeVisible();
 
@@ -75,15 +77,23 @@ test('Ctrl+B while typing is left to the text, and Ctrl+Shift+B still works ther
 	await expect(unfold(page)).toBeVisible();
 });
 
-test('another tab does not see a layout change as a conflicting edit', async ({ page, context }) => {
+test('another tab does not see a layout change as a conflicting edit', async ({
+	page,
+	context
+}) => {
 	await openEditor(page);
 	// The first tab saves its new course once on open. Opening the second tab before
 	// that lands would make the save, not the layout, the conflicting edit.
-	await expect(page.getByRole('button', { name: /^Koncept uložen v tomto prohlížeči\./ })).toBeVisible();
+	await expect(
+		page.getByRole('button', { name: /^Koncept uložen v tomto prohlížeči\./ })
+	).toBeVisible();
 	const other = await context.newPage();
 	await openEditor(other);
 	const heard = other.evaluate(
-		() => new Promise<string | null>((resolve) => addEventListener('storage', (e) => resolve(e.key), { once: true }))
+		() =>
+			new Promise<string | null>((resolve) =>
+				addEventListener('storage', (e) => resolve(e.key), { once: true })
+			)
 	);
 	await page.keyboard.press('Control+b');
 	expect(await heard).toBe('edu-editor:ui:v1');
@@ -111,8 +121,12 @@ const hide = (page: Page) => page.getByRole('button', { name: 'Skrýt náhled' }
 const show = (page: Page) => page.getByRole('button', { name: 'Ukázat náhled' });
 const booted = (page: Page) => page.locator('aside.preview');
 const sent = async (page: Page, type: string) =>
-	(await player(page).elementHandle().then((h) => h!.contentFrame()))!.evaluate(
-		(t) => (window as unknown as { received: { type: string }[] }).received.filter((m) => m.type === t).length,
+	(await player(page)
+		.elementHandle()
+		.then((h) => h!.contentFrame()))!.evaluate(
+		(t) =>
+			(window as unknown as { received: { type: string }[] }).received.filter((m) => m.type === t)
+				.length,
 		type
 	);
 
@@ -157,7 +171,9 @@ test('a preview remembered as folded boots no player until it is opened', async 
 	await expect(hide(page)).toBeFocused();
 });
 
-test('Ctrl+Shift+B folds and opens the preview, and the choice survives a reload', async ({ page }) => {
+test('Ctrl+Shift+B folds and opens the preview, and the choice survives a reload', async ({
+	page
+}) => {
 	await openEditor(page);
 	await expect(hide(page)).toBeVisible();
 	await page.keyboard.press('Control+Shift+B');
@@ -170,13 +186,17 @@ test('Ctrl+Shift+B folds and opens the preview, and the choice survives a reload
 	await expect(page.locator('aside.preview.collapsed')).toHaveCount(0);
 });
 
-test('the preview header has no chip while the player runs, and names the states that need attention', async ({ page }) => {
+test('the preview header has no chip while the player runs, and names the states that need attention', async ({
+	page
+}) => {
 	await openEditor(page);
 	await expect(booted(page)).toHaveAttribute('data-player', 'ready');
 	await expect(page.locator('aside.preview header .chip')).toHaveCount(0);
 });
 
-test('a player that never starts shows "spouští se…", then "přehrávač neběží"', async ({ page }) => {
+test('a player that never starts shows "spouští se…", then "přehrávač neběží"', async ({
+	page
+}) => {
 	await page.route('**/player/**', (route) =>
 		route.fulfill({ contentType: 'text/html; charset=utf-8', body: '<!doctype html><p>silent</p>' })
 	);
@@ -193,7 +213,9 @@ test('a player that never starts shows "spouští se…", then "přehrávač neb
 	await expect(preview.getByText('přehrávač neběží')).toBeVisible();
 });
 
-test('a folded preview does not run the boot watchdog, and opening it starts a fresh one', async ({ page }) => {
+test('a folded preview does not run the boot watchdog, and opening it starts a fresh one', async ({
+	page
+}) => {
 	// A player that never announces itself.
 	await page.route('**/player/**', (route) =>
 		route.fulfill({ contentType: 'text/html; charset=utf-8', body: '<!doctype html><p>silent</p>' })

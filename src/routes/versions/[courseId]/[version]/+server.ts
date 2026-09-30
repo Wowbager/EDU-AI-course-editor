@@ -6,7 +6,11 @@ import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = ({ request, params }) =>
 	answer(async () => {
-		const found = await versionFiles().get(ownerOf(request), params.courseId, Number(params.version));
+		const found = await versionFiles().get(
+			ownerOf(request),
+			params.courseId,
+			Number(params.version)
+		);
 		if (found === null) error(404, 'Verze nenalezena.');
 		return found;
 	});

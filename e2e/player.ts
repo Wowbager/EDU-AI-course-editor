@@ -74,7 +74,10 @@ export async function press(page: Page, target: Locator) {
 		}
 		await page.mouse.move(frame.x + frame.width / 2, frame.y + frame.height / 2);
 		const distance = y - (frame.y + frame.height / 2);
-		await page.mouse.wheel(0, Math.sign(distance) * Math.min(Math.abs(distance), frame.height * 0.8));
+		await page.mouse.wheel(
+			0,
+			Math.sign(distance) * Math.min(Math.abs(distance), frame.height * 0.8)
+		);
 		// The accessibility layer moves with the next painted frame; inspect waits for it.
 		await inspect(page);
 	}
@@ -103,7 +106,8 @@ export async function recordMessages(page: Page) {
 	const log: Logged[] = [];
 	await page.exposeBinding('__recordPreview', (_source, direction: Direction, data: string) => {
 		const message = JSON.parse(data);
-		if (message.type !== 'inspect' && message.type !== 'inspected') log.push({ direction, message });
+		if (message.type !== 'inspect' && message.type !== 'inspected')
+			log.push({ direction, message });
 	});
 	await page.addInitScript(() => {
 		const record = (window as unknown as { __recordPreview: (d: string, m: string) => void })
@@ -111,7 +115,8 @@ export async function recordMessages(page: Page) {
 		addEventListener('message', (event) => {
 			if (typeof event.data !== 'string') return;
 			if (window === window.top) {
-				if (event.source === document.querySelector('iframe')?.contentWindow) record('up', event.data);
+				if (event.source === document.querySelector('iframe')?.contentWindow)
+					record('up', event.data);
 			} else if (event.source === window.parent) {
 				record('down', event.data);
 			}

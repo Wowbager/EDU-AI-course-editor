@@ -117,12 +117,16 @@ export class VersionStore {
 			}
 		}
 		// A save that finished while this load was reading is not in what it read.
-		for (const saved of this.versions) if (!merged.has(saved.version)) merged.set(saved.version, saved);
+		for (const saved of this.versions)
+			if (!merged.has(saved.version)) merged.set(saved.version, saved);
 		this.unavailable = found.filter((f) => f.index === null).map((f) => f.backend.name);
 		this.versions = [...merged.values()].sort((a, b) => a.version - b.version);
 		this.published = published;
 		this.loading = false;
-		void this.#spread(courseId, found.filter((f) => f.index !== null).map((f) => f.backend));
+		void this.#spread(
+			courseId,
+			found.filter((f) => f.index !== null).map((f) => f.backend)
+		);
 	}
 
 	/** Copy each version, and the publication, to every reachable backend lacking it. */
@@ -144,7 +148,8 @@ export class VersionStore {
 		}
 		const publication = this.published;
 		if (publication !== null) {
-			for (const backend of reachable) await backend.setPublished(courseId, publication).catch(() => {});
+			for (const backend of reachable)
+				await backend.setPublished(courseId, publication).catch(() => {});
 		}
 	}
 
@@ -168,7 +173,11 @@ export class VersionStore {
 	 * Freeze the working copy as the next version. A number another tab took in the
 	 * meantime is skipped rather than overwritten.
 	 */
-	async save(doc: CourseV2, note?: string, extra: Pick<VersionMeta, 'origin' | 'restoredFrom'> = {}) {
+	async save(
+		doc: CourseV2,
+		note?: string,
+		extra: Pick<VersionMeta, 'origin' | 'restoredFrom'> = {}
+	) {
 		const plain = $state.snapshot(doc) as CourseV2;
 		for (let attempt = 0; attempt < 5; attempt++) {
 			const number = this.next(plain) + attempt;
@@ -176,9 +185,10 @@ export class VersionStore {
 			try {
 				const keptIn = await this.#write(version);
 				const { doc: _doc, ...meta } = version;
-				this.versions = [...this.versions.filter((v) => v.version !== number), { ...meta, keptIn }].sort(
-					(a, b) => a.version - b.version
-				);
+				this.versions = [
+					...this.versions.filter((v) => v.version !== number),
+					{ ...meta, keptIn }
+				].sort((a, b) => a.version - b.version);
 				return version;
 			} catch (error) {
 				if (!(error instanceof VersionConflict)) throw error;
@@ -221,11 +231,14 @@ export class VersionStore {
 		let number = plan.version;
 		let frozen = source;
 		if (plan.kind === 'republish') {
-			frozen = await this.save(source.doc, `Znovu zveřejněná verze ${plan.from}`, { restoredFrom: plan.from });
+			frozen = await this.save(source.doc, `Znovu zveřejněná verze ${plan.from}`, {
+				restoredFrom: plan.from
+			});
 			number = frozen.version;
 		}
 		const publication: Publication = { version: number, visibility, at: this.#now().toISOString() };
-		for (const backend of this.#backends) await backend.setPublished(courseId, publication).catch(() => {});
+		for (const backend of this.#backends)
+			await backend.setPublished(courseId, publication).catch(() => {});
 		this.published = publication;
 		return publishedDocument(frozen, number, visibility);
 	}

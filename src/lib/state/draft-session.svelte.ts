@@ -9,7 +9,9 @@ export class DraftSession {
 	#timer: ReturnType<typeof setTimeout> | undefined;
 	#store: DocStore;
 
-	constructor(store: DocStore) { this.#store = store; }
+	constructor(store: DocStore) {
+		this.#store = store;
+	}
 
 	restore(): boolean {
 		try {
@@ -27,7 +29,8 @@ export class DraftSession {
 			return true;
 		} catch {
 			this.status = 'blocked';
-			this.message = 'Uložený koncept nelze načíst nebo úložiště není dostupné. Původní data nebyla přepsána.';
+			this.message =
+				'Uložený koncept nelze načíst nebo úložiště není dostupné. Původní data nebyla přepsána.';
 			return false;
 		}
 	}
@@ -49,10 +52,17 @@ export class DraftSession {
 			}
 			const store = this.#store;
 			const draft: Draft = {
-				format: 1, savedAt: new Date().toISOString(), doc: store.source, mode: store.mode,
+				format: 1,
+				savedAt: new Date().toISOString(),
+				doc: store.source,
+				mode: store.mode,
 				feedbackVisible: store.showFeedback,
 				selection: store.selection,
-				reserved: { blocks: [...store.reservations.blocks], lessons: [...store.reservations.lessons], steps: [...store.reservations.steps] }
+				reserved: {
+					blocks: [...store.reservations.blocks],
+					lessons: [...store.reservations.lessons],
+					steps: [...store.reservations.steps]
+				}
 			};
 			const text = JSON.stringify(draft);
 			localStorage.setItem(DRAFT_KEY, text);
@@ -60,14 +70,16 @@ export class DraftSession {
 			this.status = 'saved';
 		} catch {
 			this.status = 'error';
-			this.message = 'Koncept se nepodařilo uložit. Nezavírej tuto kartu; úložiště může být plné nebo zakázané.';
+			this.message =
+				'Koncept se nepodařilo uložit. Nezavírej tuto kartu; úložiště může být plné nebo zakázané.';
 		}
 	}
 
 	conflict() {
 		clearTimeout(this.#timer);
 		this.status = 'blocked';
-		this.message = 'Koncept v úložišti se změnil v jiné kartě. Automatické ukládání je pozastaveno, aby se práce nepřepsala.';
+		this.message =
+			'Koncept v úložišti se změnil v jiné kartě. Automatické ukládání je pozastaveno, aby se práce nepřepsala.';
 	}
 
 	/** Explicitly archive the old record before authorizing replacement. */
@@ -84,5 +96,7 @@ export class DraftSession {
 		}
 	}
 
-	dispose() { clearTimeout(this.#timer); }
+	dispose() {
+		clearTimeout(this.#timer);
+	}
 }

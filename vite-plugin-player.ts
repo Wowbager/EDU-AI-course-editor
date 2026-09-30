@@ -72,7 +72,9 @@ function warnAboutBuild(root: string, logger: Logger) {
 	) {
 		// Built without the flag, the player fetches CanvasKit from gstatic, and one
 		// aborted request there leaves the preview empty.
-		logger.warn(`[player] ${root} loads CanvasKit from a CDN. Rebuild it with --no-web-resources-cdn.`);
+		logger.warn(
+			`[player] ${root} loads CanvasKit from a CDN. Rebuild it with --no-web-resources-cdn.`
+		);
 	}
 }
 

@@ -71,7 +71,11 @@
 		const next = vectorOf(relation, 0);
 		next[index] = value;
 		const topics = next
-			.map((relationValue, i) => ({ dimensionIndex: i, relation: relationValue, elo: elo?.[i] ?? ELO_BASELINE }))
+			.map((relationValue, i) => ({
+				dimensionIndex: i,
+				relation: relationValue,
+				elo: elo?.[i] ?? ELO_BASELINE
+			}))
 			.filter((t): t is BlockTopic => t.relation === 1 || t.relation === 2);
 		// Routed through `setTopics` rather than written directly: it is the one place
 		// that guarantees every live relation also carries a difficulty. Without one,
@@ -109,9 +113,9 @@
 
 	{#if open && count !== null}
 		<p class="help">
-			Drž to střídmě: většina karet má jednu dvě silné vazby. Karta, která tvrdí silnou vazbu
-			k osmi dovednostem, rozmělní jednu odpověď žáka do osmi hodnocení.
-			Obtížnost je na stupnici 1–10; žák začíná na {ELO_BASELINE}.
+			Drž to střídmě: většina karet má jednu dvě silné vazby. Karta, která tvrdí silnou vazbu k osmi
+			dovednostem, rozmělní jednu odpověď žáka do osmi hodnocení. Obtížnost je na stupnici 1–10; žák
+			začíná na {ELO_BASELINE}.
 		</p>
 
 		{#each groups as group (group.domainCode)}
@@ -264,6 +268,4 @@
 		font-family: var(--font-code);
 		font-size: var(--text-s);
 	}
-
-
 </style>

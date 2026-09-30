@@ -69,9 +69,7 @@ export function lessonTotals(lesson: LessonV2, index: DocIndex): LessonTotals {
 
 	const blockCount = lesson.blocks.length;
 	const durationEstimated = withDuration === 0;
-	const durationMinutes = durationEstimated
-		? clamp(blockCount * 4, 5, 60)
-		: clamp(total, 1, 120);
+	const durationMinutes = durationEstimated ? clamp(blockCount * 4, 5, 60) : clamp(total, 1, 120);
 
 	return {
 		durationMinutes,
@@ -102,7 +100,13 @@ export function courseTotals(doc: CourseV2, index: DocIndex): CourseTotals {
 		xp += totals.xp;
 	}
 	const cappedXp = typeof doc.max_xp === 'number' ? Math.min(xp, doc.max_xp) : xp;
-	return { durationMinutes, xp, lessonCount: doc.lessons.length, blockCount: doc.blocks.length, cappedXp };
+	return {
+		durationMinutes,
+		xp,
+		lessonCount: doc.lessons.length,
+		blockCount: doc.blocks.length,
+		cappedXp
+	};
 }
 
 /** §15 — the didactic summary shown per lesson. */
@@ -288,7 +292,10 @@ export function mediaFileName(url: string | undefined): string {
 	if (raw === '') return '';
 	try {
 		const parsed = new URL(raw);
-		const last = parsed.pathname.split('/').filter((part) => part !== '').at(-1);
+		const last = parsed.pathname
+			.split('/')
+			.filter((part) => part !== '')
+			.at(-1);
 		if (last === undefined) return parsed.hostname;
 		try {
 			return decodeURIComponent(last);
@@ -297,7 +304,13 @@ export function mediaFileName(url: string | undefined): string {
 		}
 	} catch {
 		// Not an absolute address — a relative path or something half-typed.
-		return raw.split(/[?#]/)[0].split('/').filter((part) => part !== '').at(-1) ?? raw;
+		return (
+			raw
+				.split(/[?#]/)[0]
+				.split('/')
+				.filter((part) => part !== '')
+				.at(-1) ?? raw
+		);
 	}
 }
 
@@ -339,7 +352,9 @@ export function blockPreview(block: BlockV2, max = 70, position?: number): strin
  * (`score_koef` is skipped in the multi-select branch too, `:598-601`; that column is
  * advanced-only and not part of this rule.)
  */
-export function optionOutcomesApply(question: Pick<QuestionConfig, 'type' | 'allow_multiple'> | undefined): boolean {
+export function optionOutcomesApply(
+	question: Pick<QuestionConfig, 'type' | 'allow_multiple'> | undefined
+): boolean {
 	if (question === undefined) return true;
 	if (question.allow_multiple === true) return false;
 	return question.type === 'multiple_choice' || question.type === 'true_false';

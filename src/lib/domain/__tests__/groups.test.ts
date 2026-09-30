@@ -24,10 +24,14 @@ import { validate } from '../validate';
 import type { BlockStep, BlockV2, CourseV2 } from '../schema';
 
 const fixture = (path: string): CourseV2 =>
-	importCourse(JSON.parse(readFileSync(new URL(`./fixtures/${path}`, import.meta.url), 'utf8'))).doc;
+	importCourse(JSON.parse(readFileSync(new URL(`./fixtures/${path}`, import.meta.url), 'utf8')))
+		.doc;
 
 const text = (id: string, content = id): BlockStep => ({ id, type: 'text', content });
-const question = (id: string, goTo: (string | undefined)[] = [undefined, undefined]): BlockStep => ({
+const question = (
+	id: string,
+	goTo: (string | undefined)[] = [undefined, undefined]
+): BlockStep => ({
 	id,
 	type: 'question',
 	question: {
@@ -41,8 +45,12 @@ const question = (id: string, goTo: (string | undefined)[] = [undefined, undefin
 	}
 });
 
-const course = (blocks: BlockV2[], lessons = [{ lesson_id: 'L1', blocks: blocks.map((b, i) => ({ block_id: b.block_id, order: i + 1 })) }]): CourseV2 =>
-	parseCourse({ export_type: 'course_v2', course_id: 'C', lessons, blocks });
+const course = (
+	blocks: BlockV2[],
+	lessons = [
+		{ lesson_id: 'L1', blocks: blocks.map((b, i) => ({ block_id: b.block_id, order: i + 1 })) }
+	]
+): CourseV2 => parseCourse({ export_type: 'course_v2', course_id: 'C', lessons, blocks });
 
 /** Edit the teacher's view with a command and write it back, as the store does. */
 function edit(doc: CourseV2, command: (view: CourseV2) => CourseV2): CourseV2 {
@@ -51,7 +59,8 @@ function edit(doc: CourseV2, command: (view: CourseV2) => CourseV2): CourseV2 {
 }
 
 const stepIds = (block: BlockV2) => block.steps.map((s) => s.id);
-const lesson = (doc: CourseV2, id = 'L1') => doc.lessons.find((l) => l.lesson_id === id)!.blocks.map((b) => b.block_id);
+const lesson = (doc: CourseV2, id = 'L1') =>
+	doc.lessons.find((l) => l.lesson_id === id)!.blocks.map((b) => b.block_id);
 
 describe('a card with one question is a block like any other', () => {
 	it('shows the document itself when nothing is grouped', () => {
@@ -61,7 +70,10 @@ describe('a card with one question is a block like any other', () => {
 
 	it('writes an edit straight through when nothing needs splitting', () => {
 		const doc = course([{ block_id: 'B1', type: 'question', steps: [text('s1'), question('s2')] }]);
-		const after = edit(doc, (v) => setField(v, { blockId: 'B1', stepId: 's1', field: 'content' }, 'Nový text').doc);
+		const after = edit(
+			doc,
+			(v) => setField(v, { blockId: 'B1', stepId: 's1', field: 'content' }, 'Nový text').doc
+		);
 		expect(after.blocks[0].steps[0].content).toBe('Nový text');
 		expect(groupOf(after.blocks[0])).toBeUndefined();
 	});
@@ -69,7 +81,15 @@ describe('a card with one question is a block like any other', () => {
 
 describe('a second question makes the card two blocks, and the teacher still sees one card', () => {
 	const doc = course([
-		{ block_id: 'B1', type: 'exercise', name: 'Sčítání', hint: 'Sečti čitatele.', duration: '3 min', xp: 20, steps: [text('s1'), question('s2')] },
+		{
+			block_id: 'B1',
+			type: 'exercise',
+			name: 'Sčítání',
+			hint: 'Sečti čitatele.',
+			duration: '3 min',
+			xp: 20,
+			steps: [text('s1'), question('s2')]
+		},
 		{ block_id: 'B2', type: 'display', steps: [text('s1')] }
 	]);
 	const after = edit(doc, (v) => {
@@ -137,8 +157,14 @@ describe('the lens changes nothing it was not asked to', () => {
 
 	it('rewrites only the card that was edited', () => {
 		const card = toView(doc).blocks.find((b) => b.block_id === 'L1_B4_cviceni')!;
-		const after = edit(doc, (v) =>
-			setField(v, { blockId: card.block_id, stepId: card.steps[0].id, field: 'content' }, 'Nové zadání').doc
+		const after = edit(
+			doc,
+			(v) =>
+				setField(
+					v,
+					{ blockId: card.block_id, stepId: card.steps[0].id, field: 'content' },
+					'Nové zadání'
+				).doc
 		);
 		const changed = after.blocks.filter((b, i) => b !== doc.blocks[i]).map((b) => b.block_id);
 		expect(changed).toEqual(['L1_B4_cviceni']);
@@ -148,22 +174,43 @@ describe('the lens changes nothing it was not asked to', () => {
 
 describe('where a card breaks into blocks', () => {
 	it('keeps text after the last question with it', () => {
-		const card: BlockV2 = { block_id: 'B', type: 'exercise', steps: [text('a'), question('q1'), text('b'), question('q2'), text('c')] };
-		expect(segmentSteps(card).map((s) => s.map((x) => x.id))).toEqual([['a', 'q1'], ['b', 'q2', 'c']]);
+		const card: BlockV2 = {
+			block_id: 'B',
+			type: 'exercise',
+			steps: [text('a'), question('q1'), text('b'), question('q2'), text('c')]
+		};
+		expect(segmentSteps(card).map((s) => s.map((x) => x.id))).toEqual([
+			['a', 'q1'],
+			['b', 'q2', 'c']
+		]);
 	});
 
 	it('starts a block where a question card jumps to, because a jump lands on a block’s first step', () => {
-		const card: BlockV2 = { block_id: 'B', type: 'question', steps: [question('q1', ['c', 'b']), text('b'), question('q2'), text('c')] };
+		const card: BlockV2 = {
+			block_id: 'B',
+			type: 'question',
+			steps: [question('q1', ['c', 'b']), text('b'), question('q2'), text('c')]
+		};
 		expect(segmentSteps(card).map((s) => s.map((x) => x.id))).toEqual([['q1'], ['b', 'q2'], ['c']]);
 	});
 
 	it('ignores jumps in an exercise card, which the app ignores too', () => {
-		const card: BlockV2 = { block_id: 'B', type: 'exercise', steps: [question('q1', ['c']), text('b'), question('q2'), text('c')] };
+		const card: BlockV2 = {
+			block_id: 'B',
+			type: 'exercise',
+			steps: [question('q1', ['c']), text('b'), question('q2'), text('c')]
+		};
 		expect(segmentSteps(card).map((s) => s.map((x) => x.id))).toEqual([['q1'], ['b', 'q2', 'c']]);
 	});
 
 	it('turns a jump inside the card into a jump to the block that holds the target', () => {
-		const doc = course([{ block_id: 'B1', type: 'question', steps: [question('q1', ['q2', undefined]), text('t'), question('q2')] }]);
+		const doc = course([
+			{
+				block_id: 'B1',
+				type: 'question',
+				steps: [question('q1', ['q2', undefined]), text('t'), question('q2')]
+			}
+		]);
 		const after = edit(doc, (v) => ({ ...v, blocks: v.blocks.map((b) => ({ ...b })) }));
 		expect(after.blocks.map((b) => b.block_id)).toEqual(['B1', 'B1_2', 'B1_3']);
 		expect(after.blocks[0].steps[0].question!.options![0].go_to).toBe('B1_3');
@@ -177,7 +224,11 @@ describe('where a card breaks into blocks', () => {
 describe('a block keeps its id as long as its question does', () => {
 	const two = edit(
 		course([
-			{ block_id: 'B1', type: 'exercise', steps: [text('s1'), question('s2'), text('s3'), question('s4')] },
+			{
+				block_id: 'B1',
+				type: 'exercise',
+				steps: [text('s1'), question('s2'), text('s3'), question('s4')]
+			},
 			{ block_id: 'B2', type: 'question', steps: [question('p', ['B1', undefined])] }
 		]),
 		(v) => ({ ...v, blocks: v.blocks.map((b) => ({ ...b })) })
@@ -209,7 +260,13 @@ describe('importing a course that has several questions in one block', () => {
 	const { doc, split, keptTogether } = splitQuestionCards(original);
 
 	it('splits the drills, and keeps whole the cards that branch inside themselves', () => {
-		expect(split).toEqual(['L1_B4_cviceni', 'L2_B5_cviceni', 'L3_B5_cviceni', 'L4_B4_cviceni', 'L5_B4_cviceni']);
+		expect(split).toEqual([
+			'L1_B4_cviceni',
+			'L2_B5_cviceni',
+			'L3_B5_cviceni',
+			'L4_B4_cviceni',
+			'L5_B4_cviceni'
+		]);
 		expect(keptTogether).toEqual(['L3_B3_mc', 'L5_B3_pizza']);
 		for (const block of doc.blocks) {
 			if (block[TOGETHER_KEY as keyof BlockV2] === true) continue;
@@ -222,7 +279,10 @@ describe('importing a course that has several questions in one block', () => {
 		expect(view.blocks.map((b) => b.block_id)).toEqual(original.blocks.map((b) => b.block_id));
 		for (const card of view.blocks) {
 			const before = original.blocks.find((b) => b.block_id === card.block_id)!;
-			expect(card.steps.map((s) => s.id), card.block_id).toEqual(before.steps.map((s) => s.id));
+			expect(
+				card.steps.map((s) => s.id),
+				card.block_id
+			).toEqual(before.steps.map((s) => s.id));
 		}
 		expect(view.lessons.map((l) => l.blocks.map((b) => b.block_id))).toEqual(
 			original.lessons.map((l) => l.blocks.map((b) => b.block_id))
@@ -230,7 +290,14 @@ describe('importing a course that has several questions in one block', () => {
 	});
 
 	it('binds each question’s block in the lesson, next to each other', () => {
-		expect(lesson(doc, 'L1_INTRO')).toEqual(['L1_B1_uvod', 'L1_B2_casti', 'L1_B3_poznej', 'L1_B4_cviceni', 'L1_B4_cviceni_2', 'L1_B5_shrn']);
+		expect(lesson(doc, 'L1_INTRO')).toEqual([
+			'L1_B1_uvod',
+			'L1_B2_casti',
+			'L1_B3_poznej',
+			'L1_B4_cviceni',
+			'L1_B4_cviceni_2',
+			'L1_B5_shrn'
+		]);
 	});
 
 	it('is done once: splitting the result again changes nothing', () => {
@@ -238,7 +305,10 @@ describe('importing a course that has several questions in one block', () => {
 	});
 
 	it('validates the same in the teacher’s view as in the document', () => {
-		const codes = (d: CourseV2) => validate(d).errors.map((i) => i.code).sort();
+		const codes = (d: CourseV2) =>
+			validate(d)
+				.errors.map((i) => i.code)
+				.sort();
 		expect(codes(toView(doc))).toEqual(codes(doc));
 	});
 
@@ -263,7 +333,11 @@ describe('the advanced toggle', () => {
 		expect(lesson(merged, 'L1_INTRO')).not.toContain('L1_B4_cviceni_2');
 
 		const again = splitQuestionCard(merged, 'L1_B4_cviceni');
-		expect(groupsOf(again).get('L1_B4_cviceni')?.map((b) => b.block_id)).toEqual(['L1_B4_cviceni', 'L1_B4_cviceni_2']);
+		expect(
+			groupsOf(again)
+				.get('L1_B4_cviceni')
+				?.map((b) => b.block_id)
+		).toEqual(['L1_B4_cviceni', 'L1_B4_cviceni_2']);
 	});
 
 	it('leaves a kept-together card whole when the teacher adds a question to it', () => {
@@ -284,7 +358,11 @@ describe('an edit made on the document itself (Pokročilý)', () => {
 		const card = groupsOf(after).get('L1_B3_poznej')!;
 		expect(card.map((b) => b.steps.map((s) => s.id))).toEqual([['s1', 's2'], ['s3'], ['s4', 's5']]);
 		expect(card.map((b) => b.type)).toEqual(['question', 'display', 'question']);
-		expect(card[0].steps[1].question!.options!.map((o) => o.go_to)).toEqual([card[2].block_id, card[1].block_id, 'L1_B2_casti']);
+		expect(card[0].steps[1].question!.options!.map((o) => o.go_to)).toEqual([
+			card[2].block_id,
+			card[1].block_id,
+			'L1_B2_casti'
+		]);
 		for (const block of after.blocks) {
 			if ((block as Record<string, unknown>)[TOGETHER_KEY] === true) continue;
 			expect(questionCount(block), block.block_id).toBeLessThanOrEqual(1);
@@ -297,9 +375,15 @@ describe('an edit made on the document itself (Pokročilý)', () => {
 	});
 
 	it('leaves everything else alone', () => {
-		const edited = setField(doc, { blockId: 'L1_B1_uvod', stepId: 's1', field: 'content' }, 'Jinak').doc;
+		const edited = setField(
+			doc,
+			{ blockId: 'L1_B1_uvod', stepId: 's1', field: 'content' },
+			'Jinak'
+		).doc;
 		const after = resplitChanged(doc, edited);
-		expect(after.blocks.filter((b, i) => b !== doc.blocks[i]).map((b) => b.block_id)).toEqual(['L1_B1_uvod']);
+		expect(after.blocks.filter((b, i) => b !== doc.blocks[i]).map((b) => b.block_id)).toEqual([
+			'L1_B1_uvod'
+		]);
 	});
 
 	it('keeps a block its author keeps together whole', () => {
@@ -340,8 +424,19 @@ describe('random edits keep the document well-formed', () => {
 			const pick = random();
 			let edited: CourseV2;
 			try {
-				if (pick < 0.35) edited = addStep(view, card.block_id, random() < 0.5 ? 'question' : 'text', Math.floor(random() * (card.steps.length + 1))).doc;
-				else if (pick < 0.6 && card.steps.length > 1) edited = deleteStep(view, card.block_id, card.steps[Math.floor(random() * card.steps.length)].id).doc;
+				if (pick < 0.35)
+					edited = addStep(
+						view,
+						card.block_id,
+						random() < 0.5 ? 'question' : 'text',
+						Math.floor(random() * (card.steps.length + 1))
+					).doc;
+				else if (pick < 0.6 && card.steps.length > 1)
+					edited = deleteStep(
+						view,
+						card.block_id,
+						card.steps[Math.floor(random() * card.steps.length)].id
+					).doc;
 				else if (pick < 0.85) {
 					const ids = card.steps.map((s) => s.id).sort(() => random() - 0.5);
 					edited = reorderSteps(view, card.block_id, ids).doc;
@@ -362,14 +457,20 @@ describe('random edits keep the document well-formed', () => {
 			// The teacher sees exactly the steps they edited, in their order.
 			for (const want of expected.blocks) {
 				const got = after.blocks.find((b) => b.block_id === want.block_id);
-				expect(got?.steps.map((s) => s.id), `round ${round}, card ${want.block_id}`).toEqual(want.steps.map((s) => s.id));
+				expect(
+					got?.steps.map((s) => s.id),
+					`round ${round}, card ${want.block_id}`
+				).toEqual(want.steps.map((s) => s.id));
 			}
-			for (const block of doc.blocks) expect(questionCount(block), `round ${round}`).toBeLessThanOrEqual(1);
+			for (const block of doc.blocks)
+				expect(questionCount(block), `round ${round}`).toBeLessThanOrEqual(1);
 			for (const [key, members] of groupsOf(doc)) {
 				const bound = lesson(doc).filter((id) => members.some((m) => m.block_id === id));
 				if (bound.length === 0) continue;
 				const at = lesson(doc).indexOf(bound[0]);
-				expect(lesson(doc).slice(at, at + bound.length), `round ${round}, card ${key}`).toEqual(members.map((m) => m.block_id));
+				expect(lesson(doc).slice(at, at + bound.length), `round ${round}, card ${key}`).toEqual(
+					members.map((m) => m.block_id)
+				);
 			}
 			const ids = doc.blocks.map((b) => b.block_id);
 			expect(new Set(ids).size, `round ${round}`).toBe(ids.length);

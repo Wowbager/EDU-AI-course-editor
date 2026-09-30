@@ -14,7 +14,14 @@
  * rebuild of `DocIndex`: naming a handful of issues does not justify walking the
  * whole document graph again for each one.
  */
-import type { BlockStep, BlockV2, CourseV2, LessonV2, QuestionConfig, QuestionOption } from './schema';
+import type {
+	BlockStep,
+	BlockV2,
+	CourseV2,
+	LessonV2,
+	QuestionConfig,
+	QuestionOption
+} from './schema';
 import { blockPreview } from './derive';
 
 const DEFAULT_CARD_MAX = 40;
@@ -50,9 +57,10 @@ export function blockLabel(
 	block: BlockV2,
 	opts: { lessonId?: string; max?: number } = {}
 ): string {
-	const lesson = opts.lessonId !== undefined
-		? doc.lessons.find((l) => l.lesson_id === opts.lessonId)
-		: undefined;
+	const lesson =
+		opts.lessonId !== undefined
+			? doc.lessons.find((l) => l.lesson_id === opts.lessonId)
+			: undefined;
 	const positionInLesson = lesson?.blocks.findIndex((b) => b.block_id === block.block_id) ?? -1;
 	const position = positionInLesson >= 0 ? positionInLesson + 1 : doc.blocks.indexOf(block) + 1;
 	return blockPreview(block, opts.max ?? DEFAULT_CARD_MAX, position > 0 ? position : undefined);

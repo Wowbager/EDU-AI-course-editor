@@ -26,7 +26,9 @@ describe('layout prefs', () => {
 	it('round-trips', () => {
 		const prefs = { sidebarCollapsed: true, previewCollapsed: true };
 		expect(parseLayout(serialiseLayout(prefs))).toEqual(prefs);
-		expect(parseLayout(serialiseLayout({ sidebarCollapsed: true, previewCollapsed: false }))).toEqual({
+		expect(
+			parseLayout(serialiseLayout({ sidebarCollapsed: true, previewCollapsed: false }))
+		).toEqual({
 			sidebarCollapsed: true,
 			previewCollapsed: false
 		});

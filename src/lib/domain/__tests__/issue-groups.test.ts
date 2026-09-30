@@ -12,7 +12,9 @@ import type { Issue } from '../validate';
 const fixture = (name: string): unknown =>
 	JSON.parse(readFileSync(fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url)), 'utf8'));
 
-const skillConfig = skillConfigFromDimensions(fixture('gpf-dimensions-cs.json') as SkillDimension[]);
+const skillConfig = skillConfigFromDimensions(
+	fixture('gpf-dimensions-cs.json') as SkillDimension[]
+);
 
 describe('grouping the broken variant for the export review', () => {
 	const doc = parseCourse(fixture('spec-16-course-broken.json'));
@@ -79,7 +81,12 @@ describe('issueLessonId and issuePlace', () => {
 	});
 
 	it('puts course-level issues in one "Celý kurz" group', () => {
-		const issue = (code: string): Issue => ({ code, severity: 'warning', ref: { field: code }, message: code });
+		const issue = (code: string): Issue => ({
+			code,
+			severity: 'warning',
+			ref: { field: code },
+			message: code
+		});
 		const groups = groupIssues(doc, index, [issue('A'), issue('B')]);
 		expect(groups).toHaveLength(1);
 		expect(groups[0]).toMatchObject({ kind: 'course', title: 'Celý kurz' });

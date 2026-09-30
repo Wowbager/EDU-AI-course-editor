@@ -55,7 +55,9 @@ export class StepView {
 
 	#unreached(blockId: string, key: string, stepId: string): boolean {
 		const run = this.#run;
-		return run !== null && run.blockId === blockId && !run.shown.has(stepId) && !this.#opened.has(key);
+		return (
+			run !== null && run.blockId === blockId && !run.shown.has(stepId) && !this.#opened.has(key)
+		);
 	}
 
 	/**

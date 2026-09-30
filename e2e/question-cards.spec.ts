@@ -26,7 +26,9 @@ interface Course {
 async function exported(page: Page): Promise<Course> {
 	// The draft is written a moment after the edit; wait until it has the edit.
 	const read = () =>
-		page.evaluate(() => JSON.parse(localStorage.getItem('edu-editor:draft:v1') ?? 'null')?.doc ?? null);
+		page.evaluate(
+			() => JSON.parse(localStorage.getItem('edu-editor:draft:v1') ?? 'null')?.doc ?? null
+		);
 	await expect.poll(async () => (await read()) !== null).toBe(true);
 	return read();
 }
@@ -37,7 +39,9 @@ test.beforeEach(async ({ page }) => {
 	await openEditor(page);
 });
 
-test('a second question stays in the teacher’s card, and is its own card for the pupil', async ({ page }) => {
+test('a second question stays in the teacher’s card, and is its own card for the pupil', async ({
+	page
+}) => {
 	await page.locator('.tree-add').getByRole('button', { name: 'Cvičení', exact: true }).click();
 	await expect(page.locator('.tree-card')).toHaveCount(2);
 
@@ -88,7 +92,9 @@ test.describe('a course made elsewhere, with several questions in one block', ()
 		await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 	});
 
-	test('keeps the teacher’s cards as they were, and exports one question per card', async ({ page }) => {
+	test('keeps the teacher’s cards as they were, and exports one question per card', async ({
+		page
+	}) => {
 		await expect(page.getByText('každá otázka se teď žákovi hodnotí zvlášť')).toBeVisible();
 		await expect(page.getByText('hodnotí se jako celek')).toBeVisible();
 
@@ -109,7 +115,9 @@ test.describe('a course made elsewhere, with several questions in one block', ()
 		]);
 	});
 
-	test('in Pokročilý, a card’s questions can be kept together, and split again', async ({ page }) => {
+	test('in Pokročilý, a card’s questions can be kept together, and split again', async ({
+		page
+	}) => {
 		await page.getByRole('radio', { name: 'Pokročilý' }).click();
 		const lesson = original.lessons[0].blocks.length;
 		await expect(page.locator('.tree-card')).toHaveCount(lesson + 1);
@@ -124,7 +132,10 @@ test.describe('a course made elsewhere, with several questions in one block', ()
 		await expect(together).toBeChecked();
 		await expect(page.locator('.tree-card')).toHaveCount(lesson);
 		await expect
-			.poll(async () => (await exported(page)).blocks.find((b) => b.block_id === 'L1_B4_cviceni')?.multi_question)
+			.poll(
+				async () =>
+					(await exported(page)).blocks.find((b) => b.block_id === 'L1_B4_cviceni')?.multi_question
+			)
 			.toBe(true);
 
 		await toggle.click();

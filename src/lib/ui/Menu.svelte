@@ -164,8 +164,9 @@
 		aria-haspopup="menu"
 		aria-expanded={open}
 		aria-controls={id}
-		onpointerdown={onpointerdown}
-		{onclick}>
+		{onpointerdown}
+		{onclick}
+	>
 		{#if Icon}<Icon size={16} aria-hidden="true" />{/if}
 		{#if text}{text}{/if}
 	</Button>
@@ -178,7 +179,8 @@
 		aria-label={label}
 		bind:this={panel}
 		{ontoggle}
-		{onkeydown}>
+		{onkeydown}
+	>
 		{@render children()}
 	</div>
 </div>

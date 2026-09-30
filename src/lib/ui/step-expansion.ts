@@ -37,7 +37,13 @@ export interface StepExpansionInput {
 	unreached?: boolean;
 }
 
-export function stepExpanded({ userCollapsed, focused, suppressed, dragging, unreached = false }: StepExpansionInput): boolean {
+export function stepExpanded({
+	userCollapsed,
+	focused,
+	suppressed,
+	dragging,
+	unreached = false
+}: StepExpansionInput): boolean {
 	if (dragging) return false;
 	if (!userCollapsed && !unreached) return true;
 	return focused && !suppressed;

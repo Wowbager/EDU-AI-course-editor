@@ -7,15 +7,26 @@ import { expect, openEditor, test, type Page } from './fixtures';
  */
 const fixture = () =>
 	JSON.parse(
-		readFileSync(new URL('../src/lib/domain/__tests__/fixtures/spec-16-course.json', import.meta.url), 'utf8')
+		readFileSync(
+			new URL('../src/lib/domain/__tests__/fixtures/spec-16-course.json', import.meta.url),
+			'utf8'
+		)
 	);
 
 const trash = (page: Page) => page.getByRole('button', { name: /^Smazat odpověď/ });
 const multipleBox = (page: Page) => page.getByRole('checkbox', { name: 'Víc správných možností' });
 /** The switch's box is drawn as a track, so it is the label that gets clicked. */
 const multiple = (page: Page) => ({
-	check: () => page.getByText('Víc správných možností', { exact: true }).click().then(() => expect(multipleBox(page)).toBeChecked()),
-	uncheck: () => page.getByText('Víc správných možností', { exact: true }).click().then(() => expect(multipleBox(page)).not.toBeChecked())
+	check: () =>
+		page
+			.getByText('Víc správných možností', { exact: true })
+			.click()
+			.then(() => expect(multipleBox(page)).toBeChecked()),
+	uncheck: () =>
+		page
+			.getByText('Víc správných možností', { exact: true })
+			.click()
+			.then(() => expect(multipleBox(page)).not.toBeChecked())
 });
 const head = (page: Page) => page.locator('.answers .head');
 
@@ -43,13 +54,21 @@ test.beforeEach(async ({ page }) => {
 	await openEditor(page);
 });
 
-test('the trash of an answer shows when its row is pointed at, and is red only under the pointer', async ({ page }) => {
+test('the trash of an answer shows when its row is pointed at, and is red only under the pointer', async ({
+	page
+}) => {
 	await addQuestionCard(page);
 	await page.getByRole('button', { name: 'Další odpověď' }).click();
 	await expect(trash(page)).toHaveCount(3);
 
-	const opacity = (i: number) => trash(page).nth(i).evaluate((el) => Number(getComputedStyle(el.parentElement!).opacity));
-	const color = (i: number) => trash(page).nth(i).evaluate((el) => getComputedStyle(el).color);
+	const opacity = (i: number) =>
+		trash(page)
+			.nth(i)
+			.evaluate((el) => Number(getComputedStyle(el.parentElement!).opacity));
+	const color = (i: number) =>
+		trash(page)
+			.nth(i)
+			.evaluate((el) => getComputedStyle(el).color);
 	await page.mouse.move(0, 0);
 	await expect.poll(() => opacity(0)).toBe(0);
 
@@ -84,14 +103,19 @@ test('a question cannot lose answers below the two it needs, and says why', asyn
 	await expect(trash(page).first()).toBeDisabled();
 });
 
-test('the marker is a circle, or a square when several answers may be picked, and filled when right', async ({ page }) => {
+test('the marker is a circle, or a square when several answers may be picked, and filled when right', async ({
+	page
+}) => {
 	await addQuestionCard(page);
 	const markers = page.getByRole('button', { name: /^Správná odpověď:/ });
 	const shape = (i: number) =>
-		markers.nth(i).locator('.mark-box').evaluate((el) => {
-			const style = getComputedStyle(el);
-			return { radius: parseFloat(style.borderTopLeftRadius), fill: style.backgroundColor };
-		});
+		markers
+			.nth(i)
+			.locator('.mark-box')
+			.evaluate((el) => {
+				const style = getComputedStyle(el);
+				return { radius: parseFloat(style.borderTopLeftRadius), fill: style.backgroundColor };
+			});
 
 	const right = await shape(0);
 	const wrong = await shape(1);
@@ -107,7 +131,9 @@ test('the marker is a circle, or a square when several answers may be picked, an
 	expect((await shape(1)).radius).toBeGreaterThanOrEqual(10);
 });
 
-test('the several-picks switch is worded once, and explains itself only while it is on', async ({ page }) => {
+test('the several-picks switch is worded once, and explains itself only while it is on', async ({
+	page
+}) => {
 	await addQuestionCard(page);
 	const hint = page.getByText('za částečný výběr nejsou body');
 	await expect(multipleBox(page)).not.toBeChecked();
@@ -118,24 +144,32 @@ test('the several-picks switch is worded once, and explains itself only while it
 	await expect(hint).toHaveCount(0);
 });
 
-test('a question with several picks has no "Kam dál" and no grade, since the app reads neither', async ({ page }) => {
+test('a question with several picks has no "Kam dál" and no grade, since the app reads neither', async ({
+	page
+}) => {
 	await loadCourse(page, (doc) => {
 		doc.quiz_evaluate = true;
 	});
 	await expect(head(page)).toContainText('Kam dál');
 	await expect(head(page)).toContainText('Známka');
-	await expect(page.getByRole('combobox', { name: 'Známka za tuto odpověď' }).first()).toBeVisible();
+	await expect(
+		page.getByRole('combobox', { name: 'Známka za tuto odpověď' }).first()
+	).toBeVisible();
 
 	await multiple(page).check();
 	await expect(head(page)).not.toContainText('Kam dál');
 	await expect(head(page)).not.toContainText('Známka');
 	await expect(page.getByRole('combobox', { name: 'Známka za tuto odpověď' })).toHaveCount(0);
-	await expect(page.getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' })).toHaveCount(0);
+	await expect(page.getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' })).toHaveCount(
+		0
+	);
 
 	// The values are still in the card; switching back shows them again.
 	await multiple(page).uncheck();
 	await expect(head(page)).toContainText('Kam dál');
-	await expect(page.getByRole('combobox', { name: 'Známka za tuto odpověď' }).first()).toHaveValue('1');
+	await expect(page.getByRole('combobox', { name: 'Známka za tuto odpověď' }).first()).toHaveValue(
+		'1'
+	);
 });
 
 test('the heading row goes when "Odpověď" would be its only label', async ({ page }) => {
@@ -152,7 +186,8 @@ test('the heading row goes when "Odpověď" would be its only label', async ({ p
 
 test('what is wrong with the list of answers is said under it', async ({ page }) => {
 	await loadCourse(page, (doc) => {
-		const question = doc.blocks.find((b: { block_id: string }) => b.block_id === 'L1_B3_poznej').steps[1].question;
+		const question = doc.blocks.find((b: { block_id: string }) => b.block_id === 'L1_B3_poznej')
+			.steps[1].question;
 		question.options = question.options.slice(0, 1);
 	});
 	// Errors of a card wait until the card is left.

@@ -46,16 +46,22 @@ export function issueLessonId(index: DocIndex, ref: Ref): string | undefined {
 
 /** "Krok 2 › „odpověď“" — the part of a ref below the card. */
 function detailOf(doc: CourseV2, ref: Ref): string {
-	const block = ref.blockId !== undefined ? doc.blocks.find((b) => b.block_id === ref.blockId) : undefined;
-	const step = block !== undefined && ref.stepId !== undefined
-		? block.steps.find((s) => s.id === ref.stepId)
-		: undefined;
+	const block =
+		ref.blockId !== undefined ? doc.blocks.find((b) => b.block_id === ref.blockId) : undefined;
+	const step =
+		block !== undefined && ref.stepId !== undefined
+			? block.steps.find((s) => s.id === ref.stepId)
+			: undefined;
 	const parts: string[] = [];
 	if (ref.stepId !== undefined) {
-		parts.push(block !== undefined && step !== undefined ? capitalize(stepLabel(block, step)) : ref.stepId);
+		parts.push(
+			block !== undefined && step !== undefined ? capitalize(stepLabel(block, step)) : ref.stepId
+		);
 	}
 	if (ref.optionId !== undefined) {
-		parts.push(optionLabelById(step?.question, ref.optionId, { max: 30 }) ?? `odpověď ${ref.optionId}`);
+		parts.push(
+			optionLabelById(step?.question, ref.optionId, { max: 30 }) ?? `odpověď ${ref.optionId}`
+		);
 	}
 	return parts.join(' › ');
 }
@@ -78,7 +84,11 @@ export function issuePlace(doc: CourseV2, ref: Ref): string {
 	return parts.length === 0 ? 'kurz' : parts.join(' › ');
 }
 
-export function groupIssues(doc: CourseV2, index: DocIndex, issues: readonly Issue[]): IssueGroup[] {
+export function groupIssues(
+	doc: CourseV2,
+	index: DocIndex,
+	issues: readonly Issue[]
+): IssueGroup[] {
 	const groups = new Map<string, IssueGroup>();
 
 	for (const issue of issues) {
@@ -95,9 +105,12 @@ export function groupIssues(doc: CourseV2, index: DocIndex, issues: readonly Iss
 				key,
 				kind: 'card',
 				title: block !== undefined ? blockLabel(doc, block, { lessonId, max: 50 }) : ref.blockId!,
-				context: lessonId !== undefined
-					? (lessonLabelById(doc, lessonId) ?? lessonId)
-					: block !== undefined ? 'mimo lekce' : undefined,
+				context:
+					lessonId !== undefined
+						? (lessonLabelById(doc, lessonId) ?? lessonId)
+						: block !== undefined
+							? 'mimo lekce'
+							: undefined,
 				rows: []
 			});
 		} else if (ref.lessonId !== undefined) {

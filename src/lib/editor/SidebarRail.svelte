@@ -136,7 +136,8 @@
 		if (peek?.key !== key || peek.pinned) return;
 		// Keyboard focus in the panel keeps it, as the pointer would.
 		const holder = anchors[key]?.closest('[data-peek-key]');
-		if (holder?.matches(':focus-within') && document.activeElement?.matches(':focus-visible')) return;
+		if (holder?.matches(':focus-within') && document.activeElement?.matches(':focus-visible'))
+			return;
 		closeTimer = setTimeout(closePeek, CLOSE_DELAY);
 	}
 
@@ -165,14 +166,19 @@
 	/** ← or Escape in the panel: back to the tile or circle it belongs to. */
 	function backToAnchor() {
 		const holder = document.activeElement?.closest<HTMLElement>('[data-peek-key]');
-		holder?.querySelector<HTMLElement>(':scope > [role="button"], :scope > .rail-item, :scope > button')?.focus();
+		holder
+			?.querySelector<HTMLElement>(':scope > [role="button"], :scope > .rail-item, :scope > button')
+			?.focus();
 	}
 
 	/** Keys that open or dismiss a panel; `true` when the key was one of them. */
 	function peekKey(event: KeyboardEvent, key: string): boolean {
 		const holder = (event.currentTarget as HTMLElement).closest<HTMLElement>('[data-peek-key]');
 		if (holder === null || event.altKey || event.ctrlKey || event.metaKey) return false;
-		const open = event.key === 'ArrowRight' || event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey);
+		const open =
+			event.key === 'ArrowRight' ||
+			event.key === 'ContextMenu' ||
+			(event.key === 'F10' && event.shiftKey);
 		if (open) {
 			event.preventDefault();
 			event.stopPropagation();
@@ -199,7 +205,8 @@
 		const current = peek;
 		if (current === null || !current.pinned) return;
 		const away = (event: Event) => {
-			const holder = event.target instanceof Element ? event.target.closest('[data-peek-key]') : null;
+			const holder =
+				event.target instanceof Element ? event.target.closest('[data-peek-key]') : null;
 			if (holder?.getAttribute('data-peek-key') !== current.key) closePeek();
 		};
 		window.addEventListener('pointerdown', away, true);
@@ -250,7 +257,13 @@
 		});
 	}
 
-	function tileKey(event: KeyboardEvent, key: string, lessonId: string, blockId: string, position: number) {
+	function tileKey(
+		event: KeyboardEvent,
+		key: string,
+		lessonId: string,
+		blockId: string,
+		position: number
+	) {
 		if (peekKey(event, key)) return;
 		oncardkey(event, lessonId, blockId, position);
 	}
@@ -273,7 +286,8 @@
 				onpointerleave={(event) => hoverOut(lKey, event)}
 				onfocusin={(event) => focusIn(lKey, event)}
 				onfocusout={(event) => focusOut(lKey, event)}
-				oncontextmenu={(event) => contextMenu(event, lKey)}>
+				oncontextmenu={(event) => contextMenu(event, lKey)}
+			>
 				<button
 					type="button"
 					class="rail-item"
@@ -283,7 +297,8 @@
 					aria-label={`${i + 1}. lekce: ${name}`}
 					{@attach track(lKey)}
 					onclick={() => selectLesson(lesson.lesson_id)}
-					onkeydown={(event) => peekKey(event, lKey)}>
+					onkeydown={(event) => peekKey(event, lKey)}
+				>
 					{i + 1}
 				</button>
 				{#if errors > 0}<span class="dot" aria-hidden="true"></span>{/if}
@@ -310,7 +325,8 @@
 									event.stopPropagation();
 									backToAnchor();
 								}
-							}}>
+							}}
+						>
 							<Settings size={16} aria-hidden="true" />
 							Nastavení lekce
 						</button>
@@ -330,7 +346,8 @@
 						zoneItemTabIndex: -1
 					}}
 					onconsider={considerCards}
-					onfinalize={finalizeCards}>
+					onfinalize={finalizeCards}
+				>
 					{#each cards as card, position (card.id)}
 						{@const block = doc.blocks.find((b) => b.block_id === card.binding.block_id)}
 						{@const key = cardKey(card.id)}
@@ -342,9 +359,12 @@
 							onpointerleave={(event) => hoverOut(key, event)}
 							onfocusin={(event) => focusIn(key, event)}
 							onfocusout={(event) => focusOut(key, event)}
-							oncontextmenu={(event) => contextMenu(event, key)}>
+							oncontextmenu={(event) => contextMenu(event, key)}
+						>
 							{#if block === undefined}
-								<span class="rail-tile missing" title="Chybějící karta" aria-label="Chybějící karta">!</span>
+								<span class="rail-tile missing" title="Chybějící karta" aria-label="Chybějící karta"
+									>!</span
+								>
 							{:else}
 								{@const cardErrors = errorsOn(block.block_id)}
 								{@const selected = block.block_id === activeBlockId}
@@ -368,7 +388,9 @@
 									}`}
 									{@attach track(key)}
 									onclick={(event) => select(event, lesson.lesson_id, block.block_id, key)}
-									onkeydowncapture={(event) => tileKey(event, key, lesson.lesson_id, block.block_id, position)}>
+									onkeydowncapture={(event) =>
+										tileKey(event, key, lesson.lesson_id, block.block_id, position)}
+								>
 									<Icon size={18} aria-hidden="true" />
 								</div>
 								{#if cardErrors > 0}<span class="dot" aria-hidden="true"></span>{/if}
@@ -376,7 +398,8 @@
 									<RailPeek anchor={anchors[key]} label={`Karta ${n}`} onclose={closePeek}>
 										<div class="peek-head">
 											<span class="overline">{n} · {cardTypeLabel(block.type)}</span>
-											{#if cardErrors > 0}<span class="peek-errors">{errorsCount(cardErrors)}</span>{/if}
+											{#if cardErrors > 0}<span class="peek-errors">{errorsCount(cardErrors)}</span
+												>{/if}
 										</div>
 										<p class="peek-text">{blockPreview(block, 120, n)}</p>
 										<hr class="peek-rule" />
@@ -384,11 +407,20 @@
 											position={n}
 											total={cards.length}
 											caption
-											onsettings={() => run(key, () => actions.settings(lesson.lesson_id, block.block_id))}
-											onduplicate={() => run(key, () => actions.duplicate(block.block_id, lesson.lesson_id))}
-											onremoveFromLesson={() => run(key, () => actions.removeFromLesson(lesson.lesson_id, block.block_id, { follow: false }))}
-											onremove={() => run(key, () => actions.remove(block.block_id, lesson.lesson_id))}
-											onexit={backToAnchor} />
+											onsettings={() =>
+												run(key, () => actions.settings(lesson.lesson_id, block.block_id))}
+											onduplicate={() =>
+												run(key, () => actions.duplicate(block.block_id, lesson.lesson_id))}
+											onremoveFromLesson={() =>
+												run(key, () =>
+													actions.removeFromLesson(lesson.lesson_id, block.block_id, {
+														follow: false
+													})
+												)}
+											onremove={() =>
+												run(key, () => actions.remove(block.block_id, lesson.lesson_id))}
+											onexit={backToAnchor}
+										/>
 									</RailPeek>
 								{/if}
 							{/if}
@@ -396,17 +428,14 @@
 					{/each}
 				</ul>
 
-				<Menu
-					label="Přidat kartu"
-					icon={Plus}
-					placement="right-start"
-					class="add-card">
+				<Menu label="Přidat kartu" icon={Plus} placement="right-start" class="add-card">
 					{#each CARD_TYPES as option (option.type)}
 						<MenuItem
 							icon={option.icon}
 							title={option.title}
 							onclick={() =>
-								store.apply((d, r) => addBlock(d, lesson.lesson_id, option.type, undefined, r))}>
+								store.apply((d, r) => addBlock(d, lesson.lesson_id, option.type, undefined, r))}
+						>
 							{option.label}
 						</MenuItem>
 					{/each}
@@ -421,7 +450,8 @@
 	class="new-lesson"
 	aria-label="Nová lekce"
 	title="Nová lekce"
-	onclick={() => store.apply((d, r) => addLesson(d, undefined, r))}>
+	onclick={() => store.apply((d, r) => addLesson(d, undefined, r))}
+>
 	<Plus size={16}></Plus>
 </button>
 

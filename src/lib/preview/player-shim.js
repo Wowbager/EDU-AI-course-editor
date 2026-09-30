@@ -53,7 +53,9 @@
 	 */
 	function rewriteProxyUrl(rawUrl) {
 		if (typeof rawUrl !== 'string' || rawUrl.length === 0) return null;
-		var match = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^/]+)?(\/api\/proxy\/image)\?url=(.+)$/.exec(rawUrl);
+		var match = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^/]+)?(\/api\/proxy\/image)\?url=(.+)$/.exec(
+			rawUrl
+		);
 		if (!match) return null;
 		return '/preview-image?url=' + match[2];
 	}

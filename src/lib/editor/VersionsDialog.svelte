@@ -105,7 +105,10 @@
 	async function download(version: ListedVersion) {
 		const saved = await versions.get(version.version);
 		if (saved === null) return;
-		downloadCourse(saved.doc, courseFileName(saved.doc.name, doc.course_id, `-v${version.version}`));
+		downloadCourse(
+			saved.doc,
+			courseFileName(saved.doc.name, doc.course_id, `-v${version.version}`)
+		);
 	}
 
 	/** Check the version, then publish it — or say what stands in the way. */
@@ -149,7 +152,10 @@
 
 	async function compare(version: ListedVersion) {
 		if (published === null) return;
-		const [a, b] = await Promise.all([versions.get(published.version), versions.get(version.version)]);
+		const [a, b] = await Promise.all([
+			versions.get(published.version),
+			versions.get(version.version)
+		]);
 		diffs = { ...diffs, [version.version]: a && b ? summariseDiff(a.doc, b.doc) : 'none' };
 	}
 
@@ -169,7 +175,8 @@
 		const browser = !down.includes('browser');
 		const server = versions.backends.includes('server') && !down.includes('server');
 		if (browser && server) return 'Verze se ukládají v tomto prohlížeči a na serveru editoru.';
-		if (browser) return 'Verze se ukládají jen v tomto prohlížeči — server editoru je teď nedostupný.';
+		if (browser)
+			return 'Verze se ukládají jen v tomto prohlížeči — server editoru je teď nedostupný.';
 		if (server) return 'Verze se ukládají na serveru editoru; v tomto prohlížeči se uložit nedaří.';
 		return 'Verze se teď nedaří uložit nikam — historie platí jen do zavření stránky. Stáhni si důležité verze do souboru.';
 	});
@@ -212,8 +219,8 @@
 			<p class="muted">{VISIBILITY_LABEL[visibility].title}</p>
 			{#if published !== null && published.visibility !== visibility}
 				<p class="muted">
-					Zveřejněná verze {published.version} je zatím „{VISIBILITY_LABEL[published.visibility].label}“.
-					Nové nastavení platí od příštího zveřejnění.
+					Zveřejněná verze {published.version} je zatím „{VISIBILITY_LABEL[published.visibility]
+						.label}“. Nové nastavení platí od příštího zveřejnění.
 				</p>
 			{/if}
 		</section>
@@ -278,8 +285,8 @@
 							</div>
 							{#if refused?.version === version.version}
 								<p class="message error" role="alert">
-									Verze {version.version} má {errorsCount(refused.errors)}, které žákovi
-									rozbijí kurz, a tak ji nejde zveřejnit.
+									Verze {version.version} má {errorsCount(refused.errors)}, které žákovi rozbijí
+									kurz, a tak ji nejde zveřejnit.
 									{#if refused.isWorkingCopy}
 										<button type="button" class="link" onclick={onreview}>Ukázat, co chybí</button>
 									{:else}

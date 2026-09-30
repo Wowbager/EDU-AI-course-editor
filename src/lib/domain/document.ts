@@ -57,7 +57,11 @@ type Json = Record<string, unknown>;
 type OrderKey = keyof typeof KEY_ORDER;
 
 /** Emit a node with known keys first, in canonical order, then unmodelled keys. */
-function ordered(node: unknown, order: OrderKey, children: Record<string, (v: unknown) => unknown> = {}): unknown {
+function ordered(
+	node: unknown,
+	order: OrderKey,
+	children: Record<string, (v: unknown) => unknown> = {}
+): unknown {
 	if (typeof node !== 'object' || node === null || Array.isArray(node)) return node;
 	const source = node as Json;
 	const known = KEY_ORDER[order] as readonly string[];
@@ -86,8 +90,7 @@ const audio = (v: unknown) => ordered(v, 'audio');
 const option = (v: unknown) => ordered(v, 'option', { feedback_image: image });
 const question = (v: unknown) =>
 	ordered(v, 'question', { solution_image: image, options: mapArray(option) });
-const step = (v: unknown) =>
-	ordered(v, 'step', { image, video, audio, question });
+const step = (v: unknown) => ordered(v, 'step', { image, video, audio, question });
 const prerequisite = (v: unknown) => ordered(v, 'prerequisite');
 const learning = (v: unknown) => ordered(v, 'learning', { prerequisites: mapArray(prerequisite) });
 const gpf = (v: unknown) => ordered(v, 'gpf');

@@ -43,7 +43,15 @@ export function placeMenu(
 	}
 
 	return {
-		top: clamp(top, VIEWPORT_MARGIN, Math.max(VIEWPORT_MARGIN, viewport.height - menu.height - VIEWPORT_MARGIN)),
-		left: clamp(left, VIEWPORT_MARGIN, Math.max(VIEWPORT_MARGIN, viewport.width - menu.width - VIEWPORT_MARGIN))
+		top: clamp(
+			top,
+			VIEWPORT_MARGIN,
+			Math.max(VIEWPORT_MARGIN, viewport.height - menu.height - VIEWPORT_MARGIN)
+		),
+		left: clamp(
+			left,
+			VIEWPORT_MARGIN,
+			Math.max(VIEWPORT_MARGIN, viewport.width - menu.width - VIEWPORT_MARGIN)
+		)
 	};
 }

@@ -87,6 +87,10 @@ export async function publishCourse(doc: Record<string, unknown>): Promise<Publi
 			currentVersion: payload.current_version
 		};
 	} catch (error) {
-		return { ok: false, status: 0, message: error instanceof Error ? error.message : String(error) };
+		return {
+			ok: false,
+			status: 0,
+			message: error instanceof Error ? error.message : String(error)
+		};
 	}
 }

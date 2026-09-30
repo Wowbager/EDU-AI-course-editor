@@ -16,7 +16,13 @@
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { courseSchema, type CourseV2 } from '$lib/domain/schema';
-import { contentHash, type CourseVersion, type Publication, type VersionIndex, type VersionMeta } from '$lib/domain/versions';
+import {
+	contentHash,
+	type CourseVersion,
+	type Publication,
+	type VersionIndex,
+	type VersionMeta
+} from '$lib/domain/versions';
 
 export const COURSE_ID = /^[A-Za-z0-9_-]{1,80}$/;
 export const MAX_VERSION = 1_000_000;
@@ -43,7 +49,8 @@ export class VersionFiles {
 	}
 
 	#courseDir(owner: string, courseId: string) {
-		if (!/^ws_[0-9a-f]{64}$|^user_[A-Za-z0-9_-]{1,64}$/.test(owner)) throw new VersionError(400, 'Neplatný vlastník.');
+		if (!/^ws_[0-9a-f]{64}$|^user_[A-Za-z0-9_-]{1,64}$/.test(owner))
+			throw new VersionError(400, 'Neplatný vlastník.');
 		if (!COURSE_ID.test(courseId)) throw new VersionError(400, 'Neplatný identifikátor kurzu.');
 		return join(this.#root, 'owners', owner, 'courses', courseId);
 	}
@@ -96,8 +103,11 @@ export class VersionFiles {
 				}
 				return strip(existing);
 			}
-			const inCourse = (await readdir(dir).catch(() => [] as string[])).filter((n) => /^v\d+\.json$/.test(n));
-			if (inCourse.length >= MAX_VERSIONS_PER_COURSE) throw new VersionError(429, 'Kurz má příliš mnoho verzí.');
+			const inCourse = (await readdir(dir).catch(() => [] as string[])).filter((n) =>
+				/^v\d+\.json$/.test(n)
+			);
+			if (inCourse.length >= MAX_VERSIONS_PER_COURSE)
+				throw new VersionError(429, 'Kurz má příliš mnoho verzí.');
 			if ((await this.#ownerCount(owner)) >= MAX_VERSIONS_PER_OWNER) {
 				throw new VersionError(429, 'Uloženo je příliš mnoho verzí.');
 			}
@@ -156,10 +166,14 @@ function parseVersion(courseId: string, body: unknown): CourseVersion {
 	}
 	const hash = contentHash(doc);
 	if (raw.hash !== hash) throw new VersionError(400, 'Otisk verze nesouhlasí s obsahem.');
-	const savedAt = typeof raw.savedAt === 'string' && !Number.isNaN(Date.parse(raw.savedAt)) ? raw.savedAt : null;
+	const savedAt =
+		typeof raw.savedAt === 'string' && !Number.isNaN(Date.parse(raw.savedAt)) ? raw.savedAt : null;
 	if (savedAt === null) throw new VersionError(400, 'Chybí čas uložení.');
 	const note = typeof raw.note === 'string' ? raw.note.slice(0, 500) : undefined;
-	const restoredFrom = typeof raw.restoredFrom === 'number' && Number.isInteger(raw.restoredFrom) ? raw.restoredFrom : undefined;
+	const restoredFrom =
+		typeof raw.restoredFrom === 'number' && Number.isInteger(raw.restoredFrom)
+			? raw.restoredFrom
+			: undefined;
 	const origin = raw.origin === 'import' || raw.origin === 'saved' ? raw.origin : undefined;
 	return {
 		courseId,
@@ -184,8 +198,13 @@ function parsePublication(body: unknown): Publication {
 	if (typeof raw.visibility !== 'string' || !VISIBILITIES.has(raw.visibility)) {
 		throw new VersionError(400, 'Neplatná viditelnost.');
 	}
-	if (typeof raw.at !== 'string' || Number.isNaN(Date.parse(raw.at))) throw new VersionError(400, 'Chybí čas.');
-	return { version: raw.version, visibility: raw.visibility as Publication['visibility'], at: raw.at };
+	if (typeof raw.at !== 'string' || Number.isNaN(Date.parse(raw.at)))
+		throw new VersionError(400, 'Chybí čas.');
+	return {
+		version: raw.version,
+		visibility: raw.visibility as Publication['visibility'],
+		at: raw.at
+	};
 }
 
 async function readJson<T>(path: string): Promise<T | null> {

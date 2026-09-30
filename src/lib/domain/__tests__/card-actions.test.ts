@@ -3,9 +3,10 @@ import { readFileSync } from 'node:fs';
 import { parseCourse } from '../document';
 import { bindBlock, unbindBlock } from '../commands';
 
-const base = () => parseCourse(JSON.parse(readFileSync(
-	new URL('./fixtures/spec-16-course.json', import.meta.url), 'utf8'
-)));
+const base = () =>
+	parseCourse(
+		JSON.parse(readFileSync(new URL('./fixtures/spec-16-course.json', import.meta.url), 'utf8'))
+	);
 
 it('binding an existing card twice is an identity no-op and preserves presentation', () => {
 	const doc = base();
@@ -26,9 +27,18 @@ it('an orphan can be rebound once, and sharing with another lesson still works',
 	expect(rebound.blocks).toBe(doc.blocks);
 	expect(rebound.lessons[0].blocks.filter((b) => b.block_id === blockId)).toHaveLength(1);
 	expect(bindBlock(rebound, lessonId, blockId).doc).toBe(rebound);
-	const withLesson = { ...rebound, lessons: [...rebound.lessons, {
-		lesson_id: 'OTHER', version: 1, name: 'Další lekce', blocks: []
-	}] };
+	const withLesson = {
+		...rebound,
+		lessons: [
+			...rebound.lessons,
+			{
+				lesson_id: 'OTHER',
+				version: 1,
+				name: 'Další lekce',
+				blocks: []
+			}
+		]
+	};
 	const shared = bindBlock(withLesson, 'OTHER', blockId).doc;
 	expect(shared.lessons[1].blocks).toEqual([{ block_id: blockId, order: 1 }]);
 	expect(shared.lessons[0]).toBe(rebound.lessons[0]);

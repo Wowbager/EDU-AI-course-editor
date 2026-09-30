@@ -72,7 +72,9 @@
 								<span class="message">{row.issue.message}</span>
 								{#if higherMode(row.target)}
 									{@const need = higherMode(row.target)!}
-									<span class="mode">Opravíš v režimu {MODE_LABELS[need].label} — Přejít na něj přepne.</span>
+									<span class="mode"
+										>Opravíš v režimu {MODE_LABELS[need].label} — Přejít na něj přepne.</span
+									>
 								{/if}
 							</div>
 							<Button variant="ghost" size="s" onclick={() => jump(row)}>
@@ -91,7 +93,10 @@
 		{#if blocked}
 			<p class="lead">
 				{#if cardGroups > 0}
-					Ještě je potřeba dokončit {counted(cardGroups, 'kartu', 'karty', 'karet')}{errors.length > cardGroups ? ' a pár věcí v kurzu' : ''}.
+					Ještě je potřeba dokončit {counted(cardGroups, 'kartu', 'karty', 'karet')}{errors.length >
+					cardGroups
+						? ' a pár věcí v kurzu'
+						: ''}.
 				{:else}
 					Ještě je potřeba dokončit pár věcí v kurzu.
 				{/if}

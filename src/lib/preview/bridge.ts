@@ -228,7 +228,14 @@ export class PreviewBridge {
 		stepId?: string,
 		blockLabels?: Record<string, string>
 	) {
-		this.showBlocks([block], exportMode, (blocks) => serialise(blocks[0]), view, stepId, blockLabels);
+		this.showBlocks(
+			[block],
+			exportMode,
+			(blocks) => serialise(blocks[0]),
+			view,
+			stepId,
+			blockLabels
+		);
 	}
 
 	/**
@@ -258,7 +265,8 @@ export class PreviewBridge {
 		const restore =
 			view === 'expanded'
 				? wanted
-				: (wanted ?? (remount ? nearestSurviving(this.#lastStepId, this.#lastStepIds, stepIds) : undefined));
+				: (wanted ??
+					(remount ? nearestSurviving(this.#lastStepId, this.#lastStepIds, stepIds) : undefined));
 		this.#lastStepIds = stepIds;
 		this.#lastView = view;
 		this.#lastStepId =
@@ -362,9 +370,12 @@ function decode(data: unknown): PlayerMessage | null {
 }
 
 const isPlayerMessage = (value: unknown): value is PlayerMessage =>
-	typeof value === 'object' && value !== null && typeof (value as { type?: unknown }).type === 'string';
+	typeof value === 'object' &&
+	value !== null &&
+	typeof (value as { type?: unknown }).type === 'string';
 
-const sameIds = (a: string[], b: string[]) => a.length === b.length && a.every((id, i) => id === b[i]);
+const sameIds = (a: string[], b: string[]) =>
+	a.length === b.length && a.every((id, i) => id === b[i]);
 
 /**
  * After a re-mount, land as close as possible to where the author was: the same step

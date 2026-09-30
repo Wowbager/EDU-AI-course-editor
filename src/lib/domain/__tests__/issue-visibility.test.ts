@@ -15,8 +15,12 @@ import type { Issue } from '../validate';
 
 const nothing: Touched = { cards: new Set(), fields: new Set() };
 
-const issue = (code: string, ref: Issue['ref'], severity: Issue['severity'] = 'error'): Issue =>
-	({ code, severity, ref, message: code });
+const issue = (code: string, ref: Issue['ref'], severity: Issue['severity'] = 'error'): Issue => ({
+	code,
+	severity,
+	ref,
+	message: code
+});
 
 describe('the timing table', () => {
 	// Read off the validator's source, so a new code cannot ship without someone
@@ -35,8 +39,9 @@ describe('the timing table', () => {
 
 	it('never waits for a review before showing an error', () => {
 		// Advice may stay quiet until export; something that blocks the file may not.
-		const reviewOnlyErrors = Object.entries(TIMING)
-			.filter(([code, timing]) => code.startsWith('E_') && timing === 'review');
+		const reviewOnlyErrors = Object.entries(TIMING).filter(
+			([code, timing]) => code.startsWith('E_') && timing === 'review'
+		);
 		expect(reviewOnlyErrors).toEqual([]);
 	});
 
@@ -50,18 +55,33 @@ describe('warnings held back with the feedback fields', () => {
 	const source = readFileSync(fileURLToPath(new URL('../validate.ts', import.meta.url)), 'utf8');
 	const emitted = [...new Set([...source.matchAll(/'([EW]_[A-Z0-9_]+)'/g)].map((m) => m[1]))];
 	const help = { blockId: 'B1', stepId: 's1', field: 'help' };
-	const noFeedbackOnWrong = issue('W_NO_WRONG_OPTION_FEEDBACK', { blockId: 'B1', stepId: 's1', field: 'question.options' }, 'warning');
+	const noFeedbackOnWrong = issue(
+		'W_NO_WRONG_OPTION_FEEDBACK',
+		{ blockId: 'B1', stepId: 's1', field: 'question.options' },
+		'warning'
+	);
 	const unreachable = issue('W_HINT_UNREACHABLE', help, 'warning');
 
 	it('names only warnings the validator emits', () => {
-		expect([...HELD_WITH_FEEDBACK].filter((code) => !emitted.includes(code) || !code.startsWith('W_'))).toEqual([]);
+		expect(
+			[...HELD_WITH_FEEDBACK].filter((code) => !emitted.includes(code) || !code.startsWith('W_'))
+		).toEqual([]);
 	});
 
 	it('holds a warning about a hidden field, and one that only feedback fixes', () => {
 		expect(heldBack(unreachable, false)).toBe(true);
 		expect(heldBack(noFeedbackOnWrong, false)).toBe(true);
 		// Held by where it points, whatever its code.
-		expect(heldBack(issue('W_NEW', { blockId: 'B1', stepId: 's1', optionId: 'a', field: 'feedback' }, 'warning'), false)).toBe(true);
+		expect(
+			heldBack(
+				issue(
+					'W_NEW',
+					{ blockId: 'B1', stepId: 's1', optionId: 'a', field: 'feedback' },
+					'warning'
+				),
+				false
+			)
+		).toBe(true);
 	});
 
 	it('holds nothing while feedback is shown', () => {
@@ -70,12 +90,22 @@ describe('warnings held back with the feedback fields', () => {
 	});
 
 	it('leaves other warnings alone', () => {
-		expect(heldBack(issue('W_IMAGE_NO_ALT', { blockId: 'B1', stepId: 's3', field: 'image.alt' }, 'warning'), false)).toBe(false);
+		expect(
+			heldBack(
+				issue('W_IMAGE_NO_ALT', { blockId: 'B1', stepId: 's3', field: 'image.alt' }, 'warning'),
+				false
+			)
+		).toBe(false);
 		expect(heldBack(issue('W_EMPTY_LESSON', { lessonId: 'L1' }, 'warning'), false)).toBe(false);
 	});
 
 	it('never holds an error, even one on a feedback field or with a held code', () => {
-		expect(heldBack(issue('E_MC_NO_CORRECT', { blockId: 'B1', stepId: 's1', field: 'question.options' }), false)).toBe(false);
+		expect(
+			heldBack(
+				issue('E_MC_NO_CORRECT', { blockId: 'B1', stepId: 's1', field: 'question.options' }),
+				false
+			)
+		).toBe(false);
 		expect(heldBack(issue('E_ANY', help), false)).toBe(false);
 		expect(heldBack(issue('W_HINT_UNREACHABLE', help, 'error'), false)).toBe(false);
 		expect([...HELD_WITH_FEEDBACK].filter((code) => code.startsWith('E_'))).toEqual([]);
@@ -84,12 +114,22 @@ describe('warnings held back with the feedback fields', () => {
 
 describe('isVisible', () => {
 	const noText = issue('E_DISPLAY_NO_TEXT', { blockId: 'B1' });
-	const emptyAnswer = issue('E_MC_EMPTY_OPTION_TEXT', { blockId: 'B1', stepId: 's1', optionId: 'a', field: 'text' });
+	const emptyAnswer = issue('E_MC_EMPTY_OPTION_TEXT', {
+		blockId: 'B1',
+		stepId: 's1',
+		optionId: 'a',
+		field: 'text'
+	});
 	const youtube = issue('E_MEDIA_NOT_DIRECT', { blockId: 'B1', stepId: 's2', field: 'video.url' });
-	const noAlt = issue('W_IMAGE_NO_ALT', { blockId: 'B1', stepId: 's3', field: 'image.alt' }, 'warning');
+	const noAlt = issue(
+		'W_IMAGE_NO_ALT',
+		{ blockId: 'B1', stepId: 's3', field: 'image.alt' },
+		'warning'
+	);
 
 	it('keeps a card that is still being written quiet', () => {
-		for (const each of [noText, emptyAnswer, noAlt]) expect(isVisible(each, nothing, null)).toBe(false);
+		for (const each of [noText, emptyAnswer, noAlt])
+			expect(isVisible(each, nothing, null)).toBe(false);
 	});
 
 	it('shows a real contradiction at once', () => {
@@ -125,11 +165,21 @@ describe('isVisible', () => {
 
 		it('keeps an issue that arose afterwards to its own timing', () => {
 			const newCard = issue('E_DISPLAY_NO_TEXT', { blockId: 'B9' });
-			const newAlt = issue('W_IMAGE_NO_ALT', { blockId: 'B9', stepId: 's1', field: 'image.alt' }, 'warning');
-			const newLink = issue('E_MEDIA_NOT_DIRECT', { blockId: 'B9', stepId: 's2', field: 'video.url' });
+			const newAlt = issue(
+				'W_IMAGE_NO_ALT',
+				{ blockId: 'B9', stepId: 's1', field: 'image.alt' },
+				'warning'
+			);
+			const newLink = issue('E_MEDIA_NOT_DIRECT', {
+				blockId: 'B9',
+				stepId: 's2',
+				field: 'video.url'
+			});
 			expect(isVisible(newCard, nothing, reviewed)).toBe(false);
 			expect(isVisible(newAlt, nothing, reviewed)).toBe(false);
-			expect(isVisible(newCard, { cards: new Set(['B9']), fields: new Set() }, reviewed)).toBe(true);
+			expect(isVisible(newCard, { cards: new Set(['B9']), fields: new Set() }, reviewed)).toBe(
+				true
+			);
 			expect(isVisible(newLink, nothing, reviewed)).toBe(true);
 		});
 
@@ -142,7 +192,8 @@ describe('isVisible', () => {
 		});
 
 		it('shows nothing early for an empty review', () => {
-			for (const each of [noText, emptyAnswer, noAlt]) expect(isVisible(each, nothing, new Set())).toBe(false);
+			for (const each of [noText, emptyAnswer, noAlt])
+				expect(isVisible(each, nothing, new Set())).toBe(false);
 		});
 	});
 });
@@ -162,7 +213,10 @@ describe('a card is born quiet', () => {
 			const { addBlock, addStep } = await import('../commands');
 			const { validate } = await import('../validate');
 			let doc = emptyCourse('KURZ', 'Kurz');
-			doc = { ...doc, lessons: [{ lesson_id: 'L1', version: 1, name: 'Lekce', order: 1, blocks: [] }] };
+			doc = {
+				...doc,
+				lessons: [{ lesson_id: 'L1', version: 1, name: 'Lekce', order: 1, blocks: [] }]
+			};
 			const added = addBlock(doc, 'L1', type);
 			doc = added.doc;
 			const blockId = added.ref!.blockId!;
@@ -172,7 +226,9 @@ describe('a card is born quiet', () => {
 			expect(block.status, 'a new card carries no status').toBeUndefined();
 
 			const result = validate(doc, null);
-			const shown = [...result.errors, ...result.warnings].filter((i) => isVisible(i, nothing, null));
+			const shown = [...result.errors, ...result.warnings].filter((i) =>
+				isVisible(i, nothing, null)
+			);
 			expect(shown.map((i) => i.code)).toEqual([]);
 		});
 	}

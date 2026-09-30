@@ -53,9 +53,9 @@ test('a folded step stays folded while it is carried and after it lands', async 
 	// Carry step 1 below step 3. Every step is folded while the drag is on.
 	const from = await press(page, 1);
 	await page.mouse.move(from.x, from.y + 20, { steps: 4 });
-	for (const box of await page.locator('main .step').evaluateAll((els) =>
-		els.map((el) => el.getBoundingClientRect().height)
-	)) {
+	for (const box of await page
+		.locator('main .step')
+		.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height))) {
 		expect(box).toBeLessThanOrEqual(folded + 2);
 	}
 	const target = (await list.nth(2).boundingBox())!;
@@ -110,13 +110,19 @@ test('a validation jump opens the folded step it points at', async ({ page }) =>
 
 	await page.locator('header .chip-button').first().click();
 	const panel = page.getByRole('complementary', { name: 'Kontrola kurzu' });
-	await panel.locator('button.issue').filter({ hasText: /Krok 2/ }).first().click();
+	await panel
+		.locator('button.issue')
+		.filter({ hasText: /Krok 2/ })
+		.first()
+		.click();
 
 	await expect(list.nth(1)).toHaveClass(/targeted/);
 	await expect(list.nth(1).getByRole('button', { name: 'Sbalit krok' })).toBeVisible();
 });
 
-test('folding a step in one card does not fold the step with the same id in another', async ({ page }) => {
+test('folding a step in one card does not fold the step with the same id in another', async ({
+	page
+}) => {
 	await openQuizCard(page);
 	await fold(steps(page).nth(0));
 	await expect(isFolded(steps(page).nth(0))).toBeVisible();
@@ -130,9 +136,13 @@ test('folding a step in one card does not fold the step with the same id in anot
 
 /** What a step's action button looks like right now; the reveal is a 120 ms transition. */
 const opacityOf = (step: Locator, name: string) =>
-	step.getByRole('button', { name, exact: true }).evaluate((el) => Number(getComputedStyle(el.parentElement!).opacity));
+	step
+		.getByRole('button', { name, exact: true })
+		.evaluate((el) => Number(getComputedStyle(el.parentElement!).opacity));
 
-test('a step shows Duplikovat and Smazat only while it is the one being worked on', async ({ page }) => {
+test('a step shows Duplikovat and Smazat only while it is the one being worked on', async ({
+	page
+}) => {
 	await openQuizCard(page);
 	const list = steps(page);
 
@@ -149,7 +159,9 @@ test('a step shows Duplikovat and Smazat only while it is the one being worked o
 
 test('the add-step menu closes on Escape and gives focus back to its button', async ({ page }) => {
 	await openQuizCard(page);
-	const trigger = page.locator('main .add-step').getByRole('button', { name: 'Přidat krok', exact: true });
+	const trigger = page
+		.locator('main .add-step')
+		.getByRole('button', { name: 'Přidat krok', exact: true });
 	const menu = await openMenu(page, trigger, 'Přidat krok');
 	await expect(menu.getByRole('menuitem')).toHaveCount(5);
 	await page.keyboard.press('Escape');
@@ -203,7 +215,9 @@ async function pointerMissesClone(page: Page, y: number) {
 	return Math.max(box.y - y, y - (box.y + box.height), 0);
 }
 
-test('a step grabbed under tall steps, with the column at its top, is under the pointer', async ({ page }) => {
+test('a step grabbed under tall steps, with the column at its top, is under the pointer', async ({
+	page
+}) => {
 	await openTallCard(page, 3);
 	await column(page).evaluate((el) => (el.scrollTop = 0));
 	const from = await press(page, 3);
@@ -219,7 +233,13 @@ test('a step grabbed under tall steps, with the column at its top, is under the 
 const placeholderIndex = (page: Page) =>
 	page
 		.locator('main .steps > *')
-		.evaluateAll((els) => els.findIndex((el) => el.hasAttribute('data-is-dnd-shadow-item-internal') || el.hasAttribute('data-is-dnd-shadow-item-hint')));
+		.evaluateAll((els) =>
+			els.findIndex(
+				(el) =>
+					el.hasAttribute('data-is-dnd-shadow-item-internal') ||
+					el.hasAttribute('data-is-dnd-shadow-item-hint')
+			)
+		);
 
 test('a step grabbed under tall steps drops where the pointer is', async ({ page }) => {
 	await openTallCard(page, 3);
@@ -235,7 +255,9 @@ test('a step grabbed under tall steps drops where the pointer is', async ({ page
 	await expect.poll(() => order(page)).toEqual(['krok-1', 'krok-3', 'krok-2', 'krok-4']);
 });
 
-test('the last step grabbed with the column scrolled to the bottom is under the pointer', async ({ page }) => {
+test('the last step grabbed with the column scrolled to the bottom is under the pointer', async ({
+	page
+}) => {
 	await openTallCard(page, 4);
 	await column(page).evaluate((el) => (el.scrollTop = el.scrollHeight));
 	const from = await press(page, 5);

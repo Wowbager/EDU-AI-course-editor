@@ -10,10 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * actual source text into a `vm` sandbox standing in for a browser global scope, so
  * what is tested is the real file that ships, not a re-implementation of its regex.
  */
-const source = readFileSync(
-	fileURLToPath(new URL('../player-shim.js', import.meta.url)),
-	'utf-8'
-);
+const source = readFileSync(fileURLToPath(new URL('../player-shim.js', import.meta.url)), 'utf-8');
 
 class FakeRequest {
 	url: string;

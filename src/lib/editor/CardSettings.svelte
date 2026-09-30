@@ -78,13 +78,16 @@
 
 	function read(path: string): unknown {
 		if (path === 'default_practice') return practice;
-		return path.split('.').reduce<unknown>(
-			(node, key) =>
-				node === undefined || node === null ? undefined : (node as Record<string, unknown>)[key],
-			block as unknown
-		);
+		return path
+			.split('.')
+			.reduce<unknown>(
+				(node, key) =>
+					node === undefined || node === null ? undefined : (node as Record<string, unknown>)[key],
+				block as unknown
+			);
 	}
-	const readBinding = (path: string): unknown => (binding as Record<string, unknown> | undefined)?.[path];
+	const readBinding = (path: string): unknown =>
+		(binding as Record<string, unknown> | undefined)?.[path];
 
 	/**
 	 * Whether this card's questions are graded as one item (`domain/groups.ts`). Every
@@ -97,7 +100,8 @@
 	const canKeepTogether = $derived(
 		mode === 'advanced' &&
 			block.type !== 'display' &&
-			(together || (card !== undefined && store.source.blocks.filter((b) => groupOf(b) === card).length > 1))
+			(together ||
+				(card !== undefined && store.source.blocks.filter((b) => groupOf(b) === card).length > 1))
 	);
 
 	function keepTogether(on: boolean) {

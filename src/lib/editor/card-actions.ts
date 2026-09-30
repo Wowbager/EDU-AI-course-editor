@@ -54,7 +54,9 @@ export function cardActions(store: DocStore, handlers: CardActionHandlers) {
 					return follow ? { ...result, ref: { blockId } } : result;
 				});
 			});
-			const remaining = store.doc.lessons.filter((l) => l.blocks.some((b) => b.block_id === blockId));
+			const remaining = store.doc.lessons.filter((l) =>
+				l.blocks.some((b) => b.block_id === blockId)
+			);
 			const where =
 				remaining.length === 0
 					? 'Karta je nyní v části Karty mimo lekci.'

@@ -40,11 +40,15 @@ export const VISIBILITY_LABEL: Record<Visibility, { label: string; title: string
 	public: { label: 'Veřejný', title: 'Kurz je v knihovně a otevře ho kdokoli, i bez přihlášení.' },
 	logged_only: {
 		label: 'Jen pro přihlášené',
-		title: 'Kurz je v knihovně, ale otevřít ho může jen přihlášený žák. Host je vyzván k přihlášení.'
+		title:
+			'Kurz je v knihovně, ale otevřít ho může jen přihlášený žák. Host je vyzván k přihlášení.'
 	},
 	draft: { label: 'Rozpracovaný', title: 'Žák kurz nevidí vůbec.' },
 	approved: { label: 'Schválený', title: 'Schválený, čeká na vydání. Žák ho zatím nevidí.' },
-	locked: { label: 'K revizi', title: 'Zamčený na dobu revize. Žák ho nevidí a úpravy by měly počkat.' }
+	locked: {
+		label: 'K revizi',
+		title: 'Zamčený na dobu revize. Žák ho nevidí a úpravy by měly počkat.'
+	}
 };
 
 /** How the document currently reads, in those terms. */
@@ -175,17 +179,29 @@ export type PublishPlan =
 	/** An older version goes out again under a new number, because numbers only grow. */
 	| { kind: 'republish'; from: number; version: number };
 
-export function publishPlan(index: VersionIndex, version: number, workingDoc: Pick<CourseV2, 'version'>): PublishPlan {
+export function publishPlan(
+	index: VersionIndex,
+	version: number,
+	workingDoc: Pick<CourseV2, 'version'>
+): PublishPlan {
 	const published = index.published?.version;
 	// Anything above what is out goes out under its own number: nothing above
 	// `published` was ever out, so the number still only grows.
 	if (published === undefined || version > published) return { kind: 'publish', version };
 	const newest = latest(index)?.version ?? 0;
-	return { kind: 'republish', from: version, version: Math.max(newest + 1, nextVersion(index, workingDoc)) };
+	return {
+		kind: 'republish',
+		from: version,
+		version: Math.max(newest + 1, nextVersion(index, workingDoc))
+	};
 }
 
 /** The document as it is handed to the platform: numbered, with its visibility. */
-export function publishedDocument(version: CourseVersion, number: number, visibility: Visibility): CourseV2 {
+export function publishedDocument(
+	version: CourseVersion,
+	number: number,
+	visibility: Visibility
+): CourseV2 {
 	return applyVisibility({ ...version.doc, version: number }, visibility);
 }
 
@@ -209,5 +225,10 @@ export function summariseDiff(from: CourseV2, to: CourseV2): DiffSummary {
 		else if (old !== json) changed++;
 	}
 	for (const id of before.keys()) if (!after.has(id)) removed++;
-	return { added, removed, changed, lessonsChanged: JSON.stringify(from.lessons) !== JSON.stringify(to.lessons) };
+	return {
+		added,
+		removed,
+		changed,
+		lessonsChanged: JSON.stringify(from.lessons) !== JSON.stringify(to.lessons)
+	};
 }

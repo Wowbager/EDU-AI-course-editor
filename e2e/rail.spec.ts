@@ -27,7 +27,8 @@ const circles = (page: Page) => page.locator('.rail-item');
 const tiles = (page: Page) => page.locator('.rail-tile');
 const undo = (page: Page) => page.getByRole('button', { name: 'Zpět', exact: true });
 /** What each tile is called, in order: the whole order of the lesson in one read. */
-const order = (page: Page) => tiles(page).evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')));
+const order = (page: Page) =>
+	tiles(page).evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')));
 /** What the editor column is showing: the card's name field, empty or not. */
 const heading = (page: Page) => page.getByRole('heading', { level: 1 }).getByRole('textbox');
 
@@ -40,7 +41,9 @@ test('there is a circle per lesson, and Nová lekce adds one', async ({ page }) 
 	await expect(circles(page).last()).toHaveAttribute('aria-current', 'true');
 });
 
-test('a lesson circle’s panel says what is in the lesson, and opens its settings', async ({ page }) => {
+test('a lesson circle’s panel says what is in the lesson, and opens its settings', async ({
+	page
+}) => {
 	const circle = circles(page).first();
 	// No native tooltip and no gear on the circle: the panel beside it carries both.
 	await expect(circle).not.toHaveAttribute('title', /.*/);
@@ -62,11 +65,15 @@ test('clicking a tile selects its card', async ({ page }) => {
 	await expect.poll(() => heading(page).getAttribute('placeholder')).not.toBe(first);
 	// A teacher is never shown an id, by name or by tooltip.
 	for (const tile of await tiles(page).all()) {
-		expect(`${await tile.getAttribute('aria-label')} ${await tile.getAttribute('title')}`).not.toMatch(/L1_|_B\d/);
+		expect(
+			`${await tile.getAttribute('aria-label')} ${await tile.getAttribute('title')}`
+		).not.toMatch(/L1_|_B\d/);
 	}
 });
 
-test('a tile is dragged by any part of it, Zpět puts it back, and a drop in place is not an edit', async ({ page }) => {
+test('a tile is dragged by any part of it, Zpět puts it back, and a drop in place is not an edit', async ({
+	page
+}) => {
 	const before = await order(page);
 	expect(before.length).toBeGreaterThanOrEqual(3);
 	await expect(undo(page)).toBeDisabled();
@@ -97,7 +104,9 @@ test('a tile is dragged by any part of it, Zpět puts it back, and a drop in pla
 			await page.mouse.move(from.x, to);
 			return page
 				.locator('.tiles > li')
-				.evaluateAll((items) => items.findIndex((li) => li.hasAttribute('data-is-dnd-shadow-item-internal')));
+				.evaluateAll((items) =>
+					items.findIndex((li) => li.hasAttribute('data-is-dnd-shadow-item-internal'))
+				);
 		})
 		.toBe(2);
 	await page.mouse.up();
@@ -119,7 +128,10 @@ test('Přidat kartu offers the three types and adds a selected card', async ({ p
 	await page.getByRole('menuitem', { name: 'Cvičení' }).click();
 	await expect(tiles(page)).toHaveCount(count + 1);
 	await expect(tiles(page).last()).toHaveAttribute('aria-current', 'true');
-	await expect(tiles(page).last()).toHaveAttribute('aria-label', new RegExp(`^${count + 1}\\. Cvičení: `));
+	await expect(tiles(page).last()).toHaveAttribute(
+		'aria-label',
+		new RegExp(`^${count + 1}\\. Cvičení: `)
+	);
 });
 
 test('a tile is only an icon, and its actions come out beside it on hover', async ({ page }) => {
@@ -132,7 +144,12 @@ test('a tile is only an icon, and its actions come out beside it on hover', asyn
 	const panel = page.getByRole('group', { name: 'Karta 2' });
 	await expect(panel).toBeVisible();
 	await expect(panel).toContainText('2 · ');
-	for (const name of ['Nastavení 2. karty', 'Duplikovat 2. kartu', 'Odebrat 2. kartu z lekce', 'Smazat 2. kartu']) {
+	for (const name of [
+		'Nastavení 2. karty',
+		'Duplikovat 2. kartu',
+		'Odebrat 2. kartu z lekce',
+		'Smazat 2. kartu'
+	]) {
 		await expect(panel.getByRole('button', { name, exact: true })).toBeVisible();
 	}
 	// The panel names the button under the pointer, and rests on the card's place.
@@ -144,7 +161,9 @@ test('a tile is only an icon, and its actions come out beside it on hover', asyn
 	await expect(panel).toBeHidden();
 });
 
-test('Nastavení in the panel opens that card’s settings, not the selected card’s', async ({ page }) => {
+test('Nastavení in the panel opens that card’s settings, not the selected card’s', async ({
+	page
+}) => {
 	await tiles(page).nth(1).hover();
 	await page.getByRole('button', { name: 'Nastavení 2. karty', exact: true }).click();
 	await expect(page.getByRole('dialog', { name: 'Nastavení karty' })).toBeVisible();
@@ -161,7 +180,9 @@ test('Duplikovat adds a tile after the card, and the copy is selected', async ({
 	await expect(page.getByRole('group', { name: /^Karta \d+$/ })).toBeHidden();
 });
 
-test('Odebrat z lekce takes a tile away, the editor keeps the selection, and Vrátit zpět brings it back', async ({ page }) => {
+test('Odebrat z lekce takes a tile away, the editor keeps the selection, and Vrátit zpět brings it back', async ({
+	page
+}) => {
 	const before = await order(page);
 	await tiles(page).nth(2).hover();
 	await page.getByRole('button', { name: 'Odebrat 3. kartu z lekce' }).click();
@@ -173,7 +194,9 @@ test('Odebrat z lekce takes a tile away, the editor keeps the selection, and Vr�
 	await expect.poll(() => order(page)).toEqual(before);
 });
 
-test('Smazat needs two clicks: the first arms it, moving away disarms it, the second deletes', async ({ page }) => {
+test('Smazat needs two clicks: the first arms it, moving away disarms it, the second deletes', async ({
+	page
+}) => {
 	const before = await order(page);
 	await tiles(page).nth(2).click();
 	await tiles(page).nth(2).hover();
@@ -231,7 +254,9 @@ test('Smazat on a card another card branches to asks where the pointers go', asy
 	await expect(tiles(page)).toHaveCount(before.length);
 });
 
-test('keyboard: a focused tile shows its panel, → goes into the actions and Enter opens the settings', async ({ page }) => {
+test('keyboard: a focused tile shows its panel, → goes into the actions and Enter opens the settings', async ({
+	page
+}) => {
 	await tiles(page).nth(1).focus();
 	// Focus by keyboard (not the mouse) shows the panel at once.
 	await page.keyboard.press('ArrowRight');
@@ -257,7 +282,9 @@ test('Shift+F10 on a tile opens its panel, and it stays until Escape', async ({ 
 	await expect(panel).toBeHidden();
 });
 
-test('running down the tiles moves one panel from tile to tile, and a drag opens none', async ({ page }) => {
+test('running down the tiles moves one panel from tile to tile, and a drag opens none', async ({
+	page
+}) => {
 	await tiles(page).first().hover();
 	await expect(page.getByRole('group', { name: 'Karta 1' })).toBeVisible();
 	await tiles(page).nth(1).hover();
@@ -275,7 +302,9 @@ test('running down the tiles moves one panel from tile to tile, and a drag opens
 	await page.mouse.up();
 });
 
-test('an error on a card is in its tile’s name, and a card without one says nothing', async ({ page }) => {
+test('an error on a card is in its tile’s name, and a card without one says nothing', async ({
+	page
+}) => {
 	await expect(tiles(page).first()).not.toHaveAttribute('aria-label', /chyb/);
 	// A new question has nothing to choose from yet. Its errors stay quiet while it is
 	// being written, so leave it: that is when they are shown.
@@ -285,7 +314,9 @@ test('an error on a card is in its tile’s name, and a card without one says no
 	await expect(added).toHaveAttribute('aria-current', 'true');
 	await tiles(page).first().click();
 	await expect(added).toHaveAttribute('aria-label', /, \d+ (chyba|chyby|chyb)$/);
-	await expect(added.locator('xpath=following-sibling::span[contains(@class,"dot")]')).toHaveCount(1);
+	await expect(added.locator('xpath=following-sibling::span[contains(@class,"dot")]')).toHaveCount(
+		1
+	);
 });
 
 test('Alt+ArrowDown moves the focused tile and keeps it focused', async ({ page }) => {
@@ -293,11 +324,9 @@ test('Alt+ArrowDown moves the focused tile and keeps it focused', async ({ page 
 	const name = (label: string | null) => label!.replace(/^\d+\. /, '');
 	await tiles(page).first().focus();
 	await page.keyboard.press('Alt+ArrowDown');
-	await expect.poll(async () => (await order(page)).map(name)).toEqual([
-		name(before[1]),
-		name(before[0]),
-		...before.slice(2).map(name)
-	]);
+	await expect
+		.poll(async () => (await order(page)).map(name))
+		.toEqual([name(before[1]), name(before[0]), ...before.slice(2).map(name)]);
 	await expect(tiles(page).nth(1)).toBeFocused();
 	// Enter still only selects.
 	await page.keyboard.press('Enter');

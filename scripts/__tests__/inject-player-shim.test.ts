@@ -52,7 +52,7 @@ describe('injectPlayerShim', () => {
 		expect(result.indexOf(SHIM_START)).toBeLessThan(result.indexOf('<title>'));
 	});
 
-	it('drops scripts from other origins, which can hold up the player\'s boot', () => {
+	it("drops scripts from other origins, which can hold up the player's boot", () => {
 		const html = `<html><head>
   <script type="text/javascript"
     src="https://alcdn.msauth.net/browser/2.13.1/js/msal-browser.min.js"
@@ -61,7 +61,9 @@ describe('injectPlayerShim', () => {
 </head><body><script src="flutter_bootstrap.js" async></script></body></html>`;
 		const result = injectPlayerShim(html, 'x');
 		expect(result).not.toContain('<script type="text/javascript"');
-		expect(result).toContain('external script dropped: //alcdn.msauth.net/browser/2.13.1/js/msal-browser.min.js');
+		expect(result).toContain(
+			'external script dropped: //alcdn.msauth.net/browser/2.13.1/js/msal-browser.min.js'
+		);
 		// Same-origin scripts stay, and so does the bootstrap.
 		expect(result).toContain('<script src="assets/packages/aad_oauth/assets/msalv2.js"></script>');
 		expect(result).toContain('<script src="flutter_bootstrap.js" async></script>');

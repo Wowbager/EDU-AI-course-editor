@@ -24,12 +24,7 @@ import type {
 import type { Ref } from './ref';
 import { lessonLabel } from './naming';
 import { ELO_BASELINE } from './skill-config';
-import {
-	buildIndex,
-	referencesToBlock,
-	referencesToStep,
-	type Reference
-} from './index-doc';
+import { buildIndex, referencesToBlock, referencesToStep, type Reference } from './index-doc';
 import {
 	duplicateBlockValue,
 	newBlockId,
@@ -90,7 +85,8 @@ const requireBlock = (doc: CourseV2, blockId: string): BlockV2 => {
 
 const requireLesson = (doc: CourseV2, lessonId: string): LessonV2 => {
 	const lesson = doc.lessons.find((l) => l.lesson_id === lessonId);
-	if (lesson === undefined) throw new CommandError(`Lekce „${lessonId}“ v kurzu není.`, { lessonId });
+	if (lesson === undefined)
+		throw new CommandError(`Lekce „${lessonId}“ v kurzu není.`, { lessonId });
 	return lesson;
 };
 
@@ -224,11 +220,7 @@ export function nextDefaultLessonName(doc: CourseV2, base = DEFAULT_LESSON_NAME)
  * `name` stays optional and an explicit one still wins — the import path and the
  * tests name lessons themselves. Only the *default* is derived.
  */
-export function addLesson(
-	doc: CourseV2,
-	name?: string,
-	reserved?: Reservations
-): CommandResult {
+export function addLesson(doc: CourseV2, name?: string, reserved?: Reservations): CommandResult {
 	const lessonId = newLessonId(doc, reserved);
 	const lessonName = name ?? nextDefaultLessonName(doc);
 	const lesson: LessonV2 = {
@@ -287,9 +279,13 @@ export function deleteLesson(doc: CourseV2, lessonId: string): CommandResult {
 
 export function reorderLessons(doc: CourseV2, orderedIds: string[]): CommandResult {
 	const byId = new Map(doc.lessons.map((l) => [l.lesson_id, l]));
-	const reordered = orderedIds.map((id) => byId.get(id)).filter((l): l is LessonV2 => l !== undefined);
-	for (const lesson of doc.lessons) if (!orderedIds.includes(lesson.lesson_id)) reordered.push(lesson);
-	if (sameSequence(doc.lessons, reordered)) return { doc, description: 'Pořadí lekcí se nezměnilo' };
+	const reordered = orderedIds
+		.map((id) => byId.get(id))
+		.filter((l): l is LessonV2 => l !== undefined);
+	for (const lesson of doc.lessons)
+		if (!orderedIds.includes(lesson.lesson_id)) reordered.push(lesson);
+	if (sameSequence(doc.lessons, reordered))
+		return { doc, description: 'Pořadí lekcí se nezměnilo' };
 	return {
 		doc: { ...doc, lessons: renumberOrder(reordered) },
 		description: 'Změněno pořadí lekcí'
@@ -299,7 +295,12 @@ export function reorderLessons(doc: CourseV2, orderedIds: string[]): CommandResu
 // ──────────────────────────────────────── bindings ────────────────────────────────────────
 
 /** Bind an existing block into a lesson — the shared-block case (§5). */
-export function bindBlock(doc: CourseV2, lessonId: string, blockId: string, at?: number): CommandResult {
+export function bindBlock(
+	doc: CourseV2,
+	lessonId: string,
+	blockId: string,
+	at?: number
+): CommandResult {
 	const lesson = requireLesson(doc, lessonId);
 	requireBlock(doc, blockId);
 	// Repeated assignment is a no-op, preserving binding settings and undo history.
@@ -328,7 +329,11 @@ export function unbindBlock(doc: CourseV2, lessonId: string, blockId: string): C
 	};
 }
 
-export function reorderBindings(doc: CourseV2, lessonId: string, orderedIds: string[]): CommandResult {
+export function reorderBindings(
+	doc: CourseV2,
+	lessonId: string,
+	orderedIds: string[]
+): CommandResult {
 	const lesson = requireLesson(doc, lessonId);
 	const remaining = [...lesson.blocks];
 	const reordered: LessonBlockBinding[] = [];
@@ -337,7 +342,8 @@ export function reorderBindings(doc: CourseV2, lessonId: string, orderedIds: str
 		if (at >= 0) reordered.push(...remaining.splice(at, 1));
 	}
 	reordered.push(...remaining);
-	if (sameSequence(lesson.blocks, reordered)) return { doc, description: 'Pořadí karet se nezměnilo' };
+	if (sameSequence(lesson.blocks, reordered))
+		return { doc, description: 'Pořadí karet se nezměnilo' };
 	return {
 		doc: mapLesson(doc, lessonId, (l) => ({ ...l, blocks: renumberOrder(reordered) })),
 		description: 'Změněno pořadí bloků v lekci'
@@ -350,12 +356,18 @@ export function reorderBindings(doc: CourseV2, lessonId: string, orderedIds: str
  * moves and the same document comes back, so it is not an edit. If the lesson binds
  * the same card twice, the first binding is the one that moves.
  */
-export function moveBlockInLesson(doc: CourseV2, lessonId: string, blockId: string, delta: -1 | 1): CommandResult {
+export function moveBlockInLesson(
+	doc: CourseV2,
+	lessonId: string,
+	blockId: string,
+	delta: -1 | 1
+): CommandResult {
 	const lesson = requireLesson(doc, lessonId);
 	const ids = lesson.blocks.map((b) => b.block_id);
 	const from = ids.indexOf(blockId);
 	const to = from + delta;
-	if (from < 0 || to < 0 || to >= ids.length) return { doc, description: 'Pořadí karet se nezměnilo' };
+	if (from < 0 || to < 0 || to >= ids.length)
+		return { doc, description: 'Pořadí karet se nezměnilo' };
 	[ids[from], ids[to]] = [ids[to], ids[from]];
 	return reorderBindings(doc, lessonId, ids);
 }
@@ -372,7 +384,10 @@ export function moveBlockToLesson(
 	requireLesson(doc, toLessonId);
 	const binding = from.blocks.find((b) => b.block_id === blockId);
 	if (binding === undefined) {
-		throw new CommandError(`Blok „${blockId}“ v lekci „${fromLessonId}“ není.`, { lessonId: fromLessonId, blockId });
+		throw new CommandError(`Blok „${blockId}“ v lekci „${fromLessonId}“ není.`, {
+			lessonId: fromLessonId,
+			blockId
+		});
 	}
 
 	let next = mapLesson(doc, fromLessonId, (lesson) => ({
@@ -561,7 +576,11 @@ export function deleteBlock(doc: CourseV2, blockId: string, repairs: Repair[] = 
 }
 
 /** Rename a block and rewrite every pointer at it, so nothing dangles. */
-export function renameBlock(doc: CourseV2, blockId: string, newBlockIdValue: string): CommandResult {
+export function renameBlock(
+	doc: CourseV2,
+	blockId: string,
+	newBlockIdValue: string
+): CommandResult {
 	requireBlock(doc, blockId);
 	if (doc.blocks.some((b) => b.block_id === newBlockIdValue)) {
 		throw new CommandError(`Blok s id „${newBlockIdValue}“ už v kurzu je.`, { blockId });
@@ -571,10 +590,13 @@ export function renameBlock(doc: CourseV2, blockId: string, newBlockIdValue: str
 		...doc,
 		lessons: doc.lessons.map((lesson) => ({
 			...lesson,
-			blocks: lesson.blocks.map((b) => (b.block_id === blockId ? { ...b, block_id: newBlockIdValue } : b))
+			blocks: lesson.blocks.map((b) =>
+				b.block_id === blockId ? { ...b, block_id: newBlockIdValue } : b
+			)
 		})),
 		blocks: doc.blocks.map((block) => {
-			const renamed = block.block_id === blockId ? { ...block, block_id: newBlockIdValue } : { ...block };
+			const renamed =
+				block.block_id === blockId ? { ...block, block_id: newBlockIdValue } : { ...block };
 			const prerequisites = renamed.learning?.prerequisites;
 			if (prerequisites !== undefined) {
 				renamed.learning = {
@@ -586,9 +608,14 @@ export function renameBlock(doc: CourseV2, blockId: string, newBlockIdValue: str
 			}
 			return {
 				...renamed,
-				steps: renamed.steps.map((step) => rewriteStepGoTo(step, (target, ownStepIds) =>
-					!ownStepIds.has(target) && target === blockId ? newBlockIdValue : target
-				, new Set(renamed.steps.map((s) => s.id))))
+				steps: renamed.steps.map((step) =>
+					rewriteStepGoTo(
+						step,
+						(target, ownStepIds) =>
+							!ownStepIds.has(target) && target === blockId ? newBlockIdValue : target,
+						new Set(renamed.steps.map((s) => s.id))
+					)
+				)
 			};
 		})
 	};
@@ -600,7 +627,11 @@ export function renameBlock(doc: CourseV2, blockId: string, newBlockIdValue: str
 	};
 }
 
-export function renameLesson(doc: CourseV2, lessonId: string, newLessonIdValue: string): CommandResult {
+export function renameLesson(
+	doc: CourseV2,
+	lessonId: string,
+	newLessonIdValue: string
+): CommandResult {
 	requireLesson(doc, lessonId);
 	if (doc.lessons.some((l) => l.lesson_id === newLessonIdValue)) {
 		throw new CommandError(`Lekce s id „${newLessonIdValue}“ už v kurzu je.`, { lessonId });
@@ -650,7 +681,8 @@ export function duplicateStep(
 ): CommandResult {
 	const block = requireBlock(doc, blockId);
 	const source = block.steps.find((s) => s.id === stepId);
-	if (source === undefined) throw new CommandError(`Krok „${stepId}“ v bloku není.`, { blockId, stepId });
+	if (source === undefined)
+		throw new CommandError(`Krok „${stepId}“ v bloku není.`, { blockId, stepId });
 
 	const id = nextStepId(block.steps, blockId, reserved);
 	const copy: BlockStep = structuredClone(source);
@@ -712,7 +744,8 @@ export function reorderSteps(doc: CourseV2, blockId: string, orderedIds: string[
 		if (at >= 0) reordered.push(...remaining.splice(at, 1));
 	}
 	reordered.push(...remaining);
-	if (sameSequence(block.steps, reordered)) return { doc, description: 'Pořadí kroků se nezměnilo' };
+	if (sameSequence(block.steps, reordered))
+		return { doc, description: 'Pořadí kroků se nezměnilo' };
 	return {
 		doc: mapBlock(doc, blockId, (b) => ({ ...b, steps: renumberOrder(reordered) })),
 		description: 'Změněno pořadí kroků'
@@ -731,7 +764,10 @@ export function addOption(doc: CourseV2, blockId: string, stepId: string): Comma
 	return {
 		doc: mapStep(doc, blockId, stepId, (s) => ({
 			...s,
-			question: { ...s.question!, options: [...(s.question!.options ?? []), { id, text: '', is_correct: false }] }
+			question: {
+				...s.question!,
+				options: [...(s.question!.options ?? []), { id, text: '', is_correct: false }]
+			}
 		})),
 		ref: { blockId, stepId, optionId: id },
 		description: 'Přidána odpověď'
@@ -1048,7 +1084,11 @@ export function setVisibility(doc: CourseV2, visibility: Visibility): CommandRes
  * current visibility: those describe the course, not the version being returned to.
  */
 export function restoreVersion(doc: CourseV2, saved: CourseV2, number: number): CommandResult {
-	const restored: CourseV2 = { ...structuredClone(saved), course_id: doc.course_id, version: doc.version };
+	const restored: CourseV2 = {
+		...structuredClone(saved),
+		course_id: doc.course_id,
+		version: doc.version
+	};
 	if (doc.status === undefined) delete restored.status;
 	else restored.status = doc.status;
 	if (doc.logged_only === undefined) delete restored.logged_only;

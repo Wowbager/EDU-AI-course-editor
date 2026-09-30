@@ -32,12 +32,20 @@ test.describe('a card with two questions in the preview', () => {
 	test.beforeEach(async ({ page }) => {
 		log = await recordMessages(page);
 		await openEditor(page);
-		await page.setInputFiles('input[type=file]', { name: 'zlomky-5-trida.json', mimeType: 'application/json', buffer: FILE });
+		await page.setInputFiles('input[type=file]', {
+			name: 'zlomky-5-trida.json',
+			mimeType: 'application/json',
+			buffer: FILE
+		});
 		await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-		await expect(page.locator('aside.preview')).toHaveAttribute('data-player', 'ready', { timeout: 60_000 });
+		await expect(page.locator('aside.preview')).toHaveAttribute('data-player', 'ready', {
+			timeout: 60_000
+		});
 	});
 
-	test('Náhled shows both of its cards, and a click in the second lands on the teacher’s card', async ({ page }) => {
+	test('Náhled shows both of its cards, and a click in the second lands on the teacher’s card', async ({
+		page
+	}) => {
 		await openCard(page);
 		const state = await inspect(page);
 		expect(state.shownStepIds).toEqual(['s1', 's2', 's3', 's4']);
@@ -46,13 +54,17 @@ test.describe('a card with two questions in the preview', () => {
 		const mark = log.mark();
 		await press(page, button(page, 'Hotovo').nth(2));
 		await expect.poll(() => log.up('clicked', mark).length).toBeGreaterThan(0);
-		expect(log.up('clicked', mark).at(-1)).toMatchObject({ ref: { blockId: SECOND, stepId: 's3' } });
+		expect(log.up('clicked', mark).at(-1)).toMatchObject({
+			ref: { blockId: SECOND, stepId: 's3' }
+		});
 
 		await expect(page.locator('.tree-card.selected')).toHaveCount(1);
 		await expect(page.locator('main .step').nth(2)).toHaveClass(/targeted/);
 	});
 
-	test('Vyzkoušet grades each question as its own card, and the editor stays on the one card', async ({ page }) => {
+	test('Vyzkoušet grades each question as its own card, and the editor stays on the one card', async ({
+		page
+	}) => {
 		await openCard(page);
 		const selected = await page.locator('.tree-card.selected').textContent();
 		const mark = log.mark();

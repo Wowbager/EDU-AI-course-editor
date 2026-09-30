@@ -56,8 +56,15 @@ export async function openEditor(page: Page, url = '/'): Promise<boolean> {
 		.catch(() => false);
 	if (loaded) return false;
 
-	const shown = (await page.locator('h1').first().textContent().catch(() => null)) ?? 'nothing';
-	test.info().annotations.push({ type: 'load retried', description: `the first load showed: ${shown}` });
+	const shown =
+		(await page
+			.locator('h1')
+			.first()
+			.textContent()
+			.catch(() => null)) ?? 'nothing';
+	test
+		.info()
+		.annotations.push({ type: 'load retried', description: `the first load showed: ${shown}` });
 	await page.reload();
 	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true', { timeout: 15_000 });
 	return true;
@@ -83,14 +90,20 @@ export async function openMenu(page: Page, trigger: Locator, name: string): Prom
  * narrows it to one card when the column holds more than one.
  */
 export async function addStep(page: Page, type: StepKind, within: Pick<Page, 'locator'> = page) {
-	const trigger = within.locator('.add-step').getByRole('button', { name: 'Přidat krok', exact: true });
+	const trigger = within
+		.locator('.add-step')
+		.getByRole('button', { name: 'Přidat krok', exact: true });
 	const menu = await openMenu(page, trigger, 'Přidat krok');
 	await menu.getByRole('menuitem', { name: type, exact: true }).click();
 }
 
 /** The card's ⋯ menu, opened: Duplikovat kartu, Zařadit do / Odebrat z lekce, Smazat kartu. */
 export const cardMenu = (page: Page) =>
-	openMenu(page, page.getByRole('button', { name: 'Další akce s kartou', exact: true }), 'Další akce s kartou');
+	openMenu(
+		page,
+		page.getByRole('button', { name: 'Další akce s kartou', exact: true }),
+		'Další akce s kartou'
+	);
 
 /** Do one of the card's actions by its name in the ⋯ menu. */
 export async function cardAction(page: Page, name: string) {

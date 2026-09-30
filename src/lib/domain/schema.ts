@@ -242,48 +242,128 @@ export type Status = (typeof STATUSES)[number];
  */
 export const KEY_ORDER = {
 	course: [
-		'export_type', 'course_id', 'version', 'name', 'description', 'language', 'author',
-		'updated', 'status', 'emoji', 'estimated_minutes', 'pin', 'logged_only', 'only_once',
-		'only_quiz', 'starts_with_quiz', 'quiz_evaluate', 'max_xp', 'stop_gambling',
-		'stop_notice', 'ai_context', 'header_image', 'lessons', 'blocks'
+		'export_type',
+		'course_id',
+		'version',
+		'name',
+		'description',
+		'language',
+		'author',
+		'updated',
+		'status',
+		'emoji',
+		'estimated_minutes',
+		'pin',
+		'logged_only',
+		'only_once',
+		'only_quiz',
+		'starts_with_quiz',
+		'quiz_evaluate',
+		'max_xp',
+		'stop_gambling',
+		'stop_notice',
+		'ai_context',
+		'header_image',
+		'lessons',
+		'blocks'
 	],
 	lesson: [
-		'lesson_id', 'version', 'name', 'description', 'order', 'header_image', 'ai_context',
+		'lesson_id',
+		'version',
+		'name',
+		'description',
+		'order',
+		'header_image',
+		'ai_context',
 		'blocks'
 	],
 	binding: ['block_id', 'order', 'bg_color', 'bg_image', 'default_practice'],
 	block: [
 		// `name` sits where `lesson.name` sits — after the id and the version — so the
 		// three levels of the document read the same way in a diff.
-		'export_type', 'block_id', 'version', 'name', 'group', 'multi_question', 'language', 'author',
-		'updated', 'status', 'type',
-		'duration', 'xp', 'default_practice', 'hint', 'help', 'gpf', 'learning', 'fsrs',
-		'adaptation', 'steps'
+		'export_type',
+		'block_id',
+		'version',
+		'name',
+		'group',
+		'multi_question',
+		'language',
+		'author',
+		'updated',
+		'status',
+		'type',
+		'duration',
+		'xp',
+		'default_practice',
+		'hint',
+		'help',
+		'gpf',
+		'learning',
+		'fsrs',
+		'adaptation',
+		'steps'
 	],
 	gpf: [
-		'domain', 'construct', 'subconstruct', 'grade', 'level', 'vector', 'kb_vector',
-		'relation_vector', 'elo_vector'
+		'domain',
+		'construct',
+		'subconstruct',
+		'grade',
+		'level',
+		'vector',
+		'kb_vector',
+		'relation_vector',
+		'elo_vector'
 	],
 	learning: [
-		'concepts', 'competencies', 'bloom_level', 'difficulty', 'prerequisites', 'd_data', 'l_data'
+		'concepts',
+		'competencies',
+		'bloom_level',
+		'difficulty',
+		'prerequisites',
+		'd_data',
+		'l_data'
 	],
 	prerequisite: ['block_id', 'skill', 'min_level', 'weight'],
 	fsrs: [
-		'initial_difficulty', 'initial_stability', 'initial_recall', 'forgetting_rate',
-		'repetitions', 'weight', 'min_interval', 'max_interval', 'skip_condition', 'time_limit_sec'
+		'initial_difficulty',
+		'initial_stability',
+		'initial_recall',
+		'forgetting_rate',
+		'repetitions',
+		'weight',
+		'min_interval',
+		'max_interval',
+		'skip_condition',
+		'time_limit_sec'
 	],
 	adaptation: ['scaffolded', 'full'],
 	step: [
-		'id', 'type', 'order', 'content', 'image', 'video', 'audio', 'hint', 'help',
-		'default_practice', 'question'
+		'id',
+		'type',
+		'order',
+		'content',
+		'image',
+		'video',
+		'audio',
+		'hint',
+		'help',
+		'default_practice',
+		'question'
 	],
 	question: [
-		'type', 'show_answers', 'show_solution', 'allow_multiple', 'allow_photo',
-		'correct_answer', 'correct_number', 'tolerance', 'solution', 'solution_image', 'options'
+		'type',
+		'show_answers',
+		'show_solution',
+		'allow_multiple',
+		'allow_photo',
+		'correct_answer',
+		'correct_number',
+		'tolerance',
+		'solution',
+		'solution_image',
+		'options'
 	],
-	option: [
-		'id', 'text', 'is_correct', 'score_koef', 'mark', 'feedback', 'feedback_image', 'go_to'
-	],
+	option: ['id', 'text', 'is_correct', 'score_koef', 'mark', 'feedback', 'feedback_image', 'go_to'],
 	image: ['url', 'alt', 'position'],
 	video: ['url', 'position'],
 	audio: ['url']

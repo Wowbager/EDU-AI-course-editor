@@ -48,7 +48,9 @@ test('a teacher builds a lesson from scratch', async ({ page }) => {
 	await page.keyboard.type('Čitatel je 5');
 	await page.keyboard.press('Enter');
 
-	await expect(answers.getByRole('textbox', { name: 'Text odpovědi' }).first()).toHaveValue('Čitatel je 5');
+	await expect(answers.getByRole('textbox', { name: 'Text odpovědi' }).first()).toHaveValue(
+		'Čitatel je 5'
+	);
 
 	// The lesson totals move with the content: two cards now.
 	await expect(page.locator('.tree-lesson.open .meta')).toContainText('2 karty');
@@ -92,7 +94,9 @@ test('teacher mode hides nothing behind a disclosure', async ({ page }) => {
 	await expect(page.getByRole('dialog')).toContainText('Podrobná pomoc');
 });
 
-test('a type change that loses answers says Zpět brings them back, even from another card', async ({ page }) => {
+test('a type change that loses answers says Zpět brings them back, even from another card', async ({
+	page
+}) => {
 	await page.locator('.tree-add').getByRole('button', { name: 'Otázka', exact: true }).click();
 	const answer = page.locator('.answers').getByRole('textbox', { name: 'Text odpovědi' }).first();
 	await answer.fill('Čitatel je 5');
@@ -213,7 +217,12 @@ test('a course with errors cannot be exported, one with warnings can', async ({ 
 	await expect(review.locator('details.advice')).not.toHaveAttribute('open');
 
 	// „Přejít“ closes the review and opens the card the row is about.
-	await review.locator('.group.error').first().getByRole('button', { name: /Přejít/ }).first().click();
+	await review
+		.locator('.group.error')
+		.first()
+		.getByRole('button', { name: /Přejít/ })
+		.first()
+		.click();
 	await expect(review).toBeHidden();
 	await expect(page.locator('main .card')).toHaveCount(1);
 	expect(await page.locator('.tree-card.selected').count()).toBeGreaterThan(0);
@@ -238,7 +247,9 @@ test('a course with errors cannot be exported, one with warnings can', async ({ 
 	await expect(advice).toBeHidden();
 });
 
-test('unfinished content stays quiet until the card is left, and the review shows the rest', async ({ page }) => {
+test('unfinished content stays quiet until the card is left, and the review shows the rest', async ({
+	page
+}) => {
 	// A fresh course is one empty text card — unfinished, not wrong. Nothing on it is red.
 	const check = page.locator('.topbar .chip-button');
 	await expect(check).toContainText('k dokončení');
@@ -260,7 +271,11 @@ test('unfinished content stays quiet until the card is left, and the review show
 	const answer = page.locator('.answers').getByRole('textbox', { name: 'Text odpovědi' }).first();
 	await answer.click();
 	await expect(answer).not.toHaveAttribute('aria-invalid', 'true');
-	await page.locator('.answers').getByRole('textbox', { name: 'Zpětná vazba k této odpovědi' }).first().click();
+	await page
+		.locator('.answers')
+		.getByRole('textbox', { name: 'Zpětná vazba k této odpovědi' })
+		.first()
+		.click();
 	await expect(answer).toHaveAttribute('aria-invalid', 'true');
 
 	// Asking to export turns the author from writing to fixing: the count goes red.
@@ -333,7 +348,9 @@ test('undo puts back what a delete took away', async ({ page }) => {
 	await expect(inLesson).toHaveCount(3);
 });
 
-test('the card heading carries no breadcrumb, and its help shows only while it is edited', async ({ page }) => {
+test('the card heading carries no breadcrumb, and its help shows only while it is edited', async ({
+	page
+}) => {
 	await importCourse(page, 'spec-16-course.json');
 	await expect(page.locator('.crumb')).toHaveCount(0);
 
@@ -353,12 +370,20 @@ test('the card heading carries no breadcrumb, and its help shows only while it i
 	expect(await cardTop()).toBe(before);
 });
 
-test('an image step asks for the picture first, and for its description once there is one', async ({ page }) => {
+test('an image step asks for the picture first, and for its description once there is one', async ({
+	page
+}) => {
 	await addStep(page, 'Obrázek');
 	const url = page.getByRole('textbox', { name: 'Adresa obrázku', exact: true });
-	const alt = page.getByRole('textbox', { name: 'Popis obrázku pro čtečku obrazovky', exact: true });
+	const alt = page.getByRole('textbox', {
+		name: 'Popis obrázku pro čtečku obrazovky',
+		exact: true
+	});
 	await expect(url).toBeVisible();
-	await expect(url).toHaveAttribute('placeholder', 'Vlož odkaz na obrázek (např. https://…/obrazek.jpg)');
+	await expect(url).toHaveAttribute(
+		'placeholder',
+		'Vlož odkaz na obrázek (např. https://…/obrazek.jpg)'
+	);
 	await expect(alt).toHaveCount(0);
 
 	await url.fill('https://example.com/zlomek.png');
@@ -370,15 +395,24 @@ test('an image step asks for the picture first, and for its description once the
 	await expect(alt).toHaveCount(0);
 });
 
-test('the card title\'s placeholder is a name, not a cue: upright, while a cue stays italic', async ({ page }) => {
+test("the card title's placeholder is a name, not a cue: upright, while a cue stays italic", async ({
+	page
+}) => {
 	await page.locator('.tree-add').getByRole('button', { name: 'Otázka', exact: true }).click();
 	const style = (selector: string) =>
-		page.locator(selector).first().evaluate((el) => getComputedStyle(el, '::placeholder').fontStyle);
+		page
+			.locator(selector)
+			.first()
+			.evaluate((el) => getComputedStyle(el, '::placeholder').fontStyle);
 	const title = 'h1 input[placeholder]';
 	await expect(page.locator(title).first()).toHaveAttribute('placeholder', /^Karta \d+$/);
 	expect(await style(title)).toBe('normal');
 	// An invitation to write is still set as one.
-	expect(await style('.answers textarea, .answers input[aria-label="Text odpovědi"]')).toBe('italic');
+	expect(await style('.answers textarea, .answers input[aria-label="Text odpovědi"]')).toBe(
+		'italic'
+	);
 	// No stray full stop, no markup jargon on the step prompts.
-	await expect(page.locator('.cm-placeholder', { hasText: 'Zadání otázky' }).first()).toHaveText('Zadání otázky');
+	await expect(page.locator('.cm-placeholder', { hasText: 'Zadání otázky' }).first()).toHaveText(
+		'Zadání otázky'
+	);
 });

@@ -69,11 +69,16 @@
 	 * picker names it as such, so the teacher sees where it goes instead of a blank.
 	 */
 	const into = $derived.by(() => {
-		if (current === '' || steps.some((s) => s.id === current) || blocks.some((b) => b.block_id === current)) {
+		if (
+			current === '' ||
+			steps.some((s) => s.id === current) ||
+			blocks.some((b) => b.block_id === current)
+		) {
 			return undefined;
 		}
 		const card = store.index.blocksById.get(current);
-		if (card === undefined || card.block_id === current || card.block_id === block.block_id) return undefined;
+		if (card === undefined || card.block_id === current || card.block_id === block.block_id)
+			return undefined;
 		return { value: current, label: `${blockLabel(card)} (od jedné z dalších otázek)` };
 	});
 </script>

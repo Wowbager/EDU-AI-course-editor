@@ -108,7 +108,11 @@
 			return;
 		}
 		const next =
-			event.key === 'Home' ? 0 : event.key === 'End' ? all.length - 1 : Math.min(all.length - 1, at + (event.key === 'ArrowLeft' ? -1 : 1));
+			event.key === 'Home'
+				? 0
+				: event.key === 'End'
+					? all.length - 1
+					: Math.min(all.length - 1, at + (event.key === 'ArrowLeft' ? -1 : 1));
 		all[next]?.focus();
 	}
 
@@ -156,11 +160,24 @@
 		use:noDrag
 		{onkeydown}
 		{onfocusout}
-		onpointerleave={() => (armed = false)}>
-		<button type="button" class="action" tabindex="-1" {...label('Nastavení', names.settings)} onclick={onsettings}>
+		onpointerleave={() => (armed = false)}
+	>
+		<button
+			type="button"
+			class="action"
+			tabindex="-1"
+			{...label('Nastavení', names.settings)}
+			onclick={onsettings}
+		>
 			<Settings size={size === 's' ? 15 : 16} aria-hidden="true" />
 		</button>
-		<button type="button" class="action" tabindex="-1" {...label('Duplikovat', names.duplicate)} onclick={onduplicate}>
+		<button
+			type="button"
+			class="action"
+			tabindex="-1"
+			{...label('Duplikovat', names.duplicate)}
+			onclick={onduplicate}
+		>
 			<Copy size={size === 's' ? 15 : 16} aria-hidden="true" />
 		</button>
 		<button
@@ -168,7 +185,8 @@
 			class="action"
 			tabindex="-1"
 			{...label('Odebrat z lekce', names.remove)}
-			onclick={onremoveFromLesson}>
+			onclick={onremoveFromLesson}
+		>
 			<ListX size={size === 's' ? 15 : 16} aria-hidden="true" />
 		</button>
 		<span class="rule" aria-hidden="true"></span>
@@ -178,7 +196,8 @@
 			class:armed
 			tabindex="-1"
 			{...label('Smazat', deleteName)}
-			onclick={clickDelete}>
+			onclick={clickDelete}
+		>
 			<Trash size={size === 's' ? 15 : 16} aria-hidden="true" />
 		</button>
 	</div>

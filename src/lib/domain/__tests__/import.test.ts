@@ -11,9 +11,18 @@ const load = (name: string): unknown => JSON.parse(readFileSync(`${corpusDir}/${
 
 /** Keys the editor reads on import and must never write back (§3 invariant 7). */
 const LEGACY_KEYS = new Set([
-	'block_ids', 'step_id', 'modes', 'expected_output_format', 'evaluation_config',
-	'duration_minutes', 'correct_option_ids', 'next_actions', 'user_options',
-	'gpf_domain', 'gpf_construct', 'gpf_subconstruct'
+	'block_ids',
+	'step_id',
+	'modes',
+	'expected_output_format',
+	'evaluation_config',
+	'duration_minutes',
+	'correct_option_ids',
+	'next_actions',
+	'user_options',
+	'gpf_domain',
+	'gpf_construct',
+	'gpf_subconstruct'
 ]);
 
 function findLegacyKeys(node: unknown, path = '$', found: string[] = []): string[] {
@@ -158,7 +167,11 @@ describe('legacy shapes', () => {
 			version: 1,
 			lessons: [],
 			blocks: [
-				{ block_id: 'B1', type: 'motivation', steps: [{ id: 's1', type: 'display', text: 'ahoj' }] },
+				{
+					block_id: 'B1',
+					type: 'motivation',
+					steps: [{ id: 's1', type: 'display', text: 'ahoj' }]
+				},
 				{
 					block_id: 'B2',
 					type: 'quiz',

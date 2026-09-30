@@ -9,9 +9,23 @@
 	import { useStore } from '$lib/ui/context';
 	import Modal from '$lib/ui/Modal.svelte';
 	import Button from '$lib/ui/Button.svelte';
-	import { deleteBlock, deleteStep, planDeleteBlock, planDeleteStep, type Repair } from '$lib/domain/commands';
+	import {
+		deleteBlock,
+		deleteStep,
+		planDeleteBlock,
+		planDeleteStep,
+		type Repair
+	} from '$lib/domain/commands';
 	import { allows } from '$lib/ui/fields';
-	import { blockLabel, blockLabelById, capitalize, lessonLabelById, optionLabelById, stepLabelById, stepPosition } from '$lib/domain/naming';
+	import {
+		blockLabel,
+		blockLabelById,
+		capitalize,
+		lessonLabelById,
+		optionLabelById,
+		stepLabelById,
+		stepPosition
+	} from '$lib/domain/naming';
 
 	interface Props {
 		doc: CourseV2;
@@ -79,14 +93,17 @@
 			case 'go_to': {
 				// The branch lives in some *other* card's step, not in the one being
 				// deleted, so both ends have to be resolved against the document.
-				const from = blockId === undefined ? undefined : doc.blocks.find((b) => b.block_id === blockId);
-				const step = from === undefined || stepId === undefined ? undefined : from.steps.find((s) => s.id === stepId);
-				const option = step === undefined || optionId === undefined
-					? undefined
-					: optionLabelById(step.question, optionId, { max: 32 });
-				const where = from === undefined
-					? ''
-					: ` v kartě „${blockLabel(doc, from, { max: 32 })}“`;
+				const from =
+					blockId === undefined ? undefined : doc.blocks.find((b) => b.block_id === blockId);
+				const step =
+					from === undefined || stepId === undefined
+						? undefined
+						: from.steps.find((s) => s.id === stepId);
+				const option =
+					step === undefined || optionId === undefined
+						? undefined
+						: optionLabelById(step.question, optionId, { max: 32 });
+				const where = from === undefined ? '' : ` v kartě „${blockLabel(doc, from, { max: 32 })}“`;
 				const which = step === undefined ? '' : `, ${stepLabelById(from!, step.id)}`;
 				return `${capitalize(option ?? `odpověď „${optionId}“`)}${where}${which} sem větví`;
 			}
@@ -100,7 +117,9 @@
 	function confirm() {
 		const repairs: Repair[] = references.map((reference) => {
 			const choice = choices[keyOf(reference)] ?? '';
-			return choice === '' ? { reference, action: 'clear' } : { reference, action: 'redirect', to: choice };
+			return choice === ''
+				? { reference, action: 'clear' }
+				: { reference, action: 'redirect', to: choice };
 		});
 		store.apply((d) =>
 			target.stepId === undefined
@@ -116,8 +135,9 @@
 		<p>Na tuto část nic neodkazuje — smazání je bezpečné.</p>
 	{:else}
 		<p class="lead">
-			Než ji smažeš, je potřeba rozhodnout, kam povede {references.length === 1 ? 'odkaz' : 'těchto odkazů'},
-			které na ni míří. Jinak by žák uvízl na místě, které už neexistuje.
+			Než ji smažeš, je potřeba rozhodnout, kam povede {references.length === 1
+				? 'odkaz'
+				: 'těchto odkazů'}, které na ni míří. Jinak by žák uvízl na místě, které už neexistuje.
 		</p>
 		<ul>
 			{#each references as reference (keyOf(reference))}
@@ -191,5 +211,4 @@
 		font-family: var(--font-body);
 		font-size: var(--text-s);
 	}
-
 </style>

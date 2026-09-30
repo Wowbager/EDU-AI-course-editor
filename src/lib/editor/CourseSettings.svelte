@@ -31,7 +31,6 @@
 	const didactic = $derived(fields.filter((f) => f.mode === 'metodik'));
 	const rest = $derived(fields.filter((f) => f.mode === 'advanced'));
 
-
 	/**
 	 * "Cvičení" is also a card type inside a lesson, and the name of the daily
 	 * practice queue a single card can be enrolled in. This one is neither: it is a
@@ -81,8 +80,8 @@
 				<span>Kdo kurz uvidí</span>
 				<!-- Visibility belongs with publishing: it is set in the version dialog. -->
 				<p class="where">
-					{VISIBILITY_LABEL[visibilityOf(doc)].label} — mění se ve verzích kurzu (tlačítko s číslem
-					verze nahoře).
+					{VISIBILITY_LABEL[visibilityOf(doc)].label} — mění se ve verzích kurzu (tlačítko s číslem verze
+					nahoře).
 				</p>
 			</div>
 
@@ -149,7 +148,6 @@
 		color: var(--e-text-muted);
 		font-size: var(--text-s);
 	}
-
 
 	@container course-settings (max-width: 560px) {
 		.row {

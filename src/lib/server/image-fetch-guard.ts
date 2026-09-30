@@ -83,7 +83,12 @@ export function isReservedIPv6(address: string): boolean {
 	// IPv4-mapped (::ffff:a.b.c.d) and IPv4-compatible — unwrap and re-check as IPv4.
 	const mapped = normalised.match(/^::(?:ffff:)?(\d+\.\d+\.\d+\.\d+)$/);
 	if (mapped) return isReservedIPv4(mapped[1]);
-	if (normalised.startsWith('fe80:') || normalised.startsWith('fe8') || normalised.startsWith('fe9')) return true; // link-local fe80::/10
+	if (
+		normalised.startsWith('fe80:') ||
+		normalised.startsWith('fe8') ||
+		normalised.startsWith('fe9')
+	)
+		return true; // link-local fe80::/10
 	if (normalised.startsWith('fea') || normalised.startsWith('feb')) return true;
 	if (normalised.startsWith('fc') || normalised.startsWith('fd')) return true; // unique local fc00::/7
 	return false;
@@ -112,7 +117,10 @@ export type LookupFn = (
  * Note the DNS-rebinding caveat in the module doc comment: this check and the
  * connection `fetch` makes afterwards are two separate lookups.
  */
-export async function assertPublicHost(hostname: string, lookup: LookupFn = dnsLookup): Promise<void> {
+export async function assertPublicHost(
+	hostname: string,
+	lookup: LookupFn = dnsLookup
+): Promise<void> {
 	// A literal IP address needs no DNS lookup — and dns.lookup() on some platforms
 	// mishandles bracketed IPv6 literals — so check it directly.
 	const literalVersion = isIP(hostname);
@@ -136,7 +144,9 @@ export async function assertPublicHost(hostname: string, lookup: LookupFn = dnsL
 	}
 	for (const { address } of records) {
 		if (isReservedAddress(address)) {
-			throw new UnsafeUrlError(`refusing to fetch ${hostname}: resolves to reserved address ${address}`);
+			throw new UnsafeUrlError(
+				`refusing to fetch ${hostname}: resolves to reserved address ${address}`
+			);
 		}
 	}
 }
@@ -243,7 +253,10 @@ export async function fetchImageSafely(
 
 		if (!response.ok) {
 			clear();
-			return { ok: false, error: `upstream responded ${response.status} ${response.statusText}`.trim() };
+			return {
+				ok: false,
+				error: `upstream responded ${response.status} ${response.statusText}`.trim()
+			};
 		}
 
 		if (!isAllowedImageContentType(response.headers.get('content-type'))) {
@@ -257,7 +270,10 @@ export async function fetchImageSafely(
 		const declaredLength = Number(response.headers.get('content-length') ?? '');
 		if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
 			clear();
-			return { ok: false, error: `declared size ${declaredLength} exceeds ${MAX_BODY_BYTES} bytes` };
+			return {
+				ok: false,
+				error: `declared size ${declaredLength} exceeds ${MAX_BODY_BYTES} bytes`
+			};
 		}
 
 		return { ok: true, response: capResponseBody(response, MAX_BODY_BYTES, clear) };

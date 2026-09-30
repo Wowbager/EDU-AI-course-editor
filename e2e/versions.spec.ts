@@ -17,16 +17,23 @@ test.beforeEach(async ({ page }) => {
 	await page.keyboard.type('Fotosyntéza je proces, při kterém rostliny vyrábějí cukr.');
 });
 
-test('a teacher saves a version, publishes it for signed-in students, and changes their mind', async ({ page }) => {
+test('a teacher saves a version, publishes it for signed-in students, and changes their mind', async ({
+	page
+}) => {
 	// Nothing saved yet reads as the bare number; the name and title say so.
 	await expect(page.locator('header .version')).toHaveText(/^\s*v1\s*$/);
 	await expect(page.getByRole('button', { name: 'v1, zatím neuloženo' })).toBeVisible();
-	await expect(page.locator('header .version')).toHaveAttribute('title', /Zatím není uložená žádná verze/);
+	await expect(page.locator('header .version')).toHaveAttribute(
+		'title',
+		/Zatím není uložená žádná verze/
+	);
 	await page.locator('header .version').click();
 
 	const dialog = page.getByRole('dialog', { name: 'Verze kurzu' });
 	// A teacher chooses between three; the editorial states are the metodik's.
-	await expect(dialog.getByRole('radiogroup', { name: 'Kdo kurz uvidí' }).getByRole('radio')).toHaveCount(3);
+	await expect(
+		dialog.getByRole('radiogroup', { name: 'Kdo kurz uvidí' }).getByRole('radio')
+	).toHaveCount(3);
 
 	await dialog.getByRole('button', { name: 'Uložit jako verzi 1' }).click();
 	await expect(dialog.getByText('Uloženo jako verze 1')).toBeVisible();
@@ -34,7 +41,11 @@ test('a teacher saves a version, publishes it for signed-in students, and change
 
 	const first = page.waitForEvent('download');
 	await dialog.getByRole('button', { name: 'Zveřejnit', exact: true }).click();
-	expect(await json(await first)).toMatchObject({ version: 1, status: 'published', logged_only: true });
+	expect(await json(await first)).toMatchObject({
+		version: 1,
+		status: 'published',
+		logged_only: true
+	});
 	await expect(dialog.getByText('Zveřejněná · Jen pro přihlášené')).toBeVisible();
 
 	// Opening it to everyone is a new publication, so a new number.
@@ -90,10 +101,14 @@ test('a version with errors is not published, and says where to look', async ({ 
 	await expect(page.getByRole('dialog')).not.toHaveAccessibleName('Verze kurzu');
 });
 
-test('the metodik gets the editorial states, and they wrap on a narrow screen', async ({ page }) => {
+test('the metodik gets the editorial states, and they wrap on a narrow screen', async ({
+	page
+}) => {
 	await page.getByRole('radio', { name: 'Metodik' }).click();
 	await page.locator('header .version').click();
-	const group = page.getByRole('dialog', { name: 'Verze kurzu' }).getByRole('radiogroup', { name: 'Kdo kurz uvidí' });
+	const group = page
+		.getByRole('dialog', { name: 'Verze kurzu' })
+		.getByRole('radiogroup', { name: 'Kdo kurz uvidí' });
 	await expect(group.getByRole('radio')).toHaveCount(6);
 	await expect(group.getByRole('radio', { name: 'K revizi' })).toBeVisible();
 });

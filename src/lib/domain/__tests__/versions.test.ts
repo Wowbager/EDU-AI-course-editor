@@ -18,12 +18,22 @@ import {
 
 const course = () =>
 	parseCourse(
-		JSON.parse(readFileSync(fileURLToPath(new URL('./fixtures/spec-16-course.json', import.meta.url)), 'utf8'))
+		JSON.parse(
+			readFileSync(
+				fileURLToPath(new URL('./fixtures/spec-16-course.json', import.meta.url)),
+				'utf8'
+			)
+		)
 	);
 const now = new Date('2026-09-26T10:00:00Z');
 const indexWith = (...versions: number[]): VersionIndex => ({
 	courseId: 'C',
-	versions: versions.map((version) => ({ courseId: 'C', version, savedAt: now.toISOString(), hash: 'x' }))
+	versions: versions.map((version) => ({
+		courseId: 'C',
+		version,
+		savedAt: now.toISOString(),
+		hash: 'x'
+	}))
 });
 
 describe('visibility', () => {
@@ -31,9 +41,12 @@ describe('visibility', () => {
 		for (const v of ALL_VISIBILITIES) expect(visibilityOf(applyVisibility(course(), v))).toBe(v);
 	});
 
-	it('maps the teacher\'s three onto status and logged_only', () => {
+	it("maps the teacher's three onto status and logged_only", () => {
 		expect(applyVisibility(course(), 'public')).toMatchObject({ status: 'published' });
-		expect(applyVisibility(course(), 'logged_only')).toMatchObject({ status: 'published', logged_only: true });
+		expect(applyVisibility(course(), 'logged_only')).toMatchObject({
+			status: 'published',
+			logged_only: true
+		});
 		expect(applyVisibility(course(), 'private')).toMatchObject({ status: 'private' });
 	});
 
@@ -48,7 +61,7 @@ describe('visibility', () => {
 });
 
 describe('version numbers', () => {
-	it('start at the document\'s own number and only grow', () => {
+	it("start at the document's own number and only grow", () => {
 		expect(nextVersion(emptyIndex('C'), { version: 1 })).toBe(1);
 		expect(nextVersion(indexWith(1, 2), { version: 1 })).toBe(3);
 	});
@@ -70,15 +83,29 @@ describe('version numbers', () => {
 
 describe('publishing', () => {
 	it('publishes a newer version under its own number', () => {
-		const index = { ...indexWith(1, 2, 3), published: { version: 2, visibility: 'public' as const, at: '' } };
+		const index = {
+			...indexWith(1, 2, 3),
+			published: { version: 2, visibility: 'public' as const, at: '' }
+		};
 		expect(publishPlan(index, 3, { version: 1 })).toEqual({ kind: 'publish', version: 3 });
 	});
 
 	it('puts an older version out again as a new number, because the app only updates upwards', () => {
-		const index = { ...indexWith(1, 2, 3, 4, 5), published: { version: 5, visibility: 'public' as const, at: '' } };
-		expect(publishPlan(index, 3, { version: 5 })).toEqual({ kind: 'republish', from: 3, version: 6 });
+		const index = {
+			...indexWith(1, 2, 3, 4, 5),
+			published: { version: 5, visibility: 'public' as const, at: '' }
+		};
+		expect(publishPlan(index, 3, { version: 5 })).toEqual({
+			kind: 'republish',
+			from: 3,
+			version: 6
+		});
 		// Re-publishing the one that is out (to change who sees it) also needs a number.
-		expect(publishPlan(index, 5, { version: 5 })).toEqual({ kind: 'republish', from: 5, version: 6 });
+		expect(publishPlan(index, 5, { version: 5 })).toEqual({
+			kind: 'republish',
+			from: 5,
+			version: 6
+		});
 	});
 
 	it('hands the platform a numbered document with its visibility', () => {
@@ -100,7 +127,12 @@ describe('content identity', () => {
 		const edited = structuredClone(doc);
 		edited.blocks[0].steps[0].content += ' Navíc.';
 		expect(contentHash(edited)).not.toBe(contentHash(doc));
-		expect(summariseDiff(doc, edited)).toEqual({ added: 0, removed: 0, changed: 1, lessonsChanged: false });
+		expect(summariseDiff(doc, edited)).toEqual({
+			added: 0,
+			removed: 0,
+			changed: 1,
+			lessonsChanged: false
+		});
 	});
 });
 

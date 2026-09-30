@@ -114,7 +114,14 @@ export function toView(doc: CourseV2): CourseV2 {
 		}
 		const members = groups.get(key)!;
 		if (members[0] !== block) continue;
-		blocks.push(mergeGroup(key, members, (v) => target(v, key), (v) => target(v, undefined)));
+		blocks.push(
+			mergeGroup(
+				key,
+				members,
+				(v) => target(v, key),
+				(v) => target(v, undefined)
+			)
+		);
 	}
 
 	const lessons = doc.lessons.map((lesson) => collapseBindings(lesson, cardOf));
@@ -141,10 +148,7 @@ function mergeGroup(
 	return retargetPrerequisites(card as BlockV2, prerequisite);
 }
 
-function collapseBindings(
-	lesson: LessonV2,
-	cardOf: Map<string, { key: string }>
-): LessonV2 {
+function collapseBindings(lesson: LessonV2, cardOf: Map<string, { key: string }>): LessonV2 {
 	let changed = false;
 	const seen = new Set<string>();
 	const bindings: LessonBlockBinding[] = [];
@@ -267,11 +271,7 @@ interface Written {
  * before the edit; a block keeps its id as long as its question does, so a pupil's
  * saved answers stay with the question they belong to.
  */
-function writeCard(
-	card: BlockV2,
-	previous: BlockV2[],
-	takenIds: Set<string>
-): Written {
+function writeCard(card: BlockV2, previous: BlockV2[], takenIds: Set<string>): Written {
 	const wasGroup = previous.length > 0 && groupOf(previous[0]) !== undefined;
 	const key = wasGroup ? groupOf(previous[0])! : card.block_id;
 
@@ -309,9 +309,7 @@ function writeCard(
 		const own = new Set(segment.map((s) => s.id));
 		const steps = renumber(
 			segment.map((step) =>
-				retargetStep(step, (value) =>
-					own.has(value) ? value : (home.get(value) ?? value)
-				)
+				retargetStep(step, (value) => (own.has(value) ? value : (home.get(value) ?? value)))
 			),
 			segment
 		);
@@ -326,7 +324,9 @@ function writeCard(
 		block[GROUP_KEY] = key;
 		block.steps = steps;
 		const before = previous.find((b) => b.block_id === ids[i]);
-		return before !== undefined && sameBlock(before, block as BlockV2) ? before : (block as BlockV2);
+		return before !== undefined && sameBlock(before, block as BlockV2)
+			? before
+			: (block as BlockV2);
 	});
 	return { blocks, key };
 }
@@ -343,7 +343,9 @@ const sameBlock = (a: BlockV2, b: BlockV2) => canonical(a) === canonical(b);
 function canonical(value: unknown): string {
 	return JSON.stringify(value, (_key, v) =>
 		v !== null && typeof v === 'object' && !Array.isArray(v)
-			? Object.fromEntries(Object.entries(v as Loose).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+			? Object.fromEntries(
+					Object.entries(v as Loose).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+				)
 			: v
 	);
 }
@@ -396,7 +398,10 @@ export function fromView(
 		for (const card of edited.blocks) {
 			const previous = previousOf(card);
 			const unchanged = baseCards.get(card.block_id) === card;
-			const out = unchanged && previous.length > 0 ? { blocks: previous } : writeCard(card, previous, takenIds);
+			const out =
+				unchanged && previous.length > 0
+					? { blocks: previous }
+					: writeCard(card, previous, takenIds);
 			written.set(card.block_id, out.blocks);
 			blocks.push(...out.blocks);
 		}
@@ -406,7 +411,8 @@ export function fromView(
 	// the card's id (its first question was deleted), point everything at the new one.
 	const firstOf = new Map<string, string>();
 	for (const [key, out] of written) {
-		if (out.length > 0 && out[0].block_id !== key && groupOf(out[0]) === key) firstOf.set(key, out[0].block_id);
+		if (out.length > 0 && out[0].block_id !== key && groupOf(out[0]) === key)
+			firstOf.set(key, out[0].block_id);
 	}
 	const ids = new Set(blocks.map((b) => b.block_id));
 	const outward = (value: string) =>
@@ -424,7 +430,11 @@ export function fromView(
 					const before = base.lessons.find((l) => l.lesson_id === lesson.lesson_id);
 					const source = doc.lessons.find((l) => l.lesson_id === lesson.lesson_id);
 					const expanded = expandBindings(lesson, source, written);
-					if (before === lesson && source !== undefined && sameIds(source.blocks, expanded.blocks)) {
+					if (
+						before === lesson &&
+						source !== undefined &&
+						sameIds(source.blocks, expanded.blocks)
+					) {
 						return source;
 					}
 					return expanded;
@@ -455,16 +465,23 @@ function expandBindings(
 		for (const member of members) {
 			const own = source?.blocks.find((b) => b.block_id === member.block_id);
 			const { order: _order, block_id: _id, ...fields } = binding;
-			bindings.push(own !== undefined && sameFields(own, fields) ? own : { ...own, ...fields, block_id: member.block_id });
+			bindings.push(
+				own !== undefined && sameFields(own, fields)
+					? own
+					: { ...own, ...fields, block_id: member.block_id }
+			);
 		}
 	}
 	const expanded = renumber(bindings, lesson.blocks);
-	if (source !== undefined && sameBindings(source.blocks, expanded)) return { ...lesson, blocks: source.blocks };
+	if (source !== undefined && sameBindings(source.blocks, expanded))
+		return { ...lesson, blocks: source.blocks };
 	return { ...lesson, blocks: expanded };
 }
 
 const sameFields = (binding: LessonBlockBinding, fields: Loose) =>
-	Object.entries(fields).every(([k, v]) => JSON.stringify((binding as Loose)[k]) === JSON.stringify(v));
+	Object.entries(fields).every(
+		([k, v]) => JSON.stringify((binding as Loose)[k]) === JSON.stringify(v)
+	);
 
 const sameBindings = (a: readonly LessonBlockBinding[], b: readonly LessonBlockBinding[]) =>
 	canonical(a) === canonical(b);
@@ -527,8 +544,7 @@ export function branchesInside(block: BlockV2): boolean {
 	return block.steps.some((step) =>
 		(step.question?.options ?? []).some(
 			(o) =>
-				typeof o.go_to === 'string' &&
-				(ids.has(o.go_to) || (o.go_to === 'END' && step !== last))
+				typeof o.go_to === 'string' && (ids.has(o.go_to) || (o.go_to === 'END' && step !== last))
 		)
 	);
 }
@@ -546,7 +562,10 @@ export function mergeQuestionCard(doc: CourseV2, key: string): CourseV2 {
 	if (card === undefined) return doc;
 	const whole = { ...stripView(card), [TOGETHER_KEY]: true } as BlockV2;
 	const firstId = members[0].block_id;
-	const id = members.some((m) => m.block_id === key) || !doc.blocks.some((b) => b.block_id === key) ? key : firstId;
+	const id =
+		members.some((m) => m.block_id === key) || !doc.blocks.some((b) => b.block_id === key)
+			? key
+			: firstId;
 	const merged = { ...whole, block_id: id, steps: renumber(whole.steps, whole.steps) } as BlockV2;
 	const memberIds = new Set(members.map((m) => m.block_id));
 	const pointsHere = (value: string) => (memberIds.has(value) ? id : value);
@@ -575,7 +594,11 @@ export function mergeQuestionCard(doc: CourseV2, key: string): CourseV2 {
  * block becomes its own block there too. Blocks kept together are left whole.
  * Untouched cards are not looked at.
  */
-export function resplitChanged(before: CourseV2, after: CourseV2, reserved?: Reservations): CourseV2 {
+export function resplitChanged(
+	before: CourseV2,
+	after: CourseV2,
+	reserved?: Reservations
+): CourseV2 {
 	if (after === before || after.blocks === before.blocks) return after;
 	const old = new Set(before.blocks);
 	const touched = new Set<string>();
@@ -597,13 +620,20 @@ export function resplitChanged(before: CourseV2, after: CourseV2, reserved?: Res
 }
 
 /** The advanced toggle's other way: split a block kept together into its group. */
-export function splitQuestionCard(doc: CourseV2, blockId: string, reserved?: Reservations): CourseV2 {
+export function splitQuestionCard(
+	doc: CourseV2,
+	blockId: string,
+	reserved?: Reservations
+): CourseV2 {
 	const block = doc.blocks.find((b) => b.block_id === blockId);
 	if (block === undefined || !keepsQuestionsTogether(block)) return doc;
 	const { [TOGETHER_KEY]: _together, ...rest } = block as Loose;
 	const base = { ...doc, blocks: doc.blocks.map((b) => (b === block ? (rest as BlockV2) : b)) };
 	const view = toView(base);
-	const edited = { ...view, blocks: view.blocks.map((b) => (b.block_id === blockId ? { ...b } : b)) };
+	const edited = {
+		...view,
+		blocks: view.blocks.map((b) => (b.block_id === blockId ? { ...b } : b))
+	};
 	return fromView(base, view, edited, reserved);
 }
 

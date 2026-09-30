@@ -5,7 +5,14 @@ import type { Ref } from '$lib/domain/ref';
 
 describe('whether a step is open', () => {
 	// Every combination, so a change to the rule has to change this table on purpose.
-	const table: [userCollapsed: boolean, focused: boolean, suppressed: boolean, dragging: boolean, unreached: boolean, open: boolean][] = [
+	const table: [
+		userCollapsed: boolean,
+		focused: boolean,
+		suppressed: boolean,
+		dragging: boolean,
+		unreached: boolean,
+		open: boolean
+	][] = [
 		[false, false, false, false, false, true],
 		[false, true, false, false, false, true],
 		[false, false, true, false, false, true],
@@ -56,7 +63,11 @@ describe('the step list during a played run', () => {
 	it('shows the played card as the pupil has it: reached steps open, the rest folded', () => {
 		const view = new StepView();
 		view.followRun('B1', ['s1']);
-		expect([open(view, 'B1', 's1'), open(view, 'B1', 's2'), open(view, 'B1', 's3')]).toEqual([true, false, false]);
+		expect([open(view, 'B1', 's1'), open(view, 'B1', 's2'), open(view, 'B1', 's3')]).toEqual([
+			true,
+			false,
+			false
+		]);
 
 		view.followRun('B1', ['s1', 's2']);
 		expect(open(view, 'B1', 's2')).toBe(true);

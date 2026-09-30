@@ -102,15 +102,21 @@ describe('step ids', () => {
 
 		doc = addStep(doc, blockId, 'text', undefined, reserved.value).doc; // s3
 		reserved.record(doc);
-		expect(doc.blocks.find((b) => b.block_id === blockId)!.steps.map((s) => s.id))
-			.toEqual(['s1', 's2', 's3']);
+		expect(doc.blocks.find((b) => b.block_id === blockId)!.steps.map((s) => s.id)).toEqual([
+			's1',
+			's2',
+			's3'
+		]);
 
 		doc = deleteStep(doc, blockId, 's3').doc;
 		doc = addStep(doc, blockId, 'text', undefined, reserved.value).doc;
 		// s3 is gone for good: the next id is s4, not a reused s3. A student's saved
 		// answer is keyed by (block_id, step id), so a reused id would inherit it.
-		expect(doc.blocks.find((b) => b.block_id === blockId)!.steps.map((s) => s.id))
-			.toEqual(['s1', 's2', 's4']);
+		expect(doc.blocks.find((b) => b.block_id === blockId)!.steps.map((s) => s.id)).toEqual([
+			's1',
+			's2',
+			's4'
+		]);
 	});
 
 	it('do not restart even when every step of a block is deleted', () => {
@@ -142,11 +148,23 @@ describe('a reorder that changes nothing', () => {
 	it('returns the same document, so the store records no undo entry', () => {
 		const doc = base();
 		const block = doc.blocks.find((b) => b.block_id === 'L1_B3_poznej')!;
-		expect(reorderSteps(doc, block.block_id, block.steps.map((s) => s.id)).doc).toBe(doc);
+		expect(
+			reorderSteps(
+				doc,
+				block.block_id,
+				block.steps.map((s) => s.id)
+			).doc
+		).toBe(doc);
 		// A partial list is completed with the rest in their current order.
 		expect(reorderSteps(doc, block.block_id, [block.steps[0].id]).doc).toBe(doc);
 		const lesson = doc.lessons[0];
-		expect(reorderBindings(doc, lesson.lesson_id, lesson.blocks.map((b) => b.block_id)).doc).toBe(doc);
+		expect(
+			reorderBindings(
+				doc,
+				lesson.lesson_id,
+				lesson.blocks.map((b) => b.block_id)
+			).doc
+		).toBe(doc);
 	});
 
 	it('still renumbers when something moved', () => {
@@ -167,7 +185,9 @@ describe('moving a card with the keyboard', () => {
 		const [a, b, c] = lesson.blocks.map((x) => x.block_id);
 		const down = moveBlockInLesson(doc, lesson.lesson_id, a, 1).doc;
 		expect(ids(down, lesson.lesson_id).slice(0, 3)).toEqual([b, a, c]);
-		expect(down.lessons[0].blocks.map((x) => x.order)).toEqual(down.lessons[0].blocks.map((_, i) => i + 1));
+		expect(down.lessons[0].blocks.map((x) => x.order)).toEqual(
+			down.lessons[0].blocks.map((_, i) => i + 1)
+		);
 		const up = moveBlockInLesson(down, lesson.lesson_id, a, -1).doc;
 		expect(ids(up, lesson.lesson_id)).toEqual(ids(doc, lesson.lesson_id));
 		// The input is not touched.
@@ -196,15 +216,24 @@ describe('moving a card with the keyboard', () => {
 		const withOrder = (order: string[]): CourseV2 => ({
 			...doc,
 			lessons: [
-				{ ...lesson, blocks: order.map((block_id, i) => ({ ...lesson.blocks[0], block_id, order: i + 1 })) },
+				{
+					...lesson,
+					blocks: order.map((block_id, i) => ({ ...lesson.blocks[0], block_id, order: i + 1 }))
+				},
 				...doc.lessons.slice(1)
 			]
 		});
 		// Nothing to tell the two apart, so nothing to record.
 		const twice = withOrder([a, a, b]);
 		expect(moveBlockInLesson(twice, lesson.lesson_id, a, 1).doc).toBe(twice);
-		expect(ids(moveBlockInLesson(twice, lesson.lesson_id, b, -1).doc, lesson.lesson_id)).toEqual([a, b, a]);
-		expect(ids(moveBlockInLesson(withOrder([a, b, a]), lesson.lesson_id, a, 1).doc, lesson.lesson_id)).toEqual([b, a, a]);
+		expect(ids(moveBlockInLesson(twice, lesson.lesson_id, b, -1).doc, lesson.lesson_id)).toEqual([
+			a,
+			b,
+			a
+		]);
+		expect(
+			ids(moveBlockInLesson(withOrder([a, b, a]), lesson.lesson_id, a, 1).doc, lesson.lesson_id)
+		).toEqual([b, a, a]);
 	});
 });
 
@@ -230,7 +259,11 @@ describe('duplicating a block', () => {
 		// Point an option at a step id that exists in the original but will not exist
 		// in a copy whose ids restart at s1: add s5, then point at it, then trim.
 		doc = addStep(doc, 'L1_B3_poznej', 'text').doc; // s5
-		doc = setField(doc, { blockId: 'L1_B3_poznej', stepId: 's2', optionId: 'd', field: 'go_to' }, 's5').doc;
+		doc = setField(
+			doc,
+			{ blockId: 'L1_B3_poznej', stepId: 's2', optionId: 'd', field: 'go_to' },
+			's5'
+		).doc;
 		doc = deleteStep(doc, 'L1_B3_poznej', 's5', [
 			{
 				reference: planDeleteStep(doc, 'L1_B3_poznej', 's5')[0],
@@ -240,8 +273,9 @@ describe('duplicating a block', () => {
 
 		const copy = duplicateBlock(doc, 'L1_B3_poznej').doc.blocks.at(-1)!;
 		expect(copy.steps.map((s) => s.id)).toEqual(['s1', 's2', 's3', 's4']);
-		expect(copy.steps.find((s) => s.id === 's2')!.question!.options!.find((o) => o.id === 'd')!.go_to)
-			.toBeUndefined();
+		expect(
+			copy.steps.find((s) => s.id === 's2')!.question!.options!.find((o) => o.id === 'd')!.go_to
+		).toBeUndefined();
 	});
 
 	it('inserts the copy right after the original in the lesson', () => {
@@ -265,12 +299,20 @@ describe('delete safety', () => {
 	it('deletes once each pointer is repaired', () => {
 		const doc = base();
 		const references = planDeleteStep(doc, 'L1_B3_poznej', 's3');
-		const repairs: Repair[] = references.map((reference) => ({ reference, action: 'redirect', to: 'AGAIN' }));
+		const repairs: Repair[] = references.map((reference) => ({
+			reference,
+			action: 'redirect',
+			to: 'AGAIN'
+		}));
 		const next = deleteStep(doc, 'L1_B3_poznej', 's3', repairs).doc;
 
-		expect(next.blocks.find((b) => b.block_id === 'L1_B3_poznej')!.steps.map((s) => s.id))
-			.toEqual(['s1', 's2', 's4']);
-		const options = next.blocks.find((b) => b.block_id === 'L1_B3_poznej')!
+		expect(next.blocks.find((b) => b.block_id === 'L1_B3_poznej')!.steps.map((s) => s.id)).toEqual([
+			's1',
+			's2',
+			's4'
+		]);
+		const options = next.blocks
+			.find((b) => b.block_id === 'L1_B3_poznej')!
 			.steps.find((s) => s.id === 's2')!.question!.options!;
 		expect(options.find((o) => o.id === 'b')!.go_to).toBe('AGAIN');
 		expectNoDanglingGoTo(next);
@@ -294,8 +336,9 @@ describe('delete safety', () => {
 
 		expect(next.blocks.some((b) => b.block_id === 'L1_B2_casti')).toBe(false);
 		expect(next.lessons[0].blocks.map((b) => b.block_id)).toEqual(['L1_B1_uvod', 'L1_B3_poznej']);
-		expect(next.blocks.find((b) => b.block_id === 'L1_B3_poznej')!.learning!.prerequisites)
-			.toEqual([]);
+		expect(next.blocks.find((b) => b.block_id === 'L1_B3_poznej')!.learning!.prerequisites).toEqual(
+			[]
+		);
 		expectNoDanglingGoTo(next);
 		expectOrderIsDense(next);
 	});
@@ -305,16 +348,20 @@ describe('renaming a block', () => {
 	it('rewrites every pointer at it', () => {
 		const doc = renameBlock(base(), 'L1_B2_casti', 'L1_B2_nove').doc;
 		expect(doc.lessons[0].blocks.map((b) => b.block_id)).toContain('L1_B2_nove');
-		expect(doc.blocks.find((b) => b.block_id === 'L1_B3_poznej')!.learning!.prerequisites![0].block_id)
-			.toBe('L1_B2_nove');
-		const options = doc.blocks.find((b) => b.block_id === 'L1_B3_poznej')!
+		expect(
+			doc.blocks.find((b) => b.block_id === 'L1_B3_poznej')!.learning!.prerequisites![0].block_id
+		).toBe('L1_B2_nove');
+		const options = doc.blocks
+			.find((b) => b.block_id === 'L1_B3_poznej')!
 			.steps.find((s) => s.id === 's2')!.question!.options!;
 		expect(options.find((o) => o.id === 'c')!.go_to).toBe('L1_B2_nove');
 		expectNoDanglingGoTo(doc);
 	});
 
 	it('is refused through setField, which cannot repair references', () => {
-		expect(() => setField(base(), { blockId: 'L1_B1_uvod', field: 'block_id' }, 'X')).toThrow(CommandError);
+		expect(() => setField(base(), { blockId: 'L1_B1_uvod', field: 'block_id' }, 'X')).toThrow(
+			CommandError
+		);
 	});
 });
 
@@ -352,7 +399,11 @@ describe('setPractice', () => {
 		doc = setField(doc, { lessonId, blockId: id, field: 'default_practice' }, true).doc;
 		const other = addLesson(doc, 'Druhá lekce').doc;
 		doc = bindBlock(other, other.lessons.at(-1)!.lesson_id, id).doc;
-		doc = setField(doc, { lessonId: doc.lessons.at(-1)!.lesson_id, blockId: id, field: 'default_practice' }, true).doc;
+		doc = setField(
+			doc,
+			{ lessonId: doc.lessons.at(-1)!.lesson_id, blockId: id, field: 'default_practice' },
+			true
+		).doc;
 		return doc;
 	}
 
@@ -378,7 +429,8 @@ describe('setPractice', () => {
 		const doc = flaggedEverywhere();
 		const off = setPractice(doc, id, false).doc;
 		for (const block of doc.blocks) {
-			if (block.block_id !== id) expect(off.blocks.find((b) => b.block_id === block.block_id)).toBe(block);
+			if (block.block_id !== id)
+				expect(off.blocks.find((b) => b.block_id === block.block_id)).toBe(block);
 		}
 		expect(blockOf(off).steps.map((st) => st.id)).toEqual(blockOf(doc).steps.map((st) => st.id));
 		expect(off.lessons.map((l) => l.blocks.map((b) => b.block_id))).toEqual(
@@ -431,7 +483,10 @@ describe('the default name of a new lesson', () => {
 		let doc = base();
 		doc = addLesson(doc).doc; // Nová lekce
 		doc = addLesson(doc).doc; // Nová lekce 2
-		doc = { ...doc, lessons: doc.lessons.map((l) => (l.name === 'Nová lekce' ? { ...l, name: 'Sčítání' } : l)) };
+		doc = {
+			...doc,
+			lessons: doc.lessons.map((l) => (l.name === 'Nová lekce' ? { ...l, name: 'Sčítání' } : l))
+		};
 		expect(addLesson(doc).doc.lessons.at(-1)!.name).toBe('Nová lekce');
 	});
 
@@ -451,7 +506,8 @@ describe('the default name of a new lesson', () => {
 describe('switching question type', () => {
 	it('seeds true/false with exactly two options and one correct', () => {
 		const doc = setQuestionType(base(), 'L1_B3_poznej', 's2', 'true_false').doc;
-		const question = doc.blocks.find((b) => b.block_id === 'L1_B3_poznej')!
+		const question = doc.blocks
+			.find((b) => b.block_id === 'L1_B3_poznej')!
 			.steps.find((s) => s.id === 's2')!.question!;
 		expect(question.options!.map((o) => o.id)).toEqual(['true', 'false']);
 		expect(question.options!.filter((o) => o.is_correct).length).toBe(1);
@@ -459,7 +515,8 @@ describe('switching question type', () => {
 
 	it('drops options a numeric question must not carry', () => {
 		const doc = setQuestionType(base(), 'L1_B3_poznej', 's2', 'numeric').doc;
-		const question = doc.blocks.find((b) => b.block_id === 'L1_B3_poznej')!
+		const question = doc.blocks
+			.find((b) => b.block_id === 'L1_B3_poznej')!
 			.steps.find((s) => s.id === 's2')!.question!;
 		expect(question.options).toBeUndefined();
 	});
@@ -468,11 +525,18 @@ describe('switching question type', () => {
 describe('moving a block between lessons', () => {
 	it('keeps its per-lesson presentation and renumbers both lessons', () => {
 		let doc = base();
-		doc = { ...doc, lessons: [...doc.lessons, { lesson_id: 'L2', name: 'Druhá', order: 2, blocks: [] }] };
+		doc = {
+			...doc,
+			lessons: [...doc.lessons, { lesson_id: 'L2', name: 'Druhá', order: 2, blocks: [] }]
+		};
 		doc = moveBlockToLesson(doc, 'L1_B2_casti', 'L1_INTRO', 'L2').doc;
 
 		expect(doc.lessons[0].blocks.map((b) => b.block_id)).toEqual(['L1_B1_uvod', 'L1_B3_poznej']);
-		expect(doc.lessons[1].blocks[0]).toEqual({ block_id: 'L1_B2_casti', order: 1, bg_color: '#FFF7E6' });
+		expect(doc.lessons[1].blocks[0]).toEqual({
+			block_id: 'L1_B2_casti',
+			order: 1,
+			bg_color: '#FFF7E6'
+		});
 		expectOrderIsDense(doc);
 	});
 });
@@ -536,7 +600,8 @@ describe('random command sequences keep the invariants', () => {
 							).doc;
 						break;
 					case 1:
-						if (block) doc = duplicateBlock(doc, block.block_id, lesson?.lesson_id, reserved.value).doc;
+						if (block)
+							doc = duplicateBlock(doc, block.block_id, lesson?.lesson_id, reserved.value).doc;
 						break;
 					case 2: {
 						if (!block) break;
@@ -567,10 +632,12 @@ describe('random command sequences keep the invariants', () => {
 						if (!block) break;
 						const step = pick(block.steps);
 						if (!step) break;
-						const repairs: Repair[] = planDeleteStep(doc, block.block_id, step.id).map((reference) => ({
-							reference,
-							action: 'clear'
-						}));
+						const repairs: Repair[] = planDeleteStep(doc, block.block_id, step.id).map(
+							(reference) => ({
+								reference,
+								action: 'clear'
+							})
+						);
 						doc = deleteStep(doc, block.block_id, step.id, repairs).doc;
 						break;
 					}
@@ -681,8 +748,20 @@ describe('knowledge vector: many topics', () => {
 	it('never lets the classification drift from the vector', () => {
 		// The old picker rewrote the name but left the previous topic's 2 behind, so
 		// a card claimed one subconstruct and trained two.
-		let doc = setTopics(base(), 'B1', [{ dimensionIndex: 2, relation: 2, elo: 6 }], DIMENSIONS, naming).doc;
-		doc = setTopics(doc, 'B1', [{ dimensionIndex: 5, relation: 2, elo: 6 }], DIMENSIONS, naming).doc;
+		let doc = setTopics(
+			base(),
+			'B1',
+			[{ dimensionIndex: 2, relation: 2, elo: 6 }],
+			DIMENSIONS,
+			naming
+		).doc;
+		doc = setTopics(
+			doc,
+			'B1',
+			[{ dimensionIndex: 5, relation: 2, elo: 6 }],
+			DIMENSIONS,
+			naming
+		).doc;
 
 		expect(gpfOf(doc)?.subconstruct).toBe('N5 téma');
 		expect(gpfOf(doc)?.relation_vector?.[2]).toBe(0);
@@ -690,7 +769,13 @@ describe('knowledge vector: many topics', () => {
 	});
 
 	it('clears the classification when the last topic is removed', () => {
-		let doc = setTopics(base(), 'B1', [{ dimensionIndex: 2, relation: 2, elo: 6 }], DIMENSIONS, naming).doc;
+		let doc = setTopics(
+			base(),
+			'B1',
+			[{ dimensionIndex: 2, relation: 2, elo: 6 }],
+			DIMENSIONS,
+			naming
+		).doc;
 		doc = setTopics(doc, 'B1', [], DIMENSIONS, naming).doc;
 
 		expect(gpfOf(doc)?.subconstruct).toBeUndefined();
@@ -710,7 +795,13 @@ describe('knowledge vector: many topics', () => {
 			DIMENSIONS,
 			naming
 		).doc;
-		doc = setTopics(doc, 'B1', [{ dimensionIndex: 2, relation: 2, elo: 8.5 }], DIMENSIONS, naming).doc;
+		doc = setTopics(
+			doc,
+			'B1',
+			[{ dimensionIndex: 2, relation: 2, elo: 8.5 }],
+			DIMENSIONS,
+			naming
+		).doc;
 		expect(gpfOf(doc)?.elo_vector?.[2]).toBe(8.5);
 		expect(gpfOf(doc)?.relation_vector?.[6]).toBe(0);
 	});
@@ -752,8 +843,20 @@ describe('repairing a binding never binds one card twice', () => {
 				}
 			],
 			blocks: [
-				{ export_type: 'block_v2', block_id: 'A', version: 1, type: 'display', steps: [{ id: 's1', type: 'text', order: 1, content: 'Ano' }] },
-				{ export_type: 'block_v2', block_id: 'B', version: 1, type: 'display', steps: [{ id: 's1', type: 'text', order: 1, content: 'Ne' }] }
+				{
+					export_type: 'block_v2',
+					block_id: 'A',
+					version: 1,
+					type: 'display',
+					steps: [{ id: 's1', type: 'text', order: 1, content: 'Ano' }]
+				},
+				{
+					export_type: 'block_v2',
+					block_id: 'B',
+					version: 1,
+					type: 'display',
+					steps: [{ id: 's1', type: 'text', order: 1, content: 'Ne' }]
+				}
 			]
 		}) as CourseV2;
 
@@ -812,7 +915,10 @@ describe('a lesson without a name is never called by its id', () => {
 
 	it('a name of only spaces counts as none', () => {
 		const { doc, lessonId } = unnamed();
-		const blank = { ...doc, lessons: doc.lessons.map((l, i) => (i === 0 ? { ...l, name: '  ' } : l)) };
+		const blank = {
+			...doc,
+			lessons: doc.lessons.map((l, i) => (i === 0 ? { ...l, name: '  ' } : l))
+		};
 		expect(deleteLesson(blank, lessonId).description).toBe('Smazána lekce „Lekce 1“');
 	});
 });

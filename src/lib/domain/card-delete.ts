@@ -24,7 +24,11 @@ export interface QuickDelete {
  * card branches to it, or needs it first), so the caller opens the repair dialog.
  * A card in no lesson (`lessonId` undefined) has no pointers, so it is deleted at once.
  */
-export function quickDelete(doc: CourseV2, lessonId: string | undefined, blockId: string): QuickDelete | null {
+export function quickDelete(
+	doc: CourseV2,
+	lessonId: string | undefined,
+	blockId: string
+): QuickDelete | null {
 	const references = planDeleteBlock(doc, blockId);
 	const ownOnly = references.every((r) => r.kind === 'binding' && r.from.lessonId === lessonId);
 	if (!ownOnly) return null;

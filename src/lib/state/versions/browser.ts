@@ -23,7 +23,8 @@ function open(): Promise<IDBDatabase> {
 				const store = db.createObjectStore(VERSIONS, { keyPath: ['courseId', 'version'] });
 				store.createIndex('course', 'courseId');
 			}
-			if (!db.objectStoreNames.contains(PUBLISHED)) db.createObjectStore(PUBLISHED, { keyPath: 'courseId' });
+			if (!db.objectStoreNames.contains(PUBLISHED))
+				db.createObjectStore(PUBLISHED, { keyPath: 'courseId' });
 		};
 		request.onsuccess = () => resolve(request.result);
 		request.onerror = () => reject(request.error ?? new Error('IndexedDB se nepodařilo otevřít.'));
@@ -52,7 +53,9 @@ export class BrowserBackend implements VersionBackend {
 	async index(courseId: string): Promise<VersionIndex> {
 		const db = await this.#open();
 		const tx = db.transaction([VERSIONS, PUBLISHED], 'readonly');
-		const all = await done(tx.objectStore(VERSIONS).index('course').getAll(IDBKeyRange.only(courseId)));
+		const all = await done(
+			tx.objectStore(VERSIONS).index('course').getAll(IDBKeyRange.only(courseId))
+		);
 		const published = await done(tx.objectStore(PUBLISHED).get(courseId));
 		const versions = (all as CourseVersion[])
 			.map(({ doc: _doc, ...meta }) => meta)
@@ -66,7 +69,9 @@ export class BrowserBackend implements VersionBackend {
 
 	async get(courseId: string, version: number): Promise<CourseVersion | null> {
 		const db = await this.#open();
-		const found = await done(db.transaction(VERSIONS, 'readonly').objectStore(VERSIONS).get([courseId, version]));
+		const found = await done(
+			db.transaction(VERSIONS, 'readonly').objectStore(VERSIONS).get([courseId, version])
+		);
 		return (found as CourseVersion | undefined) ?? null;
 	}
 
@@ -74,7 +79,8 @@ export class BrowserBackend implements VersionBackend {
 		const db = await this.#open();
 		const tx = db.transaction(VERSIONS, 'readwrite');
 		const store = tx.objectStore(VERSIONS);
-		const existing = (await done(store.get([version.courseId, version.version]))) as CourseVersion | undefined;
+		const existing = (await done(store.get([version.courseId, version.version]))) as
+			CourseVersion | undefined;
 		if (existing !== undefined && existing.hash !== version.hash) {
 			throw new VersionConflict(version.courseId, version.version);
 		}
@@ -84,7 +90,10 @@ export class BrowserBackend implements VersionBackend {
 	async setPublished(courseId: string, publication: Publication): Promise<void> {
 		const db = await this.#open();
 		await done(
-			db.transaction(PUBLISHED, 'readwrite').objectStore(PUBLISHED).put({ courseId, publication: { ...publication } })
+			db
+				.transaction(PUBLISHED, 'readwrite')
+				.objectStore(PUBLISHED)
+				.put({ courseId, publication: { ...publication } })
 		);
 	}
 }

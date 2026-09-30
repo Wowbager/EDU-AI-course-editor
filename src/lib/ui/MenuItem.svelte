@@ -34,7 +34,8 @@
 	class:danger
 	{disabled}
 	{title}
-	onclick={activate}>
+	onclick={activate}
+>
 	{#if Icon}<Icon size={16} aria-hidden="true" />{/if}
 	<span class="menu-item-text">{@render children()}</span>
 </button>

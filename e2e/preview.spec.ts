@@ -65,7 +65,9 @@ test.describe('live preview', () => {
 		});
 		await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 		// The player announces itself over the message channel once it has booted.
-		await expect(page.locator('aside.preview')).toHaveAttribute('data-player', 'ready', { timeout: 60_000 });
+		await expect(page.locator('aside.preview')).toHaveAttribute('data-player', 'ready', {
+			timeout: 60_000
+		});
 	});
 
 	test('clicking rendered content lands on the field that produced it', async ({ page }) => {
@@ -128,7 +130,8 @@ test.describe('live preview', () => {
 		// received, and on what it drew.
 		await openCard(page, 2, QUIZ);
 
-		const lastSetBlock = () => log.down('setBlock').at(-1) as { blockLabels?: Record<string, string> };
+		const lastSetBlock = () =>
+			log.down('setBlock').at(-1) as { blockLabels?: Record<string, string> };
 		const labels = lastSetBlock().blockLabels ?? {};
 		expect(Object.keys(labels).length).toBeGreaterThan(0);
 		for (const [blockId, label] of Object.entries(labels)) {
@@ -143,7 +146,9 @@ test.describe('live preview', () => {
 		// The advanced author, who may change ids, gets the ids.
 		await page.getByRole('radio', { name: 'Pokročilý' }).click();
 		await expect
-			.poll(() => Object.entries(lastSetBlock().blockLabels ?? {}).every(([id, label]) => id === label))
+			.poll(() =>
+				Object.entries(lastSetBlock().blockLabels ?? {}).every(([id, label]) => id === label)
+			)
 			.toBe(true);
 	});
 
@@ -181,7 +186,11 @@ test.describe('live preview', () => {
 		await openCard(page, 2, QUIZ);
 		const mark = log.mark();
 		const positions = () =>
-			log.up('stepChanged', mark) as unknown as { blockId: string; stepId: string; shownStepIds: string[] }[];
+			log.up('stepChanged', mark) as unknown as {
+				blockId: string;
+				stepId: string;
+				shownStepIds: string[];
+			}[];
 
 		await page.getByRole('radio', { name: 'Vyzkoušet' }).click();
 
@@ -269,7 +278,9 @@ test.describe('live preview', () => {
 		await expect(page.locator('aside.preview')).toHaveAttribute('data-player', 'ready');
 	});
 
-	test('folding the preview keeps the player alive, and opening it shows the card chosen meanwhile', async ({ page }) => {
+	test('folding the preview keeps the player alive, and opening it shows the card chosen meanwhile', async ({
+		page
+	}) => {
 		await openCard(page, 0, INTRO);
 		const mark = log.mark();
 
@@ -303,7 +314,9 @@ test.describe('the player on a plain page open', () => {
 		// The other suites import a course first. This is the page as a teacher opens
 		// it — the case that used to show an empty preview (DECISIONS Round 5).
 		await openEditor(page);
-		await expect(page.locator('aside.preview')).toHaveAttribute('data-player', 'ready', { timeout: 60_000 });
+		await expect(page.locator('aside.preview')).toHaveAttribute('data-player', 'ready', {
+			timeout: 60_000
+		});
 		const state = await inspect(page);
 		expect(['none', 'block']).toContain(state.content);
 	});

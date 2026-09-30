@@ -161,9 +161,7 @@
 			const position = members.indexOf(candidate);
 			const card = members[0] ?? candidate;
 			labels[candidate.block_id] =
-				position > 0
-					? `${blockPreview(card, 30)}, ${position + 1}. část`
-					: blockPreview(card, 30);
+				position > 0 ? `${blockPreview(card, 30)}, ${position + 1}. část` : blockPreview(card, 30);
 		}
 		return labels;
 	});
@@ -178,7 +176,10 @@
 		if (key === undefined || store.mode === 'advanced') return shown;
 		const members = groups.get(key) ?? [];
 		const at = members.findIndex((m) => m.block_id === blockId);
-		return [...members.slice(0, Math.max(at, 0)).flatMap((m) => m.steps.map((s) => s.id)), ...shown];
+		return [
+			...members.slice(0, Math.max(at, 0)).flatMap((m) => m.steps.map((s) => s.id)),
+			...shown
+		];
 	}
 
 	/**
@@ -325,108 +326,106 @@
 	aria-label="Náhled pro žáka"
 >
 	<div class="inner" inert={collapsed === true}>
-	<header>
-		<Segmented
-			label="Co je v náhledu"
-			value={view}
-			options={[
-				{
-					value: 'expanded',
-					label: 'Náhled',
-					title:
-						'Celá karta najednou, včetně zpětné vazby, řešení a větvení. Aktualizuje se během psaní. Kliknutím do náhledu skočíš na odpovídající pole v editoru.'
-				},
-				{
-					value: 'play',
-					label: 'Vyzkoušet',
-					title:
-						'Projdi lekci od vybrané karty tak, jak ji potká žák: kroky se odkrývají po jednom, další se objeví až tlačítkem pod kartou. Zpětem se vrátíš a můžeš zkusit druhou větev.'
-				}
-			]}
-			onchange={(next) => {
-				if (next === 'play') {
-					playStart = block === undefined ? undefined : blocksOfCard(block.block_id)[0]?.block_id;
-					playLessonId = lessonId;
-					canGoBack = false;
-				} else {
-					stepView.endRun();
-				}
-				view = next;
-			}}
-		/>
-		<!-- Running has no chip: only the two states a teacher has to wait out or act on. -->
-		{#if !booted && failed}
-			<Chip tone="warning">přehrávač neběží</Chip>
-		{:else if !booted && available === true}
-			<Chip>spouští se…</Chip>
-		{/if}
-
-		{#if view === 'play' && booted}
-			<div class="spacer"></div>
-			<Button
-				variant="ghost"
-				size="s"
-				disabled={!canGoBack}
-				title="O krok zpět — můžeš zkusit jinou odpověď"
-				onclick={() => bridge.back()}
-			>
-				← Zpět
-			</Button>
-			<Button
-				variant="ghost"
-				size="s"
-				title="Znovu od karty, u které jsi začal/a"
-				onclick={() => {
-					canGoBack = false;
-					bridge.restart();
+		<header>
+			<Segmented
+				label="Co je v náhledu"
+				value={view}
+				options={[
+					{
+						value: 'expanded',
+						label: 'Náhled',
+						title:
+							'Celá karta najednou, včetně zpětné vazby, řešení a větvení. Aktualizuje se během psaní. Kliknutím do náhledu skočíš na odpovídající pole v editoru.'
+					},
+					{
+						value: 'play',
+						label: 'Vyzkoušet',
+						title:
+							'Projdi lekci od vybrané karty tak, jak ji potká žák: kroky se odkrývají po jednom, další se objeví až tlačítkem pod kartou. Zpětem se vrátíš a můžeš zkusit druhou větev.'
+					}
+				]}
+				onchange={(next) => {
+					if (next === 'play') {
+						playStart = block === undefined ? undefined : blocksOfCard(block.block_id)[0]?.block_id;
+						playLessonId = lessonId;
+						canGoBack = false;
+					} else {
+						stepView.endRun();
+					}
+					view = next;
 				}}
-			>
-				Od začátku
-			</Button>
-		{/if}
+			/>
+			<!-- Running has no chip: only the two states a teacher has to wait out or act on. -->
+			{#if !booted && failed}
+				<Chip tone="warning">přehrávač neběží</Chip>
+			{:else if !booted && available === true}
+				<Chip>spouští se…</Chip>
+			{/if}
 
-		<div class="hide" bind:this={hideHost}>
-			<Button
-				variant="ghost"
-				size="s"
-				ariaLabel="Skrýt náhled"
-				title="Skrýt náhled (Ctrl+Shift+B)"
-				onclick={toggle}
-			>
-				<PanelRightClose size={16}></PanelRightClose>
-			</Button>
+			{#if view === 'play' && booted}
+				<div class="spacer"></div>
+				<Button
+					variant="ghost"
+					size="s"
+					disabled={!canGoBack}
+					title="O krok zpět — můžeš zkusit jinou odpověď"
+					onclick={() => bridge.back()}
+				>
+					← Zpět
+				</Button>
+				<Button
+					variant="ghost"
+					size="s"
+					title="Znovu od karty, u které jsi začal/a"
+					onclick={() => {
+						canGoBack = false;
+						bridge.restart();
+					}}
+				>
+					Od začátku
+				</Button>
+			{/if}
+
+			<div class="hide" bind:this={hideHost}>
+				<Button
+					variant="ghost"
+					size="s"
+					ariaLabel="Skrýt náhled"
+					title="Skrýt náhled (Ctrl+Shift+B)"
+					onclick={toggle}
+				>
+					<PanelRightClose size={16}></PanelRightClose>
+				</Button>
+			</div>
+		</header>
+
+		<div class="frame">
+			{#if failed === 'stalled' && !booted}
+				<div class="fallback">
+					<p><strong>Přehrávač se nespustil.</strong></p>
+					<p>
+						Zkusili jsme ho načíst {BOOT_ATTEMPTS}× a pokaždé se zasekl — nejspíš přerušené spojení
+						při stahování. Kurz se dál ukládá, jen ho teď nevidíš očima žáka.
+					</p>
+					<Button variant="secondary" size="s" onclick={retry}>Zkusit znovu</Button>
+				</div>
+			{:else if failed === 'missing' && !booted}
+				<div class="fallback">
+					<p><strong>Náhled zatím není k dispozici.</strong></p>
+					<p>
+						Náhled je skutečný přehrávač z aplikace, ne jeho napodobenina — proto potřebuje webový
+						build aplikace obsluhovaný na <code>/player/</code> a v něm route
+						<code>/preview</code>. Dokud tam není, edituj naslepo, nebo si kurz stáhni a otevři v
+						aplikaci.
+					</p>
+				</div>
+			{/if}
+			{#if available === true && everRevealed && failed !== 'stalled'}
+				{#key attempt}
+					<iframe bind:this={frame} src={PLAYER_URL} title="Náhled kurzu očima žáka"></iframe>
+				{/key}
+			{/if}
 		</div>
-	</header>
-
-	<div class="frame">
-		{#if failed === 'stalled' && !booted}
-			<div class="fallback">
-				<p><strong>Přehrávač se nespustil.</strong></p>
-				<p>
-					Zkusili jsme ho načíst {BOOT_ATTEMPTS}× a pokaždé se zasekl — nejspíš
-					přerušené spojení při stahování. Kurz se dál ukládá, jen ho teď nevidíš
-					očima žáka.
-				</p>
-				<Button variant="secondary" size="s" onclick={retry}>Zkusit znovu</Button>
-			</div>
-		{:else if failed === 'missing' && !booted}
-			<div class="fallback">
-				<p><strong>Náhled zatím není k dispozici.</strong></p>
-				<p>
-					Náhled je skutečný přehrávač z aplikace, ne jeho napodobenina — proto potřebuje
-					webový build aplikace obsluhovaný na <code>/player/</code> a v něm route
-					<code>/preview</code>. Dokud tam není, edituj naslepo, nebo si kurz stáhni a otevři
-					v aplikaci.
-				</p>
-			</div>
-		{/if}
-		{#if available === true && everRevealed && failed !== 'stalled'}
-			{#key attempt}
-				<iframe bind:this={frame} src={PLAYER_URL} title="Náhled kurzu očima žáka"></iframe>
-			{/key}
-		{/if}
-	</div>
-
 	</div>
 
 	{#if collapsed === true}
@@ -510,9 +509,6 @@
 	.spacer {
 		flex: 1;
 	}
-
-
-
 
 	.frame {
 		position: relative;

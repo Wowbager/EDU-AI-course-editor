@@ -12,9 +12,7 @@
 	const store = useStore();
 	const notice = $derived(notices.current);
 	// Never let a stale notice undo a later, unrelated edit.
-	const undoable = $derived(
-		notice?.entry !== undefined && store.undoStack.at(-1) === notice.entry
-	);
+	const undoable = $derived(notice?.entry !== undefined && store.undoStack.at(-1) === notice.entry);
 
 	function undo() {
 		const current = notices.current;
@@ -35,7 +33,8 @@
 				onpointerenter={() => notices.pause()}
 				onpointerleave={() => notices.resume()}
 				onfocusin={() => notices.pause()}
-				onfocusout={() => notices.resume()}>
+				onfocusout={() => notices.resume()}
+			>
 				<span class="text">{notice.text}</span>
 				{#if undoable}
 					<button type="button" class="undo" onclick={undo}>Vrátit zpět</button>

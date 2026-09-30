@@ -9,10 +9,13 @@ import { expect, openEditor, test, type Page } from './fixtures';
  */
 
 const draftKey = 'edu-editor:draft:v1';
-const fixture = readFileSync(new URL('../src/lib/domain/__tests__/fixtures/spec-16-course.json', import.meta.url));
+const fixture = readFileSync(
+	new URL('../src/lib/domain/__tests__/fixtures/spec-16-course.json', import.meta.url)
+);
 
 const toggle = (page: Page) => page.getByRole('button', { name: 'Zpětná vazba', exact: true });
-const answerFeedback = (page: Page) => page.getByRole('textbox', { name: 'Zpětná vazba k této odpovědi' });
+const answerFeedback = (page: Page) =>
+	page.getByRole('textbox', { name: 'Zpětná vazba k této odpovědi' });
 const solution = (page: Page) => page.getByRole('textbox', { name: 'Vysvětlení řešení' });
 const hint = (page: Page) => page.getByRole('textbox', { name: 'Nápověda', exact: true });
 const help = (page: Page) => page.getByRole('textbox', { name: 'Podrobná pomoc', exact: true });
@@ -20,7 +23,10 @@ const correctMarker = (page: Page) => page.getByRole('button', { name: /^Správn
 const answerText = (page: Page) => page.getByRole('textbox', { name: 'Text odpovědi' });
 
 const savedFeedbackVisible = (page: Page) =>
-	page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? 'null')?.feedbackVisible, draftKey);
+	page.evaluate(
+		(key) => JSON.parse(localStorage.getItem(key) ?? 'null')?.feedbackVisible,
+		draftKey
+	);
 
 test.beforeEach(async ({ page }) => {
 	await openEditor(page);
@@ -31,7 +37,9 @@ async function addQuestionCard(page: Page) {
 	await expect(answerFeedback(page).first()).toBeVisible();
 }
 
-test('one toggle hides feedback, hints and the solution, and keeps the question authorable', async ({ page }) => {
+test('one toggle hides feedback, hints and the solution, and keeps the question authorable', async ({
+	page
+}) => {
 	await addQuestionCard(page);
 
 	// On by default: pressed, and every kind of feedback is there.
@@ -86,14 +94,20 @@ test.describe('advice about a hidden field', () => {
 
 	/** A course with nothing wrong, then a detailed help on a step that has no hint to open it from. */
 	async function withUnreachableHelp(page: Page) {
-		await page.setInputFiles('input[type=file]', { name: 'kurz.json', mimeType: 'application/json', buffer: fixture });
+		await page.setInputFiles('input[type=file]', {
+			name: 'kurz.json',
+			mimeType: 'application/json',
+			buffer: fixture
+		});
 		await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 		await expect(chip(page, 'Kontrola kurzu: v pořádku')).toBeVisible();
 		await help(page).first().fill('Nakresli si to.');
 		await expect(chip(page, 'Kontrola kurzu: 1 upozornění')).toBeVisible();
 	}
 
-	test('is held back while feedback is hidden, listed in the export review, and jumped to', async ({ page }) => {
+	test('is held back while feedback is hidden, listed in the export review, and jumped to', async ({
+		page
+	}) => {
 		await withUnreachableHelp(page);
 
 		await toggle(page).click();

@@ -22,8 +22,7 @@ const seg = (key: string, value: string) => `${key}=${escapeValue(value)}`;
 // Both brackets are escaped, not just the closing one: an unescaped `[` inside a
 // value would otherwise unbalance the predicate when the path is split back up.
 const escapeValue = (v: string) => v.replace(/\\/g, '\\\\').replace(/([[\]])/g, '\\$1');
-const unescapeValue = (v: string) =>
-	v.replace(/\\([[\]])/g, '$1').replace(/\\\\/g, '\\');
+const unescapeValue = (v: string) => v.replace(/\\([[\]])/g, '$1').replace(/\\\\/g, '\\');
 
 /**
  * Serialise a Ref to a key-predicate JSON path, e.g.
@@ -50,7 +49,8 @@ export function refToJsonPath(ref: Ref): string {
 	return path;
 }
 
-const SEGMENT = /^(lessons|blocks|steps|question\.options)\[(lesson_id|block_id|id)=((?:[^\\\]]|\\.)*)\]$/;
+const SEGMENT =
+	/^(lessons|blocks|steps|question\.options)\[(lesson_id|block_id|id)=((?:[^\\\]]|\\.)*)\]$/;
 
 /** Inverse of `refToJsonPath`. Throws on a path this module did not produce. */
 export function jsonPathToRef(path: string): Ref {

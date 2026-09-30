@@ -28,7 +28,6 @@ describe('restoring the preview after a re-mount', () => {
 	});
 });
 
-
 /**
  * The two preview modes share one channel, and for a while they shared one piece of
  * state they should not have: the played run wrote where it had got to, and the
@@ -123,7 +122,9 @@ describe('the outgoing queue', () => {
 describe('following a played run', () => {
 	it('passes on every position the player reports, with its card', () => {
 		const seen: string[] = [];
-		const bridge = new PreviewBridge({ onstepChanged: (stepId, blockId) => seen.push(`${blockId}/${stepId}`) });
+		const bridge = new PreviewBridge({
+			onstepChanged: (stepId, blockId) => seen.push(`${blockId}/${stepId}`)
+		});
 		bridge.receive({ type: 'stepChanged', stepId: 's1', blockId: 'B1' });
 		bridge.receive({ type: 'stepChanged', stepId: 's1', blockId: 'B2' });
 		expect(seen).toEqual(['B1/s1', 'B2/s1']);
@@ -132,9 +133,19 @@ describe('following a played run', () => {
 	it('passes on which steps the pupil can see, when the player says', () => {
 		const seen: (string[] | undefined)[] = [];
 		const bridge = new PreviewBridge({ onstepChanged: (_s, _b, shown) => seen.push(shown) });
-		bridge.receive({ type: 'stepChanged', stepId: 's2', blockId: 'B1', shownStepIds: ['s1', 's2'] });
+		bridge.receive({
+			type: 'stepChanged',
+			stepId: 's2',
+			blockId: 'B1',
+			shownStepIds: ['s1', 's2']
+		});
 		bridge.receive({ type: 'stepChanged', stepId: 's1', blockId: 'B1' });
-		bridge.receive({ type: 'stepChanged', stepId: 's1', blockId: 'B1', shownStepIds: ['s1', 7] } as never);
+		bridge.receive({
+			type: 'stepChanged',
+			stepId: 's1',
+			blockId: 'B1',
+			shownStepIds: ['s1', 7]
+		} as never);
 		expect(seen).toEqual([['s1', 's2'], undefined, ['s1']]);
 	});
 
@@ -177,7 +188,9 @@ describe('a player that announces itself again', () => {
 	it('is given the last content again instead of staying empty', () => {
 		vi.useFakeTimers();
 		const posted: string[] = [];
-		const frame = { contentWindow: { postMessage: (data: string) => posted.push(data) } } as unknown as HTMLIFrameElement;
+		const frame = {
+			contentWindow: { postMessage: (data: string) => posted.push(data) }
+		} as unknown as HTMLIFrameElement;
 		const original = (globalThis as { window?: unknown }).window;
 		// The bridge only needs listeners and `location.origin` from the page.
 		(globalThis as { window?: unknown }).window = {

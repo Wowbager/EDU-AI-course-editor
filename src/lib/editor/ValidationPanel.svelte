@@ -24,15 +24,17 @@
 	// Advice about a field the Zpětná vazba toggle has hidden: said once, quietly,
 	// with the way to see it — not dropped, and not counted.
 	const held = $derived(
-		store.validation.warnings.filter((w) => heldBack(w, store.showFeedback) && !dismissed.has(key(w)))
-			.length
+		store.validation.warnings.filter(
+			(w) => heldBack(w, store.showFeedback) && !dismissed.has(key(w))
+		).length
 	);
 
 	function jump(issue: Issue) {
 		// Fixed in a mode above this one: switch first, or the jump lands on nothing.
 		const need = fixModeOf(issue.ref) ?? 'advanced';
 		const lessonId = issueLessonId(store.index, issue.ref);
-		const ref = MODE_RANK[need] > MODE_RANK[store.mode] ? store.switchMode(need, issue.ref) : issue.ref;
+		const ref =
+			MODE_RANK[need] > MODE_RANK[store.mode] ? store.switchMode(need, issue.ref) : issue.ref;
 		store.revealAt({ ...ref, lessonId });
 		onclose();
 	}
@@ -79,7 +81,12 @@
 						<span class="message">{issue.message}</span>
 						<span class="where">{where(issue)}</span>
 					</button>
-					<button type="button" class="dismiss" onclick={() => dismiss(issue)} title="Skrýt upozornění">
+					<button
+						type="button"
+						class="dismiss"
+						onclick={() => dismiss(issue)}
+						title="Skrýt upozornění"
+					>
 						×
 					</button>
 				</li>

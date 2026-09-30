@@ -105,7 +105,10 @@ export const HELD_WITH_FEEDBACK: ReadonlySet<string> = new Set([
  * blocks the file, and a teacher must be told whether or not the field is on screen.
  * The export review and the banner read the full `validation`.
  */
-export function heldBack(issue: Pick<Issue, 'code' | 'severity' | 'ref'>, feedbackVisible: boolean): boolean {
+export function heldBack(
+	issue: Pick<Issue, 'code' | 'severity' | 'ref'>,
+	feedbackVisible: boolean
+): boolean {
 	if (feedbackVisible || issue.severity !== 'warning') return false;
 	return HELD_WITH_FEEDBACK.has(issue.code) || isFeedbackRef(issue.ref);
 }
@@ -124,13 +127,18 @@ export const fieldKey = (ref: Ref): string =>
  * The identity of an issue across edits: what it is and where. Its message is not
  * part of it, since a message can carry a count that changes while the problem stays.
  */
-export const issueKey = (issue: Pick<Issue, 'code' | 'ref'>): string => `${issue.code}|${fieldKey(issue.ref)}`;
+export const issueKey = (issue: Pick<Issue, 'code' | 'ref'>): string =>
+	`${issue.code}|${fieldKey(issue.ref)}`;
 
 /**
  * Whether an issue may be on screen. `reviewed` holds the keys of the issues the
  * export review listed when it was opened, or is `null` while no review is pending.
  */
-export function isVisible(issue: Issue, touched: Touched, reviewed: ReadonlySet<string> | null): boolean {
+export function isVisible(
+	issue: Issue,
+	touched: Touched,
+	reviewed: ReadonlySet<string> | null
+): boolean {
 	if (reviewed?.has(issueKey(issue))) return true;
 	switch (timingOf(issue)) {
 		case 'immediate':

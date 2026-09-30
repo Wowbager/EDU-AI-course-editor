@@ -101,7 +101,9 @@ if (isMain) {
 		writeFileSync(htmlPath, injectPlayerShim(html, shimSource), 'utf-8');
 		console.log(`[inject-player-shim] injected ${shimPath} into ${htmlPath}`);
 	} catch (error) {
-		console.error(`[inject-player-shim] failed: ${error instanceof Error ? error.message : String(error)}`);
+		console.error(
+			`[inject-player-shim] failed: ${error instanceof Error ? error.message : String(error)}`
+		);
 		process.exit(1);
 	}
 }

@@ -2,18 +2,24 @@ import { expect, test, openEditor, type Page } from './fixtures';
 import { readFileSync } from 'node:fs';
 
 const key = 'edu-editor:draft:v1';
-const fixture = readFileSync(new URL('../src/lib/domain/__tests__/fixtures/spec-16-course.json', import.meta.url));
+const fixture = readFileSync(
+	new URL('../src/lib/domain/__tests__/fixtures/spec-16-course.json', import.meta.url)
+);
 
 /**
  * The draft's state is the top bar button's accessible name, so a test that needs to
  * know the draft has been flushed waits for "Koncept uložen…" — the same condition the
  * teacher's screen reader hears, and the one that means `localStorage` holds the edit.
  */
-const saved = (page: Page) => page.getByRole('button', { name: /^Koncept uložen v tomto prohlížeči\./ });
-const failed = (page: Page) => page.getByRole('button', { name: /^Koncept se nepodařilo uložit\./ });
+const saved = (page: Page) =>
+	page.getByRole('button', { name: /^Koncept uložen v tomto prohlížeči\./ });
+const failed = (page: Page) =>
+	page.getByRole('button', { name: /^Koncept se nepodařilo uložit\./ });
 const paused = (page: Page) => page.getByRole('button', { name: /^Ukládání pozastaveno\./ });
-const backup = (page: Page, has: 'Bez zálohy v souboru' | 'Staženo do souboru' | 'Uloženo v tomto prohlížeči') =>
-	page.getByRole('button', { name: new RegExp(`${has}\\.$`) });
+const backup = (
+	page: Page,
+	has: 'Bez zálohy v souboru' | 'Staženo do souboru' | 'Uloženo v tomto prohlížeči'
+) => page.getByRole('button', { name: new RegExp(`${has}\\.$`) });
 
 test.beforeEach(async ({ page }) => {
 	// onMount has seeded/restored the document and attached every input handler.
@@ -103,7 +109,9 @@ test('a run of typing in a text step is one undo, however it ends', async ({ pag
 	await expect(text).toContainText('Druhá věta.');
 });
 
-test('undoing an edit in the middle of a text leaves the cursor where the edit was', async ({ page }) => {
+test('undoing an edit in the middle of a text leaves the cursor where the edit was', async ({
+	page
+}) => {
 	const text = page.locator('.cm-content').first();
 	await text.click();
 	await page.keyboard.type('Ahoj světe');
@@ -120,18 +128,26 @@ test('undoing an edit in the middle of a text leaves the cursor where the edit w
 });
 
 test('storage failure is visible and unload is guarded', async ({ page }) => {
-	await page.evaluate(() => { Storage.prototype.setItem = () => { throw new DOMException('full', 'QuotaExceededError'); }; });
+	await page.evaluate(() => {
+		Storage.prototype.setItem = () => {
+			throw new DOMException('full', 'QuotaExceededError');
+		};
+	});
 	await page.getByRole('textbox', { name: 'Název kurzu', exact: true }).fill('Neztratit');
 	await expect(failed(page)).toHaveText('Koncept se nepodařilo uložit');
 	await expect(page.getByRole('alert')).toHaveText('Koncept se nepodařilo uložit');
-	expect(await page.evaluate(() => {
-		const event = new Event('beforeunload', { cancelable: true });
-		window.dispatchEvent(event);
-		return event.defaultPrevented;
-	})).toBe(true);
+	expect(
+		await page.evaluate(() => {
+			const event = new Event('beforeunload', { cancelable: true });
+			window.dispatchEvent(event);
+			return event.defaultPrevented;
+		})
+	).toBe(true);
 });
 
-test('corrupt draft is not overwritten without an explicit backed-up replacement', async ({ page }) => {
+test('corrupt draft is not overwritten without an explicit backed-up replacement', async ({
+	page
+}) => {
 	// Install after this page unloads so its final save cannot replace the fixture.
 	await page.addInitScript((key) => localStorage.setItem(key, '{broken'), key);
 	await page.reload();
@@ -141,21 +157,36 @@ test('corrupt draft is not overwritten without an explicit backed-up replacement
 	page.once('dialog', (dialog) => dialog.accept());
 	await page.getByRole('button', { name: 'Zálohovat původní a uložit tento kurz' }).click();
 	await expect(saved(page)).toBeVisible();
-	expect(await page.evaluate((key) => Object.keys(localStorage).some((k) => k.startsWith(key + ':backup:') && localStorage.getItem(k) === '{broken'), key)).toBe(true);
+	expect(
+		await page.evaluate(
+			(key) =>
+				Object.keys(localStorage).some(
+					(k) => k.startsWith(key + ':backup:') && localStorage.getItem(k) === '{broken'
+				),
+			key
+		)
+	).toBe(true);
 });
 
 test('import replacement can be cancelled without losing current work', async ({ page }) => {
 	const name = page.getByRole('textbox', { name: 'Název kurzu', exact: true });
 	await name.fill('Zachovat kurz');
 	page.once('dialog', (dialog) => dialog.dismiss());
-	await page.setInputFiles('input[type=file]', { name: 'course.json', mimeType: 'application/json', buffer: fixture });
+	await page.setInputFiles('input[type=file]', {
+		name: 'course.json',
+		mimeType: 'application/json',
+		buffer: fixture
+	});
 	await expect(name).toHaveValue('Zachovat kurz');
 	await expect(saved(page)).toBeVisible();
 	await page.reload();
 	await expect(name).toHaveValue('Zachovat kurz');
 });
 
-test('another tab pauses writes instead of silently replacing its draft', async ({ page, context }) => {
+test('another tab pauses writes instead of silently replacing its draft', async ({
+	page,
+	context
+}) => {
 	await expect(saved(page)).toBeVisible();
 	const other = await context.newPage();
 	await openEditor(other);
@@ -163,7 +194,9 @@ test('another tab pauses writes instead of silently replacing its draft', async 
 	await expect(saved(other)).toBeVisible();
 	await expect(paused(page)).toHaveText('Ukládání pozastaveno');
 	await page.getByRole('textbox', { name: 'Název kurzu', exact: true }).fill('První karta');
-	expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).doc.name, key)).toBe('Druhá karta');
+	expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).doc.name, key)).toBe(
+		'Druhá karta'
+	);
 });
 
 /**

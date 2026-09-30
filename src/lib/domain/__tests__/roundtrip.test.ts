@@ -62,8 +62,9 @@ describe('spec §16 worked course', () => {
 		// After `block_id`/`version` and before the provenance keys, exactly where
 		// `lesson.name` sits — the diff of a course reads the same at every level.
 		expect(Object.keys(first).indexOf('name')).toBeLessThan(Object.keys(first).indexOf('language'));
-		expect(serialiseToJson(parseCourse(JSON.parse(serialiseToJson(parseCourse(withTitle))))))
-			.toBe(serialiseToJson(parseCourse(withTitle)));
+		expect(serialiseToJson(parseCourse(JSON.parse(serialiseToJson(parseCourse(withTitle)))))).toBe(
+			serialiseToJson(parseCourse(withTitle))
+		);
 	});
 
 	it('preserves keys the editor does not model', () => {

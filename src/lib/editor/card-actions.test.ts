@@ -10,14 +10,20 @@ import { removeLesson } from './lesson-actions';
 const course = () =>
 	parseCourse(
 		JSON.parse(
-			readFileSync(new URL('../domain/__tests__/fixtures/spec-16-course.json', import.meta.url), 'utf8')
+			readFileSync(
+				new URL('../domain/__tests__/fixtures/spec-16-course.json', import.meta.url),
+				'utf8'
+			)
 		)
 	);
 
 /** The dialogue's fixture, with two more lessons after the first: the neighbours to move to. */
 const threeLessons = () => {
 	const doc = JSON.parse(
-		readFileSync(new URL('../domain/__tests__/fixtures/spec-16-course.json', import.meta.url), 'utf8')
+		readFileSync(
+			new URL('../domain/__tests__/fixtures/spec-16-course.json', import.meta.url),
+			'utf8'
+		)
 	);
 	doc.lessons.push(
 		{ lesson_id: 'L2', version: 1, name: 'Druhá lekce', order: 2, blocks: [] },
@@ -33,7 +39,14 @@ function open() {
 	const ids = store.doc.lessons[0].blocks.map((b) => b.block_id);
 	const onsettings = vi.fn();
 	const onrepair = vi.fn();
-	return { store, lessonId, ids, onsettings, onrepair, actions: cardActions(store, { onsettings, onrepair }) };
+	return {
+		store,
+		lessonId,
+		ids,
+		onsettings,
+		onrepair,
+		actions: cardActions(store, { onsettings, onrepair })
+	};
 }
 
 describe('the card actions the rail, the tree and the ⋯ menu share', () => {

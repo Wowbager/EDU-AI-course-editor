@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { DocStore } from './doc-store.svelte';
 import { importCourse } from '$lib/domain/document';
-import { addBlock, addLesson, addStep, bindBlock, setField, unbindBlock } from '$lib/domain/commands';
+import {
+	addBlock,
+	addLesson,
+	addStep,
+	bindBlock,
+	setField,
+	unbindBlock
+} from '$lib/domain/commands';
 import { emptyCourse } from '$lib/domain/document';
 import { groupOf, questionCount } from '$lib/domain/groups';
 
@@ -76,7 +83,9 @@ describe('the store and question cards', () => {
 
 	it('maps what the player reports back to the teacher’s card', () => {
 		const store = loaded();
-		expect(store.toView({ blockId: 'L1_B4_cviceni_2', stepId: 's4' })).toMatchObject({ blockId: 'L1_B4_cviceni' });
+		expect(store.toView({ blockId: 'L1_B4_cviceni_2', stepId: 's4' })).toMatchObject({
+			blockId: 'L1_B4_cviceni'
+		});
 	});
 
 	it('exports the source, not the view', () => {
@@ -299,7 +308,8 @@ describe('the export review', () => {
 		expect(shownCodes(store)).toContain('E_DISPLAY_NO_TEXT');
 		// A card added while fixing is unfinished like any new card, not red at birth.
 		const added = store.apply((d, r) => addBlock(d, lesson, 'display', undefined, r)).ref!.blockId;
-		const at = (blockId: string | undefined) => store.shown.errors.filter((i) => i.ref.blockId === blockId);
+		const at = (blockId: string | undefined) =>
+			store.shown.errors.filter((i) => i.ref.blockId === blockId);
 		expect(store.validation.errors.some((i) => i.ref.blockId === added)).toBe(true);
 		expect(at(added)).toEqual([]);
 	});

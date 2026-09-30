@@ -53,9 +53,7 @@ describe('field registry coverage', () => {
 				// A block sub-object's keys are declared with their prefix, e.g.
 				// `block.fsrs.weight`, so check that spelling before the bare one.
 				const candidates =
-					level === undefined
-						? [`${node}.${key}`]
-						: [`${level}.${key}`, `${node}.${key}`];
+					level === undefined ? [`${node}.${key}`] : [`${level}.${key}`, `${node}.${key}`];
 				if (BLOCK_SUBNODES.includes(node as (typeof BLOCK_SUBNODES)[number])) {
 					candidates.unshift(`block.${node}.${key}`);
 				}
@@ -72,8 +70,10 @@ describe('field registry coverage', () => {
 			}
 		}
 
-		expect(homeless, `these schema keys have no mode and no reason: ${homeless.join(', ')}`)
-			.toEqual([]);
+		expect(
+			homeless,
+			`these schema keys have no mode and no reason: ${homeless.join(', ')}`
+		).toEqual([]);
 	});
 
 	it('states a real reason for every field it refuses to edit', () => {
@@ -175,8 +175,10 @@ describe('what each mode is for', () => {
 
 	it('hands the generic renderer only the fields no component owns', () => {
 		for (const spec of fieldsFor('block', 'advanced')) {
-			expect(spec.custom, `${spec.path} is custom and should not be rendered generically`)
-				.toBeUndefined();
+			expect(
+				spec.custom,
+				`${spec.path} is custom and should not be rendered generically`
+			).toBeUndefined();
 		}
 	});
 
@@ -239,7 +241,7 @@ describe('every offered field has a consumer, or says it has none', async () => 
 		}
 	}
 
-	it('found the spec\'s inert keys', () => {
+	it("found the spec's inert keys", () => {
 		// A sanity floor, so a reformatted spec cannot make this test vacuous.
 		expect(inert.size).toBeGreaterThan(15);
 		expect(inert.has('block.status')).toBe(true);
@@ -252,7 +254,10 @@ describe('every offered field has a consumer, or says it has none', async () => 
 		// reading must lose the flag — the spec is updated, this fails, the flag goes.
 		const flaggedButRead = FIELDS.filter((f) => f.unread && !inert.has(key(f))).map(key);
 		const inertButUnflagged = FIELDS.filter((f) => !f.unread && inert.has(key(f))).map(key);
-		expect({ flaggedButRead, inertButUnflagged }).toEqual({ flaggedButRead: [], inertButUnflagged: [] });
+		expect({ flaggedButRead, inertButUnflagged }).toEqual({
+			flaggedButRead: [],
+			inertButUnflagged: []
+		});
 	});
 
 	it('offers nothing inert in teacher mode', () => {
@@ -278,7 +283,11 @@ describe('every issue can be fixed somewhere', async () => {
 	const { validate } = await import('../validate');
 	const { fixModeOf } = await import('$lib/ui/fields');
 	const load = (name: string) =>
-		parseCourse(JSON.parse(readFileSync(fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url)), 'utf8')));
+		parseCourse(
+			JSON.parse(
+				readFileSync(fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url)), 'utf8')
+			)
+		);
 
 	it('names only fields the registry knows', () => {
 		const unknown: string[] = [];
@@ -324,14 +333,21 @@ describe('feedback fields', () => {
 	];
 
 	it('marks exactly the explanations, hints and solution', () => {
-		expect(FIELDS.filter((f) => f.feedback).map(key).sort()).toEqual([...MARKED].sort());
+		expect(
+			FIELDS.filter((f) => f.feedback)
+				.map(key)
+				.sort()
+		).toEqual([...MARKED].sort());
 	});
 
 	it('never marks a field a question needs to be correct', () => {
 		const marked = new Set(FIELDS.filter((f) => f.feedback).map(key));
 		expect(NEEDED_TO_AUTHOR.filter((path) => marked.has(path))).toEqual([]);
 		for (const path of NEEDED_TO_AUTHOR) {
-			expect(FIELDS.some((f) => key(f) === path), `${path} is not in the registry`).toBe(true);
+			expect(
+				FIELDS.some((f) => key(f) === path),
+				`${path} is not in the registry`
+			).toBe(true);
 		}
 	});
 
@@ -369,15 +385,27 @@ describe('feedback fields', () => {
 		expect(isFeedbackRef({ blockId: 'b', field: 'hint' })).toBe(true);
 		expect(isFeedbackRef({ blockId: 'b', field: 'help' })).toBe(true);
 		expect(isFeedbackRef({ blockId: 'b', stepId: 's', field: 'question.solution' })).toBe(true);
-		expect(isFeedbackRef({ blockId: 'b', stepId: 's', field: 'question.solution_image.url' })).toBe(true);
-		expect(isFeedbackRef({ blockId: 'b', stepId: 's', field: 'question.show_solution' })).toBe(true);
-		expect(isFeedbackRef({ blockId: 'b', stepId: 's', optionId: 'o', field: 'feedback' })).toBe(true);
-		expect(isFeedbackRef({ blockId: 'b', stepId: 's', optionId: 'o', field: 'feedback_image.url' })).toBe(true);
+		expect(isFeedbackRef({ blockId: 'b', stepId: 's', field: 'question.solution_image.url' })).toBe(
+			true
+		);
+		expect(isFeedbackRef({ blockId: 'b', stepId: 's', field: 'question.show_solution' })).toBe(
+			true
+		);
+		expect(isFeedbackRef({ blockId: 'b', stepId: 's', optionId: 'o', field: 'feedback' })).toBe(
+			true
+		);
+		expect(
+			isFeedbackRef({ blockId: 'b', stepId: 's', optionId: 'o', field: 'feedback_image.url' })
+		).toBe(true);
 
 		expect(isFeedbackRef({ blockId: 'b', stepId: 's', field: 'question.options' })).toBe(false);
-		expect(isFeedbackRef({ blockId: 'b', stepId: 's', field: 'question.correct_answer' })).toBe(false);
+		expect(isFeedbackRef({ blockId: 'b', stepId: 's', field: 'question.correct_answer' })).toBe(
+			false
+		);
 		expect(isFeedbackRef({ blockId: 'b', stepId: 's', field: 'content' })).toBe(false);
-		expect(isFeedbackRef({ blockId: 'b', stepId: 's', optionId: 'o', field: 'is_correct' })).toBe(false);
+		expect(isFeedbackRef({ blockId: 'b', stepId: 's', optionId: 'o', field: 'is_correct' })).toBe(
+			false
+		);
 		expect(isFeedbackRef({ blockId: 'b', stepId: 's', optionId: 'o', field: 'go_to' })).toBe(false);
 		// A prefix match is on whole path segments: `hint` must not match `hints`.
 		expect(isFeedbackRef({ blockId: 'b', stepId: 's', field: 'hints' })).toBe(false);

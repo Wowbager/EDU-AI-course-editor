@@ -5,7 +5,9 @@ import { bindBlock, deleteBlock } from '../commands';
 import { quickDelete } from '../card-delete';
 
 const base = () =>
-	parseCourse(JSON.parse(readFileSync(new URL('./fixtures/spec-16-course.json', import.meta.url), 'utf8')));
+	parseCourse(
+		JSON.parse(readFileSync(new URL('./fixtures/spec-16-course.json', import.meta.url), 'utf8'))
+	);
 
 describe('deleting a card without the repair dialog', () => {
 	it('a card that only its own lesson holds is deleted with its binding, and the next card is chosen', () => {
@@ -33,7 +35,9 @@ describe('deleting a card without the repair dialog', () => {
 		const doc = base();
 		const lesson = doc.lessons[0];
 		const only = { ...doc, lessons: [{ ...lesson, blocks: [lesson.blocks[0]] }] };
-		expect(quickDelete(only, lesson.lesson_id, lesson.blocks[0].block_id)?.neighbour).toBeUndefined();
+		expect(
+			quickDelete(only, lesson.lesson_id, lesson.blocks[0].block_id)?.neighbour
+		).toBeUndefined();
 	});
 
 	it('a card another card branches to or needs first is left to the repair dialog', () => {
@@ -58,7 +62,10 @@ describe('deleting a card without the repair dialog', () => {
 		const first = doc.lessons[0].blocks[0].block_id;
 		const orphan = {
 			...doc,
-			lessons: doc.lessons.map((l) => ({ ...l, blocks: l.blocks.filter((b) => b.block_id !== first) }))
+			lessons: doc.lessons.map((l) => ({
+				...l,
+				blocks: l.blocks.filter((b) => b.block_id !== first)
+			}))
 		};
 		const plan = quickDelete(orphan, undefined, first)!;
 		expect(plan.repairs).toEqual([]);

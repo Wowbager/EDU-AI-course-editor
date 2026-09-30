@@ -78,7 +78,7 @@
 						max="100"
 						step="5"
 						aria-label={`Váha výstupu ${key}`}
-						value={value}
+						{value}
 						onchange={(e) => reweight(key, e.currentTarget.value)}
 					/>
 					<span class="unit">%</span>
@@ -187,6 +187,4 @@
 	li button:hover {
 		color: var(--e-error);
 	}
-
-
 </style>

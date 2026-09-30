@@ -99,14 +99,23 @@ describe('the broken variant', () => {
 			const { blockId, lessonId, stepId } = issue.ref;
 			if (blockId !== undefined && issue.code !== 'E_BINDING_UNRESOLVED') {
 				// E_BINDING_UNRESOLVED deliberately names the missing block.
-				expect(doc.blocks.some((b) => b.block_id === blockId), issue.code).toBe(true);
+				expect(
+					doc.blocks.some((b) => b.block_id === blockId),
+					issue.code
+				).toBe(true);
 			}
 			if (lessonId !== undefined) {
-				expect(doc.lessons.some((l) => l.lesson_id === lessonId), issue.code).toBe(true);
+				expect(
+					doc.lessons.some((l) => l.lesson_id === lessonId),
+					issue.code
+				).toBe(true);
 			}
 			if (stepId !== undefined && blockId !== undefined) {
 				const block = doc.blocks.find((b) => b.block_id === blockId);
-				expect(block?.steps.some((s) => s.id === stepId), issue.code).toBe(true);
+				expect(
+					block?.steps.some((s) => s.id === stepId),
+					issue.code
+				).toBe(true);
 			}
 		}
 	});
@@ -258,9 +267,14 @@ describe('an empty lesson', () => {
 		const doc = parseCourse(fixture('spec-16-course.json'));
 		const withEmpty = {
 			...doc,
-			lessons: [...doc.lessons, { lesson_id: 'L_EMPTY', version: 1, name: 'Prázdná', order: 9, blocks: [] }]
+			lessons: [
+				...doc.lessons,
+				{ lesson_id: 'L_EMPTY', version: 1, name: 'Prázdná', order: 9, blocks: [] }
+			]
 		};
-		const codes = validate(withEmpty, skillConfig).warnings.filter((w) => w.ref.lessonId === 'L_EMPTY');
+		const codes = validate(withEmpty, skillConfig).warnings.filter(
+			(w) => w.ref.lessonId === 'L_EMPTY'
+		);
 		expect(codes.map((w) => w.code)).toEqual(['W_EMPTY_LESSON']);
 		expect(validate(doc, skillConfig).warnings.map((w) => w.code)).not.toContain('W_EMPTY_LESSON');
 	});
@@ -274,14 +288,21 @@ describe('hint and help a pupil never reaches', () => {
 			version: 1,
 			name: 'K',
 			lessons: [{ lesson_id: 'L1', name: 'L', order: 1, blocks: [{ block_id: 'B1', order: 1 }] }],
-			blocks: [{ block_id: 'B1', type: 'display', ...over, steps: steps.map((s, i) => ({ id: `s${i + 1}`, type: 'text', content: 'Text', ...s })) }]
+			blocks: [
+				{
+					block_id: 'B1',
+					type: 'display',
+					...over,
+					steps: steps.map((s, i) => ({ id: `s${i + 1}`, type: 'text', content: 'Text', ...s }))
+				}
+			]
 		});
 	const reached = (doc: ReturnType<typeof card>) =>
 		validate(doc, skillConfig)
 			.warnings.filter((w) => w.code === 'W_HINT_UNREACHABLE')
 			.map((w) => `${w.ref.stepId ?? 'card'}.${w.ref.field}`);
 
-	it('is quiet for what the app shows: each step\'s own hint and help, or the card\'s', () => {
+	it("is quiet for what the app shows: each step's own hint and help, or the card's", () => {
 		expect(reached(card({}, [{ hint: 'H', help: 'P' }, {}]))).toEqual([]);
 		expect(reached(card({}, [{}, { hint: 'H', help: 'P' }]))).toEqual([]);
 		expect(reached(card({ hint: 'H', help: 'P' }, [{}, {}]))).toEqual([]);
@@ -293,20 +314,31 @@ describe('hint and help a pupil never reaches', () => {
 		expect(reached(card({ help: 'P' }, [{}]))).toEqual(['card.help']);
 	});
 
-	it('names the card\'s hint and help when every step has its own', () => {
-		expect(reached(card({ hint: 'H' }, [{ hint: 'vlastní' }, { hint: 'také' }]))).toEqual(['card.hint']);
+	it("names the card's hint and help when every step has its own", () => {
+		expect(reached(card({ hint: 'H' }, [{ hint: 'vlastní' }, { hint: 'také' }]))).toEqual([
+			'card.hint'
+		]);
 		expect(reached(card({ hint: 'H' }, [{ hint: 'vlastní' }, {}]))).toEqual([]);
 		expect(reached(card({ help: 'P' }, [{ hint: 'H', help: 'vlastní' }]))).toEqual(['card.help']);
 	});
 
 	it('names the hint of text between the questions of a question card', () => {
-		const question = { type: 'question', question: { type: 'multiple_choice', options: [{ id: 'a', text: 'A', is_correct: true }] } };
-		expect(reached(card({ type: 'question' }, [{ hint: 'H' }, { ...question, hint: 'K otázce' }]))).toEqual(['s1.hint']);
+		const question = {
+			type: 'question',
+			question: { type: 'multiple_choice', options: [{ id: 'a', text: 'A', is_correct: true }] }
+		};
+		expect(
+			reached(card({ type: 'question' }, [{ hint: 'H' }, { ...question, hint: 'K otázce' }]))
+		).toEqual(['s1.hint']);
 		expect(reached(card({ type: 'exercise' }, [{ help: 'P' }, question]))).toEqual(['s1.help']);
 	});
 
 	it('counts the "?" a finished question card keeps, which opens the card\'s', () => {
-		const question = { type: 'question', hint: 'K otázce', question: { type: 'multiple_choice', options: [{ id: 'a', text: 'A', is_correct: true }] } };
+		const question = {
+			type: 'question',
+			hint: 'K otázce',
+			question: { type: 'multiple_choice', options: [{ id: 'a', text: 'A', is_correct: true }] }
+		};
 		expect(reached(card({ type: 'question', hint: 'H', help: 'P' }, [question, {}]))).toEqual([]);
 		// Ending on the question, the finished card still offers the question's own.
 		expect(reached(card({ type: 'question', hint: 'H' }, [question]))).toEqual(['card.hint']);
@@ -333,7 +365,13 @@ describe('answers that lead somewhere or carry a grade, on a question with sever
 							question: {
 								type: 'multiple_choice',
 								allow_multiple,
-								options: options.map((o, i) => ({ id: `o${i + 1}`, text: `Možnost ${i + 1}`, is_correct: i === 0, feedback: 'Proto.', ...o }))
+								options: options.map((o, i) => ({
+									id: `o${i + 1}`,
+									text: `Možnost ${i + 1}`,
+									is_correct: i === 0,
+									feedback: 'Proto.',
+									...o
+								}))
 							}
 						},
 						{ id: 's2', type: 'text', content: 'Dál' }
@@ -352,7 +390,9 @@ describe('answers that lead somewhere or carry a grade, on a question with sever
 	});
 
 	it('names only the value that is there', () => {
-		expect(ignored(question(true, [{ go_to: 's2' }, {}]))[0].message).toContain('nepoužije větvení.');
+		expect(ignored(question(true, [{ go_to: 's2' }, {}]))[0].message).toContain(
+			'nepoužije větvení.'
+		);
 		expect(ignored(question(true, [{ mark: '2' }, {}]))[0].message).toContain('nepoužije známka.');
 	});
 

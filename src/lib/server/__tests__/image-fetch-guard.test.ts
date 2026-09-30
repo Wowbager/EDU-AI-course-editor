@@ -107,7 +107,9 @@ describe('assertPublicHost', () => {
 describe('assertSafeUrl', () => {
 	it('rejects a disallowed scheme before ever resolving the host', async () => {
 		const lookup = vi.fn();
-		await expect(assertSafeUrl(new URL('file:///etc/passwd'), lookup)).rejects.toThrow(UnsafeUrlError);
+		await expect(assertSafeUrl(new URL('file:///etc/passwd'), lookup)).rejects.toThrow(
+			UnsafeUrlError
+		);
 		expect(lookup).not.toHaveBeenCalled();
 	});
 });
@@ -132,9 +134,11 @@ describe('fetchImageSafely', () => {
 
 	it('returns the response when the address and content-type are fine', async () => {
 		const body = new TextEncoder().encode('fake-png-bytes');
-		const fetchFn = vi.fn().mockResolvedValue(
-			new Response(body, { status: 200, headers: { 'content-type': 'image/png' } })
-		);
+		const fetchFn = vi
+			.fn()
+			.mockResolvedValue(
+				new Response(body, { status: 200, headers: { 'content-type': 'image/png' } })
+			);
 
 		const result = await fetchImageSafely('https://example.com/x.png', {
 			lookup: publicLookup,
@@ -151,7 +155,10 @@ describe('fetchImageSafely', () => {
 		const lookup = vi.fn().mockResolvedValue([{ address: '10.0.0.5', family: 4 }]);
 		const fetchFn = vi.fn();
 
-		const result = await fetchImageSafely('http://internal.example/secret.png', { lookup, fetchFn });
+		const result = await fetchImageSafely('http://internal.example/secret.png', {
+			lookup,
+			fetchFn
+		});
 
 		expect(result.ok).toBe(false);
 		expect(result.error).toMatch(/reserved/i);
@@ -165,7 +172,10 @@ describe('fetchImageSafely', () => {
 				new Response(null, { status: 302, headers: { location: 'https://cdn.example/x.png' } })
 			)
 			.mockResolvedValueOnce(
-				new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { 'content-type': 'image/png' } })
+				new Response(new Uint8Array([1, 2, 3]), {
+					status: 200,
+					headers: { 'content-type': 'image/png' }
+				})
 			);
 
 		const result = await fetchImageSafely('https://example.com/x.png', {
@@ -197,9 +207,12 @@ describe('fetchImageSafely', () => {
 	});
 
 	it('gives up after too many redirects', async () => {
-		const fetchFn = vi.fn().mockImplementation(
-			async () => new Response(null, { status: 302, headers: { location: 'https://example.com/next' } })
-		);
+		const fetchFn = vi
+			.fn()
+			.mockImplementation(
+				async () =>
+					new Response(null, { status: 302, headers: { location: 'https://example.com/next' } })
+			);
 
 		const result = await fetchImageSafely('https://example.com/x.png', {
 			lookup: publicLookup,
@@ -214,7 +227,9 @@ describe('fetchImageSafely', () => {
 	it('rejects a non-image content-type', async () => {
 		const fetchFn = vi
 			.fn()
-			.mockResolvedValue(new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }));
+			.mockResolvedValue(
+				new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+			);
 
 		const result = await fetchImageSafely('https://example.com/x.json', {
 			lookup: publicLookup,
@@ -246,7 +261,9 @@ describe('fetchImageSafely', () => {
 		const oversized = new Uint8Array(MAX_BODY_BYTES + 1024);
 		const fetchFn = vi
 			.fn()
-			.mockResolvedValue(new Response(oversized, { status: 200, headers: { 'content-type': 'image/png' } }));
+			.mockResolvedValue(
+				new Response(oversized, { status: 200, headers: { 'content-type': 'image/png' } })
+			);
 
 		const result = await fetchImageSafely('https://example.com/huge.png', {
 			lookup: publicLookup,
