@@ -1785,51 +1785,82 @@ reason the teacher can see.
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today
 are listed separately in `docs/OPEN-PROBLEMS.md`, with what has and has not been
-reproduced.
+reproduced. Each entry is one of three kinds, and the kind is named: a **question for
+the owner** (only the owner can answer it), a **blocker** (nothing can proceed), or a
+**fork** (the editor could move, but not without a decision). Closed entries are not
+deleted from the record — the closing round is named in the entry, and removed ones are
+listed under *Closed from this list* at the end.
 
-0. **Two copies of `COURSE-EDITOR-SPEC.md` disagree.** The canonical one is
-   `docs/spec/COURSE-EDITOR-SPEC.md` (in this repo, last edited Sep 26, 881 lines). An
-   older snapshot (Sep 10, 845 lines) used to sit in a second `docs/` folder outside the
-   repo, in the workspace next to the API and app checkouts — that folder is **not** a git
-   repo, so the copy there was never the shipped one. The two differ; the outside copy was
-   archived rather than reconciled, because deciding which wording is right is an
-   authoring decision, not a tidy-up. `PLAN.md` and `COURSE-AUTHORING-SPEC.md` were
-   byte-identical between the two locations, so only the editor spec ever drifted.
+The numbering below is stable and is cited from `docs/spec/COURSE-EDITOR-SPEC.md`,
+source comments and earlier rounds of this file. **There is no number 4** — no version
+of this list ever had one (`git log -S'4. **'` finds only this note); the gap is a
+long-standing slip, kept as a gap rather than renumbered, so that every existing
+citation still resolves. `0` is one of the numbers, not a placeholder.
 
-1. **RVP → GPF mapping table (M6)** — the GPF taxonomy is now wired (below), but the
-   mapping from a *RVP outcome* to competencies and a starting vector is a different
-   table, and the plan says to ask rather than invent it. Where does it come from, and
-   who maintains it? Until then the didactic front door is the subconstruct picker.
-2. **Publish (M7)** — `POST /api/courses/upload` is implemented in `api/client.ts`
-   against the shape the Laravel controller accepts (whole document as the body;
-   version must be strictly higher than the stored one). It is **not wired to a
-   button** yet, because the auth question below is unanswered.
-3. **Auth and roles** — the client assumes a same-origin `/api` proxy carrying the
-   session cookie, the pattern the admin uses. Confirm, and say whether teacher/author
-   mode is role-driven from the API or a local setting (§9.5). It is currently a local
-   toggle.
-5. **Id reuse beyond a session** — the editor now refuses to re-mint an id it has
-   handed out, but only while the document is open. Reopening a course and deleting
-   the last step of a block can still produce a fresh `s1` that a student's old answer
-   is keyed to. Solving it properly needs somewhere to record the high-water mark;
-   nothing in `CourseV2` currently holds one.
-6. **`W_DUPLICATE_OPTION_ID`** — a check §14 does not list, added as a warning rather
-   than an error to avoid inventing a blocking rule. Confirm which it should be.
-7. **`relation_vector: 1` is inert in the app** while the authoring spec defines it as
-   a reduced-weight update (`elo_engine.dart:122`). Either the engine should honour it
-   or the spec should drop it; until then the editor offers it without comment.
+0. **Two copies of `COURSE-EDITOR-SPEC.md` used to disagree.** *Resolved as a tidy-up.*
+   The canonical copy is `docs/spec/COURSE-EDITOR-SPEC.md` (in this repo, last edited
+   Sep 26, 881 lines). An older snapshot (Sep 10, 845 lines) used to sit in a second
+   `docs/` folder outside the repo, in the workspace next to the API and app checkouts —
+   that folder is **not** a git repo, so the copy there was never the shipped one. The two
+   differed; the outside copy was archived rather than reconciled, because deciding which
+   wording is right is an authoring decision, not a tidy-up. `PLAN.md` and
+   `COURSE-AUTHORING-SPEC.md` were byte-identical between the two locations, so only the
+   editor spec ever drifted. The workspace copy is gone as of the 2026-09-30 tidy, so
+   nothing is left to reconcile — kept here because `AGENTS.md` and the tidy's
+   post-mortem both point at it.
+
+1. **RVP → GPF mapping table (M6)** — *question for the owner.* The GPF taxonomy is now
+   wired (below), but the mapping from a *RVP outcome* to competencies and a starting
+   vector is a different table, and the plan says to ask rather than invent it. Where
+   does it come from, and who maintains it? Until then the didactic front door is the
+   subconstruct picker.
+2. **Publish (M7)** — *blocker, on the auth question.* `POST /api/courses/upload` is
+   implemented in `api/client.ts` against the shape the Laravel controller accepts
+   (whole document as the body; version must be strictly higher than the stored one).
+   It is **not wired to a button** yet, because the auth question below is unanswered.
+   What "Zveřejnit" does today is recorded in `OPEN-PROBLEMS.md` (publish marks and
+   downloads; the upload half waits for sign-in).
+3. **Auth and roles** — *question for the owner.* The client assumes a same-origin
+   `/api` proxy carrying the session cookie, the pattern the admin uses. Confirm, and
+   say whether teacher/author mode is role-driven from the API or a local setting
+   (§9.5). It is currently a local toggle.
+5. **Id reuse beyond a session** — *question for the owner: this is a format question,
+   not an editor one.* The editor now refuses to re-mint an id it has handed out, but
+   only while the document is open. Reopening a course and deleting the last step of a
+   block can still produce a fresh `s1` that a student's old answer is keyed to. Solving
+   it properly needs somewhere to record the high-water mark; nothing in `CourseV2`
+   currently holds one.
+6. **`W_DUPLICATE_OPTION_ID`** — *question for the owner.* A check §14 does not list,
+   added as a warning rather than an error to avoid inventing a blocking rule. Confirm
+   which it should be.
+7. **`relation_vector: 1` is inert in the app** — *fork.* The authoring spec defines it
+   as a reduced-weight update (`elo_engine.dart:122`); the engine does not read it.
+   Either the engine should honour it or the spec should drop it; until then the editor
+   offers it without comment. This is the same disagreement as `OPEN-PROBLEMS.md` 14
+   (FSRS keys) and 15 (authored XP), seen from the other side: where the app and the
+   spec disagree, the editor writes what the spec says and this list carries the
+   question.
 8. **The app's lesson card always derives XP.** `_calculateBlockMaxXp` in
    `course_model.dart` ignores an authored `blocks[].xp` when computing the lesson's
    advertised reward, while §10 says the authored value is the reward. The editor
    follows the spec and shows the derived figure with an asterisk. Worth reconciling —
-   right now a course can promise one number and award another.
+   right now a course can promise one number and award another. **Teacher-visible, so
+   the fuller write-up (including the mode-to-mode total it shifts) is
+   `OPEN-PROBLEMS.md` 15**; this entry is the question, that one is the defect.
 9. **A run's result is computed and thrown away.** `bridge.reset()`, `onstepChanged`
    and `oncompleted` are wired to nothing, so the XP, score and mark that *Vyzkoušet*
    produces never reach the author. They are the obvious thing to show after a run.
-10. **`PreviewMode.sideEffectsSuppressed` guards nothing.** It is referenced nowhere
-   in `lib/`; safety currently rests entirely on `PreviewPage` handing the engine inert
-   callbacks. It stays as the documented pattern for a write that does not exist yet,
-   which is a bet that the next author reads the README.
-11. ~~`block.status` is authored and read by nothing~~ — no longer offered (Round 4).
-12. ~~`PreviewLessonPlayer` keys its history by block index~~ — keyed by `blockId`
-   (Round 4).
+10. **`PreviewMode.sideEffectsSuppressed` guards nothing.** *Fork.* It is referenced
+    nowhere in `lib/`; safety currently rests entirely on `PreviewPage` handing the
+    engine inert callbacks. It stays as the documented pattern for a write that does not
+    exist yet, which is a bet that the next author reads the README.
+
+### Closed from this list
+
+Kept so that a citation from an earlier round or a commit message still resolves.
+Nothing here is open; the round that closed it is named, and the reasoning is in that
+round's section above.
+
+- **`block.status` is authored and read by nothing** — no longer offered (Round 4).
+- **`PreviewLessonPlayer` keys its history by block index** — keyed by `blockId`
+  (Round 4).
