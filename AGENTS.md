@@ -36,8 +36,18 @@ known to be broken.
   GitHub: a `<who>/<topic>` branch and a PR. Never leave work unpushed.
 - Commit messages say what changed for the teacher or the code, like the existing log.
   Never commit `test-results/`, `playwright-report/`, `build/`, `.svelte-kit/`, `.env*`.
-- Don't reformat code you aren't changing. The code uses tabs; match the lines around
-  you. **npm only**: `package-lock.json` is the lockfile, and a dependency change is a
+- Formatting is decided by `.prettierrc.json`, not by taste: tabs, single quotes,
+  no trailing commas, width 100. Prettier is a dev dependency; `npm run format`
+  rewrites in place and `npm run format:check` reports. Neither is in CI on purpose —
+  a formatting failure should never be what a red build means.
+  - Don't reformat code you aren't changing: run `npm run format` on the files you
+    touched, not on the repo. A whole-tree reformat is its own commit with nothing else
+    in it, and it says so.
+  - `docs/`, `*.md`, `*.json` and the fixture corpus are deliberately outside Prettier
+    (see `.prettierignore`): Prettier rewrites Markdown emphasis and reflows prose in
+    files whose headings are citation keys, and it would reorder course JSON whose key
+    order is a tested invariant (DECISIONS M1).
+- **npm only**: `package-lock.json` is the lockfile, and a dependency change is a
   commit of `package.json` + `package-lock.json` alone.
 
 ## Checks

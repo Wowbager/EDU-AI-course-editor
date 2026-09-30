@@ -1781,6 +1781,46 @@ reason the teacher can see.
 
 ---
 
+## Formatting — one formatter, and the two places it is not allowed
+
+The repo had a house style and no formatter: `useTabs` nearly everywhere (129 files to
+10) and `singleQuote` nearly everywhere (102 files to 3). The outliers were real — ten
+files indented with spaces, three of them also importing with double quotes, so
+`src/lib/ui/Button.svelte` and `src/lib/editor/Topbar.svelte` read differently from the
+`src/lib/ui/*.svelte` files beside them.
+
+The fix was to describe the tree, not relocate it. A formatter run on its defaults
+(spaces, double quotes, width 80) would have rewritten the majority of the repo to match
+the *minority*; `.prettierrc.json` is written instead with `useTabs`, `singleQuote`,
+`printWidth: 100` and `trailingComma: "none"`, so the ten outliers move and little else
+does. Measured over the 106 tracked `.ts`/`.mjs` files, `npx prettier --list-different`
+counts 93 files at width 80, 71 at 100 and 67 at 120 — the churn falls with the width,
+and never reaches zero at any width, which is the evidence that the tree was never
+Prettier-formatted and that treating this as "fixing the outliers" rather than
+"adopting a formatter" was the only honest reading.
+
+`prettier-plugin-svelte` is a dependency, not an extra: there are 35 `.svelte` files and
+without it Prettier infers no parser for any of them.
+
+**Two exclusions, each for a reason that is not aesthetic.**
+
+- **Prose.** `docs/`, `*.md`. Prettier rewrites Markdown emphasis (`*x*` becomes `_x_`)
+  and reflows paragraphs. These files' headings are citation keys — cited by number from
+  the spec, from source comments and from earlier rounds of this file — and the wrapping
+  and emphasis are hand-chosen. `OPEN-PROBLEMS.md` alone picks up 36 lines of emphasis
+  churn and no improvement.
+- **Course JSON.** `*.json`, and the fixture corpus specifically. Key order on output is
+  canonical and deterministic *on purpose* (M1, and the round-trip test asserts it),
+  so that a publish diff shows what a teacher changed rather than what the serialiser
+  reordered. A formatter that rewrites that order is in direct conflict with a tested
+  invariant.
+
+**`npm run format` and `format:check` exist; neither is in CI.** A formatting failure
+should never be what turns a build red — the checks that gate a push are the type check,
+the unit tests and the e2e `editor` project. The rule for a person is in `AGENTS.md`:
+format the files you touched, and if the whole tree is reformatted that is its own
+commit with nothing else in it.
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today
