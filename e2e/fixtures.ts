@@ -75,12 +75,22 @@ export async function openEditor(page: Page, url = '/'): Promise<boolean> {
  * editor scrolls itself smoothly to a card it has just selected, so a click that lands
  * during that scroll opens a menu that is shut again at once. The click is repeated
  * until the menu is really open, which is the condition the caller wants.
+ *
+ * `toBeVisible` on the panel is not enough, and waiting on the caller's item is the
+ * point. The panel is a native popover whose position is set on a `requestAnimationFrame`
+ * after `showPopover()` — so the panel reports visible while its items are still laid
+ * out at the browser's default popover position, off-screen, and an item is not yet
+ * clickable. On this machine the frame lands before the next assertion; on a CI runner
+ * (and under load) it does not, and the caller's `.click()` then retries against a
+ * not-visible item until the 30 s test timeout, which is how this was found. So the
+ * menu counts as open only once an item inside it is really visible.
  */
 export async function openMenu(page: Page, trigger: Locator, name: string): Promise<Locator> {
 	const menu = page.getByRole('menu', { name, exact: true });
+	const item = menu.getByRole('menuitem');
 	await expect(async () => {
 		if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click();
-		await expect(menu).toBeVisible({ timeout: 1_000 });
+		await expect(item.first()).toBeVisible({ timeout: 1_000 });
 	}).toPass({ timeout: 10_000 });
 	return menu;
 }
