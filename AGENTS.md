@@ -93,8 +93,13 @@ Each of these comes from a bug that cost a round.
    derived from the document, never stored beside it.
 7. **Tests wait on a condition, never on time**, and find things by name, never by
    pixel.
-8. **Nothing about one machine goes in this repo**: no local paths, ports of someone's
-   own servers, or quirks of one network. Those belong in the workspace's own notes.
+8. **Nothing about one machine goes in this repo**: no local paths (`/home/...`), ports of
+   someone's own servers, or quirks of one network. This repository has to stand alone —
+   an agent or a person reading it on GitHub has none of that context. Every fact the
+   repo needs belongs in the repo, written for a reader who has never seen the machine
+   it was written on; the machine-specific side (checkout layout, which port is busy,
+   how to build the player in a sibling directory, the archive of retired work) lives in
+   the workspace notes outside the repo.
 
 ## Conventions that are tested
 
