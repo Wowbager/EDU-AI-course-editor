@@ -135,7 +135,17 @@ test('storage failure is visible and unload is guarded', async ({ page }) => {
 	});
 	await page.getByRole('textbox', { name: 'Název kurzu', exact: true }).fill('Neztratit');
 	await expect(failed(page)).toHaveText('Koncept se nepodařilo uložit');
-	await expect(page.getByRole('alert')).toHaveText('Koncept se nepodařilo uložit');
+	// The topbar's own live region, and only that one. A bare `getByRole('alert')`
+	// is not reliably one element: `svelte-dnd-action` injects its own
+	// `role="alert"` div (`#dnd-action-aria-alert`, for screen-reader drag
+	// announcements) into `document.body` the first time a list is dragged. With
+	// several workers, whether that div exists while this test runs depends on
+	// whether a drag spec elsewhere is mid-drag — it passed here and failed on CI
+	// on exactly that. Excluding it by id is what makes the locator mean "the
+	// topbar's alert". Matching by accessible name does not: an alert region's name
+	// is not derived from its text node.
+	const topbarAlert = page.locator('[role="alert"]:not(#dnd-action-aria-alert)');
+	await expect(topbarAlert).toHaveText('Koncept se nepodařilo uložit');
 	expect(
 		await page.evaluate(() => {
 			const event = new Event('beforeunload', { cancelable: true });
