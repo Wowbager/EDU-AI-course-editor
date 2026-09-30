@@ -1787,6 +1787,16 @@ Blockers and questions, in the order they will bite. Defects a teacher can hit t
 are listed separately in `docs/OPEN-PROBLEMS.md`, with what has and has not been
 reproduced.
 
+0. **Two copies of `COURSE-EDITOR-SPEC.md` disagree.** The canonical one is
+   `docs/spec/COURSE-EDITOR-SPEC.md` (in this repo, last edited Sep 26, 881 lines). An
+   older snapshot (Sep 10, 845 lines) used to live at `/home/ben/edu-editor/docs/` in the
+   workspace, next to the API and app checkouts — that folder is **not** a git repo, so
+   the copy there was never the shipped one. The two differ; the workspace copy has been
+   archived (`~/edu-editor-archive-20260930/root-docs/`) rather than reconciled, because
+   deciding which wording is right is an authoring decision, not a tidy-up. `PLAN.md` and
+   `COURSE-AUTHORING-SPEC.md` were byte-identical between the two locations, so only the
+   editor spec ever drifted.
+
 1. **RVP → GPF mapping table (M6)** — the GPF taxonomy is now wired (below), but the
    mapping from a *RVP outcome* to competencies and a starting vector is a different
    table, and the plan says to ask rather than invent it. Where does it come from, and

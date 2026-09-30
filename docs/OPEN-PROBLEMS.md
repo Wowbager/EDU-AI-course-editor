@@ -363,6 +363,26 @@ the file with no field to clear them, except by switching the option off and on 
 branch of `_confirmAnswer` skips an option's `score_koef` too (`block_step_engine.dart:597-601`),
 which the advanced "Podíl bodů" column still offers. Not changed here.
 
+### 39. The design brief agents are told to follow is not on `main`
+**Verified by reading the repo.** The workspace `AGENTS.md` (§"What the owner expects")
+tells every agent: *"For anything a teacher sees, follow `editor/docs/DESIGN.md`"*. That
+file does not exist on `main`. It was written by the 2026-09-29 design review and pushed
+as branch `claude/design-brief`, which is open as **PR #1** and unmerged. So the standing
+instructions point at a document the repository does not contain, and an agent that
+checks will find nothing; one that does not check will invent a design authority from the
+current UI — which is exactly what the brief was written to stop.
+
+This is the owner's call, not a fix to make here. Either **merge PR #1** (the brief then
+becomes real authority and this entry goes away), or **rewrite the instruction** to say
+the brief is a *proposal pending approval* and the current UI is not yet the target.
+Until one of those happens the reference in the workspace `AGENTS.md` is marked as
+pending rather than approved, so nobody mistakes a proposal for a decision.
+
+The same branch also rewrites `docs/DECISIONS.md` and `docs/OPEN-PROBLEMS.md` down to
+their post-review state, so merging it is not a docs-only change: it is a decision about
+which of those files is canonical. That is why it was not merged as part of the
+2026-09-30 workspace tidy.
+
 ### 11. Folding is remembered for the session only
 **By design for now.** `StepView` lives as long as the page. A reload opens every step
 again. Worth persisting with the draft if authors of long cards ask for it.
