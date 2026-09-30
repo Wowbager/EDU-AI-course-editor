@@ -1,0 +1,24 @@
+# What Prettier must not touch, and why — see docs/DECISIONS.md, "Formatting".
+#
+# Prose. Prettier rewrites Markdown emphasis (`*x*` -> `_x_`) and reflows sentences in
+# files whose entry headings are citation keys cited from the spec, DECISIONS and source
+# comments. The hand-wrapped, hand-emphasised text is the intended form.
+docs/
+*.md
+
+# Course JSON. Key order on output is canonical and deterministic on purpose (M1), and
+# the fixture corpus is asserted by `roundtrip.test.ts`. Reformatting these would put
+# the tested invariant and the formatter in conflict.
+*.json
+src/lib/domain/__tests__/fixtures/
+
+# Build output and local state. Never committed, never formatted.
+build/
+.svelte-kit/
+.data/
+test-results/
+playwright-report/
+node_modules/
+
+# The player build and anything vendored.
+static/player/
