@@ -96,6 +96,42 @@ editor will not, and uses `status: private` for "PIN only".
 Entries where something is wrong and a teacher can hit it. These want fixing. The note at
 the top of this file applies: numbers are a citation key and are never renumbered.
 
+### 40. Production `nginx.conf` is exercised by no test, and it has already served a blank preview once
+**Verified by reading the repo and the 2026-09-30 fix** (`1bcff8d`). In the image, nginx
+serves `/player/` and the editor on one origin; `vite preview` serves `/player/` a
+different way (`vite-plugin-player.ts`), which is what the e2e suite runs against. So the
+config that actually ships is reached by nothing in CI and nothing in `e2e/`.
+
+That is not theoretical. On 2026-09-30 the `/player/` asset `location` matched its
+requests but had **no `alias`**, so nginx served those paths from its *default* root and
+every `.png` / `.ico` / `.woff` / `.wasm` under `/player/` was a 404 — CanvasKit above
+all. The page loaded, the wasm did not, and the preview stayed blank. `1bcff8d` fixed it
+by capturing the asset path by name (`location ~* ^/player/(?<asset>…)`) and aliasing it
+into `/usr/share/nginx/player/$asset`. The player's build really does ship
+`canvaskit/canvaskit.wasm`, `canvaskit/skwasm.wasm` and `sqlite3.wasm`, so every one of
+them was in the failing set.
+
+The failure class — *page loads, an asset 404s, the preview is blank* — is invisible to
+`npm run check`, to `npm test`, and to the `editor` and `player` Playwright projects
+alike. It was found by a person looking at an empty preview.
+
+Two things follow, and the second is the one that bites:
+
+- The `/player/` asset block now carries a comment saying why the `alias` and the named
+  capture are both needed, because the obvious "simplification" back to
+  `alias …/player/;` reintroduces a 301 whose fallback still hands Flutter the wrong
+  bytes — a failure that reads as a working request.
+- **Nothing would catch it if it happened again.** A guard is a Docker smoke test: build
+  the image, run it, and assert a known player asset answers `200` with
+  `content-type: application/wasm`, plus a representative `.woff2` and `.ico`. That test
+  fails on the pre-`1bcff8d` config, which is the point of it. It needs the image build
+  (which clones the player at `PLAYER_REF` and runs a Flutter build inside the image), so
+  it is slow and belongs in CI rather than in the local loop. Not written yet.
+
+Not related, but checked while looking: `docker-entrypoint.sh` expands the template with
+`envsubst '$PORT $API_URL'` — an explicit allowlist — so the fix's `$asset` capture and
+nginx's own `$uri` survive expansion. That part is fine.
+
 ### 14. The FSRS fields write keys the app does not read
 **Verified: yes**, per `COURSE-EDITOR-SPEC.md` §6.5. The authoring spec names them
 `initial_difficulty`, `initial_stability`, `repetitions`…; the app reads `difficulty`,
