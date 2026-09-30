@@ -76,21 +76,30 @@ export async function openEditor(page: Page, url = '/'): Promise<boolean> {
  * during that scroll opens a menu that is shut again at once. The click is repeated
  * until the menu is really open, which is the condition the caller wants.
  *
- * `toBeVisible` on the panel is not enough, and waiting on the caller's item is the
- * point. The panel is a native popover whose position is set on a `requestAnimationFrame`
- * after `showPopover()` — so the panel reports visible while its items are still laid
- * out at the browser's default popover position, off-screen, and an item is not yet
- * clickable. On this machine the frame lands before the next assertion; on a CI runner
- * (and under load) it does not, and the caller's `.click()` then retries against a
- * not-visible item until the 30 s test timeout, which is how this was found. So the
- * menu counts as open only once an item inside it is really visible.
+ * `toBeVisible` on the panel alone is not enough, and `item` is the parameter that
+ * matters. The panel is a native popover (`popover="auto"`) whose position is applied on
+ * a `requestAnimationFrame` after `showPopover()`, so the panel reports visible while
+ * its items are still laid out at the browser's default popover position — off-screen,
+ * and not clickable. Waiting on "some item" does not help either, because a menu with
+ * several items becomes visible one row at a time as the panel settles; waiting on the
+ * *first* item still leaves the caller's `.click()` retrying against a later row that is
+ * not visible yet. So the menu counts as open only once the item the caller is about to
+ * use is really visible: pass it in, and this is the only reliable condition.
+ *
+ * Locally the frames land before the next assertion, so waiting on the panel looked
+ * sufficient for a long time. On a CI runner (and under load) they do not, and the
+ * caller burned its whole 30 s timeout on a not-visible element.
  */
-export async function openMenu(page: Page, trigger: Locator, name: string): Promise<Locator> {
+export async function openMenu(
+	page: Page,
+	trigger: Locator,
+	name: string,
+	item: Locator
+): Promise<Locator> {
 	const menu = page.getByRole('menu', { name, exact: true });
-	const item = menu.getByRole('menuitem');
 	await expect(async () => {
 		if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click();
-		await expect(item.first()).toBeVisible({ timeout: 1_000 });
+		await expect(item).toBeVisible({ timeout: 1_000 });
 	}).toPass({ timeout: 10_000 });
 	return menu;
 }
@@ -103,16 +112,28 @@ export async function addStep(page: Page, type: StepKind, within: Pick<Page, 'lo
 	const trigger = within
 		.locator('.add-step')
 		.getByRole('button', { name: 'Přidat krok', exact: true });
-	const menu = await openMenu(page, trigger, 'Přidat krok');
+	const menu = await openMenu(page, trigger, 'Přidat krok', addStepItem(page, type));
 	await menu.getByRole('menuitem', { name: type, exact: true }).click();
 }
+
+/** An item of a named menu, as `openMenu` wants it. */
+const itemIn = (page: Page, menu: string, item: string) =>
+	page
+		.getByRole('menu', { name: menu, exact: true })
+		.getByRole('menuitem', { name: item, exact: true });
+
+/** An item of the "Přidat krok" menu — what `openMenu` waits on for `addStep`. */
+export const addStepItem = (page: Page, type: StepKind) => itemIn(page, 'Přidat krok', type);
 
 /** The card's ⋯ menu, opened: Duplikovat kartu, Zařadit do / Odebrat z lekce, Smazat kartu. */
 export const cardMenu = (page: Page) =>
 	openMenu(
 		page,
 		page.getByRole('button', { name: 'Další akce s kartou', exact: true }),
-		'Další akce s kartou'
+		'Další akce s kartou',
+		// Always present, and a real item of this menu. `Nastavení karty` is a sibling
+		// button outside it, so it would never become visible as a menu item here.
+		itemIn(page, 'Další akce s kartou', 'Duplikovat kartu')
 	);
 
 /** Do one of the card's actions by its name in the ⋯ menu. */

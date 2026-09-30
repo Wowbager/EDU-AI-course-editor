@@ -1,4 +1,13 @@
-import { addStep, expect, openMenu, test, type Locator, type Page, openEditor } from './fixtures';
+import {
+	addStep,
+	addStepItem,
+	expect,
+	openMenu,
+	test,
+	type Locator,
+	type Page,
+	openEditor
+} from './fixtures';
 import { readFileSync } from 'node:fs';
 
 /**
@@ -162,7 +171,7 @@ test('the add-step menu closes on Escape and gives focus back to its button', as
 	const trigger = page
 		.locator('main .add-step')
 		.getByRole('button', { name: 'Přidat krok', exact: true });
-	const menu = await openMenu(page, trigger, 'Přidat krok');
+	const menu = await openMenu(page, trigger, 'Přidat krok', addStepItem(page, 'Text'));
 	await expect(menu.getByRole('menuitem')).toHaveCount(5);
 	await page.keyboard.press('Escape');
 	await expect(menu).toBeHidden();
