@@ -4,21 +4,24 @@
 	 * read as text until the author moves into it — the point being that a question with
 	 * four options and four pieces of feedback should read like a question, not a form.
 	 *
-	 * Columns follow §8.2: the option text, what it is (the outcome verb), the mark
-	 * collected in quiz mode, the feedback the student sees after choosing it, and where
-	 * that answer leads.
+	 * The grid holds what an answer *is*: the mark of right or wrong, the option text
+	 * and the feedback the student sees after choosing it. What it *does* (§8.2: where
+	 * it leads, the mark collected in quiz mode, the share of points) sits in a detail
+	 * line under the row that a quiet control opens. A value that is set shows as
+	 * inert text under the answer, so it is read without opening anything.
 	 */
 	import type { BlockStep, BlockV2, CourseV2 } from '$lib/domain/schema';
 	import FocusField from '$lib/ui/FocusField.svelte';
 	import Button from '$lib/ui/Button.svelte';
-	import GoToPicker from './GoToPicker.svelte';
+	import GoToPicker, { goToSummary } from './GoToPicker.svelte';
+	import { sectionTargeted } from '$lib/ui/settings-target';
 	import { useStore } from '$lib/ui/context';
 	import { uniqueKeys } from '$lib/ui/keys';
 	import { allows } from '$lib/ui/fields';
 	import { addOption, deleteOption, setField } from '$lib/domain/commands';
 	import { optionOutcomesApply } from '$lib/domain/derive';
 	import { MIN_CHOICE_OPTIONS } from '$lib/domain/validate';
-	import { Check, Plus, Trash } from '@lucide/svelte';
+	import { Check, ChevronRight, Plus, Trash } from '@lucide/svelte';
 
 	interface Props {
 		doc: CourseV2;
@@ -28,6 +31,7 @@
 	let { doc, block, step }: Props = $props();
 
 	const store = useStore();
+	const uid = $props.id();
 	const options = $derived(step.question?.options ?? []);
 	// Duplicate option ids are a warning (`W_DUPLICATE_OPTION_ID`), not a crash.
 	const optionKeys = $derived(uniqueKeys(options.map((o) => o.id)));
@@ -47,7 +51,40 @@
 	const feedback = $derived(allows('option', 'feedback', store.mode, store.showFeedback));
 	const fixedOptions = $derived(step.question?.type === 'true_false');
 	// "Odpověď" alone is not worth a heading: the column is the only one there is.
-	const headed = $derived(quizMarks || feedback || branching);
+	const headed = $derived(feedback);
+	// The detail line exists only when at least one of its three fields does.
+	const detailOffered = $derived(branching || quizMarks || advanced);
+	const showIds = $derived(allows('step', 'id', store.mode));
+	// Which answers have their detail line open. Local to this table, like a fold.
+	let opened = $state<Record<string, boolean>>({});
+	const isOpen = (key: string) => opened[key] === true;
+	// A selection or a visible issue on one of the detail fields opens that row's line
+	// and leaves it open, so typing in the field never pulls it away.
+	$effect(() => {
+		if (!detailOffered) return;
+		for (const [i, option] of options.entries()) {
+			const pointed = sectionTargeted(store, ['option'], 'detail', {
+				blockId: block.block_id,
+				stepId: step.id,
+				optionId: option.id
+			});
+			if (pointed && opened[optionKeys[i]] !== true) opened[optionKeys[i]] = true;
+		}
+	});
+
+	/** What is set on an answer, in a few words; defaults say nothing. */
+	function summaryOf(option: (typeof options)[number]): string[] {
+		const parts: string[] = [];
+		if (branching) {
+			const where = goToSummary(doc, block, option.go_to, showIds, store.index);
+			if (where !== '') parts.push(`→ ${where}`);
+		}
+		if (quizMarks && option.mark !== undefined && option.mark !== '') {
+			parts.push(`známka ${option.mark}`);
+		}
+		if (advanced && option.score_koef !== undefined) parts.push(`podíl bodů ${option.score_koef}`);
+		return parts;
+	}
 	// The last answers have to stay: a question with nothing to choose from is not a
 	// question (`E_MC_TOO_FEW_OPTIONS`, which `MIN_CHOICE_OPTIONS` bounds).
 	const lastAnswers = $derived(
@@ -67,10 +104,8 @@
 		[
 			'36px',
 			'minmax(0, 1.4fr)',
-			...(quizMarks ? ['3.5rem'] : []),
 			...(feedback ? ['minmax(0, 1.6fr)'] : []),
-			...(branching ? ['minmax(0, 1fr)'] : []),
-			advanced ? '5rem' : '2rem'
+			detailOffered ? '4.25rem' : '2rem'
 		].join(' ')
 	);
 
@@ -122,10 +157,7 @@
 		<div class="head" aria-hidden="true">
 			<span></span>
 			<span>Odpověď</span>
-			{#if quizMarks}<span>Známka</span>{/if}
 			{#if feedback}<span>Co se žák dozví</span>{/if}
-			{#if branching}<span>Kam dál</span>{/if}
-			{#if advanced}<span>Podíl bodů</span>{/if}
 			<span></span>
 		</div>
 	{/if}
@@ -161,23 +193,13 @@
 					disabled={fixedOptions}
 					ref={ref(option.id, 'text')}
 				/>
+				{#if !isOpen(optionKeys[i])}
+					{@const summary = summaryOf(option)}
+					{#if summary.length > 0}
+						<p class="set-values">{summary.join(' · ')}</p>
+					{/if}
+				{/if}
 			</div>
-
-			{#if quizMarks}
-				<div class="cell grade">
-					<select
-						class="mark"
-						aria-label="Známka za tuto odpověď"
-						value={option.mark ?? ''}
-						onchange={(e) => set(option.id, 'mark', e.currentTarget.value || undefined)}
-					>
-						<option value="">—</option>
-						{#each ['1', '2', '3', '4', '5'] as mark (mark)}
-							<option value={mark}>{mark}</option>
-						{/each}
-					</select>
-				</div>
-			{/if}
 
 			{#if feedback}
 				<div class="cell feedback">
@@ -194,28 +216,20 @@
 				</div>
 			{/if}
 
-			{#if branching}
-				<div class="cell destination">
-					<GoToPicker
-						{doc}
-						{block}
-						stepId={step.id}
-						value={option.go_to}
-						onchange={(v) => set(option.id, 'go_to', v)}
-					/>
-				</div>
-			{/if}
-
 			<div class="cell actions">
-				{#if advanced}
-					<FocusField
-						label="Podíl bodů za tuto odpověď"
-						value={option.score_koef === undefined ? undefined : String(option.score_koef)}
-						emptyText="1.0"
-						monospace
-						ref={ref(option.id, 'score_koef')}
-						onchange={(v) => set(option.id, 'score_koef', v === undefined ? undefined : Number(v))}
-					/>
+				{#if detailOffered}
+					<button
+						type="button"
+						class="more"
+						class:open={isOpen(optionKeys[i])}
+						aria-expanded={isOpen(optionKeys[i])}
+						aria-controls="{uid}-detail-{i}"
+						aria-label={`Podrobnosti odpovědi ${option.text || 'bez textu'}`}
+						title="Podrobnosti odpovědi"
+						onclick={() => (opened[optionKeys[i]] = !isOpen(optionKeys[i]))}
+					>
+						<ChevronRight size={14} aria-hidden="true" />
+					</button>
 				{/if}
 				{#if !fixedOptions}
 					<span class="trash">
@@ -235,6 +249,53 @@
 					</span>
 				{/if}
 			</div>
+
+			{#if detailOffered && isOpen(optionKeys[i])}
+				<div class="detail" id="{uid}-detail-{i}" role="group" aria-label="Podrobnosti odpovědi">
+					{#if branching}
+						<div class="field">
+							<span class="label">Kam dál</span>
+							<GoToPicker
+								{doc}
+								{block}
+								stepId={step.id}
+								value={option.go_to}
+								onchange={(v) => set(option.id, 'go_to', v)}
+							/>
+						</div>
+					{/if}
+					{#if quizMarks}
+						<div class="field">
+							<span class="label">Známka</span>
+							<select
+								class="mark"
+								aria-label="Známka za tuto odpověď"
+								value={option.mark ?? ''}
+								onchange={(e) => set(option.id, 'mark', e.currentTarget.value || undefined)}
+							>
+								<option value="">—</option>
+								{#each ['1', '2', '3', '4', '5'] as mark (mark)}
+									<option value={mark}>{mark}</option>
+								{/each}
+							</select>
+						</div>
+					{/if}
+					{#if advanced}
+						<div class="field score">
+							<span class="label">Podíl bodů</span>
+							<FocusField
+								label="Podíl bodů za tuto odpověď"
+								value={option.score_koef === undefined ? undefined : String(option.score_koef)}
+								emptyText="1.0"
+								monospace
+								ref={ref(option.id, 'score_koef')}
+								onchange={(v) =>
+									set(option.id, 'score_koef', v === undefined ? undefined : Number(v))}
+							/>
+						</div>
+					{/if}
+				</div>
+			{/if}
 		</div>
 	{/each}
 
@@ -316,10 +377,93 @@
 		gap: 6px;
 	}
 
+	.set-values {
+		margin: 2px 0 0;
+		padding: 0 6px;
+		color: var(--e-text-faint);
+		font-size: var(--text-xs);
+	}
+
+	/* The control that opens an answer's detail line is there when the row is. */
+	.more {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		padding: 0;
+		border: 0;
+		border-radius: var(--radius-xs);
+		background: none;
+		color: var(--e-text-muted);
+		cursor: pointer;
+		opacity: 0;
+		transition: opacity 120ms;
+	}
+
+	.row:hover .more,
+	.row:focus-within .more,
+	.more.open {
+		opacity: 1;
+	}
+
+	.more:hover {
+		color: var(--e-text);
+	}
+
+	.more:focus-visible {
+		outline: 2px solid var(--e-focus-ring);
+		outline-offset: 1px;
+	}
+
+	.more :global(svg) {
+		transition: transform 120ms ease;
+	}
+
+	.more.open :global(svg) {
+		transform: rotate(90deg);
+	}
+
+	@media (hover: none) {
+		.more {
+			opacity: 1;
+		}
+	}
+
+	.detail {
+		grid-column: 1 / -1;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-start;
+		gap: 12px 24px;
+		padding-left: 48px;
+		font-size: var(--text-m);
+	}
+
+	.field {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		min-width: 0;
+	}
+
+	.field.score {
+		width: 6rem;
+	}
+
+	.label {
+		color: var(--e-text-faint);
+		font: var(--type-chip-label);
+	}
+
 	/* The editor can be narrow even on a desktop with both sidebars open. */
 	@container answers (max-width: 760px) {
 		.head {
 			display: none;
+		}
+
+		.detail {
+			padding-left: 0;
 		}
 
 		.row {
@@ -343,12 +487,6 @@
 		}
 		.feedback::before {
 			content: 'Co se žák dozví';
-		}
-		.destination::before {
-			content: 'Kam dál';
-		}
-		.grade::before {
-			content: 'Známka';
 		}
 	}
 

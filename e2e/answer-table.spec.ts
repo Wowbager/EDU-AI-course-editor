@@ -144,21 +144,27 @@ test('the several-picks switch is worded once, and explains itself only while it
 	await expect(hint).toHaveCount(0);
 });
 
+const details = (page: Page) => page.getByRole('button', { name: /^Podrobnosti odpovědi/ });
+
 test('a question with several picks has no "Kam dál" and no grade, since the app reads neither', async ({
 	page
 }) => {
 	await loadCourse(page, (doc) => {
 		doc.quiz_evaluate = true;
 	});
-	await expect(head(page)).toContainText('Kam dál');
-	await expect(head(page)).toContainText('Známka');
+	// Both live in the answer's detail line, which is closed until it is asked for.
+	await expect(page.getByRole('combobox', { name: 'Známka za tuto odpověď' })).toHaveCount(0);
+	await details(page).first().click();
+	await expect(details(page).first()).toHaveAttribute('aria-expanded', 'true');
 	await expect(
 		page.getByRole('combobox', { name: 'Známka za tuto odpověď' }).first()
 	).toBeVisible();
+	await expect(
+		page.getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' }).first()
+	).toBeVisible();
 
 	await multiple(page).check();
-	await expect(head(page)).not.toContainText('Kam dál');
-	await expect(head(page)).not.toContainText('Známka');
+	await expect(details(page)).toHaveCount(0);
 	await expect(page.getByRole('combobox', { name: 'Známka za tuto odpověď' })).toHaveCount(0);
 	await expect(page.getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' })).toHaveCount(
 		0
@@ -166,9 +172,45 @@ test('a question with several picks has no "Kam dál" and no grade, since the ap
 
 	// The values are still in the card; switching back shows them again.
 	await multiple(page).uncheck();
-	await expect(head(page)).toContainText('Kam dál');
 	await expect(page.getByRole('combobox', { name: 'Známka za tuto odpověď' }).first()).toHaveValue(
 		'1'
+	);
+});
+
+test('the detail line opens from the row, and a set value is read without opening it', async ({
+	page
+}) => {
+	await loadCourse(page, (doc) => {
+		doc.quiz_evaluate = true;
+		const options = doc.blocks.find((b: { block_id: string }) => b.block_id === 'L1_B3_poznej')
+			.steps[1].question.options;
+		for (const option of options) {
+			delete option.mark;
+			delete option.go_to;
+		}
+		options[0].mark = '2';
+		options[1].go_to = 'END';
+	});
+	const rows = page.locator('.answers .row');
+	// The control is quiet until the row is pointed at, and named for a screen reader.
+	await expect(details(page).first()).toHaveCSS('opacity', '0');
+	await rows.first().hover();
+	await expect(details(page).first()).toHaveCSS('opacity', '1');
+
+	// A value that is set shows as inert text; the unset answer says nothing.
+	await expect(rows.nth(0).locator('.set-values')).toHaveText('známka 2');
+	await expect(rows.nth(1).locator('.set-values')).toHaveText('→ konec bloku');
+	await expect(rows.nth(2).locator('.set-values')).toHaveCount(0);
+
+	// Opening the line swaps the text for the fields that hold the values.
+	await details(page).first().click();
+	await expect(rows.first().locator('.set-values')).toHaveCount(0);
+	await expect(rows.first().getByRole('combobox', { name: 'Známka za tuto odpověď' })).toHaveValue(
+		'2'
+	);
+	await details(page).first().click();
+	await expect(rows.first().getByRole('combobox', { name: 'Známka za tuto odpověď' })).toHaveCount(
+		0
 	);
 });
 
@@ -176,11 +218,8 @@ test('the heading row goes when "Odpověď" would be its only label', async ({ p
 	await addQuestionCard(page);
 	await expect(head(page)).toBeVisible();
 	await page.getByRole('button', { name: 'Zpětná vazba', exact: true }).click();
-	// Feedback is off but "Kam dál" is still a column.
-	await expect(head(page)).toHaveText(/Kam dál/);
-	await multiple(page).check();
 	await expect(head(page)).toHaveCount(0);
-	await multiple(page).uncheck();
+	await page.getByRole('button', { name: 'Zpětná vazba', exact: true }).click();
 	await expect(head(page)).toBeVisible();
 });
 

@@ -55,7 +55,7 @@ test('one toggle hides feedback, hints and the solution, and keeps the question 
 	await expect(solution(page)).toHaveCount(0);
 	await expect(hint(page)).toHaveCount(0);
 	await expect(help(page)).toHaveCount(0);
-	await expect(page.locator('.answers .head')).not.toContainText('Co se žák dozví');
+	await expect(page.locator('.answers .head')).toHaveCount(0);
 
 	// What makes the question correct stays: the answers and which one is right.
 	await expect(answerText(page).first()).toBeVisible();

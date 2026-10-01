@@ -37,7 +37,9 @@ for (const marks of [false, true]) {
 			const answers = page.locator('.answers').first();
 			const head = answers.locator('.head');
 			await expect(head).toBeVisible();
-			const columns = 4 + Number(marks) + Number(branching);
+			// Mark, answer, feedback and the row-end control: whatever else an answer has is
+			// in its detail line, so the grid no longer grows with the course's settings.
+			const columns = 4;
 			await expect(head.locator(':scope > span')).toHaveCount(columns);
 			const template = await head.evaluate((node) => getComputedStyle(node).gridTemplateColumns);
 			expect(template.split(' ')).toHaveLength(columns);
@@ -46,6 +48,22 @@ for (const marks of [false, true]) {
 					template
 				);
 			}
+			// Podíl bodů is advanced-only and always offered, so the line is too; opening it
+			// shows the fields the course's settings allow, spanning the whole row.
+			const first = answers.locator('.row').first();
+			await first.getByRole('button', { name: /^Podrobnosti odpovědi/ }).click();
+			const detail = first.getByRole('group', { name: 'Podrobnosti odpovědi' });
+			await expect(
+				detail.getByRole('textbox', { name: 'Podíl bodů za tuto odpověď' })
+			).toBeVisible();
+			await expect(
+				detail.getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' })
+			).toHaveCount(Number(branching));
+			await expect(detail.getByRole('combobox', { name: 'Známka za tuto odpověď' })).toHaveCount(
+				Number(marks)
+			);
+			await noOverflow(answers.locator('.row, .cell, .detail'));
+
 			const feedback = answers.locator('.feedback').first();
 			const before = await feedback.boundingBox();
 			const field = feedback.getByRole('textbox');
@@ -53,7 +71,7 @@ for (const marks of [false, true]) {
 			await field.blur();
 			expect((await feedback.boundingBox())!.width).toBeCloseTo(before!.width, 0);
 			expect(before!.width).toBeGreaterThan(160);
-			await noOverflow(answers.locator('.row, .cell'));
+			await noOverflow(answers.locator('.row, .cell, .detail'));
 
 			// Keep the desktop viewport, constrain only the editor's available space.
 			await answers.evaluate((node) => {
@@ -61,7 +79,7 @@ for (const marks of [false, true]) {
 			});
 			await expect(head).toBeHidden();
 			expect((await feedback.boundingBox())!.width).toBeGreaterThan(380);
-			await noOverflow(answers.locator('.row, .cell'));
+			await noOverflow(answers.locator('.row, .cell, .detail'));
 		});
 	}
 }
