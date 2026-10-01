@@ -66,12 +66,19 @@
 		const at = own.findIndex((s) => s.id === 'meta');
 		return at === -1 ? [...own, ...lesson] : [...own.slice(0, at), ...lesson, ...own.slice(at)];
 	});
-	/** The two rows of the review section: where a card starts, and how it is scheduled. */
+	/**
+	 * The two groups of the review section. How often the card comes back is what an
+	 * author is sent here to change, so it comes first, the gaps leading; the memory
+	 * model's starting values are for someone who knows them, and come after.
+	 */
 	const reviewStart = $derived(
 		inSection('review').filter((f) => f.path.startsWith('fsrs.initial_'))
 	);
+	const GAPS_FIRST = ['fsrs.min_interval', 'fsrs.max_interval'];
 	const reviewPlan = $derived(
-		inSection('review').filter((f) => !f.path.startsWith('fsrs.initial_'))
+		inSection('review')
+			.filter((f) => !f.path.startsWith('fsrs.initial_'))
+			.sort((a, b) => Number(GAPS_FIRST.includes(b.path)) - Number(GAPS_FIRST.includes(a.path)))
 	);
 
 	const levelOf = (id: string): FieldLevel => (id === 'lesson' ? 'binding' : 'block');
@@ -166,10 +173,10 @@
 		<CompetencyEditor {block} />
 		<FieldGroup fields={inSection('topics')} {read} write={set} />
 	{:else if id === 'review'}
-		<h4>Začátek</h4>
-		<FieldGroup fields={reviewStart} {read} write={set} />
-		<h4>Plánování</h4>
+		<h4>Kdy se karta vrací</h4>
 		<FieldGroup fields={reviewPlan} {read} write={set} />
+		<h4 class="apart">Výchozí odhad paměti</h4>
+		<FieldGroup fields={reviewStart} {read} write={set} />
 	{:else if id === 'followup'}
 		<PrerequisiteEditor {doc} {block} />
 		<FieldGroup fields={inSection('followup')} {read} write={set} />

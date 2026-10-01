@@ -57,6 +57,12 @@
 
 	const tabs: HTMLButtonElement[] = $state([]);
 
+	// On a narrow screen the list is a row that scrolls: keep the chosen name in sight.
+	$effect(() => {
+		const index = shown.findIndex((s) => s.id === active);
+		tabs[index]?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+	});
+
 	function key(event: KeyboardEvent, index: number) {
 		const last = shown.length - 1;
 		const next =

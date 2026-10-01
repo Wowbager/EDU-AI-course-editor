@@ -1960,10 +1960,25 @@ baseline. The dimension code (N2.2) shows faintly, in Pokročilý only. The sect
 in two groups, Dovednosti and Zařazení karty, and the grade field `gpf.level` is labelled
 „Úroveň zvládnutí“ so it is not read as one of the skills' levels.
 
+### Opakování leads with how often the card comes back
+
+An outside reviewer, given the screenshots and "change how often the card comes back",
+found the gaps (Nejkratší / Nejdelší odstup) under four fields of the memory model and
+gave up. The section now opens with „Kdy se karta vrací“, the two gaps first, and the
+model's starting values follow under „Výchozí odhad paměti“.
+
 ### Changed without being asked
 
 - Nastavení kurzu uses the same list, so the three dialogs work alike.
 - The lesson dialog is the wide size while it lists its sections.
+- Opakování's two groups are reordered and renamed (above).
+
+**Found by the outside review, not changed here:** the amber „nenastaveno“ and „výchozí
+sada“ chips on first open; the RVP block's codes and its „Aplikace je zatím nečte“ line;
+four bare numbers (Ročník, Úroveň zvládnutí, Bloomova úroveň, Odhad obtížnosti) without
+a unit; FSRS fields showing „nevyplněno“ where the default would say more; level
+descriptions that do not use the teacher's words („porovnává“ is under „provádí operace
+se zlomky“ or not at all — the taxonomy's text, not ours).
 
 **Proposed, not built:** „Obnovit výchozí“ per section; a summary of a section's values
 under its name; remembering the last open section; skills derived for a lesson from its
