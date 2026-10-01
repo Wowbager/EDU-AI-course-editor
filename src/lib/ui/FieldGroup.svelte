@@ -8,10 +8,12 @@
 	 * enough to make it editable. Fields marked `custom` are owned by a real
 	 * component and are never handed here; `fieldsFor` filters them out.
 	 *
-	 * The hint is rendered under the control and stays there. It used to be passed as
-	 * the field's placeholder, which meant the sentence explaining what a field does
-	 * to the student vanished the moment anyone used the field — and where a spec had
-	 * no hint, the empty string fell through to the label, printing it twice.
+	 * The hint is the field's own sentence about what it does to the student. It shows
+	 * under the control while the field has focus, and is a tooltip on the label the
+	 * rest of the time: a dialog of thirty fields with thirty sentences under them is
+	 * the clutter this replaced. It used to be passed as the field's placeholder, which
+	 * meant the sentence vanished the moment anyone used the field — and where a spec
+	 * had no hint, the empty string fell through to the label, printing it twice.
 	 */
 	import FocusField from './FocusField.svelte';
 	import Toggle from './Toggle.svelte';
@@ -52,7 +54,7 @@
 		/>
 	{:else if spec.kind === 'select'}
 		<div class="field-row">
-			<span class="field-label">{spec.label}</span>
+			<span class="field-label" title={hint}>{spec.label}</span>
 			<div class="control">
 				<select
 					aria-label={spec.label}
@@ -65,12 +67,12 @@
 						<option value={option.value}>{option.label}</option>
 					{/each}
 				</select>
-				{#if hint}<span class="hint" class:unread={spec.unread}>{hint}</span>{/if}
+				{#if hint}<span class="hint">{hint}</span>{/if}
 			</div>
 		</div>
 	{:else}
 		<div class="field-row">
-			<span class="field-label">{spec.label}</span>
+			<span class="field-label" title={hint}>{spec.label}</span>
 			<div class="control">
 				<FocusField
 					label={spec.label}
@@ -83,7 +85,7 @@
 					onchange={(v) =>
 						spec.kind === 'number' ? writeNumber(spec.path, v) : write(spec.path, v)}
 				/>
-				{#if hint}<span class="hint" class:unread={spec.unread} title={hint}>{hint}</span>{/if}
+				{#if hint}<span class="hint">{hint}</span>{/if}
 			</div>
 		</div>
 	{/if}
@@ -128,12 +130,18 @@
 		color: var(--e-text);
 	}
 
+	/* Shown only while the field has focus; the label's title carries it otherwise. */
 	.hint {
+		display: none;
 		min-width: 0;
 		overflow-wrap: anywhere;
 		color: var(--e-text-faint);
 		font-size: var(--text-xs);
 		line-height: 1.5;
 		white-space: normal;
+	}
+
+	.field-row:focus-within .hint {
+		display: block;
 	}
 </style>

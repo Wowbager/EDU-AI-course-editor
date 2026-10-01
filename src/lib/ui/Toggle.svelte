@@ -2,14 +2,18 @@
 	interface Props {
 		checked: boolean;
 		label: string;
-		/** The consequence for the student, shown under the label. */
+		/**
+		 * The consequence for the student. A tooltip on the label, and read out by a
+		 * screen reader, but never drawn under the switch: a line that appears on focus
+		 * moves the switch under the pointer, and the click that blurs it is then lost.
+		 */
 		hint?: string;
 		onchange: (checked: boolean) => void;
 	}
 	let { checked, label, hint, onchange }: Props = $props();
 </script>
 
-<label class="toggle">
+<label class="toggle" title={hint}>
 	<input type="checkbox" {checked} onchange={(e) => onchange(e.currentTarget.checked)} />
 	<span class="track" aria-hidden="true"><span class="thumb"></span></span>
 	<span class="text">
@@ -79,7 +83,11 @@
 	}
 
 	.hint {
-		font-size: var(--text-xs);
-		color: var(--e-text-muted);
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
 	}
 </style>
