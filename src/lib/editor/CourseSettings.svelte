@@ -132,7 +132,8 @@
 <Modal title="Nastavení kurzu" size="l" {onclose} children={body} />
 
 <style>
-	/* Information that leads somewhere: quiet text, underlined only under the pointer. */
+	/* Information that leads somewhere: quiet text, with a faint underline so it reads
+	   as a way to the version dialog rather than as a label. */
 	.link {
 		justify-self: start;
 		padding: 6px 0 0;
@@ -142,12 +143,14 @@
 		font: inherit;
 		font-size: var(--text-s);
 		text-align: left;
+		text-decoration: underline dotted;
+		text-underline-offset: 3px;
 		cursor: pointer;
 	}
 
 	.link:hover {
 		color: var(--e-text);
-		text-decoration: underline;
+		text-decoration-style: solid;
 	}
 
 	.folds {
