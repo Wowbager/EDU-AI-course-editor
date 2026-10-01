@@ -94,64 +94,66 @@
 		</div>
 	{/if}
 {:else}
-	<div class="layout">
-		<nav class="nav" aria-label="Části nastavení">
-			{#if search}
-				<label class="search">
-					<Search size={14} aria-hidden="true"></Search>
-					<input
-						type="search"
-						placeholder="Hledat nastavení"
-						aria-label="Hledat nastavení"
-						bind:value={search.query}
-					/>
-				</label>
-			{/if}
-			<div role="tablist" aria-orientation="vertical" aria-label="Části nastavení">
-				{#each shown as section, index (section.id)}
-					{@const Icon = SECTION_ICONS[section.icon]}
-					{@const selected = section.id === active}
-					<button
-						type="button"
-						role="tab"
-						id="{uid}-tab-{section.id}"
-						aria-selected={selected}
-						aria-controls="{uid}-pane"
-						aria-describedby={alert(section.id) ? `${uid}-alert` : undefined}
-						tabindex={selected ? 0 : -1}
-						class:selected
-						bind:this={tabs[index]}
-						onclick={() => (current = section.id)}
-						onkeydown={(event) => key(event, index)}
-					>
-						{#if Icon}<Icon size={16} aria-hidden="true"></Icon>{/if}
-						<span class="name">{section.label}</span>
-						{#if alert(section.id)}<span class="dot" aria-hidden="true"></span>{/if}
-					</button>
-				{/each}
-			</div>
-			{#if shown.length === 0}
-				<p class="none">Nic takového tu není.</p>
-			{/if}
-			<span id="{uid}-alert" hidden>Je tu něco k opravě.</span>
-		</nav>
+	<div class="shell">
+		<div class="layout">
+			<nav class="nav" aria-label="Části nastavení">
+				{#if search}
+					<label class="search">
+						<Search size={14} aria-hidden="true"></Search>
+						<input
+							type="search"
+							placeholder="Hledat nastavení"
+							aria-label="Hledat nastavení"
+							bind:value={search.query}
+						/>
+					</label>
+				{/if}
+				<div role="tablist" aria-orientation="vertical" aria-label="Části nastavení">
+					{#each shown as section, index (section.id)}
+						{@const Icon = SECTION_ICONS[section.icon]}
+						{@const selected = section.id === active}
+						<button
+							type="button"
+							role="tab"
+							id="{uid}-tab-{section.id}"
+							aria-selected={selected}
+							aria-controls="{uid}-pane"
+							aria-describedby={alert(section.id) ? `${uid}-alert` : undefined}
+							tabindex={selected ? 0 : -1}
+							class:selected
+							bind:this={tabs[index]}
+							onclick={() => (current = section.id)}
+							onkeydown={(event) => key(event, index)}
+						>
+							{#if Icon}<Icon size={16} aria-hidden="true"></Icon>{/if}
+							<span class="name">{section.label}</span>
+							{#if alert(section.id)}<span class="dot" aria-hidden="true"></span>{/if}
+						</button>
+					{/each}
+				</div>
+				{#if shown.length === 0}
+					<p class="none">Nic takového tu není.</p>
+				{/if}
+				<span id="{uid}-alert" hidden>Je tu něco k opravě.</span>
+			</nav>
 
-		{#if active !== undefined && activeSection !== undefined}
-			<div
-				class="pane"
-				role="tabpanel"
-				id="{uid}-pane"
-				aria-labelledby="{uid}-heading"
-				tabindex="-1"
-			>
-				<h3 id="{uid}-heading">{activeSection.label}</h3>
-				{#key active}
-					<div class="content">
-						{@render pane(active)}
-					</div>
-				{/key}
-			</div>
-		{/if}
+			{#if active !== undefined && activeSection !== undefined}
+				<div
+					class="pane"
+					role="tabpanel"
+					id="{uid}-pane"
+					aria-labelledby="{uid}-heading"
+					tabindex="-1"
+				>
+					<h3 id="{uid}-heading">{activeSection.label}</h3>
+					{#key active}
+						<div class="content">
+							{@render pane(active)}
+						</div>
+					{/key}
+				</div>
+			{/if}
+		</div>
 	</div>
 {/if}
 
@@ -160,13 +162,17 @@
 		margin-top: 16px;
 	}
 
+	.shell {
+		container: settings-nav / inline-size;
+		margin: -18px -20px;
+	}
+
 	/* A fixed height, so the dialog does not jump as the author goes between sections;
 	   the section scrolls inside it instead. */
 	.layout {
 		display: grid;
 		grid-template-columns: 196px minmax(0, 1fr);
 		height: min(560px, 62vh);
-		margin: -18px -20px;
 	}
 
 	.nav {
@@ -291,6 +297,31 @@
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
+	}
+
+	/* A phone, or a narrow window: the list becomes a row of names above the section. */
+	@container settings-nav (max-width: 600px) {
+		.layout {
+			grid-template-columns: minmax(0, 1fr);
+			grid-template-rows: auto minmax(0, 1fr);
+		}
+
+		.nav {
+			padding: 10px 12px;
+			border-right: 0;
+			border-bottom: 1px solid var(--e-border);
+		}
+
+		[role='tablist'] {
+			flex-direction: row;
+			overflow-x: auto;
+		}
+
+		[role='tab'] {
+			width: auto;
+			flex: none;
+			white-space: nowrap;
+		}
 	}
 
 	@media (prefers-reduced-motion: reduce) {

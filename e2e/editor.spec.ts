@@ -99,7 +99,7 @@ test('teacher mode hides nothing behind a disclosure', async ({ page }) => {
 	await expect(dialog.getByRole('button', { expanded: false })).toHaveCount(0);
 });
 
-test('the card dialog opens short, folds the rest, and says a hint only while focused', async ({
+test('the card dialog lists its sections by name, shows one at a time, and says a hint only while focused', async ({
 	page
 }) => {
 	await importCourse(page, 'spec-16-course.json');
@@ -107,20 +107,29 @@ test('the card dialog opens short, folds the rest, and says a hint only while fo
 	await page.getByRole('button', { name: 'Nastavení karty' }).click();
 	const dialog = page.getByRole('dialog', { name: 'Nastavení karty' });
 
-	// Short: only the main fields; a fold shows no field until it is opened.
+	// Every section is named in the list; the dialog opens on Základní and shows only it.
+	const tabs = dialog.getByRole('tablist', { name: 'Části nastavení' });
+	for (const name of [
+		'Základní',
+		'Co karta procvičuje',
+		'Opakování',
+		'Návaznost',
+		'Údaje o kartě'
+	]) {
+		await expect(tabs.getByRole('tab', { name, exact: true })).toBeVisible();
+	}
+	await expect(tabs.getByRole('tab', { name: 'Základní', exact: true })).toHaveAttribute(
+		'aria-selected',
+		'true'
+	);
 	await expect(dialog.getByRole('textbox', { name: 'Délka' })).toBeVisible();
 	await expect(dialog.getByRole('textbox', { name: 'Počáteční stabilita' })).toHaveCount(0);
-	for (const name of ['Co karta procvičuje', 'Opakování', 'Návaznost', 'Údaje o kartě']) {
-		await expect(dialog.getByRole('button', { name, exact: true })).toHaveAttribute(
-			'aria-expanded',
-			'false'
-		);
-	}
 	// No section is named after a mode.
-	await expect(dialog.getByRole('button', { name: 'Didaktika', exact: true })).toHaveCount(0);
-	await expect(dialog.getByRole('button', { name: 'Technické', exact: true })).toHaveCount(0);
+	await expect(tabs.getByRole('tab', { name: 'Didaktika', exact: true })).toHaveCount(0);
+	await expect(tabs.getByRole('tab', { name: 'Technické', exact: true })).toHaveCount(0);
 
 	const review = await openSection(dialog, 'Opakování');
+	await expect(dialog.getByRole('textbox', { name: 'Délka' })).toHaveCount(0);
 	const stability = review.getByRole('textbox', { name: 'Počáteční stabilita' });
 	// The hint is a tooltip on the label, and a line under the field only while it has focus.
 	const hint = review.getByText('Ve dnech, výchozí 2,5.');
@@ -129,6 +138,48 @@ test('the card dialog opens short, folds the rest, and says a hint only while fo
 	await expect(hint).toBeVisible();
 	// A field nothing reads yet no longer says so.
 	await expect(dialog).not.toContainText('Zatím bez účinku');
+
+	// The arrow keys go down the list.
+	await tabs.getByRole('tab', { name: 'Opakování', exact: true }).focus();
+	await page.keyboard.press('ArrowDown');
+	await expect(tabs.getByRole('tab', { name: 'Návaznost', exact: true })).toBeFocused();
+	await expect(dialog.getByRole('tabpanel', { name: 'Návaznost', exact: true })).toBeVisible();
+});
+
+test('the settings search finds a field by its name, without diacritics', async ({ page }) => {
+	await importCourse(page, 'spec-16-course.json');
+	await page.getByRole('radio', { name: 'Pokročilý' }).click();
+	await page.getByRole('button', { name: 'Nastavení karty' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Nastavení karty' });
+
+	await dialog.getByRole('searchbox', { name: 'Hledat nastavení' }).fill('nejdelsi odstup');
+	await expect(dialog.getByRole('tab')).toHaveCount(1);
+	const pane = dialog.getByRole('tabpanel', { name: 'Opakování', exact: true });
+	await expect(pane.getByRole('textbox', { name: 'Nejdelší odstup' })).toBeVisible();
+
+	await dialog.getByRole('searchbox', { name: 'Hledat nastavení' }).fill('nic takového');
+	await expect(dialog.getByRole('tab')).toHaveCount(0);
+	await expect(dialog).toContainText('Nic takového tu není.');
+});
+
+test('in Metodik the list is there even with few sections, and Učitel has none', async ({
+	page
+}) => {
+	await importCourse(page, 'spec-16-course.json');
+	await page.getByRole('radio', { name: 'Metodik' }).click();
+	await page.getByRole('button', { name: 'Nastavení karty' }).click();
+	let dialog = page.getByRole('dialog', { name: 'Nastavení karty' });
+	await expect(dialog.getByRole('tab', { name: 'Co karta procvičuje', exact: true })).toBeVisible();
+	// Only Pokročilý has the search.
+	await expect(dialog.getByRole('searchbox', { name: 'Hledat nastavení' })).toHaveCount(0);
+	await dialog.press('Escape');
+	await expect(dialog).toBeHidden();
+
+	await page.getByRole('radio', { name: 'Učitel' }).click();
+	await page.getByRole('button', { name: 'Nastavení karty' }).click();
+	dialog = page.getByRole('dialog', { name: 'Nastavení karty' });
+	await expect(dialog.getByRole('textbox', { name: 'Délka' })).toBeVisible();
+	await expect(dialog.getByRole('tablist')).toHaveCount(0);
 });
 
 test('a type change that loses answers says Zpět brings them back, even from another card', async ({

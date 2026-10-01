@@ -1797,7 +1797,8 @@ design brief (`docs/DESIGN.md`, PR #1) is proposed, not merged; principles 1, 3,
 the label a teacher reads. `sectionsFor(level, mode, feedback)` returns the sections that
 hold something the mode can see, so Metodik can add „Co karta procvičuje“ and Pokročilý
 „Opakování“ but a heading never shows over nothing. The first section of a level, `main`,
-has no heading and is always open. Hand-written components (topic picker, vector table,
+has no heading and is always open (superseded in Round 11: it is „Základní“, and from
+Metodik up the sections are a list). Hand-written components (topic picker, vector table,
 prerequisites) are placed by the same sections as the generic fields.
 
 Card: main (Délka, Zařadit do cvičení); Nápověda pro celou kartu; Co karta procvičuje;
@@ -1894,6 +1895,79 @@ and punctuation — the quotes „“, dashes, `…` and the `·` separator. Tex
 typed (a button label „Pokračovat →“) is content and is left as written. The preview's
 „Zpět“ already went this way in `3103114`; its tests now find the preview's button, since
 the topbar's undo is also named „Zpět“ (#33).
+
+## Round 11 — settings you find by reading, and skills picked as skill, level, relation
+
+The owner, after Round 10: the card and lesson settings, "mainly in the advanced mode,
+[are] really long and not easy to navigate", and the knowledge vector "isn't user
+friendly … the value should be either 1 or 2, based on whether the card/lection is about
+given topic or whether it is used in it". On the shape: "keep the central box, add
+sections to the left of the box", using the folded sidebar's hover box where it fits,
+but "you don't have to force the boxes … everywhere". On skills: "selecting top level
+skill, then the level of that skill and finally the 'je o tom' and 'využívá'
+differentiation". The test the design answers: a teacher who is not technical, told to
+"change something in the advanced settings", has to find it; an experienced author must
+not be slowed down, but "they are never the main priority".
+
+### The sections are listed by name down the dialog's left, one shown at a time
+
+`SettingsNav` renders a dialog's sections (`SECTIONS` in `fields.ts`, Round 10) either
+as one page with folds or as a list on the left with one section on the right, under its
+name. The list's items copy the folded sidebar's tiles (tint and ring when selected) with
+the name written beside the icon. It is a vertical `tablist`; the arrow keys, Home and
+End move through it. A section with a visible problem has a dot; the dialog opens on the
+section a jump or a problem points into (`sectionTargeted`), and never switches on its own
+afterwards. At a narrow width the list becomes a row of names above the section.
+
+**Which dialogs list is decided by the mode, not the section count** (`listsSections`):
+never in Učitel, whose dialogs are one or two short sections, and always from Metodik up.
+A count would let the Zpětná vazba switch, which adds „Nápověda pro celou kartu“,
+rearrange the dialog. The first section is named „Základní“ now that it has a place in
+the list.
+
+*Rejected:* a strip of icons that names a section only in a hover box, like the folded
+sidebar. It is compact, but it hides the one thing a newcomer needs, and the dialog has
+the room. *Rejected:* a box anchored to the card's gear instead of the dialog: on a long
+card it opens far from where the eye is, and seven sections do not fit a hover panel.
+*Rejected:* keeping the folds in Pokročilý — it was the long scroll the owner described.
+
+### Pokročilý can search its settings
+
+„Hledat nastavení“ above the list narrows it to the sections whose name, keywords
+(`SectionSpec.keywords`, for the hand-written controls) or a visible field's label or hint
+contain every word typed, ignoring case and diacritics (`matchSections`). The fields it
+found are marked in `FieldGroup`. It answers the teacher told what to change: they type its
+name. Only Pokročilý has it, because only there is the list long. The FSRS section's
+keywords include „jak často“ and „interval“, the words someone would use for fields
+labelled „odstup“.
+
+### Skills: one list, added in three steps in a box
+
+The GPF taxonomy is area → skill → level: domain, construct, subconstruct, and a vector
+has one entry per subconstruct. `skillTree` (`domain/skill-config.ts`) builds that tree
+from the course's skill configuration; without construct names it groups by the code
+before the dot, and without codes each dimension is its own skill. `TopicPicker` is the
+only skill control: a row per chosen skill („Zlomky · Úroveň 2“ and the level's
+description) with a two-way switch, *Je o tom* (2) or *Využívá* (1). „Přidat dovednost“
+opens a box styled like the folded sidebar's hover panel, the one place in these dialogs
+where a box fits: a short, one-off choice. Skill under its area, then level (skipped for
+a skill with one), then Je o tom or Využívá, which adds the row and closes the box.
+
+The 35-row table („Dovednosti a obtížnost“, three buttons per dimension) is gone, and with
+it the third value, „—“: a skill the card does not relate to is simply not in the list.
+Difficulty is a small number on the row in Pokročilý only; Metodik's new skills get the
+baseline. The dimension code (N2.2) shows faintly, in Pokročilý only. The section reads
+in two groups, Dovednosti and Zařazení karty, and the grade field `gpf.level` is labelled
+„Úroveň zvládnutí“ so it is not read as one of the skills' levels.
+
+### Changed without being asked
+
+- Nastavení kurzu uses the same list, so the three dialogs work alike.
+- The lesson dialog is the wide size while it lists its sections.
+
+**Proposed, not built:** „Obnovit výchozí“ per section; a summary of a section's values
+under its name; remembering the last open section; skills derived for a lesson from its
+cards, read-only in the lesson dialog (the format has no lesson vector).
 
 ## Formatting — one formatter, and the two places it is not allowed
 
