@@ -2,7 +2,9 @@
 	/**
 	 * The full per-dimension vector table (§6.3) — the advanced author's fine-tuning
 	 * surface. The everyday control is `TopicPicker`, which adds and removes topics;
-	 * this exists for the case where every dimension has to be inspected at once.
+	 * this exists for the case where every dimension has to be inspected at once. It
+	 * does not fold itself: it sits in the card dialog's „Dovednosti a obtížnost“
+	 * section, which does.
 	 *
 	 * Dimensions, their count and their labels come from the course's skill
 	 * configuration — never from a constant in this file (§3 invariant 6). Until the
@@ -10,7 +12,6 @@
 	 */
 	import type { BlockV2 } from '$lib/domain/schema';
 	import Chip from '$lib/ui/Chip.svelte';
-	import Button from '$lib/ui/Button.svelte';
 	import { useStore } from '$lib/ui/context';
 	import { setField, setTopics, type BlockTopic } from '$lib/domain/commands';
 	import {
@@ -89,13 +90,10 @@
 		next[index] = value;
 		store.apply((d) => setField(d, { blockId: block.block_id, field: 'gpf.elo_vector' }, next));
 	}
-
-	let open = $state(false);
 </script>
 
 <section class="vectors">
 	<header>
-		<span class="title">Všechny dovednosti</span>
 		{#if count === null}
 			<Chip tone="warning">Nastavení dovedností kurzu se ještě nenačetlo</Chip>
 		{:else if strong.length === 0 && weak.length === 0}
@@ -106,12 +104,9 @@
 			{#if strong.length > 0}<Chip tone="ok">silně: {strong.join(', ')}</Chip>{/if}
 			{#if weak.length > 0}<Chip tone="quiet">slabě: {weak.join(', ')}</Chip>{/if}
 		{/if}
-		<Button variant="secondary" size="s" onclick={() => (open = !open)} disabled={count === null}>
-			{open ? 'Skrýt' : 'Upravit'}
-		</Button>
 	</header>
 
-	{#if open && count !== null}
+	{#if count !== null}
 		<p class="help">
 			Drž to střídmě: většina karet má jednu dvě silné vazby. Karta, která tvrdí silnou vazbu k osmi
 			dovednostem, rozmělní jednu odpověď žáka do osmi hodnocení. Obtížnost je na stupnici 1–10; žák
@@ -182,12 +177,6 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 6px;
-	}
-
-	.title {
-		margin-right: 4px;
-		color: var(--e-text-muted);
-		font-size: var(--text-s);
 	}
 
 	.help {

@@ -203,20 +203,25 @@ test('the card keeps Nastavení karty in view and the rest in one menu, deleting
 	await expect(menu).toBeHidden();
 });
 
-test('in Učitel mode Nastavení karty is a gear that lists what it holds; Metodik keeps the words', async ({
+test('Nastavení karty is the same quiet gear in every mode, and lists what it holds', async ({
 	page
 }) => {
 	await load(page);
 	const settings = page.getByRole('button', { name: 'Nastavení karty', exact: true });
 	await expect(settings).toHaveText('');
 	// The tooltip is what the teacher's dialog holds, not the metodik's list.
-	await expect(settings).toHaveAttribute('title', /délka, nápověda ke kartě/);
+	await expect(settings).toHaveAttribute('title', /délka, nápověda pro celou kartu/);
 	await expect(settings).not.toHaveAttribute('title', /klasifikace/);
 	await settings.click();
 	const dialog = page.getByRole('dialog', { name: 'Nastavení karty' });
 	await expect(dialog).toContainText('Délka');
 	await page.keyboard.press('Escape');
 
-	await page.getByRole('radio', { name: 'Metodik' }).click();
-	await expect(settings).toHaveText('Nastavení karty');
+	// Metodik and Pokročilý add folds to the dialog, not words to the card.
+	for (const mode of ['Metodik', 'Pokročilý']) {
+		await page.getByRole('radio', { name: mode }).click();
+		await expect(settings).toHaveText('');
+	}
+	await expect(settings).toHaveAttribute('title', /co karta procvičuje/);
+	await expect(settings).toHaveAttribute('title', /opakování/);
 });

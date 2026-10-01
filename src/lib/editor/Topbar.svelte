@@ -31,7 +31,6 @@
 	const versions = useVersions();
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let explainStorage = $state(false);
-	let versionsOpen = $state(false);
 
 	/**
 	 * The version button says where the working copy stands: the newest saved
@@ -175,7 +174,7 @@
 	<button
 		type="button"
 		class="version"
-		onclick={() => (versionsOpen = true)}
+		onclick={() => (versions.dialogOpen = true)}
 		aria-label={versionName}
 		title={versionTitle}
 	>
@@ -303,11 +302,11 @@
 	</Button>
 </header>
 
-{#if versionsOpen}
+{#if versions.dialogOpen}
 	<VersionsDialog
-		onclose={() => (versionsOpen = false)}
+		onclose={() => (versions.dialogOpen = false)}
 		onreview={() => {
-			versionsOpen = false;
+			versions.dialogOpen = false;
 			reviewOpen = true;
 		}}
 	/>

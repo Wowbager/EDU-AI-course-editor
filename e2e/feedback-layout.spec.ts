@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, openEditor } from './fixtures';
+import { expect, test, type Locator, type Page, openEditor, openSection } from './fixtures';
 import { readFileSync } from 'node:fs';
 
 async function load(page: Page, marks: boolean, branching: boolean) {
@@ -74,10 +74,13 @@ for (const width of [1316, 600, 390]) {
 		await page.getByRole('button', { name: /Nastavení kurzu/ }).click();
 		const modal = page.getByRole('dialog', { name: 'Nastavení kurzu' });
 		await expect(modal).toBeVisible();
+		for (const name of ['Pro AI lektora', 'Průběh kurzu', 'Údaje o kurzu']) {
+			await openSection(modal, name);
+		}
 		await page.setViewportSize({ width, height: 900 });
 		await noOverflow(modal.locator('.body, .grid, .field-row, .control, .segmented'));
 		const grid = await modal.locator('.grid').boundingBox();
-		for (const row of await modal.locator('.grid > .row, .grid > h3').all()) {
+		for (const row of await modal.locator('.grid > .row').all()) {
 			expect((await row.boundingBox())!.width).toBeCloseTo(grid!.width, 0);
 		}
 		// Who sees the course is set with its versions now, not here.

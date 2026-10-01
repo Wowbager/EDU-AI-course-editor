@@ -10,20 +10,24 @@
 	 * card-wide hint and help: the app only falls back to them when a step has none,
 	 * and at the bottom of the column they read as a stray extra step.
 	 *
-	 * Which settings exist is still decided by the mode, from `$lib/ui/fields.ts`, so
-	 * this panel renders that table rather than keeping a second opinion about it.
+	 * Which settings exist is still decided by the mode, from `$lib/ui/fields.ts`, and
+	 * so is where each one sits: the dialog opens with the main fields and keeps the
+	 * rest in folds named by what they do (`SECTIONS`). It renders those tables rather
+	 * than keeping a second opinion about either.
 	 */
 	import type { BlockV2, CourseV2, LessonBlockBinding } from '$lib/domain/schema';
 	import Modal from '$lib/ui/Modal.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import Toggle from '$lib/ui/Toggle.svelte';
 	import FieldGroup from '$lib/ui/FieldGroup.svelte';
+	import SettingsSection from '$lib/ui/SettingsSection.svelte';
 	import TopicPicker from './TopicPicker.svelte';
 	import CompetencyEditor from './CompetencyEditor.svelte';
 	import PrerequisiteEditor from './PrerequisiteEditor.svelte';
 	import VectorEditor from './VectorEditor.svelte';
 	import { useStore } from '$lib/ui/context';
-	import { allows, fieldsFor } from '$lib/ui/fields';
+	import { fieldsFor, sectionsFor } from '$lib/ui/fields';
+	import { sectionTargeted } from '$lib/ui/settings-target';
 	import { setField, setPractice } from '$lib/domain/commands';
 	import { bindingFlagsPractice, isPracticeBlock } from '$lib/domain/derive';
 	import {
@@ -47,18 +51,26 @@
 	const store = useStore();
 	const mode = $derived(store.mode);
 
-	/** The card-wide help ladder, drawn as its own section. */
-	const LADDER = ['hint', 'help'];
+	const folds = $derived(
+		new Map(sectionsFor('block', mode, store.showFeedback).map((section) => [section.id, section]))
+	);
+	const blockFields = $derived(fieldsFor('block', mode, store.showFeedback));
+	const inSection = (id: string) => blockFields.filter((f) => f.section === id);
+	const bindingFields = $derived(
+		binding === undefined ? [] : fieldsFor('binding', mode, store.showFeedback)
+	);
+	const bindingFold = $derived(sectionsFor('binding', mode, store.showFeedback)[0]);
+	/** The two rows of the review fold: where a card starts, and how it is scheduled. */
+	const reviewStart = $derived(
+		inSection('review').filter((f) => f.path.startsWith('fsrs.initial_'))
+	);
+	const reviewPlan = $derived(
+		inSection('review').filter((f) => !f.path.startsWith('fsrs.initial_'))
+	);
 
-	const didactics = $derived(allows('block', 'default_practice', mode));
-	const machinery = $derived(allows('block', 'xp', mode));
-	const allBlockFields = $derived(fieldsFor('block', mode, store.showFeedback));
-	const ladderFields = $derived(allBlockFields.filter((f) => LADDER.includes(f.path)));
-	const blockFields = $derived(allBlockFields.filter((f) => !LADDER.includes(f.path)));
-	const teacherFields = $derived(blockFields.filter((f) => f.mode === 'teacher'));
-	const metodikFields = $derived(blockFields.filter((f) => f.mode === 'metodik'));
-	const advancedFields = $derived(blockFields.filter((f) => f.mode === 'advanced'));
-	const bindingFields = $derived(binding === undefined ? [] : fieldsFor('binding', mode));
+	/** Whether the selection or a visible issue points into a fold, which then opens. */
+	const targeted = (id: string, level: 'block' | 'binding' = 'block') =>
+		sectionTargeted(store, [level], id, { blockId: block.block_id });
 
 	/**
 	 * Whether the card is in practice, however it got there: the block, a step or a
@@ -122,8 +134,8 @@
 </script>
 
 {#snippet body()}
-	<div class="section">
-		<FieldGroup fields={teacherFields} {read} write={set} />
+	<div class="main">
+		<FieldGroup fields={inSection('main')} {read} write={set} />
 		{#if together && questionCount(block) > 1 && mode !== 'advanced'}
 			<p class="note">
 				Otázky této karty se žákovi hodnotí jako jedna (nastaveno v pokročilém režimu).
@@ -131,46 +143,68 @@
 		{/if}
 	</div>
 
-	{#if ladderFields.length > 0}
-		<div class="section">
-			<h3>Nápověda pro celou kartu</h3>
-			<p class="note">Použije se u kroků, které nemají nápovědu vlastní.</p>
-			<FieldGroup fields={ladderFields} {read} write={set} />
-		</div>
-	{/if}
+	<div class="folds">
+		{#if folds.has('ladder')}
+			<SettingsSection label={folds.get('ladder')!.label} autoOpen={targeted('ladder')}>
+				<p class="note">Použije se u kroků, které nemají nápovědu vlastní.</p>
+				<FieldGroup fields={inSection('ladder')} {read} write={set} />
+			</SettingsSection>
+		{/if}
 
-	{#if didactics}
-		<div class="section">
-			<h3>Didaktika</h3>
-			<FieldGroup fields={metodikFields} {read} write={set} />
-			<TopicPicker {block} />
-			<CompetencyEditor {block} />
-			{#if bindingFields.length > 0}
+		{#if folds.has('topics')}
+			<SettingsSection label={folds.get('topics')!.label} autoOpen={targeted('topics')}>
+				<TopicPicker {block} />
+				<CompetencyEditor {block} />
+				<FieldGroup fields={inSection('topics')} {read} write={set} />
+			</SettingsSection>
+		{/if}
+
+		{#if folds.has('vector')}
+			<SettingsSection label={folds.get('vector')!.label} autoOpen={targeted('vector')}>
+				<VectorEditor {block} />
+			</SettingsSection>
+		{/if}
+
+		{#if folds.has('review')}
+			<SettingsSection label={folds.get('review')!.label} autoOpen={targeted('review')}>
+				<h4>Začátek</h4>
+				<FieldGroup fields={reviewStart} {read} write={set} />
+				<h4>Plánování</h4>
+				<FieldGroup fields={reviewPlan} {read} write={set} />
+			</SettingsSection>
+		{/if}
+
+		{#if folds.has('followup')}
+			<SettingsSection label={folds.get('followup')!.label} autoOpen={targeted('followup')}>
+				<PrerequisiteEditor {doc} {block} />
+				<FieldGroup fields={inSection('followup')} {read} write={set} />
+			</SettingsSection>
+		{/if}
+
+		{#if bindingFold !== undefined && bindingFields.length > 0}
+			<SettingsSection label={bindingFold.label} autoOpen={targeted('lesson', 'binding')}>
 				<FieldGroup fields={bindingFields} read={readBinding} write={setBinding} />
-			{/if}
-		</div>
-	{/if}
+			</SettingsSection>
+		{/if}
 
-	{#if machinery}
-		<div class="section">
-			<h3>Technické</h3>
-			<div class="row">
-				<span class="label">Identifikátor</span>
-				<code>{block.block_id}</code>
-			</div>
-			<FieldGroup fields={advancedFields} {read} write={set} />
-			{#if canKeepTogether}
-				<Toggle
-					checked={together}
-					label="Více otázek v jedné kartě"
-					hint="Žák dostane otázky v jedné kartě a aplikace je hodnotí jako jednu: nejlepší skóre, poslední známka, jedna karta k procvičování. Vypnuto: každá otázka je vlastní karta."
-					onchange={keepTogether}
-				/>
-			{/if}
-			<PrerequisiteEditor {doc} {block} />
-			<VectorEditor {block} />
-		</div>
-	{/if}
+		{#if folds.has('meta')}
+			<SettingsSection label={folds.get('meta')!.label} autoOpen={targeted('meta')}>
+				<div class="row">
+					<span class="label">Identifikátor</span>
+					<code>{block.block_id}</code>
+				</div>
+				<FieldGroup fields={inSection('meta')} {read} write={set} />
+				{#if canKeepTogether}
+					<Toggle
+						checked={together}
+						label="Více otázek v jedné kartě"
+						hint="Žák dostane otázky v jedné kartě a aplikace je hodnotí jako jednu: nejlepší skóre, poslední známka, jedna karta k procvičování. Vypnuto: každá otázka je vlastní karta."
+						onchange={keepTogether}
+					/>
+				{/if}
+			</SettingsSection>
+		{/if}
+	</div>
 {/snippet}
 
 {#snippet actions()}
@@ -180,27 +214,25 @@
 <Modal title="Nastavení karty" size="l" {onclose} children={body} footer={actions} />
 
 <style>
-	.section {
+	.main {
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
 	}
 
-	.section + .section {
+	.folds {
 		margin-top: 16px;
-		padding-top: 14px;
-		border-top: 1px dashed var(--e-border);
 	}
 
-	h3 {
-		margin: 0;
-		color: var(--e-text-muted);
-		font-family: var(--font-heading);
-		font-size: var(--text-s);
+	h4 {
+		margin: 4px 0 0;
+		color: var(--e-text-faint);
+		font-size: var(--text-xs);
+		font-weight: var(--weight-medium);
 	}
 
 	.note {
-		margin: -6px 0 0;
+		margin: 0;
 		color: var(--e-text-faint);
 		font-size: var(--text-xs);
 	}

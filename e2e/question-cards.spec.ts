@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { addStep, expect, openEditor, test, type Page } from './fixtures';
+import { addStep, expect, openEditor, openSection, test, type Page } from './fixtures';
 
 /**
  * Every question is its own card in the app, because the app grades a card as one
@@ -124,6 +124,7 @@ test.describe('a course made elsewhere, with several questions in one block', ()
 
 		await page.locator('.tree-card', { hasText: 'část 1/2' }).click();
 		await page.getByRole('button', { name: 'Nastavení karty' }).click();
+		await openSection(page.getByRole('dialog'), 'Údaje o kartě');
 		const together = page.getByRole('checkbox', { name: /Více otázek v jedné kartě/ });
 		// The switch is drawn over a visually hidden checkbox; a person clicks its label.
 		const toggle = page.locator('label.toggle', { hasText: 'Více otázek v jedné kartě' });

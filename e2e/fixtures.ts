@@ -136,6 +136,19 @@ export const cardMenu = (page: Page) =>
 		itemIn(page, 'Další akce s kartou', 'Duplikovat kartu')
 	);
 
+/**
+ * Open a fold of a settings dialog by its heading and return its region. The dialogs
+ * open short; everything past the main fields sits in a section named by what it
+ * does. Clicking a section that is already open (it opens by itself when a jump or
+ * an issue points into it) would shut it, so the click happens only when it is shut.
+ */
+export async function openSection(scope: Pick<Page, 'getByRole'>, name: string): Promise<Locator> {
+	const header = scope.getByRole('button', { name, exact: true });
+	if ((await header.getAttribute('aria-expanded')) !== 'true') await header.click();
+	await expect(header).toHaveAttribute('aria-expanded', 'true');
+	return scope.getByRole('region', { name, exact: true });
+}
+
 /** Do one of the card's actions by its name in the ⋯ menu. */
 export async function cardAction(page: Page, name: string) {
 	const menu = await cardMenu(page);

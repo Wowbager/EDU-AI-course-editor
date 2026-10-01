@@ -1,4 +1,4 @@
-import { addStep, cardAction, expect, test, type Page, openEditor } from './fixtures';
+import { addStep, cardAction, expect, test, type Page, openEditor, openSection } from './fixtures';
 import { readFileSync } from 'node:fs';
 
 const fixture = (name: string) =>
@@ -90,8 +90,45 @@ test('teacher mode hides nothing behind a disclosure', async ({ page }) => {
 	// The card-wide ladder is a fallback, so it sits in the card's settings.
 	await expect(page.locator('.card')).not.toContainText('Nápověda ke kartě');
 	await page.getByRole('button', { name: 'Nastavení karty' }).click();
-	await expect(page.getByRole('dialog')).toContainText('Nápověda ke kartě');
-	await expect(page.getByRole('dialog')).toContainText('Podrobná pomoc');
+	const dialog = page.getByRole('dialog');
+	// One fold, named by what it does, holds the card-wide hint and help.
+	const ladder = await openSection(dialog, 'Nápověda pro celou kartu');
+	await expect(ladder.getByRole('textbox', { name: 'Nápověda ke kartě' })).toBeVisible();
+	await expect(ladder.getByRole('textbox', { name: 'Podrobná pomoc' })).toBeVisible();
+	// Nothing else is folded in a teacher's dialog.
+	await expect(dialog.getByRole('button', { expanded: false })).toHaveCount(0);
+});
+
+test('the card dialog opens short, folds the rest, and says a hint only while focused', async ({
+	page
+}) => {
+	await importCourse(page, 'spec-16-course.json');
+	await page.getByRole('radio', { name: 'Pokročilý' }).click();
+	await page.getByRole('button', { name: 'Nastavení karty' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Nastavení karty' });
+
+	// Short: only the main fields; a fold shows no field until it is opened.
+	await expect(dialog.getByRole('textbox', { name: 'Délka' })).toBeVisible();
+	await expect(dialog.getByRole('textbox', { name: 'Počáteční stabilita' })).toHaveCount(0);
+	for (const name of ['Co karta procvičuje', 'Opakování', 'Návaznost', 'Údaje o kartě']) {
+		await expect(dialog.getByRole('button', { name, exact: true })).toHaveAttribute(
+			'aria-expanded',
+			'false'
+		);
+	}
+	// No section is named after a mode.
+	await expect(dialog.getByRole('button', { name: 'Didaktika', exact: true })).toHaveCount(0);
+	await expect(dialog.getByRole('button', { name: 'Technické', exact: true })).toHaveCount(0);
+
+	const review = await openSection(dialog, 'Opakování');
+	const stability = review.getByRole('textbox', { name: 'Počáteční stabilita' });
+	// The hint is a tooltip on the label, and a line under the field only while it has focus.
+	const hint = review.getByText('Ve dnech, výchozí 2,5.');
+	await expect(hint).toBeHidden();
+	await stability.focus();
+	await expect(hint).toBeVisible();
+	// A field nothing reads yet no longer says so.
+	await expect(dialog).not.toContainText('Zatím bez účinku');
 });
 
 test('a type change that loses answers says Zpět brings them back, even from another card', async ({

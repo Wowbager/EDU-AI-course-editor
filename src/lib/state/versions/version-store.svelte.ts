@@ -44,6 +44,8 @@ export class VersionStore {
 	/** Backends that failed on the last load or write, so the dialog can say where not. */
 	unavailable = $state<KeptIn[]>([]);
 	loading = $state(false);
+	/** Whether the versions dialog is open. Here, not in the topbar, because the course settings link to it. */
+	dialogOpen = $state(false);
 
 	constructor(backends: VersionBackend[], now: () => Date = () => new Date()) {
 		this.#backends = backends;

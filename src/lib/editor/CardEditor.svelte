@@ -136,7 +136,8 @@
 	 * card's own hint or help — the question mark in the preview, or a validation
 	 * jump. Those two fields live in `CardSettings` now, and a card-level ref has no
 	 * `stepId`, so `StepEditor`'s reveal never matches it; without this the "?"
-	 * would report the right field and the screen would do nothing.
+	 * would report the right field and the screen would do nothing. The dialog opens
+	 * the fold that holds the field by itself (`sectionTargeted`).
 	 */
 	const revealedField = $derived(
 		store.selection?.blockId === block?.block_id && store.selection?.stepId === undefined
@@ -337,31 +338,20 @@
 		</Chip>
 
 		<!--
-			Always visible, and it says what is behind it. A settings button that only
-			appears on hover is a setting nobody finds.
+			Always visible, the same quiet icon in every mode, and its tooltip says what is
+			behind it. A settings button that only appears on hover is a setting nobody
+			finds; a text button in two of three modes is a weight the card carries for
+			one click now and then.
 		-->
-		{#if store.mode === 'teacher'}
-			<!-- A teacher's dialog holds two or three things; the tooltip lists them. -->
-			<Button
-				variant="ghost"
-				size="s"
-				onclick={onsettings}
-				ariaLabel="Nastavení karty"
-				title={cardSettingsSummary(store.mode, store.showFeedback)}
-			>
-				<Settings size={16}></Settings>
-			</Button>
-		{:else}
-			<Button
-				variant="secondary"
-				size="s"
-				onclick={onsettings}
-				title="Délka, nápověda ke kartě, zařazení, klasifikace"
-			>
-				<Settings size={16}></Settings>
-				Nastavení karty
-			</Button>
-		{/if}
+		<Button
+			variant="ghost"
+			size="s"
+			onclick={onsettings}
+			ariaLabel="Nastavení karty"
+			title={cardSettingsSummary(store.mode, store.showFeedback)}
+		>
+			<Settings size={16}></Settings>
+		</Button>
 		<Menu label="Další akce s kartou" icon={Ellipsis} placement="bottom-end">
 			<MenuItem icon={Copy} onclick={() => actions.duplicate(block.block_id, lessonId)}>
 				Duplikovat kartu

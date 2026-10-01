@@ -2,8 +2,9 @@
 	/**
 	 * Course-level settings (§3).
 	 *
-	 * Which settings exist here is decided by the mode, from `$lib/ui/fields.ts` —
-	 * this panel renders that table rather than keeping a second opinion about it.
+	 * Which settings exist here, and which fold each sits in, is decided by the mode,
+	 * from `$lib/ui/fields.ts` — this panel renders those tables rather than keeping a
+	 * second opinion about them.
 	 * The two exceptions are the course type and its status: both are consequential
 	 * enough to earn a segmented control and a written consequence per option.
 	 */
@@ -12,8 +13,10 @@
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import Modal from '$lib/ui/Modal.svelte';
 	import FieldGroup from '$lib/ui/FieldGroup.svelte';
-	import { useStore } from '$lib/ui/context';
-	import { fieldsFor } from '$lib/ui/fields';
+	import SettingsSection from '$lib/ui/SettingsSection.svelte';
+	import { useStore, useVersions } from '$lib/ui/context';
+	import { fieldsFor, sectionsFor } from '$lib/ui/fields';
+	import { sectionTargeted } from '$lib/ui/settings-target';
 	import { setField } from '$lib/domain/commands';
 
 	interface Props {
@@ -23,13 +26,22 @@
 	let { doc, onclose }: Props = $props();
 
 	const store = useStore();
+	const versions = useVersions();
 	const set = (field: string, value: unknown) => store.apply((d) => setField(d, { field }, value));
 	const read = (path: string): unknown => (doc as Record<string, unknown>)[path];
 
 	const fields = $derived(fieldsFor('course', store.mode));
-	const basics = $derived(fields.filter((f) => f.mode === 'teacher'));
-	const didactic = $derived(fields.filter((f) => f.mode === 'metodik'));
-	const rest = $derived(fields.filter((f) => f.mode === 'advanced'));
+	const folds = $derived(
+		new Map(sectionsFor('course', store.mode).map((section) => [section.id, section]))
+	);
+	const inSection = (id: string) => fields.filter((f) => f.section === id);
+	const targeted = (id: string) => sectionTargeted(store, ['course'], id, {});
+
+	/** Visibility is set with publishing, in the versions dialog; this only leads there. */
+	function openVersions() {
+		versions.dialogOpen = true;
+		onclose();
+	}
 
 	/**
 	 * "Cvičení" is also a card type inside a lesson, and the name of the daily
@@ -65,6 +77,8 @@
 {#snippet body()}
 	<div class="settings">
 		<div class="grid">
+			<FieldGroup fields={inSection('main')} {read} write={set} />
+
 			<div class="row">
 				<span>Typ kurzu</span>
 				<Segmented
@@ -78,27 +92,38 @@
 
 			<div class="row">
 				<span>Kdo kurz uvidí</span>
-				<!-- Visibility belongs with publishing: it is set in the version dialog. -->
-				<p class="where">
-					{VISIBILITY_LABEL[visibilityOf(doc)].label} — mění se ve verzích kurzu (tlačítko s číslem verze
-					nahoře).
-				</p>
+				<button
+					type="button"
+					class="link"
+					title="Viditelnost se nastavuje ve verzích kurzu, spolu se zveřejněním."
+					onclick={openVersions}
+				>
+					{VISIBILITY_LABEL[visibilityOf(doc)].label}
+				</button>
 			</div>
+		</div>
 
-			<FieldGroup fields={basics} {read} write={set} />
-
-			{#if didactic.length > 0}
-				<h3>Didaktika</h3>
-				<FieldGroup fields={didactic} {read} write={set} />
+		<div class="folds">
+			{#if folds.has('ai')}
+				<SettingsSection label={folds.get('ai')!.label} autoOpen={targeted('ai')}>
+					<FieldGroup fields={inSection('ai')} {read} write={set} />
+				</SettingsSection>
 			{/if}
 
-			{#if rest.length > 0}
-				<h3>Technické</h3>
-				<div class="row">
-					<span>Identifikátor</span>
-					<code class="id">{doc.course_id}</code>
-				</div>
-				<FieldGroup fields={rest} {read} write={set} />
+			{#if folds.has('run')}
+				<SettingsSection label={folds.get('run')!.label} autoOpen={targeted('run')}>
+					<FieldGroup fields={inSection('run')} {read} write={set} />
+				</SettingsSection>
+			{/if}
+
+			{#if folds.has('meta')}
+				<SettingsSection label={folds.get('meta')!.label} autoOpen={targeted('meta')}>
+					<div class="row">
+						<span>Identifikátor</span>
+						<code class="id">{doc.course_id}</code>
+					</div>
+					<FieldGroup fields={inSection('meta')} {read} write={set} />
+				</SettingsSection>
 			{/if}
 		</div>
 	</div>
@@ -107,18 +132,26 @@
 <Modal title="Nastavení kurzu" size="l" {onclose} children={body} />
 
 <style>
-	.where {
-		margin: 0;
+	/* Information that leads somewhere: quiet text, underlined only under the pointer. */
+	.link {
+		justify-self: start;
+		padding: 6px 0 0;
+		border: 0;
+		background: none;
 		color: var(--e-text-muted);
+		font: inherit;
 		font-size: var(--text-s);
+		text-align: left;
+		cursor: pointer;
 	}
 
-	h3 {
-		grid-column: 1 / -1;
-		margin: 8px 0 0;
-		color: var(--e-text-muted);
-		font-family: var(--font-heading);
-		font-size: var(--text-s);
+	.link:hover {
+		color: var(--e-text);
+		text-decoration: underline;
+	}
+
+	.folds {
+		margin-top: 16px;
 	}
 
 	.settings {

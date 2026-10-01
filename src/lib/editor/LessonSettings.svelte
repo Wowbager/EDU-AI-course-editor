@@ -7,17 +7,19 @@
 	 * container, and a container's settings are worth one click, not permanent
 	 * residence at the top of the screen.
 	 *
-	 * Which fields exist is decided by the mode, from `$lib/ui/fields.ts`. What is
-	 * added here is the lesson's own removal, which was reachable only by hovering a
-	 * sidebar row, and the chips that say what is in the lesson.
+	 * Which fields exist, and which fold each sits in, is decided by the mode, from
+	 * `$lib/ui/fields.ts`. What is added here is the lesson's own removal, which was
+	 * reachable only by hovering a sidebar row, and one quiet line that says what is in
+	 * the lesson.
 	 */
 	import type { CourseV2 } from '$lib/domain/schema';
 	import Modal from '$lib/ui/Modal.svelte';
 	import Button from '$lib/ui/Button.svelte';
-	import Chip from '$lib/ui/Chip.svelte';
 	import FieldGroup from '$lib/ui/FieldGroup.svelte';
+	import SettingsSection from '$lib/ui/SettingsSection.svelte';
 	import { useStore } from '$lib/ui/context';
-	import { fieldsFor, allows } from '$lib/ui/fields';
+	import { fieldsFor, sectionsFor } from '$lib/ui/fields';
+	import { sectionTargeted } from '$lib/ui/settings-target';
 	import { duplicateLesson, setField } from '$lib/domain/commands';
 	import { removeLesson } from './lesson-actions';
 	import { lessonDidactics, lessonTotals } from '$lib/domain/derive';
@@ -39,9 +41,11 @@
 	);
 
 	const fields = $derived(fieldsFor('lesson', store.mode));
-	const basics = $derived(fields.filter((f) => f.mode === 'teacher'));
-	const rest = $derived(fields.filter((f) => f.mode !== 'teacher'));
-	const showId = $derived(allows('block', 'block_id', store.mode));
+	const folds = $derived(
+		new Map(sectionsFor('lesson', store.mode).map((section) => [section.id, section]))
+	);
+	const inSection = (id: string) => fields.filter((f) => f.section === id);
+	const targeted = (id: string) => sectionTargeted(store, ['lesson'], id, { lessonId });
 
 	const set = (field: string, value: unknown) =>
 		store.apply((d) => setField(d, { lessonId, field }, value));
@@ -53,45 +57,52 @@
 		<p>Tato lekce v kurzu není.</p>
 	{:else}
 		<div class="fields">
-			<FieldGroup fields={basics} {read} write={set} />
+			<FieldGroup fields={inSection('main')} {read} write={set} />
 		</div>
 
-		{#if totals !== undefined && didactics !== undefined}
-			<section>
-				<h3>Co v lekci je</h3>
-				<div class="chips">
-					<Chip tone="quiet">{cardsCount(totals.blockCount)}</Chip>
-					<Chip tone={totals.durationPartial ? 'warning' : 'quiet'}>
-						{totals.durationMinutes} min{totals.durationEstimated ? ' (odhad)' : ''}
-					</Chip>
-					<Chip tone="quiet">{totals.xp} XP</Chip>
-					<Chip
-						tone={didactics.wrongOptionFeedbackShare < 0.5 ? 'warning' : 'quiet'}
-						title="Podíl chybných odpovědí, které žákovi řeknou, kde udělal chybu"
-					>
-						Zpětná vazba {Math.round(didactics.wrongOptionFeedbackShare * 100)} %
-					</Chip>
-					<Chip tone="quiet" title="Podíl karet zařazených do denního opakování">
-						Cvičení {Math.round(didactics.practiceShare * 100)} %
-					</Chip>
-				</div>
-			</section>
+		{#if totals !== undefined}
+			<p
+				class="totals"
+				title={totals.durationPartial
+					? 'U některých karet délka chybí, součet je proto nižší.'
+					: undefined}
+			>
+				{cardsCount(totals.blockCount)} · {totals.durationMinutes} min{totals.durationEstimated
+					? ' (odhad)'
+					: ''}
+			</p>
 		{/if}
 
-		{#if rest.length > 0 || showId}
-			<section>
-				<h3>Technické</h3>
-				{#if showId}
+		<div class="folds">
+			{#if folds.has('didactics') && didactics !== undefined}
+				<SettingsSection label={folds.get('didactics')!.label} autoOpen={targeted('didactics')}>
+					<dl>
+						<dt title="Podíl chybných odpovědí, které žákovi řeknou, kde udělal chybu">
+							Zpětná vazba u chybných odpovědí
+						</dt>
+						<dd>{Math.round(didactics.wrongOptionFeedbackShare * 100)} %</dd>
+						<dt title="Podíl karet zařazených do denního opakování">Karty zařazené do cvičení</dt>
+						<dd>{Math.round(didactics.practiceShare * 100)} %</dd>
+					</dl>
+				</SettingsSection>
+			{/if}
+
+			{#if folds.has('ai')}
+				<SettingsSection label={folds.get('ai')!.label} autoOpen={targeted('ai')}>
+					<FieldGroup fields={inSection('ai')} {read} write={set} />
+				</SettingsSection>
+			{/if}
+
+			{#if folds.has('meta')}
+				<SettingsSection label={folds.get('meta')!.label} autoOpen={targeted('meta')}>
 					<div class="row">
 						<span class="label">Identifikátor</span>
 						<code>{lesson.lesson_id}</code>
 					</div>
-				{/if}
-				<div class="fields">
-					<FieldGroup fields={rest} {read} write={set} />
-				</div>
-			</section>
-		{/if}
+					<FieldGroup fields={inSection('meta')} {read} write={set} />
+				</SettingsSection>
+			{/if}
+		</div>
 	{/if}
 {/snippet}
 
@@ -131,23 +142,28 @@
 		gap: 12px;
 	}
 
-	section {
-		margin-top: 18px;
-		padding-top: 14px;
-		border-top: 1px dashed var(--e-border);
-	}
-
-	h3 {
-		margin: 0 0 10px;
-		color: var(--e-text-muted);
-		font-family: var(--font-heading);
+	.totals {
+		margin: 14px 0 0;
+		color: var(--e-text-faint);
 		font-size: var(--text-s);
 	}
 
-	.chips {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 6px;
+	.folds {
+		margin-top: 16px;
+	}
+
+	dl {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		gap: 4px 16px;
+		margin: 0;
+		color: var(--e-text-muted);
+		font-size: var(--text-s);
+	}
+
+	dd {
+		margin: 0;
+		text-align: right;
 	}
 
 	.row {
@@ -155,7 +171,6 @@
 		grid-template-columns: 160px 1fr;
 		gap: 12px;
 		align-items: start;
-		margin-bottom: 12px;
 	}
 
 	.label {
