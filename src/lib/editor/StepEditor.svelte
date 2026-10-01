@@ -47,7 +47,9 @@
 		Trash
 	} from '@lucide/svelte';
 	import type { Component } from 'svelte';
-	import { stepSummary } from '$lib/domain/derive';
+	import { stepPracticeOffered, stepSummary } from '$lib/domain/derive';
+	import SettingsSection from '$lib/ui/SettingsSection.svelte';
+	import { sectionTargeted } from '$lib/ui/settings-target';
 	import { STEP_TYPES } from '$lib/lang';
 
 	interface Props {
@@ -146,7 +148,19 @@
 	 * empty, which is the point — nothing in this editor needs expanding to be found.
 	 */
 	const extraFields = $derived(
-		fieldsFor('step', mode, feedbackOn).filter((f) => !INLINE_STEP.includes(f.path))
+		fieldsFor('step', mode, feedbackOn).filter(
+			(f) =>
+				!INLINE_STEP.includes(f.path) &&
+				// The step's switch only duplicates the card's own when the card is in practice.
+				(f.path !== 'default_practice' || stepPracticeOffered(doc, block, step))
+		)
+	);
+	// A selection or a visible issue that points into the fold opens it.
+	const extrasTargeted = $derived(
+		sectionTargeted(store, ['step', 'question'], 'extras', {
+			blockId: block.block_id,
+			stepId: step.id
+		})
 	);
 	const questionExtras = $derived(
 		fieldsFor('question', mode, feedbackOn).filter((f) => !INLINE_QUESTION.includes(f.path))
@@ -798,13 +812,14 @@
 
 			{#if extraFields.length > 0 || questionExtras.length > 0}
 				<div class="step-extras">
-					<h4>Nastavení kroku</h4>
-					<div class="extras">
-						<FieldGroup fields={extraFields} {read} write={set} />
-						{#if step.type === 'question' && questionExtras.length > 0}
-							<FieldGroup fields={questionExtras} read={readQuestion} write={setQuestion} />
-						{/if}
-					</div>
+					<SettingsSection label="Další nastavení kroku" autoOpen={extrasTargeted}>
+						<div class="extras">
+							<FieldGroup fields={extraFields} {read} write={set} />
+							{#if step.type === 'question' && questionExtras.length > 0}
+								<FieldGroup fields={questionExtras} read={readQuestion} write={setQuestion} />
+							{/if}
+						</div>
+					</SettingsSection>
 				</div>
 			{/if}
 
@@ -973,25 +988,20 @@
 		gap: 12px;
 	}
 
-	.step-extras,
+	.step-extras {
+		margin-top: 10px;
+	}
+
 	.help-ladder {
 		margin-top: 14px;
 		padding-top: 10px;
 		border-top: 1px dashed var(--e-border);
 	}
 
-	h4 {
-		margin: 0;
-		color: var(--e-text-muted);
-		font-family: var(--font-heading);
-		font-size: var(--text-s);
-	}
-
 	.extras {
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
-		margin-top: 10px;
 	}
 
 	.question-type {

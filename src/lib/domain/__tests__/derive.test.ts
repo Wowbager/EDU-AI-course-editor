@@ -6,12 +6,13 @@
  * name is ever written into the document.
  */
 import { describe, expect, it } from 'vitest';
-import type { BlockV2 } from '../schema';
+import type { BlockV2, CourseV2 } from '../schema';
 import {
 	blockPreview,
 	derivedBlockName,
 	mediaFileName,
 	optionOutcomesApply,
+	stepPracticeOffered,
 	stepSummary
 } from '../derive';
 
@@ -200,5 +201,34 @@ describe('when an answer’s own outcome counts', () => {
 
 	it('leaves a step with no question alone', () => {
 		expect(optionOutcomesApply(undefined)).toBe(true);
+	});
+});
+
+describe('stepPracticeOffered', () => {
+	const step = { id: 's1', type: 'text' as const, content: 'x' };
+	const course = (binding: { default_practice?: boolean } = {}) =>
+		({
+			lessons: [{ lesson_id: 'L1', blocks: [{ block_id: 'B1', ...binding }] }],
+			blocks: []
+		}) as unknown as CourseV2;
+
+	it('is offered when nothing else puts the card in practice', () => {
+		expect(stepPracticeOffered(course(), block({ steps: [step] }), step)).toBe(true);
+	});
+
+	it('is not offered when the card itself is in practice', () => {
+		const b = block({ default_practice: true, steps: [step] });
+		expect(stepPracticeOffered(course(), b, step)).toBe(false);
+	});
+
+	it('is not offered when a lesson binding puts the card in practice', () => {
+		const b = block({ steps: [step] });
+		expect(stepPracticeOffered(course({ default_practice: true }), b, step)).toBe(false);
+	});
+
+	it('stays offered for a step whose own flag is on, so it can be turned off', () => {
+		const on = { ...step, default_practice: true };
+		const b = block({ default_practice: true, steps: [on] });
+		expect(stepPracticeOffered(course({ default_practice: true }), b, on)).toBe(true);
 	});
 });

@@ -178,6 +178,18 @@ export function bindingFlagsPractice(doc: CourseV2, blockId: string): boolean {
 	);
 }
 
+/**
+ * Whether a step's own "Zařadit do cvičení" is worth offering. The flag on a step is
+ * only a way to put the card into practice (`isPracticeBlock`); when the card's own
+ * flag or a lesson's binding already does, the step's switch changes nothing, so it
+ * stays out of the way. A step whose flag is already on keeps its switch, so it can
+ * still be turned off.
+ */
+export function stepPracticeOffered(doc: CourseV2, block: BlockV2, step: BlockStep): boolean {
+	if (step.default_practice === true) return true;
+	return block.default_practice !== true && !bindingFlagsPractice(doc, block.block_id);
+}
+
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
 const truncate = (text: string, max: number) =>
