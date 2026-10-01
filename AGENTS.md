@@ -22,6 +22,15 @@ hard-coded number.
 Read `docs/DECISIONS.md` before a large change and `docs/OPEN-PROBLEMS.md` for what is
 known to be broken.
 
+## Design
+
+**Before any change a teacher can see, read `docs/DESIGN.md`**, and give its path
+and the owner's words verbatim to every subagent that builds UI. It outranks the
+current UI, `DECISIONS.md` and the specs' UI descriptions. In short: build what was
+asked, and list anything else you'd add as *Proposed, not built*. Show screenshots and
+have an outside review against its checklist before handing back. Record every design
+correction from the owner there.
+
 ## Git
 
 - Start with `git fetch origin && git status -sb`, and rebase onto `origin/main` if
