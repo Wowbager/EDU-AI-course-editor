@@ -107,12 +107,6 @@
 	</header>
 
 	{#if count !== null}
-		<p class="help">
-			Drž to střídmě: většina karet má jednu dvě silné vazby. Karta, která tvrdí silnou vazbu k osmi
-			dovednostem, rozmělní jednu odpověď žáka do osmi hodnocení. Obtížnost je na stupnici 1–10; žák
-			začíná na {ELO_BASELINE}.
-		</p>
-
 		{#each groups as group (group.domainCode)}
 			<h4>{group.domainName}</h4>
 			<table>
@@ -179,12 +173,6 @@
 		gap: 6px;
 	}
 
-	.help {
-		margin: 10px 0;
-		color: var(--e-text-muted);
-		font-size: var(--text-xs);
-		line-height: 1.5;
-	}
 
 	h4 {
 		margin: 14px 0 4px;

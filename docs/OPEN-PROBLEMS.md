@@ -147,6 +147,15 @@ record of what the app has yet to read. Closing this is the app (or API) reading
 keys; an unread field that stays unread should say so again, or leave the editor.
 Related: #14, #15.
 
+### 42. Two Vyzkoušet e2e tests fail since the preview's back button was relabelled
+**Reproduced** (Round 10). Commit `3103114` ("UI fixes") renamed the preview's
+"← Zpět" button to "Zpět". `e2e/preview.spec.ts` "Vyzkoušet plays the lesson and Zpět
+retraces it" and "Vyzkoušet moves the editor to where the pupil is" still look for
+"← Zpět", and fail on `main` as well. Renaming the locator is not enough: the first test
+also expects no "Zpět" button in Náhled, and finds one. Whether the button now shows in
+Náhled on purpose is for the author of that commit to say; the tests follow once it is
+decided.
+
 ### 14. The FSRS fields write keys the app does not read
 **Verified: yes**, per `COURSE-EDITOR-SPEC.md` §6.5. The authoring spec names them
 `initial_difficulty`, `initial_stability`, `repetitions`…; the app reads `difficulty`,

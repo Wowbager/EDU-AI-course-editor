@@ -83,7 +83,6 @@
 
 <section class="topics">
 	<header>
-		<span class="title">Co karta procvičuje</span>
 		{#if count === null}
 			<Chip tone="warning">Nastavení dovedností se nenačetlo</Chip>
 		{:else if topics.length === 0}
@@ -212,11 +211,6 @@
 		gap: 6px;
 	}
 
-	.title {
-		margin-right: 4px;
-		color: var(--e-text-muted);
-		font: var(--type-meta);
-	}
 
 	.chosen {
 		display: flex;
