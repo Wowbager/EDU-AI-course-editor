@@ -27,6 +27,7 @@ export interface SkillDimension {
 	name: string;
 	domain_code?: string;
 	domain_name?: string;
+	construct_code?: string;
 	construct_name?: string;
 }
 
@@ -100,6 +101,57 @@ export function dimensionsByDomain(
 	return groups;
 }
 
+export interface SkillTreeLevel {
+	/** 1-based position within the skill: what a teacher reads as "Úroveň N". */
+	level: number;
+	dimension: SkillDimension;
+}
+export interface SkillTreeSkill {
+	code: string;
+	name: string;
+	levels: SkillTreeLevel[];
+}
+export interface SkillTreeArea {
+	code: string;
+	name: string;
+	skills: SkillTreeSkill[];
+}
+
+/**
+ * The vector as a teacher thinks of it: area → skill → level. Each dimension is one
+ * level of one skill. Areas and skills come in order of their first dimension. A config
+ * without construct data falls back to the code before the last dot (`N2.1` → `N2`),
+ * and a dimension without a code is a skill of its own with a single level.
+ */
+export function skillTree(config: SkillConfig | null | undefined): SkillTreeArea[] {
+	const dims = [...(config?.vector?.dimensions ?? [])].sort(
+		(a, b) => a.dimension_index - b.dimension_index
+	);
+	const areas: SkillTreeArea[] = [];
+	for (const dim of dims) {
+		const areaCode = dim.domain_code ?? '';
+		let area = areas.find((a) => a.code === areaCode);
+		if (!area) {
+			area = { code: areaCode, name: dim.domain_name ?? areaCode, skills: [] };
+			areas.push(area);
+		}
+		const dot = dim.code ? dim.code.lastIndexOf('.') : -1;
+		const derived = dim.construct_code ?? (dot > 0 ? dim.code.slice(0, dot) : '');
+		const own = derived === '' ? `#${dim.dimension_index}` : derived;
+		let skill = area.skills.find((s) => s.code === own);
+		if (!skill) {
+			skill = {
+				code: own,
+				name: dim.construct_name ?? (derived === '' ? dim.name : derived),
+				levels: []
+			};
+			area.skills.push(skill);
+		}
+		skill.levels.push({ level: skill.levels.length + 1, dimension: dim });
+	}
+	return areas;
+}
+
 /**
  * Flatten the admin's taxonomy export into the dimension list the vectors index into.
  *
@@ -119,6 +171,7 @@ export function skillConfigFromGpfTaxonomy(domains: GpfDomain[], name = 'GPF'): 
 					name: subconstruct.subconstruct,
 					domain_code: domain.id,
 					domain_name: domain.domain,
+					construct_code: construct.id,
 					construct_name: construct.construct
 				});
 			}
