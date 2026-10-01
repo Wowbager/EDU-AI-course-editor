@@ -25,6 +25,7 @@
 		ELO_MIN,
 		type SkillDimension
 	} from '$lib/domain/skill-config';
+	import { Cross, Plus, X } from '@lucide/svelte';
 
 	interface Props {
 		block: BlockV2;
@@ -151,7 +152,7 @@
 							aria-label={`Odebrat ${dimension?.code ?? 'dovednost'}`}
 							onclick={() => remove(topic.dimensionIndex)}
 						>
-							×
+							<X size={14}></X>
 						</button>
 					</li>
 				{/each}
@@ -181,9 +182,10 @@
 			</select>
 			<Button variant="ghost" size="s" onclick={() => (adding = false)}>Zrušit</Button>
 		{:else}
-			<Button variant="secondary" size="s" onclick={() => (adding = true)}
-				>+ Přidat dovednost</Button
-			>
+			<Button variant="secondary" size="s" onclick={() => (adding = true)}>
+				<Plus size={14}></Plus>
+				Přidat dovednost
+			</Button>
 		{/if}
 
 		<p class="help">

@@ -105,6 +105,14 @@
 			}
 
 			set(optionId, 'is_correct', !option.is_correct);
+
+			if (!multiple) {
+				for (const other of options) {
+					if (other.id !== optionId && other.is_correct) {
+						set(other.id, 'is_correct', false);
+					}
+				}
+			}
 		}
 	}
 </script>
@@ -117,6 +125,7 @@
 			{#if quizMarks}<span>Známka</span>{/if}
 			{#if feedback}<span>Co se žák dozví</span>{/if}
 			{#if branching}<span>Kam dál</span>{/if}
+			{#if advanced}<span>Podíl bodů</span>{/if}
 			<span></span>
 		</div>
 	{/if}
@@ -279,6 +288,7 @@
 	.row {
 		padding: 8px;
 		border-radius: var(--radius-s);
+		transition: background 0.2s;
 	}
 
 	/*

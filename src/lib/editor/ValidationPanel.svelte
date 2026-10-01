@@ -10,6 +10,8 @@
 	import { useStore } from '$lib/ui/context';
 	import { heldBack } from '$lib/ui/issue-visibility';
 	import Button from '$lib/ui/Button.svelte';
+	import { CircleX, X } from '@lucide/svelte';
+	import { plural } from '$lib/ui/plural';
 
 	interface Props {
 		onclose: () => void;
@@ -51,7 +53,9 @@
 <aside class="panel" aria-label="Kontrola kurzu">
 	<header>
 		<h2>Kontrola kurzu</h2>
-		<button type="button" class="close" onclick={onclose} aria-label="Zavřít">×</button>
+		<button type="button" class="close" onclick={onclose} aria-label="Zavřít">
+			<CircleX size={16}></CircleX>
+		</button>
 	</header>
 
 	{#if store.listed.errors.length === 0 && warnings.length === 0}
@@ -87,7 +91,7 @@
 						onclick={() => dismiss(issue)}
 						title="Skrýt upozornění"
 					>
-						×
+						<X size={14}></X>
 					</button>
 				</li>
 			{/each}
@@ -96,7 +100,8 @@
 
 	{#if held > 0}
 		<p class="held">
-			Skryto {held} doporučení ke zpětné vazbě.
+			{plural(held, 'Skryto', 'Skryta', 'Skryto')}
+			{held} doporučení ke zpětné vazbě.
 			<Button variant="ghost" size="s" onclick={() => (store.showFeedback = true)}>Ukázat</Button>
 		</p>
 	{/if}
@@ -195,6 +200,12 @@
 		color: var(--e-text-faint);
 		font-size: var(--text-l);
 		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.close:hover,
+	.dismiss:hover {
+		color: var(--e-error);
 	}
 
 	.held {

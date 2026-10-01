@@ -13,6 +13,7 @@
 	import { useStore } from '$lib/ui/context';
 	import Button from '$lib/ui/Button.svelte';
 	import { setField } from '$lib/domain/commands';
+	import { Plus, X } from '@lucide/svelte';
 
 	interface Props {
 		doc: CourseV2;
@@ -97,11 +98,16 @@
 				/>
 			</label>
 
-			<button type="button" aria-label="Odebrat předpoklad" onclick={() => remove(index)}>×</button>
+			<button type="button" aria-label="Odebrat předpoklad" onclick={() => remove(index)}>
+				<X size={14}></X>
+			</button>
 		</div>
 	{/each}
 
-	<Button variant="secondary" size="s" onclick={add}>+ Přidat předpoklad</Button>
+	<Button variant="secondary" size="s" onclick={add}>
+		<Plus size={14}></Plus>
+		Přidat předpoklad
+	</Button>
 </section>
 
 <style>

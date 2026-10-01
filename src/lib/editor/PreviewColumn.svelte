@@ -25,7 +25,7 @@
 	 * blocks, and `store.toView` turns them into the card the editor shows.
 	 */
 	import { tick, untrack } from 'svelte';
-	import { PanelRightClose, PanelRightOpen } from '@lucide/svelte';
+	import { ArrowLeft, PanelRightClose, PanelRightOpen, RotateCcw } from '@lucide/svelte';
 	import type { BlockV2, CourseV2, ExportType } from '$lib/domain/schema';
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import Chip from '$lib/ui/Chip.svelte';
@@ -319,14 +319,21 @@
 	});
 </script>
 
-<aside
-	class="preview"
-	class:collapsed={collapsed === true}
-	data-player={playerState}
-	aria-label="Náhled pro žáka"
->
+<aside class="preview" class:collapsed data-player={playerState} aria-label="Náhled pro žáka">
 	<div class="inner" inert={collapsed === true}>
 		<header>
+			<div class="hide" bind:this={hideHost}>
+				<Button
+					variant="ghost"
+					size="s"
+					ariaLabel="Skrýt náhled"
+					title="Skrýt náhled (Ctrl+Shift+B)"
+					onclick={toggle}
+				>
+					<PanelRightClose size={16}></PanelRightClose>
+				</Button>
+			</div>
+
 			<Segmented
 				label="Co je v náhledu"
 				value={view}
@@ -371,7 +378,8 @@
 					title="O krok zpět — můžeš zkusit jinou odpověď"
 					onclick={() => bridge.back()}
 				>
-					← Zpět
+					<ArrowLeft size={16}></ArrowLeft>
+					Zpět
 				</Button>
 				<Button
 					variant="ghost"
@@ -382,21 +390,10 @@
 						bridge.restart();
 					}}
 				>
+					<RotateCcw size={16}></RotateCcw>
 					Od začátku
 				</Button>
 			{/if}
-
-			<div class="hide" bind:this={hideHost}>
-				<Button
-					variant="ghost"
-					size="s"
-					ariaLabel="Skrýt náhled"
-					title="Skrýt náhled (Ctrl+Shift+B)"
-					onclick={toggle}
-				>
-					<PanelRightClose size={16}></PanelRightClose>
-				</Button>
-			</div>
 		</header>
 
 		<div class="frame">
@@ -453,6 +450,7 @@
 		border-left: 1px solid var(--e-border);
 		background: var(--surface);
 		overflow: hidden;
+		transition: width 0.3s ease-in-out;
 	}
 
 	/* No transition: animating the width would make the player lay itself out on every frame. */
@@ -467,10 +465,6 @@
 		flex-direction: column;
 		width: calc(var(--e-preview-width) - 1px);
 		min-height: 0;
-	}
-
-	.hide {
-		margin-left: auto;
 	}
 
 	.rail {

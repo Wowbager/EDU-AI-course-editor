@@ -37,7 +37,7 @@
 	import SidebarRail from './SidebarRail.svelte';
 	import CardActions from './CardActions.svelte';
 	import { cardActions } from './card-actions';
-	import { ChevronLeft, ChevronRight, Settings, Plus } from '@lucide/svelte';
+	import { PanelLeftOpen, PanelLeftClose, Settings, Plus } from '@lucide/svelte';
 
 	interface Props {
 		doc: CourseV2;
@@ -244,13 +244,14 @@
 		type="button"
 		class="rail-toggle"
 		onclick={ontoggle}
+		class:collapsed
 		aria-label={collapsed ? 'Rozbalit panel lekcí' : 'Sbalit panel lekcí'}
 		title={collapsed ? 'Rozbalit panel lekcí (Ctrl+B)' : 'Sbalit panel lekcí (Ctrl+B)'}
 	>
 		{#if collapsed}
-			<ChevronRight size={16}></ChevronRight>
+			<PanelLeftOpen size={16}></PanelLeftOpen>
 		{:else}
-			<ChevronLeft size={16}></ChevronLeft>
+			<PanelLeftClose size={16}></PanelLeftClose>
 		{/if}
 	</button>
 
@@ -468,8 +469,8 @@
 		background: var(--surface);
 		overflow-y: auto;
 		transition:
-			width 0.5s,
-			padding 0.5s;
+			width 0.3s,
+			padding 0.3s;
 	}
 
 	.sidebar.collapsed {
@@ -481,8 +482,8 @@
 		position: absolute;
 		top: 12px;
 		right: 8px;
-		width: 22px;
-		height: 22px;
+		width: 30px;
+		height: 30px;
 		border: 1px solid var(--e-border);
 		border-radius: 50%;
 		background: var(--surface);
@@ -493,6 +494,11 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+	}
+
+	.rail-toggle.collapsed {
+		right: 16px;
+		top: 8px;
 	}
 
 	.course {
@@ -656,8 +662,8 @@
 		right: 0;
 		display: flex;
 		align-items: center;
-		padding: 0 6px 0 28px;
-		background: linear-gradient(to right, transparent, var(--surface) 24px);
+		padding: 2px 6px;
+		background: var(--surface);
 		border-radius: var(--radius-xs);
 		opacity: 0;
 		transform: translateY(-50%);
