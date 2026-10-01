@@ -11,8 +11,8 @@
 	 * and at the bottom of the column they read as a stray extra step.
 	 *
 	 * Which settings exist is still decided by the mode, from `$lib/ui/fields.ts`, and
-	 * so is where each one sits: the dialog opens with the main fields and keeps the
-	 * rest in folds named by what they do (`SECTIONS`). It renders those tables rather
+	 * so is where each one sits: in sections named by what they do (`SECTIONS`), which
+	 * `SettingsNav` lists down the left from Metodik up. It renders those tables rather
 	 * than keeping a second opinion about either.
 	 */
 	import type { BlockV2, CourseV2, LessonBlockBinding } from '$lib/domain/schema';
@@ -20,14 +20,14 @@
 	import Button from '$lib/ui/Button.svelte';
 	import Toggle from '$lib/ui/Toggle.svelte';
 	import FieldGroup from '$lib/ui/FieldGroup.svelte';
-	import SettingsSection from '$lib/ui/SettingsSection.svelte';
+	import SettingsNav from '$lib/ui/SettingsNav.svelte';
 	import TopicPicker from './TopicPicker.svelte';
 	import CompetencyEditor from './CompetencyEditor.svelte';
 	import PrerequisiteEditor from './PrerequisiteEditor.svelte';
-	import VectorEditor from './VectorEditor.svelte';
 	import { useStore } from '$lib/ui/context';
-	import { fieldsFor, sectionsFor } from '$lib/ui/fields';
-	import { sectionTargeted } from '$lib/ui/settings-target';
+	import { fieldsFor, listsSections, sectionsFor, type FieldLevel } from '$lib/ui/fields';
+	import { sectionHasIssue, sectionTargeted } from '$lib/ui/settings-target';
+	import { SettingsSearch, setSettingsSearch } from '$lib/ui/settings-search.svelte';
 	import { setField, setPractice } from '$lib/domain/commands';
 	import { bindingFlagsPractice, isPracticeBlock } from '$lib/domain/derive';
 	import {
@@ -51,16 +51,22 @@
 	const store = useStore();
 	const mode = $derived(store.mode);
 
-	const folds = $derived(
-		new Map(sectionsFor('block', mode, store.showFeedback).map((section) => [section.id, section]))
-	);
 	const blockFields = $derived(fieldsFor('block', mode, store.showFeedback));
 	const inSection = (id: string) => blockFields.filter((f) => f.section === id);
 	const bindingFields = $derived(
 		binding === undefined ? [] : fieldsFor('binding', mode, store.showFeedback)
 	);
-	const bindingFold = $derived(sectionsFor('binding', mode, store.showFeedback)[0]);
-	/** The two rows of the review fold: where a card starts, and how it is scheduled. */
+	/**
+	 * The card's sections, and the lesson's binding as one more just before the card's
+	 * details: it is about this card, but only where this lesson shows it.
+	 */
+	const sections = $derived.by(() => {
+		const own = sectionsFor('block', mode, store.showFeedback);
+		const lesson = bindingFields.length > 0 ? sectionsFor('binding', mode, store.showFeedback) : [];
+		const at = own.findIndex((s) => s.id === 'meta');
+		return at === -1 ? [...own, ...lesson] : [...own.slice(0, at), ...lesson, ...own.slice(at)];
+	});
+	/** The two rows of the review section: where a card starts, and how it is scheduled. */
 	const reviewStart = $derived(
 		inSection('review').filter((f) => f.path.startsWith('fsrs.initial_'))
 	);
@@ -68,9 +74,16 @@
 		inSection('review').filter((f) => !f.path.startsWith('fsrs.initial_'))
 	);
 
-	/** Whether the selection or a visible issue points into a fold, which then opens. */
-	const targeted = (id: string, level: 'block' | 'binding' = 'block') =>
-		sectionTargeted(store, [level], id, { blockId: block.block_id });
+	const levelOf = (id: string): FieldLevel => (id === 'lesson' ? 'binding' : 'block');
+	const scope = $derived({ blockId: block.block_id });
+	const targeted = (id: string) => sectionTargeted(store, [levelOf(id)], id, scope);
+	const alert = (id: string) => sectionHasIssue(store, [levelOf(id)], id, scope);
+
+	const search = new SettingsSearch(['block', 'binding'], () => ({
+		mode: store.mode,
+		feedback: store.showFeedback
+	}));
+	setSettingsSearch(search);
 
 	/**
 	 * Whether the card is in practice, however it got there: the block, a step or a
@@ -133,78 +146,59 @@
 	}
 </script>
 
+{#snippet pane(id: string)}
+	{#if id === 'main'}
+		<div class="main">
+			<FieldGroup fields={inSection('main')} {read} write={set} />
+			{#if together && questionCount(block) > 1 && mode !== 'advanced'}
+				<p class="note">
+					Otázky této karty se žákovi hodnotí jako jedna (nastaveno v pokročilém režimu).
+				</p>
+			{/if}
+		</div>
+	{:else if id === 'ladder'}
+		<p class="note">Použije se u kroků, které nemají nápovědu vlastní.</p>
+		<FieldGroup fields={inSection('ladder')} {read} write={set} />
+	{:else if id === 'topics'}
+		<TopicPicker {block} />
+		<CompetencyEditor {block} />
+		<FieldGroup fields={inSection('topics')} {read} write={set} />
+	{:else if id === 'review'}
+		<h4>Začátek</h4>
+		<FieldGroup fields={reviewStart} {read} write={set} />
+		<h4>Plánování</h4>
+		<FieldGroup fields={reviewPlan} {read} write={set} />
+	{:else if id === 'followup'}
+		<PrerequisiteEditor {doc} {block} />
+		<FieldGroup fields={inSection('followup')} {read} write={set} />
+	{:else if id === 'lesson'}
+		<FieldGroup fields={bindingFields} read={readBinding} write={setBinding} />
+	{:else if id === 'meta'}
+		<div class="row">
+			<span class="label">Identifikátor</span>
+			<code>{block.block_id}</code>
+		</div>
+		<FieldGroup fields={inSection('meta')} {read} write={set} />
+		{#if canKeepTogether}
+			<Toggle
+				checked={together}
+				label="Více otázek v jedné kartě"
+				hint="Žák dostane otázky v jedné kartě a aplikace je hodnotí jako jednu: nejlepší skóre, poslední známka, jedna karta k procvičování. Vypnuto: každá otázka je vlastní karta."
+				onchange={keepTogether}
+			/>
+		{/if}
+	{/if}
+{/snippet}
+
 {#snippet body()}
-	<div class="main">
-		<FieldGroup fields={inSection('main')} {read} write={set} />
-		{#if together && questionCount(block) > 1 && mode !== 'advanced'}
-			<p class="note">
-				Otázky této karty se žákovi hodnotí jako jedna (nastaveno v pokročilém režimu).
-			</p>
-		{/if}
-	</div>
-
-	<div class="folds">
-		{#if folds.has('ladder')}
-			<SettingsSection label={folds.get('ladder')!.label} autoOpen={targeted('ladder')}>
-				<p class="note">Použije se u kroků, které nemají nápovědu vlastní.</p>
-				<FieldGroup fields={inSection('ladder')} {read} write={set} />
-			</SettingsSection>
-		{/if}
-
-		{#if folds.has('topics')}
-			<SettingsSection label={folds.get('topics')!.label} autoOpen={targeted('topics')}>
-				<TopicPicker {block} />
-				<CompetencyEditor {block} />
-				<FieldGroup fields={inSection('topics')} {read} write={set} />
-			</SettingsSection>
-		{/if}
-
-		{#if folds.has('vector')}
-			<SettingsSection label={folds.get('vector')!.label} autoOpen={targeted('vector')}>
-				<VectorEditor {block} />
-			</SettingsSection>
-		{/if}
-
-		{#if folds.has('review')}
-			<SettingsSection label={folds.get('review')!.label} autoOpen={targeted('review')}>
-				<h4>Začátek</h4>
-				<FieldGroup fields={reviewStart} {read} write={set} />
-				<h4>Plánování</h4>
-				<FieldGroup fields={reviewPlan} {read} write={set} />
-			</SettingsSection>
-		{/if}
-
-		{#if folds.has('followup')}
-			<SettingsSection label={folds.get('followup')!.label} autoOpen={targeted('followup')}>
-				<PrerequisiteEditor {doc} {block} />
-				<FieldGroup fields={inSection('followup')} {read} write={set} />
-			</SettingsSection>
-		{/if}
-
-		{#if bindingFold !== undefined && bindingFields.length > 0}
-			<SettingsSection label={bindingFold.label} autoOpen={targeted('lesson', 'binding')}>
-				<FieldGroup fields={bindingFields} read={readBinding} write={setBinding} />
-			</SettingsSection>
-		{/if}
-
-		{#if folds.has('meta')}
-			<SettingsSection label={folds.get('meta')!.label} autoOpen={targeted('meta')}>
-				<div class="row">
-					<span class="label">Identifikátor</span>
-					<code>{block.block_id}</code>
-				</div>
-				<FieldGroup fields={inSection('meta')} {read} write={set} />
-				{#if canKeepTogether}
-					<Toggle
-						checked={together}
-						label="Více otázek v jedné kartě"
-						hint="Žák dostane otázky v jedné kartě a aplikace je hodnotí jako jednu: nejlepší skóre, poslední známka, jedna karta k procvičování. Vypnuto: každá otázka je vlastní karta."
-						onchange={keepTogether}
-					/>
-				{/if}
-			</SettingsSection>
-		{/if}
-	</div>
+	<SettingsNav
+		{sections}
+		list={listsSections(mode)}
+		{targeted}
+		{alert}
+		search={mode === 'advanced' ? search : undefined}
+		{pane}
+	/>
 {/snippet}
 
 {#snippet actions()}
@@ -218,10 +212,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
-	}
-
-	.folds {
-		margin-top: 16px;
 	}
 
 	h4 {

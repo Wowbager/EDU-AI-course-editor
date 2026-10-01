@@ -11,6 +11,7 @@
  * shows and no author can fix. The test is the thing that makes the promise
  * "Pokročilý ukáže všechno ostatní" true rather than aspirational.
  */
+import { SECTION_ICONS } from '$lib/ui/section-icons';
 import { describe, expect, it } from 'vitest';
 import { KEY_ORDER } from '../schema';
 import {
@@ -25,6 +26,8 @@ import {
 	hintFor,
 	isFeedbackRef,
 	sectionsFor,
+	listsSections,
+	matchSections,
 	specOf,
 	visible,
 	type FieldLevel,
@@ -154,7 +157,7 @@ describe('what each mode is for', () => {
 		const line = cardSettingsSummary('teacher');
 		// The open fields by name, the folds by heading.
 		expect(line).toContain('délka');
-		for (const section of sectionsFor('block', 'teacher')) {
+		for (const section of sectionsFor('block', 'teacher').filter((s) => s.id !== 'main')) {
 			expect(line.toLowerCase(), section.id).toContain(section.label.toLowerCase());
 		}
 		// Nothing of the machinery, and a hidden feedback field is not promised.
@@ -452,13 +455,28 @@ describe('sections', () => {
 		for (const [level, list] of Object.entries(LEVEL_SECTIONS)) {
 			if (level === 'binding') continue;
 			expect(list[0].id, level).toBe('main');
-			expect(list[0].label, level).toBe('');
+			expect(list[0].label, level).toBe('Základní');
 			expect(list[0].open, level).toBe(true);
 			expect(
-				list.slice(1).filter((s) => s.open || s.label === ''),
+				list.slice(1).filter((s) => s.open),
 				level
 			).toEqual([]);
 		}
+	});
+
+	it('names every section and gives it a known icon', () => {
+		for (const [level, list] of Object.entries(LEVEL_SECTIONS)) {
+			for (const section of list) {
+				expect(section.label, `${level}.${section.id}`).not.toBe('');
+				expect(Object.keys(SECTION_ICONS), `${level}.${section.id}`).toContain(section.icon);
+			}
+		}
+	});
+
+	it('lists the sections from Metodik up, whatever their number', () => {
+		expect(listsSections('teacher')).toBe(false);
+		expect(listsSections('metodik')).toBe(true);
+		expect(listsSections('advanced')).toBe(true);
 	});
 
 	it('keeps a teacher out of the folds, but for the card-wide hint and help', () => {
@@ -502,7 +520,6 @@ describe('sections', () => {
 			'main',
 			'ladder',
 			'topics',
-			'vector',
 			'review',
 			'followup',
 			'meta'
@@ -510,6 +527,28 @@ describe('sections', () => {
 		expect(sectionsFor('course', 'teacher').map((s) => s.id)).toEqual(['main']);
 		expect(sectionsFor('lesson', 'teacher').map((s) => s.id)).toEqual(['main']);
 		expect(sectionsFor('lesson', 'metodik').map((s) => s.id)).toEqual(['main', 'didactics', 'ai']);
+	});
+
+	it('finds a section by a field in it, without diacritics, and marks the field', () => {
+		const found = matchSections(['block'], 'odstup', 'advanced');
+		expect([...found.sections]).toEqual(['review']);
+		expect(found.fields.has('block.fsrs.min_interval')).toBe(true);
+		expect(found.fields.has('block.fsrs.max_interval')).toBe(true);
+		expect([...matchSections(['block'], 'opakovani', 'advanced').sections]).toContain('review');
+		// How a teacher who was told what to change would put it.
+		expect([...matchSections(['block'], 'jak často', 'advanced').sections]).toContain('review');
+	});
+
+	it('finds a hand-written section by its keywords, and only what the mode shows', () => {
+		expect([...matchSections(['block'], 'dovednost', 'advanced').sections]).toContain('topics');
+		expect(matchSections(['block'], 'odstup', 'metodik').sections.size).toBe(0);
+		expect(matchSections(['block'], '  ', 'advanced').sections.size).toBe(0);
+	});
+
+	it('needs every word typed', () => {
+		expect([...matchSections(['block'], 'nejdelší odstup', 'advanced').fields]).toEqual([
+			'block.fsrs.max_interval'
+		]);
 	});
 
 	it('names no section after a mode', () => {

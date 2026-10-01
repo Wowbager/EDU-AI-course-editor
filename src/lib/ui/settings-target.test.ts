@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Ref } from '$lib/domain/ref';
-import { sectionTargeted } from './settings-target';
+import { sectionHasIssue, sectionTargeted } from './settings-target';
 
 const store = (selection: Ref | null, ...issues: Ref[]) => ({
 	selection,
@@ -50,5 +50,17 @@ describe('sectionTargeted', () => {
 	it('finds a lesson binding field from the card dialog', () => {
 		const ref = { lessonId: 'l1', blockId: 'b1', field: 'bg_color' };
 		expect(target(store(ref), ['binding'], 'lesson', scope)).toBe(true);
+	});
+});
+
+describe('sectionHasIssue', () => {
+	const scope = { blockId: 'b1' };
+
+	it('marks the section an issue is in, and not the one merely selected', () => {
+		const issue = { blockId: 'b1', field: 'learning.prerequisites.0.block_id' };
+		const s = store({ blockId: 'b1', field: 'hint' }, issue) as never;
+		expect(sectionHasIssue(s, ['block'], 'followup', scope)).toBe(true);
+		expect(sectionHasIssue(s, ['block'], 'ladder', scope)).toBe(false);
+		expect(sectionHasIssue(s, ['block'], 'followup', { blockId: 'b2' })).toBe(false);
 	});
 });

@@ -101,14 +101,24 @@ export function hintFor(spec: Pick<FieldSpec, 'hint'>): string | undefined {
 }
 
 /**
- * One fold of a settings dialog. The first section of a level has no heading and is
- * always open; the others are folded and titled by what they hold.
+ * One section of a settings dialog. From Metodik up a dialog lists its sections by
+ * name on the left and shows one at a time; in Učitel the first section is the page
+ * and the rest are folds under it. Either way a section is titled by what it holds,
+ * never by the mode that first shows it.
  */
 export interface SectionSpec {
 	id: string;
-	/** The heading. Empty for the open main section. */
+	/** The heading, and the section's name in the dialog's list. */
 	label: string;
+	/** The first section of a level: the page in Učitel, the one a dialog opens on. */
 	open?: true;
+	/** Which icon stands beside the name in the list; `ui/section-icons.ts` draws it. */
+	icon: string;
+	/**
+	 * Words the search finds this section by, beyond its label and its fields' labels
+	 * and hints: what its hand-written controls are about.
+	 */
+	keywords?: string;
 	/**
 	 * For a section whose content is not a field (the lesson's percentages): the lowest
 	 * mode that shows it. A section with fields needs no mode, it follows them.
@@ -116,35 +126,55 @@ export interface SectionSpec {
 	mode?: Mode;
 }
 
-const MAIN: SectionSpec = { id: 'main', label: '', open: true };
+const MAIN: SectionSpec = { id: 'main', label: 'Základní', open: true, icon: 'main' };
 
-/** The sections of each level, in the order a dialog draws them. */
+/** The sections of each level, in the order a dialog lists them. */
 export const SECTIONS: Record<FieldLevel, readonly SectionSpec[]> = {
 	course: [
-		MAIN,
-		{ id: 'ai', label: 'Pro AI lektora' },
-		{ id: 'run', label: 'Průběh kurzu' },
-		{ id: 'meta', label: 'Údaje o kurzu' }
+		{ ...MAIN, keywords: 'typ kurzu test cvičení viditelnost kdo uvidí' },
+		{ id: 'ai', label: 'Pro AI lektora', icon: 'ai' },
+		{ id: 'run', label: 'Průběh kurzu', icon: 'run' },
+		{ id: 'meta', label: 'Údaje o kurzu', icon: 'meta', keywords: 'identifikátor' }
 	],
 	lesson: [
-		MAIN,
-		{ id: 'didactics', label: 'Didaktika lekce', mode: 'metodik' },
-		{ id: 'ai', label: 'Pro AI lektora' },
-		{ id: 'meta', label: 'Údaje o lekci' }
+		{ ...MAIN, keywords: 'počet karet délka' },
+		{
+			id: 'didactics',
+			label: 'Didaktika lekce',
+			icon: 'didactics',
+			mode: 'metodik',
+			keywords: 'zpětná vazba chybné odpovědi karty ve cvičení podíl'
+		},
+		{ id: 'ai', label: 'Pro AI lektora', icon: 'ai' },
+		{ id: 'meta', label: 'Údaje o lekci', icon: 'meta', keywords: 'identifikátor' }
 	],
-	binding: [{ id: 'lesson', label: 'V této lekci' }],
+	binding: [{ id: 'lesson', label: 'V této lekci', icon: 'lesson' }],
 	block: [
 		MAIN,
-		{ id: 'ladder', label: 'Nápověda pro celou kartu' },
-		{ id: 'topics', label: 'Co karta procvičuje' },
-		{ id: 'vector', label: 'Dovednosti a obtížnost' },
-		{ id: 'review', label: 'Opakování' },
-		{ id: 'followup', label: 'Návaznost' },
-		{ id: 'meta', label: 'Údaje o kartě' }
+		{ id: 'ladder', label: 'Nápověda pro celou kartu', icon: 'ladder' },
+		{
+			id: 'topics',
+			label: 'Co karta procvičuje',
+			icon: 'topics',
+			keywords: 'dovednost dovednosti úroveň je o tom využívá obtížnost RVP výstupy'
+		},
+		{
+			id: 'review',
+			label: 'Opakování',
+			icon: 'review',
+			keywords: 'jak často se karta vrací interval cvičení FSRS'
+		},
+		{ id: 'followup', label: 'Návaznost', icon: 'followup', keywords: 'předpoklady' },
+		{
+			id: 'meta',
+			label: 'Údaje o kartě',
+			icon: 'meta',
+			keywords: 'identifikátor více otázek v jedné kartě'
+		}
 	],
-	step: [MAIN, { id: 'extras', label: 'Další nastavení kroku' }],
-	question: [MAIN, { id: 'extras', label: 'Další nastavení kroku' }],
-	option: [MAIN, { id: 'detail', label: 'Podrobnosti odpovědi' }]
+	step: [MAIN, { id: 'extras', label: 'Další nastavení kroku', icon: 'main' }],
+	question: [MAIN, { id: 'extras', label: 'Další nastavení kroku', icon: 'main' }],
+	option: [MAIN, { id: 'detail', label: 'Podrobnosti odpovědi', icon: 'main' }]
 };
 
 export const STATUS_OPTIONS = [
@@ -698,7 +728,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'gpf.vector',
-		section: 'vector',
+		section: 'topics',
 		unread: true,
 		mode: 'advanced',
 		kind: 'custom',
@@ -709,7 +739,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'gpf.kb_vector',
-		section: 'vector',
+		section: 'topics',
 		unread: true,
 		mode: 'advanced',
 		kind: 'custom',
@@ -1315,6 +1345,57 @@ export function sectionsFor(
 }
 
 /**
+ * Whether a settings dialog lists its sections on the left and shows one at a time.
+ * Decided by the mode and never by how many sections there are, so turning Zpětná
+ * vazba on or off cannot rearrange the dialog: Učitel's dialogs are short enough to
+ * be one page, and from Metodik up the list is always there to say where things are.
+ */
+export const listsSections = (mode: Mode): boolean => mode !== 'teacher';
+
+/** Lower case without diacritics, so „opakovani“ finds „Opakování“. */
+const fold = (text: string): string =>
+	text
+		.normalize('NFD')
+		.replace(/\p{Diacritic}/gu, '')
+		.toLowerCase();
+
+/**
+ * What the settings search finds: the sections whose name, keywords, or a visible
+ * field's label or hint contain every word typed, and those fields (`level.path`).
+ * A section that matches by its own name or keywords matches without naming a field.
+ * An empty query matches nothing; the dialog then shows every section.
+ */
+export function matchSections(
+	levels: readonly FieldLevel[],
+	query: string,
+	mode: Mode,
+	feedback: boolean = true
+): { sections: Set<string>; fields: Set<string> } {
+	const words = fold(query)
+		.split(/\s+/)
+		.filter((w) => w !== '');
+	const sections = new Set<string>();
+	const fields = new Set<string>();
+	if (words.length === 0) return { sections, fields };
+	const hits = (text: string) => {
+		const folded = fold(text);
+		return words.every((w) => folded.includes(w));
+	};
+	for (const level of levels) {
+		for (const section of sectionsFor(level, mode, feedback)) {
+			if (hits(`${section.label} ${section.keywords ?? ''}`)) sections.add(section.id);
+		}
+		for (const spec of FIELDS) {
+			if (spec.level !== level || !visible(spec, mode, feedback)) continue;
+			if (!hits(`${spec.label} ${spec.hint ?? ''}`)) continue;
+			sections.add(spec.section);
+			if (spec.custom !== true) fields.add(`${spec.level}.${spec.path}`);
+		}
+	}
+	return { sections, fields };
+}
+
+/**
  * What the card's settings dialog holds in `mode`, as a sentence for a tooltip: the
  * open fields by name, then the folds by their headings. Read off the same tables the
  * dialog renders, so a button that says what is behind it cannot drift from the dialog.
@@ -1329,7 +1410,7 @@ export function cardSettingsSummary(mode: Mode, feedback: boolean = true): strin
 			visible(spec, mode, feedback)
 	).map((spec) => lower(spec.label));
 	const folds = sectionsFor('block', mode, feedback)
-		.filter((section) => section.label !== '')
+		.filter((section) => section.id !== 'main')
 		.map((section) => lower(section.label));
 	const parts = [...open, ...folds];
 	return parts.length === 0 ? 'Nastavení karty' : `Nastavení karty: ${parts.join(', ')}`;

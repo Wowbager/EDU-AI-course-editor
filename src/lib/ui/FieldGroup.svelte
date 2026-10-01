@@ -18,6 +18,7 @@
 	import FocusField from './FocusField.svelte';
 	import Toggle from './Toggle.svelte';
 	import { hintFor, type FieldSpec } from './fields';
+	import { useSettingsSearch } from './settings-search.svelte';
 
 	interface Props {
 		fields: FieldSpec[];
@@ -28,6 +29,9 @@
 		invalid?: (path: string) => boolean;
 	}
 	let { fields, read, write, invalid }: Props = $props();
+
+	/** The dialog's search, if it has one: a field it found is marked. */
+	const search = useSettingsSearch();
 
 	const asText = (value: unknown): string | undefined =>
 		value === undefined || value === null ? undefined : String(value);
@@ -45,15 +49,18 @@
 {#each fields as spec (spec.level + spec.path)}
 	{@const value = read(spec.path)}
 	{@const hint = hintFor(spec)}
+	{@const match = search?.marks(spec.level, spec.path) === true}
 	{#if spec.kind === 'toggle'}
-		<Toggle
-			label={spec.label}
-			{hint}
-			checked={value === true}
-			onchange={(v) => write(spec.path, v || undefined)}
-		/>
+		<div class="toggle-row" class:match>
+			<Toggle
+				label={spec.label}
+				{hint}
+				checked={value === true}
+				onchange={(v) => write(spec.path, v || undefined)}
+			/>
+		</div>
 	{:else if spec.kind === 'select'}
-		<div class="field-row">
+		<div class="field-row" class:match>
 			<span class="field-label" title={hint}>{spec.label}</span>
 			<div class="control">
 				<select
@@ -71,7 +78,7 @@
 			</div>
 		</div>
 	{:else}
-		<div class="field-row">
+		<div class="field-row" class:match>
 			<span class="field-label" title={hint}>{spec.label}</span>
 			<div class="control">
 				<FocusField
@@ -100,6 +107,13 @@
 		gap: 12px;
 		align-items: start;
 		font-size: var(--text-m);
+	}
+
+	/* What the dialog's search found: a soft ring, not a colour that reads as an error. */
+	.match {
+		border-radius: var(--radius-xs);
+		box-shadow: 0 0 0 5px color-mix(in srgb, var(--primary) 18%, transparent);
+		background: color-mix(in srgb, var(--primary) 18%, transparent);
 	}
 
 	.field-label {

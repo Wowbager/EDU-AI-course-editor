@@ -7,7 +7,7 @@
 	 * container, and a container's settings are worth one click, not permanent
 	 * residence at the top of the screen.
 	 *
-	 * Which fields exist, and which fold each sits in, is decided by the mode, from
+	 * Which fields exist, and which section each sits in, is decided by the mode, from
 	 * `$lib/ui/fields.ts`. What is added here is the lesson's own removal, which was
 	 * reachable only by hovering a sidebar row, and one quiet line that says what is in
 	 * the lesson.
@@ -16,10 +16,11 @@
 	import Modal from '$lib/ui/Modal.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import FieldGroup from '$lib/ui/FieldGroup.svelte';
-	import SettingsSection from '$lib/ui/SettingsSection.svelte';
+	import SettingsNav from '$lib/ui/SettingsNav.svelte';
 	import { useStore } from '$lib/ui/context';
-	import { fieldsFor, sectionsFor } from '$lib/ui/fields';
-	import { sectionTargeted } from '$lib/ui/settings-target';
+	import { fieldsFor, listsSections, sectionsFor } from '$lib/ui/fields';
+	import { sectionHasIssue, sectionTargeted } from '$lib/ui/settings-target';
+	import { SettingsSearch, setSettingsSearch } from '$lib/ui/settings-search.svelte';
 	import { duplicateLesson, setField } from '$lib/domain/commands';
 	import { removeLesson } from './lesson-actions';
 	import { lessonDidactics, lessonTotals } from '$lib/domain/derive';
@@ -41,68 +42,75 @@
 	);
 
 	const fields = $derived(fieldsFor('lesson', store.mode));
-	const folds = $derived(
-		new Map(sectionsFor('lesson', store.mode).map((section) => [section.id, section]))
-	);
+	const sections = $derived(sectionsFor('lesson', store.mode));
 	const inSection = (id: string) => fields.filter((f) => f.section === id);
 	const targeted = (id: string) => sectionTargeted(store, ['lesson'], id, { lessonId });
+	const alert = (id: string) => sectionHasIssue(store, ['lesson'], id, { lessonId });
+	const list = $derived(listsSections(store.mode));
+
+	const search = new SettingsSearch(['lesson'], () => ({
+		mode: store.mode,
+		feedback: store.showFeedback
+	}));
+	setSettingsSearch(search);
 
 	const set = (field: string, value: unknown) =>
 		store.apply((d) => setField(d, { lessonId, field }, value));
 	const read = (path: string): unknown => (lesson as Record<string, unknown> | undefined)?.[path];
 </script>
 
+{#snippet pane(id: string)}
+	{#if lesson !== undefined}
+		{#if id === 'main'}
+			<div class="fields">
+				<FieldGroup fields={inSection('main')} {read} write={set} />
+			</div>
+
+			{#if totals !== undefined}
+				<p
+					class="totals"
+					title={totals.durationPartial
+						? 'U některých karet délka chybí, součet je proto nižší.'
+						: undefined}
+				>
+					{cardsCount(totals.blockCount)} · {totals.durationMinutes} min{totals.durationEstimated
+						? ' (odhad)'
+						: ''}
+				</p>
+			{/if}
+		{:else if id === 'didactics' && didactics !== undefined}
+			<dl>
+				<dt title="Podíl chybných odpovědí, které žákovi řeknou, kde udělal chybu">
+					Zpětná vazba u chybných odpovědí
+				</dt>
+				<dd>{Math.round(didactics.wrongOptionFeedbackShare * 100)} %</dd>
+				<dt title="Podíl karet zařazených do denního opakování">Karty zařazené do cvičení</dt>
+				<dd>{Math.round(didactics.practiceShare * 100)} %</dd>
+			</dl>
+		{:else if id === 'ai'}
+			<FieldGroup fields={inSection('ai')} {read} write={set} />
+		{:else if id === 'meta'}
+			<div class="row">
+				<span class="label">Identifikátor</span>
+				<code>{lesson.lesson_id}</code>
+			</div>
+			<FieldGroup fields={inSection('meta')} {read} write={set} />
+		{/if}
+	{/if}
+{/snippet}
+
 {#snippet body()}
 	{#if lesson === undefined}
 		<p>Tato lekce v kurzu není.</p>
 	{:else}
-		<div class="fields">
-			<FieldGroup fields={inSection('main')} {read} write={set} />
-		</div>
-
-		{#if totals !== undefined}
-			<p
-				class="totals"
-				title={totals.durationPartial
-					? 'U některých karet délka chybí, součet je proto nižší.'
-					: undefined}
-			>
-				{cardsCount(totals.blockCount)} · {totals.durationMinutes} min{totals.durationEstimated
-					? ' (odhad)'
-					: ''}
-			</p>
-		{/if}
-
-		<div class="folds">
-			{#if folds.has('didactics') && didactics !== undefined}
-				<SettingsSection label={folds.get('didactics')!.label} autoOpen={targeted('didactics')}>
-					<dl>
-						<dt title="Podíl chybných odpovědí, které žákovi řeknou, kde udělal chybu">
-							Zpětná vazba u chybných odpovědí
-						</dt>
-						<dd>{Math.round(didactics.wrongOptionFeedbackShare * 100)} %</dd>
-						<dt title="Podíl karet zařazených do denního opakování">Karty zařazené do cvičení</dt>
-						<dd>{Math.round(didactics.practiceShare * 100)} %</dd>
-					</dl>
-				</SettingsSection>
-			{/if}
-
-			{#if folds.has('ai')}
-				<SettingsSection label={folds.get('ai')!.label} autoOpen={targeted('ai')}>
-					<FieldGroup fields={inSection('ai')} {read} write={set} />
-				</SettingsSection>
-			{/if}
-
-			{#if folds.has('meta')}
-				<SettingsSection label={folds.get('meta')!.label} autoOpen={targeted('meta')}>
-					<div class="row">
-						<span class="label">Identifikátor</span>
-						<code>{lesson.lesson_id}</code>
-					</div>
-					<FieldGroup fields={inSection('meta')} {read} write={set} />
-				</SettingsSection>
-			{/if}
-		</div>
+		<SettingsNav
+			{sections}
+			{list}
+			{targeted}
+			{alert}
+			search={store.mode === 'advanced' ? search : undefined}
+			{pane}
+		/>
 	{/if}
 {/snippet}
 
@@ -133,7 +141,7 @@
 	<Button variant="secondary" onclick={onclose}>Hotovo</Button>
 {/snippet}
 
-<Modal title="Nastavení lekce" {onclose} children={body} footer={actions} />
+<Modal title="Nastavení lekce" size={list ? 'l' : 'm'} {onclose} children={body} footer={actions} />
 
 <style>
 	.fields {
@@ -143,13 +151,9 @@
 	}
 
 	.totals {
-		margin: 14px 0 0;
+		margin: 2px 0 0;
 		color: var(--e-text-faint);
 		font-size: var(--text-s);
-	}
-
-	.folds {
-		margin-top: 16px;
 	}
 
 	dl {

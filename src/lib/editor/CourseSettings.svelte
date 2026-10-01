@@ -2,7 +2,7 @@
 	/**
 	 * Course-level settings (§3).
 	 *
-	 * Which settings exist here, and which fold each sits in, is decided by the mode,
+	 * Which settings exist here, and which section each sits in, is decided by the mode,
 	 * from `$lib/ui/fields.ts` — this panel renders those tables rather than keeping a
 	 * second opinion about them.
 	 * The two exceptions are the course type and its status: both are consequential
@@ -13,10 +13,11 @@
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import Modal from '$lib/ui/Modal.svelte';
 	import FieldGroup from '$lib/ui/FieldGroup.svelte';
-	import SettingsSection from '$lib/ui/SettingsSection.svelte';
+	import SettingsNav from '$lib/ui/SettingsNav.svelte';
 	import { useStore, useVersions } from '$lib/ui/context';
-	import { fieldsFor, sectionsFor } from '$lib/ui/fields';
-	import { sectionTargeted } from '$lib/ui/settings-target';
+	import { fieldsFor, listsSections, sectionsFor } from '$lib/ui/fields';
+	import { sectionHasIssue, sectionTargeted } from '$lib/ui/settings-target';
+	import { SettingsSearch, setSettingsSearch } from '$lib/ui/settings-search.svelte';
 	import { setField } from '$lib/domain/commands';
 
 	interface Props {
@@ -31,11 +32,16 @@
 	const read = (path: string): unknown => (doc as Record<string, unknown>)[path];
 
 	const fields = $derived(fieldsFor('course', store.mode));
-	const folds = $derived(
-		new Map(sectionsFor('course', store.mode).map((section) => [section.id, section]))
-	);
+	const sections = $derived(sectionsFor('course', store.mode));
 	const inSection = (id: string) => fields.filter((f) => f.section === id);
 	const targeted = (id: string) => sectionTargeted(store, ['course'], id, {});
+	const alert = (id: string) => sectionHasIssue(store, ['course'], id, {});
+
+	const search = new SettingsSearch(['course'], () => ({
+		mode: store.mode,
+		feedback: store.showFeedback
+	}));
+	setSettingsSearch(search);
 
 	/** Visibility is set with publishing, in the versions dialog; this only leads there. */
 	function openVersions() {
@@ -74,59 +80,58 @@
 	];
 </script>
 
+{#snippet pane(id: string)}
+	{#if id === 'main'}
+		<div class="settings">
+			<div class="grid">
+				<FieldGroup fields={inSection('main')} {read} write={set} />
+
+				<div class="row">
+					<span>Typ kurzu</span>
+					<Segmented
+						wrap
+						label="Typ kurzu"
+						options={EXPORT_TYPES}
+						value={doc.export_type}
+						onchange={(v) => set('export_type', v)}
+					/>
+				</div>
+
+				<div class="row">
+					<span>Kdo kurz uvidí</span>
+					<button
+						type="button"
+						class="link"
+						title="Viditelnost se nastavuje ve verzích kurzu, spolu se zveřejněním."
+						onclick={openVersions}
+					>
+						{VISIBILITY_LABEL[visibilityOf(doc)].label}
+					</button>
+				</div>
+			</div>
+		</div>
+	{:else if id === 'meta'}
+		<div class="settings">
+			<div class="row">
+				<span>Identifikátor</span>
+				<code class="id">{doc.course_id}</code>
+			</div>
+		</div>
+		<FieldGroup fields={inSection('meta')} {read} write={set} />
+	{:else}
+		<FieldGroup fields={inSection(id)} {read} write={set} />
+	{/if}
+{/snippet}
+
 {#snippet body()}
-	<div class="settings">
-		<div class="grid">
-			<FieldGroup fields={inSection('main')} {read} write={set} />
-
-			<div class="row">
-				<span>Typ kurzu</span>
-				<Segmented
-					wrap
-					label="Typ kurzu"
-					options={EXPORT_TYPES}
-					value={doc.export_type}
-					onchange={(v) => set('export_type', v)}
-				/>
-			</div>
-
-			<div class="row">
-				<span>Kdo kurz uvidí</span>
-				<button
-					type="button"
-					class="link"
-					title="Viditelnost se nastavuje ve verzích kurzu, spolu se zveřejněním."
-					onclick={openVersions}
-				>
-					{VISIBILITY_LABEL[visibilityOf(doc)].label}
-				</button>
-			</div>
-		</div>
-
-		<div class="folds">
-			{#if folds.has('ai')}
-				<SettingsSection label={folds.get('ai')!.label} autoOpen={targeted('ai')}>
-					<FieldGroup fields={inSection('ai')} {read} write={set} />
-				</SettingsSection>
-			{/if}
-
-			{#if folds.has('run')}
-				<SettingsSection label={folds.get('run')!.label} autoOpen={targeted('run')}>
-					<FieldGroup fields={inSection('run')} {read} write={set} />
-				</SettingsSection>
-			{/if}
-
-			{#if folds.has('meta')}
-				<SettingsSection label={folds.get('meta')!.label} autoOpen={targeted('meta')}>
-					<div class="row">
-						<span>Identifikátor</span>
-						<code class="id">{doc.course_id}</code>
-					</div>
-					<FieldGroup fields={inSection('meta')} {read} write={set} />
-				</SettingsSection>
-			{/if}
-		</div>
-	</div>
+	<SettingsNav
+		{sections}
+		list={listsSections(store.mode)}
+		{targeted}
+		{alert}
+		search={store.mode === 'advanced' ? search : undefined}
+		{pane}
+	/>
 {/snippet}
 
 <Modal title="Nastavení kurzu" size="l" {onclose} children={body} />
@@ -151,10 +156,6 @@
 	.link:hover {
 		color: var(--e-text);
 		text-decoration-style: solid;
-	}
-
-	.folds {
-		margin-top: 16px;
 	}
 
 	.settings {
