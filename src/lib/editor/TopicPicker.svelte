@@ -344,7 +344,7 @@
 						<ChevronLeft size={14} aria-hidden="true"></ChevronLeft>
 						Zpět
 					</button>
-					<div class="area">{skill.name}</div>
+					<div class="subject">{skill.name}</div>
 					{#each freeLevels as l (l.dimension.dimension_index)}
 						<button type="button" class="choice" onclick={() => pickLevel(l.dimension)}>
 							<span class="choice-title">Úroveň {l.level}</span>
@@ -357,7 +357,7 @@
 						<ChevronLeft size={14} aria-hidden="true"></ChevronLeft>
 						Zpět
 					</button>
-					<div class="area">{relationHeading(dimension)}</div>
+					<div class="subject">{relationHeading(dimension)}</div>
 					{#each RELATIONS as r (r.value)}
 						<button
 							type="button"
@@ -548,6 +548,14 @@
 		margin: 8px 0 2px;
 		color: var(--e-text-muted);
 		font-size: var(--text-xs);
+		font-weight: var(--weight-semibold);
+	}
+
+	/* What the step is about: the skill picked one step back, read before the choices. */
+	.subject {
+		margin: 6px 0 4px;
+		color: var(--e-text);
+		font-size: var(--text-s);
 		font-weight: var(--weight-semibold);
 	}
 

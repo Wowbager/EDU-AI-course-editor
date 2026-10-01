@@ -160,7 +160,9 @@
 		<p class="note">Použije se u kroků, které nemají nápovědu vlastní.</p>
 		<FieldGroup fields={inSection('ladder')} {read} write={set} />
 	{:else if id === 'topics'}
+		<h4>Dovednosti</h4>
 		<TopicPicker {block} />
+		<h4 class="apart">Zařazení karty</h4>
 		<CompetencyEditor {block} />
 		<FieldGroup fields={inSection('topics')} {read} write={set} />
 	{:else if id === 'review'}
@@ -219,6 +221,11 @@
 		color: var(--e-text-faint);
 		font-size: var(--text-xs);
 		font-weight: var(--weight-medium);
+	}
+
+	/* A second group in one section: set off from the first by space, not a rule. */
+	h4.apart {
+		margin-top: 14px;
 	}
 
 	.note {

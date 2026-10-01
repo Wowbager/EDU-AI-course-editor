@@ -602,7 +602,8 @@ export const FIELDS: readonly FieldSpec[] = [
 		unread: true,
 		mode: 'metodik',
 		kind: 'number',
-		label: 'Úroveň',
+		// Not just „Úroveň“: the skills right above it have levels of their own.
+		label: 'Úroveň zvládnutí',
 		hint: '1 pod očekáváním … 4 nad očekáváním.'
 	},
 	{
