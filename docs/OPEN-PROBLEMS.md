@@ -253,11 +253,12 @@ nothing pointing at it still asks). Left for a later round: the fix is one focus
 convention across every "add" and every "delete", and half of one is worse than none.
 
 ### 34. Metodik noise
-**Not reproduced by a teacher, seen in the interface.** The per-step practice switch is
-offered on every step of a card whose lesson already answers the question, and unread
-fields are drawn as empty rather than as "not asked yet". Not chosen this round: it needs a
-rule about which fields a card of a given type actually earns, and that rule is the same
-one #25 is waiting on.
+**Not reproduced by a teacher, seen in the interface.** The step part is addressed
+(Round 10): the per-step practice switch is offered only when the card is not already in
+practice (`stepPracticeOffered`), and sits in the folded „Další nastavení kroku“. What is
+left is unread fields drawn as empty rather than as "not asked yet", now #41, and the
+rule about which fields a card of a given type actually earns, which is the same one #25
+is waiting on.
 
 ### 35. Changing a card's type
 **Reproduced in the UI.** A card's type is chosen when it is added and there is no way to
@@ -280,7 +281,7 @@ columns the app ignores (DECISIONS Round 9), so an answer's old branch and grade
 the file with no field to clear them, except by switching the option off and on again.
 `W_OPTION_OUTCOMES_IGNORED` says so at export review. Also app-side: the multi-select
 branch of `_confirmAnswer` skips an option's `score_koef` too (`block_step_engine.dart:597-601`),
-which the advanced "Podíl bodů" column still offers. Not changed here.
+which the advanced "Podíl bodů" field still offers. Not changed here.
 
 ### 39. The design brief agents are told to follow is not on `main`
 **Verified by reading the repo.** The standing instructions every agent on this project

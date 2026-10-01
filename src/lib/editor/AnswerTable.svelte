@@ -10,6 +10,7 @@
 	 * line under the row that a quiet control opens. A value that is set shows as
 	 * inert text under the answer, so it is read without opening anything.
 	 */
+	import { untrack } from 'svelte';
 	import type { BlockStep, BlockV2, CourseV2 } from '$lib/domain/schema';
 	import FocusField from '$lib/ui/FocusField.svelte';
 	import Button from '$lib/ui/Button.svelte';
@@ -68,7 +69,8 @@
 				stepId: step.id,
 				optionId: option.id
 			});
-			if (pointed && opened[optionKeys[i]] !== true) opened[optionKeys[i]] = true;
+			// Untracked: closing the line by hand must not re-run this and reopen it.
+			if (pointed) untrack(() => (opened[optionKeys[i]] = true));
 		}
 	});
 

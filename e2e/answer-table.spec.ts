@@ -235,3 +235,37 @@ test('what is wrong with the list of answers is said under it', async ({ page })
 	await page.locator('.tree-card').nth(2).click();
 	await expect(page.locator('.answers .list-issue')).toContainText('Žák nemá z čeho vybírat');
 });
+
+test('a problem with where an answer leads opens that answer’s detail line by itself', async ({
+	page
+}) => {
+	await loadCourse(page, (doc) => {
+		const options = doc.blocks.find((b: { block_id: string }) => b.block_id === 'L1_B3_poznej')
+			.steps[1].question.options;
+		options[1].go_to = 'neexistuje';
+	});
+	// Errors of a card wait until the card is left.
+	await page.locator('.tree-card').nth(0).click();
+	await page.locator('.tree-card').nth(2).click();
+	const rows = page.locator('.answers .row');
+	await expect(
+		rows.nth(1).getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' })
+	).toBeVisible();
+	await expect(
+		rows.nth(0).getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' })
+	).toHaveCount(0);
+});
+
+test('a detail line that was pointed at can still be closed by hand', async ({ page }) => {
+	await loadCourse(page);
+	const first = page.locator('.answers .row').first();
+	await first.getByRole('button', { name: /^Podrobnosti odpovědi/ }).click();
+	await first
+		.getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' })
+		.selectOption('END');
+	await first.getByRole('button', { name: /^Podrobnosti odpovědi/ }).click();
+	await expect(
+		first.getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' })
+	).toHaveCount(0);
+	await expect(first.locator('.set-values')).toContainText('→ konec bloku');
+});

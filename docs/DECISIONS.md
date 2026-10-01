@@ -1789,8 +1789,7 @@ extras, and course and lesson settings to be simple and intuitive, "without big 
 load". Fields nothing reads yet "will have effect", so they are planned for and "I
 wouldn't keep them in just one group". Containers: "Keep dialogs, restructure". The
 design brief (`docs/DESIGN.md`, PR #1) is proposed, not merged; principles 1, 3, 5, 6 and
-8 were followed. This entry covers the dialogs; the step and answer extras follow in the
-same round.
+8 were followed. This entry covers the dialogs and, below, the step and answer extras.
 
 ### The registry decides where a field sits, not only who sees it
 
@@ -1830,6 +1829,35 @@ and for screen readers: a line that appears on focus moves the switch away from 
 pointer, and a click that first blurs it is lost (the "Více otázek v jedné kartě" e2e
 caught exactly that). `hintFor` no longer prefixes "Zatím bez účinku"; the `unread` flag
 and its check against the spec stay (OPEN-PROBLEMS #41).
+
+### The step's extras are one fold; the answer's three are one detail line
+
+The always-open „Nastavení kroku“ block of every step is now a `SettingsSection`,
+„Další nastavení kroku“, folded inside the open step and absent from a collapsed one. It
+opens by itself when the selection or a visible issue points at a step or question field
+of section `extras`. The step's „Zařadit do cvičení“ is offered by a new domain rule,
+`stepPracticeOffered(doc, block, step)` in `derive.ts`: it is on offer when the step's own
+flag is set (so it can be turned off) or when neither the card nor a lesson's binding
+already puts the card in practice (`isPracticeBlock`'s two other sources). Otherwise the
+switch would change nothing. A card whose only extra was that switch then has no fold at
+all. A sibling step's flag does not hide the switch, since `setPractice` clears all of a
+card's flags together. This closes the step part of OPEN-PROBLEMS #34.
+
+The answer table keeps three tracks, mark, Odpověď and „Co se žák dozví“ (when feedback is
+on), plus the row-end actions. „Kam dál“, „Známka“ and „Podíl bodů“ moved into a detail line
+under the row, gated as before (`branching`, `quizMarks`, advanced), and the line exists
+only if one of them is. A chevron at the row end opens it, drawn like the delete button
+(visible on row hover or focus-within, always on a screen without hover), named „Podrobnosti
+odpovědi“ with `aria-expanded`. A value that is set shows as quiet inert text under the
+answer („→ Krok 3“, „známka 2“; ids only in Pokročilý), taken from the same names as the
+picker (`goToSummary` beside `GoToPicker`); it gives way to the fields while the line is
+open. A selection or issue on one of the three fields opens that row's line. The line then
+stays closable by hand, even though the selection still points at it, because the opening
+rule runs only when what is pointed at changes. *Rejected:* a `<details>` per row, whose
+state is lost when the list re-renders.
+
+The heading row of the table now exists only when „Co se žák dozví“ is on, since „Odpověď“
+alone is not worth one.
 
 ### Changed without being asked
 
