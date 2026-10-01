@@ -60,6 +60,12 @@ export interface FieldSpec {
 	path: string;
 	/** The lowest mode in which this field is editable. */
 	mode: Mode;
+	/**
+	 * Which fold of its dialog the field sits in: an `id` from `SECTIONS[level]`.
+	 * `main` is the part that is always open; the rest are named by what they do,
+	 * never by the mode that first shows them.
+	 */
+	section: string;
 	label: string;
 	kind: FieldKind;
 	/** What it does to the student. Shown under the control; house style is consequences. */
@@ -71,8 +77,9 @@ export interface FieldSpec {
 	/**
 	 * Nothing downstream reads this key today — neither the app nor the API
 	 * (`docs/spec/COURSE-EDITOR-SPEC.md` marks it ⚪). It is kept and exported, because
-	 * the format carries it and it documents intent, but the field says so wherever
-	 * it is shown (`hintFor`), and none may be offered in teacher mode.
+	 * the format carries it and it documents intent, and none may be offered in
+	 * teacher mode. The screen does not say so (the owner plans to make them work,
+	 * OPEN-PROBLEMS #41); the flag is the record of what the app still has to read.
 	 * `fields.test.ts` checks this flag against the spec in both directions.
 	 */
 	unread?: true;
@@ -86,15 +93,59 @@ export interface FieldSpec {
 }
 
 /**
- * What a field's help line says. For a field nothing reads, the first thing it says
- * is that — so a hint describing what the field is *for* is never read as a promise
- * of what it *does*.
+ * What a field's help line says. A field nothing reads (`unread`) is offered as if it
+ * worked, so its line is the same as any other's; the flag stays on the spec.
  */
-export function hintFor(spec: Pick<FieldSpec, 'hint' | 'unread'>): string | undefined {
-	if (!spec.unread) return spec.hint;
-	const intent = spec.hint ? ` Zamýšleno: ${spec.hint}` : '';
-	return `Zatím bez účinku — aplikace ani API tuto hodnotu nečtou, jen se uloží.${intent}`;
+export function hintFor(spec: Pick<FieldSpec, 'hint'>): string | undefined {
+	return spec.hint;
 }
+
+/**
+ * One fold of a settings dialog. The first section of a level has no heading and is
+ * always open; the others are folded and titled by what they hold.
+ */
+export interface SectionSpec {
+	id: string;
+	/** The heading. Empty for the open main section. */
+	label: string;
+	open?: true;
+	/**
+	 * For a section whose content is not a field (the lesson's percentages): the lowest
+	 * mode that shows it. A section with fields needs no mode, it follows them.
+	 */
+	mode?: Mode;
+}
+
+const MAIN: SectionSpec = { id: 'main', label: '', open: true };
+
+/** The sections of each level, in the order a dialog draws them. */
+export const SECTIONS: Record<FieldLevel, readonly SectionSpec[]> = {
+	course: [
+		MAIN,
+		{ id: 'ai', label: 'Pro AI lektora' },
+		{ id: 'run', label: 'Průběh kurzu' },
+		{ id: 'meta', label: 'Údaje o kurzu' }
+	],
+	lesson: [
+		MAIN,
+		{ id: 'didactics', label: 'Didaktika lekce', mode: 'metodik' },
+		{ id: 'ai', label: 'Pro AI lektora' },
+		{ id: 'meta', label: 'Údaje o lekci' }
+	],
+	binding: [{ id: 'lesson', label: 'V této lekci' }],
+	block: [
+		MAIN,
+		{ id: 'ladder', label: 'Nápověda pro celou kartu' },
+		{ id: 'topics', label: 'Co karta procvičuje' },
+		{ id: 'vector', label: 'Dovednosti a obtížnost' },
+		{ id: 'review', label: 'Opakování' },
+		{ id: 'followup', label: 'Návaznost' },
+		{ id: 'meta', label: 'Údaje o kartě' }
+	],
+	step: [MAIN, { id: 'extras', label: 'Další nastavení kroku' }],
+	question: [MAIN, { id: 'extras', label: 'Další nastavení kroku' }],
+	option: [MAIN, { id: 'detail', label: 'Podrobnosti odpovědi' }]
+};
 
 export const STATUS_OPTIONS = [
 	{ value: 'draft', label: 'Rozpracováno' },
@@ -115,6 +166,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'course',
 		path: 'name',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'text',
 		label: 'Název kurzu',
@@ -123,6 +175,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'course',
 		path: 'description',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'multiline',
 		label: 'Popis',
@@ -131,6 +184,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'course',
 		path: 'emoji',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'text',
 		label: 'Emoji',
@@ -139,6 +193,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'course',
 		path: 'pin',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'text',
 		label: 'PIN',
@@ -148,6 +203,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'course',
 		path: 'ai_context',
+		section: 'ai',
 		unread: true,
 		mode: 'metodik',
 		kind: 'multiline',
@@ -162,6 +218,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'course',
 		path: 'export_type',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'custom',
 		label: 'Typ kurzu',
@@ -171,6 +228,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'course',
 		path: 'status',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'custom',
 		label: 'Kdo kurz uvidí',
@@ -180,6 +238,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'course',
 		path: 'version',
+		section: 'meta',
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Verze',
@@ -188,6 +247,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'course',
 		path: 'language',
+		section: 'meta',
 		mode: 'advanced',
 		kind: 'text',
 		label: 'Jazyk',
@@ -196,6 +256,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'course',
 		path: 'author',
+		section: 'meta',
 		mode: 'advanced',
 		kind: 'text',
 		label: 'Autor',
@@ -204,6 +265,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'course',
 		path: 'updated',
+		section: 'meta',
 		mode: 'advanced',
 		kind: 'text',
 		label: 'Naposledy upraveno',
@@ -212,6 +274,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'course',
 		path: 'estimated_minutes',
+		section: 'run',
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Odhad délky',
@@ -220,6 +283,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'course',
 		path: 'max_xp',
+		section: 'run',
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Strop XP',
@@ -228,6 +292,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'course',
 		path: 'logged_only',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'custom',
 		label: 'Jen pro přihlášené',
@@ -237,6 +302,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'course',
 		path: 'only_once',
+		section: 'run',
 		mode: 'advanced',
 		kind: 'toggle',
 		label: 'Jen jednou',
@@ -245,6 +311,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'course',
 		path: 'only_quiz',
+		section: 'run',
 		mode: 'advanced',
 		kind: 'toggle',
 		label: 'Kurz je jen kvíz',
@@ -253,6 +320,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'course',
 		path: 'starts_with_quiz',
+		section: 'run',
 		mode: 'advanced',
 		kind: 'toggle',
 		label: 'Začíná kvízem',
@@ -261,6 +329,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'course',
 		path: 'quiz_evaluate',
+		section: 'run',
 		mode: 'advanced',
 		kind: 'toggle',
 		label: 'Vyhodnocovat kvíz',
@@ -269,6 +338,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'course',
 		path: 'stop_gambling',
+		section: 'run',
 		unread: true,
 		mode: 'advanced',
 		kind: 'toggle',
@@ -278,6 +348,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'course',
 		path: 'stop_notice',
+		section: 'run',
 		unread: true,
 		mode: 'advanced',
 		kind: 'multiline',
@@ -287,6 +358,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'course',
 		path: 'header_image',
+		section: 'run',
 		mode: 'advanced',
 		kind: 'custom',
 		label: 'Obrázek v hlavičce',
@@ -298,6 +370,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'lesson',
 		path: 'name',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'text',
 		label: 'Název lekce',
@@ -306,6 +379,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'lesson',
 		path: 'description',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'multiline',
 		label: 'Popis lekce',
@@ -315,6 +389,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'lesson',
 		path: 'ai_context',
+		section: 'ai',
 		unread: true,
 		mode: 'metodik',
 		kind: 'multiline',
@@ -325,6 +400,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'lesson',
 		path: 'version',
+		section: 'meta',
 		unread: true,
 		mode: 'advanced',
 		kind: 'number',
@@ -334,6 +410,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'lesson',
 		path: 'header_image',
+		section: 'meta',
 		unread: true,
 		mode: 'advanced',
 		kind: 'custom',
@@ -349,6 +426,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'binding',
 		path: 'default_practice',
+		section: 'lesson',
 		mode: 'advanced',
 		kind: 'toggle',
 		label: 'Zařadit do cvičení (jen v této lekci)',
@@ -357,6 +435,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'binding',
 		path: 'bg_color',
+		section: 'lesson',
 		unread: true,
 		mode: 'advanced',
 		kind: 'text',
@@ -366,6 +445,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'binding',
 		path: 'bg_image',
+		section: 'lesson',
 		unread: true,
 		mode: 'advanced',
 		kind: 'text',
@@ -381,6 +461,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'name',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'custom',
 		label: 'Název karty',
@@ -390,6 +471,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'duration',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'text',
 		label: 'Délka',
@@ -398,6 +480,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'hint',
+		section: 'ladder',
 		feedback: true,
 		mode: 'teacher',
 		kind: 'multiline',
@@ -407,6 +490,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'help',
+		section: 'ladder',
 		feedback: true,
 		mode: 'teacher',
 		kind: 'multiline',
@@ -417,6 +501,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'default_practice',
+		section: 'main',
 		mode: 'metodik',
 		kind: 'toggle',
 		label: 'Zařadit do cvičení',
@@ -425,6 +510,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'gpf.domain',
+		section: 'topics',
 		unread: true,
 		mode: 'metodik',
 		kind: 'custom',
@@ -434,6 +520,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'gpf.construct',
+		section: 'topics',
 		unread: true,
 		mode: 'metodik',
 		kind: 'custom',
@@ -443,6 +530,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'gpf.subconstruct',
+		section: 'topics',
 		unread: true,
 		mode: 'metodik',
 		kind: 'custom',
@@ -452,6 +540,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'gpf.relation_vector',
+		section: 'topics',
 		mode: 'metodik',
 		kind: 'custom',
 		label: 'Co karta procvičuje',
@@ -460,6 +549,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'gpf.elo_vector',
+		section: 'topics',
 		mode: 'metodik',
 		kind: 'custom',
 		label: 'Obtížnost po dovednostech',
@@ -468,6 +558,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'gpf.grade',
+		section: 'topics',
 		unread: true,
 		mode: 'metodik',
 		kind: 'number',
@@ -477,6 +568,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'gpf.level',
+		section: 'topics',
 		unread: true,
 		mode: 'metodik',
 		kind: 'number',
@@ -486,6 +578,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'learning.concepts',
+		section: 'topics',
 		unread: true,
 		mode: 'metodik',
 		kind: 'custom',
@@ -496,6 +589,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'learning.competencies',
+		section: 'topics',
 		unread: true,
 		mode: 'metodik',
 		kind: 'custom',
@@ -506,6 +600,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'learning.bloom_level',
+		section: 'topics',
 		unread: true,
 		mode: 'metodik',
 		kind: 'number',
@@ -515,6 +610,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'learning.difficulty',
+		section: 'topics',
 		unread: true,
 		mode: 'metodik',
 		kind: 'number',
@@ -525,6 +621,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'block_id',
+		section: 'meta',
 		mode: 'advanced',
 		kind: 'custom',
 		label: 'Identifikátor',
@@ -534,6 +631,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'type',
+		section: 'meta',
 		mode: 'advanced',
 		kind: 'custom',
 		label: 'Typ karty',
@@ -543,6 +641,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'xp',
+		section: 'meta',
 		unread: true,
 		mode: 'advanced',
 		kind: 'number',
@@ -552,6 +651,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'version',
+		section: 'meta',
 		unread: true,
 		mode: 'advanced',
 		kind: 'number',
@@ -560,6 +660,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'language',
+		section: 'meta',
 		unread: true,
 		mode: 'advanced',
 		kind: 'text',
@@ -569,6 +670,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'author',
+		section: 'meta',
 		unread: true,
 		mode: 'advanced',
 		kind: 'text',
@@ -577,6 +679,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'updated',
+		section: 'meta',
 		unread: true,
 		mode: 'advanced',
 		kind: 'text',
@@ -585,6 +688,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'export_type',
+		section: 'meta',
 		mode: 'advanced',
 		kind: 'custom',
 		label: 'Typ exportu karty',
@@ -594,6 +698,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'gpf.vector',
+		section: 'vector',
 		unread: true,
 		mode: 'advanced',
 		kind: 'custom',
@@ -604,6 +709,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'gpf.kb_vector',
+		section: 'vector',
 		unread: true,
 		mode: 'advanced',
 		kind: 'custom',
@@ -614,6 +720,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'learning.prerequisites',
+		section: 'followup',
 		unread: true,
 		mode: 'advanced',
 		kind: 'custom',
@@ -624,6 +731,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'learning.d_data',
+		section: 'meta',
 		unread: true,
 		mode: 'advanced',
 		kind: 'custom',
@@ -633,6 +741,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'learning.l_data',
+		section: 'meta',
 		unread: true,
 		mode: 'advanced',
 		kind: 'custom',
@@ -642,6 +751,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'fsrs.initial_difficulty',
+		section: 'review',
 		unread: true,
 		mode: 'advanced',
 		kind: 'number',
@@ -651,6 +761,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'fsrs.initial_stability',
+		section: 'review',
 		unread: true,
 		mode: 'advanced',
 		kind: 'number',
@@ -660,6 +771,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'fsrs.initial_recall',
+		section: 'review',
 		unread: true,
 		mode: 'advanced',
 		kind: 'number',
@@ -669,6 +781,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'fsrs.forgetting_rate',
+		section: 'review',
 		unread: true,
 		mode: 'advanced',
 		kind: 'number',
@@ -678,6 +791,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'fsrs.repetitions',
+		section: 'review',
 		unread: true,
 		mode: 'advanced',
 		kind: 'number',
@@ -687,6 +801,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'fsrs.weight',
+		section: 'review',
 		unread: true,
 		mode: 'advanced',
 		kind: 'number',
@@ -696,6 +811,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'fsrs.min_interval',
+		section: 'review',
 		unread: true,
 		mode: 'advanced',
 		kind: 'number',
@@ -705,6 +821,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'fsrs.max_interval',
+		section: 'review',
 		unread: true,
 		mode: 'advanced',
 		kind: 'number',
@@ -714,6 +831,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'fsrs.skip_condition',
+		section: 'review',
 		unread: true,
 		mode: 'advanced',
 		kind: 'text',
@@ -723,6 +841,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'fsrs.time_limit_sec',
+		section: 'review',
 		unread: true,
 		mode: 'advanced',
 		kind: 'number',
@@ -732,6 +851,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'adaptation.scaffolded',
+		section: 'followup',
 		mode: 'advanced',
 		kind: 'text',
 		label: 'Podmínka pro podporu',
@@ -740,6 +860,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'block',
 		path: 'adaptation.full',
+		section: 'followup',
 		mode: 'advanced',
 		kind: 'text',
 		label: 'Podmínka pro plnou úlohu',
@@ -750,6 +871,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'step',
 		path: 'content',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'custom',
 		label: 'Text',
@@ -759,6 +881,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'step',
 		path: 'image.url',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'text',
 		label: 'Adresa obrázku'
@@ -766,6 +889,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'step',
 		path: 'image.alt',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'text',
 		label: 'Popis obrázku',
@@ -774,6 +898,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'step',
 		path: 'video.url',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'text',
 		label: 'Adresa videa',
@@ -782,6 +907,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'step',
 		path: 'audio.url',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'text',
 		label: 'Adresa zvuku'
@@ -789,6 +915,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'step',
 		path: 'hint',
+		section: 'main',
 		feedback: true,
 		mode: 'teacher',
 		kind: 'multiline',
@@ -798,6 +925,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'step',
 		path: 'help',
+		section: 'main',
 		feedback: true,
 		mode: 'teacher',
 		kind: 'multiline',
@@ -808,6 +936,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'step',
 		path: 'default_practice',
+		section: 'extras',
 		mode: 'metodik',
 		kind: 'toggle',
 		label: 'Zařadit do cvičení',
@@ -817,6 +946,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'step',
 		path: 'id',
+		section: 'main',
 		mode: 'advanced',
 		kind: 'custom',
 		label: 'Identifikátor kroku',
@@ -826,6 +956,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'step',
 		path: 'type',
+		section: 'main',
 		mode: 'advanced',
 		kind: 'custom',
 		label: 'Typ kroku',
@@ -835,6 +966,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'step',
 		path: 'order',
+		section: 'main',
 		mode: 'advanced',
 		kind: 'custom',
 		label: 'Pořadí',
@@ -844,6 +976,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'step',
 		path: 'image.position',
+		section: 'extras',
 		mode: 'advanced',
 		kind: 'select',
 		label: 'Umístění obrázku',
@@ -852,6 +985,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'step',
 		path: 'video.position',
+		section: 'extras',
 		mode: 'advanced',
 		kind: 'select',
 		label: 'Umístění videa',
@@ -862,6 +996,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'question',
 		path: 'type',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'custom',
 		label: 'Typ otázky',
@@ -870,6 +1005,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'question',
 		path: 'correct_answer',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'text',
 		label: 'Správná odpověď',
@@ -878,6 +1014,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'question',
 		path: 'correct_number',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'number',
 		label: 'Správný výsledek'
@@ -885,6 +1022,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'question',
 		path: 'tolerance',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'number',
 		label: 'Tolerance ±',
@@ -893,6 +1031,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'question',
 		path: 'allow_multiple',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'toggle',
 		label: 'Víc správných možností',
@@ -901,6 +1040,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'question',
 		path: 'solution',
+		section: 'main',
 		feedback: true,
 		mode: 'teacher',
 		kind: 'multiline',
@@ -910,6 +1050,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'question',
 		path: 'options',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'custom',
 		label: 'Možnosti',
@@ -919,6 +1060,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'question',
 		path: 'show_solution',
+		section: 'extras',
 		feedback: true,
 		mode: 'advanced',
 		kind: 'toggle',
@@ -928,6 +1070,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'question',
 		path: 'show_answers',
+		section: 'extras',
 		mode: 'advanced',
 		kind: 'toggle',
 		label: 'Vyhodnocovat odpovědi',
@@ -936,6 +1079,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'question',
 		path: 'allow_photo',
+		section: 'extras',
 		unread: true,
 		mode: 'advanced',
 		kind: 'toggle',
@@ -945,6 +1089,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'question',
 		path: 'solution_image',
+		section: 'main',
 		feedback: true,
 		mode: 'advanced',
 		kind: 'custom',
@@ -957,6 +1102,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'option',
 		path: 'text',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'custom',
 		label: 'Znění možnosti',
@@ -965,6 +1111,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'option',
 		path: 'is_correct',
+		section: 'main',
 		mode: 'teacher',
 		kind: 'custom',
 		label: 'Je správně',
@@ -973,6 +1120,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'option',
 		path: 'feedback',
+		section: 'main',
 		feedback: true,
 		mode: 'teacher',
 		kind: 'custom',
@@ -983,6 +1131,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'option',
 		path: 'go_to',
+		section: 'detail',
 		mode: 'teacher',
 		kind: 'custom',
 		label: 'Kam dál',
@@ -991,6 +1140,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'option',
 		path: 'mark',
+		section: 'detail',
 		mode: 'teacher',
 		kind: 'custom',
 		label: 'Známka',
@@ -1000,6 +1150,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'option',
 		path: 'id',
+		section: 'main',
 		mode: 'advanced',
 		kind: 'custom',
 		label: 'Identifikátor možnosti',
@@ -1009,6 +1160,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'option',
 		path: 'score_koef',
+		section: 'detail',
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Podíl bodů',
@@ -1017,6 +1169,7 @@ export const FIELDS: readonly FieldSpec[] = [
 	{
 		level: 'option',
 		path: 'feedback_image',
+		section: 'main',
 		feedback: true,
 		mode: 'advanced',
 		kind: 'custom',
@@ -1142,15 +1295,44 @@ export function fieldsFor(level: FieldLevel, mode: Mode, feedback: boolean = tru
 }
 
 /**
- * What the card's settings dialog holds in `mode`, as a sentence for a tooltip.
- * Read off the same table the dialog renders, so a button that says what is behind
- * it cannot drift from the dialog when a field moves between modes.
+ * The sections of one level that hold something `mode` can see, in order. A mode can
+ * add a section but a heading never shows over nothing: a section needs a visible
+ * field (hand-written ones included, they are in the table too) or its own `mode`.
+ */
+export function sectionsFor(
+	level: FieldLevel,
+	mode: Mode,
+	feedback: boolean = true
+): SectionSpec[] {
+	return SECTIONS[level].filter(
+		(section) =>
+			(section.mode !== undefined && MODE_RANK[mode] >= MODE_RANK[section.mode]) ||
+			FIELDS.some(
+				(spec) =>
+					spec.level === level && spec.section === section.id && visible(spec, mode, feedback)
+			)
+	);
+}
+
+/**
+ * What the card's settings dialog holds in `mode`, as a sentence for a tooltip: the
+ * open fields by name, then the folds by their headings. Read off the same tables the
+ * dialog renders, so a button that says what is behind it cannot drift from the dialog.
  */
 export function cardSettingsSummary(mode: Mode, feedback: boolean = true): string {
-	const labels = fieldsFor('block', mode, feedback).map(
-		(spec) => spec.label.charAt(0).toLowerCase() + spec.label.slice(1)
-	);
-	return labels.length === 0 ? 'Nastavení karty' : `Nastavení karty: ${labels.join(', ')}`;
+	const lower = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
+	const open = FIELDS.filter(
+		(spec) =>
+			spec.level === 'block' &&
+			spec.custom !== true &&
+			spec.section === 'main' &&
+			visible(spec, mode, feedback)
+	).map((spec) => lower(spec.label));
+	const folds = sectionsFor('block', mode, feedback)
+		.filter((section) => section.label !== '')
+		.map((section) => lower(section.label));
+	const parts = [...open, ...folds];
+	return parts.length === 0 ? 'Nastavení karty' : `Nastavení karty: ${parts.join(', ')}`;
 }
 
 /** One field, by level and path — for the hand-written editors that want its label. */
@@ -1220,4 +1402,21 @@ export function fixModeOf(ref: Ref): Mode | undefined {
 	if (spec !== undefined) return spec.mode;
 	if (`${field.level}.${field.path}` in NOT_EDITABLE) return 'teacher';
 	return undefined;
+}
+
+/**
+ * The registry entry an issue or a selection addresses, by the longest path it
+ * starts with (`learning.competencies.weight` is inside `learning.competencies`).
+ * A card ref that no card field matches is tried as a lesson binding's.
+ */
+export function specOf(ref: Ref): FieldSpec | undefined {
+	const field = fieldOf(ref);
+	if (field === null) return undefined;
+	const inside = (spec: FieldSpec) =>
+		field.path === spec.path || field.path.startsWith(`${spec.path}.`);
+	const find = (level: FieldLevel) =>
+		FIELDS.filter((spec) => spec.level === level && inside(spec)).sort(
+			(a, b) => b.path.length - a.path.length
+		)[0];
+	return find(field.level) ?? (field.level === 'block' ? find('binding') : undefined);
 }

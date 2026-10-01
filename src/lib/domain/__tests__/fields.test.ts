@@ -18,11 +18,14 @@ import {
 	MODES,
 	MODE_RANK,
 	NOT_EDITABLE,
+	SECTIONS as LEVEL_SECTIONS,
 	allows,
 	cardSettingsSummary,
 	fieldsFor,
 	hintFor,
 	isFeedbackRef,
+	sectionsFor,
+	specOf,
 	visible,
 	type FieldLevel,
 	type FieldSpec
@@ -149,14 +152,24 @@ describe('what each mode is for', () => {
 
 	it('tells a teacher what the card settings hold, from the table', () => {
 		const line = cardSettingsSummary('teacher');
-		for (const spec of fieldsFor('block', 'teacher')) {
-			expect(line.toLowerCase(), spec.path).toContain(spec.label.toLowerCase());
+		// The open fields by name, the folds by heading.
+		expect(line).toContain('délka');
+		for (const section of sectionsFor('block', 'teacher')) {
+			expect(line.toLowerCase(), section.id).toContain(section.label.toLowerCase());
 		}
 		// Nothing of the machinery, and a hidden feedback field is not promised.
-		expect(line).not.toContain('Identifikátor');
-		expect(line).not.toContain('Zařadit do cvičení');
-		expect(cardSettingsSummary('teacher', false)).not.toContain('Podrobná pomoc');
-		expect(cardSettingsSummary('teacher', true)).toContain('podrobná pomoc');
+		expect(line).not.toContain('identifikátor');
+		expect(line).not.toContain('zařadit do cvičení');
+		expect(cardSettingsSummary('teacher', false)).not.toContain('nápověda pro celou kartu');
+		expect(cardSettingsSummary('teacher', true)).toContain('nápověda pro celou kartu');
+	});
+
+	it('lists folds in the card summary, not thirty field names', () => {
+		const line = cardSettingsSummary('advanced');
+		expect(line).toContain('opakování');
+		expect(line).toContain('návaznost');
+		expect(line).not.toContain('počáteční stabilita');
+		expect(line.split(',').length).toBeLessThan(15);
 	});
 
 	it('puts practice enrolment and the knowledge vector in metodik mode', () => {
@@ -264,9 +277,13 @@ describe('every offered field has a consumer, or says it has none', async () => 
 		expect(FIELDS.filter((f) => f.mode === 'teacher' && f.unread).map(key)).toEqual([]);
 	});
 
-	it('says so wherever an inert field is shown', () => {
+	it('does not say so on screen: an inert field is offered as if it worked', () => {
+		// The owner plans to make them take effect (OPEN-PROBLEMS #41), so the line
+		// under them is the hint like any other's. The flag stays, and so does the
+		// spec cross-check above.
 		for (const f of FIELDS.filter((f) => f.unread)) {
-			expect(hintFor(f), key(f)).toMatch(/^Zatím bez účinku/);
+			expect(hintFor(f), key(f)).toBe(f.hint);
+			expect(hintFor(f) ?? '', key(f)).not.toMatch(/Zatím bez účinku/);
 		}
 	});
 });
@@ -413,5 +430,106 @@ describe('feedback fields', () => {
 		expect(isFeedbackRef({})).toBe(false);
 		// A lesson has no hint of its own.
 		expect(isFeedbackRef({ lessonId: 'l', field: 'hint' })).toBe(false);
+	});
+});
+
+/**
+ * Where a field sits in its dialog is declared beside who sees it, so a mode can add
+ * a fold but never leak a heading, and no heading is named after a mode.
+ */
+describe('sections', () => {
+	const key = (f: FieldSpec) => `${f.level}.${f.path}`;
+	const DIALOGS: FieldLevel[] = ['course', 'lesson', 'binding', 'block'];
+
+	it('gives every field a section that exists for its level', () => {
+		const lost = FIELDS.filter(
+			(f) => !LEVEL_SECTIONS[f.level].some((section) => section.id === f.section)
+		).map((f) => `${key(f)} → ${f.section}`);
+		expect(lost).toEqual([]);
+	});
+
+	it('opens the first section of a level, and only that one', () => {
+		for (const [level, list] of Object.entries(LEVEL_SECTIONS)) {
+			if (level === 'binding') continue;
+			expect(list[0].id, level).toBe('main');
+			expect(list[0].label, level).toBe('');
+			expect(list[0].open, level).toBe(true);
+			expect(
+				list.slice(1).filter((s) => s.open || s.label === ''),
+				level
+			).toEqual([]);
+		}
+	});
+
+	it('keeps a teacher out of the folds, but for the card-wide hint and help', () => {
+		for (const f of FIELDS.filter((f) => DIALOGS.includes(f.level) && f.mode === 'teacher')) {
+			const main = f.section === 'main';
+			const ladder = f.feedback === true && f.section === 'ladder';
+			expect(main || ladder, `${key(f)} is in ${f.section}`).toBe(true);
+		}
+	});
+
+	it('never returns a section with nothing visible in it', () => {
+		for (const mode of MODES) {
+			for (const feedback of [true, false]) {
+				for (const level of Object.keys(LEVEL_SECTIONS) as FieldLevel[]) {
+					for (const section of sectionsFor(level, mode, feedback)) {
+						const holds = FIELDS.some(
+							(f) => f.level === level && f.section === section.id && visible(f, mode, feedback)
+						);
+						const derived =
+							section.mode !== undefined && MODE_RANK[mode] >= MODE_RANK[section.mode];
+						expect(holds || derived, `${level}.${section.id} in ${mode}/${feedback}`).toBe(true);
+					}
+				}
+			}
+		}
+	});
+
+	it('only adds sections as the mode rises', () => {
+		for (const level of Object.keys(LEVEL_SECTIONS) as FieldLevel[]) {
+			const ids = MODES.map((mode) => sectionsFor(level, mode).map((s) => s.id));
+			expect(ids[1], level).toEqual(expect.arrayContaining(ids[0]));
+			expect(ids[2], level).toEqual(expect.arrayContaining(ids[1]));
+		}
+	});
+
+	it('shows a teacher the open card section and the card-wide hint, nothing else', () => {
+		expect(sectionsFor('block', 'teacher').map((s) => s.id)).toEqual(['main', 'ladder']);
+		expect(sectionsFor('block', 'teacher', false).map((s) => s.id)).toEqual(['main']);
+		expect(sectionsFor('block', 'metodik').map((s) => s.id)).toEqual(['main', 'ladder', 'topics']);
+		expect(sectionsFor('block', 'advanced').map((s) => s.id)).toEqual([
+			'main',
+			'ladder',
+			'topics',
+			'vector',
+			'review',
+			'followup',
+			'meta'
+		]);
+		expect(sectionsFor('course', 'teacher').map((s) => s.id)).toEqual(['main']);
+		expect(sectionsFor('lesson', 'teacher').map((s) => s.id)).toEqual(['main']);
+		expect(sectionsFor('lesson', 'metodik').map((s) => s.id)).toEqual(['main', 'didactics', 'ai']);
+	});
+
+	it('names no section after a mode', () => {
+		const labels = Object.values(LEVEL_SECTIONS).flatMap((list) => list.map((s) => s.label));
+		for (const label of labels) {
+			expect(label, label).not.toMatch(/^(Didaktika|Technické|Pokročilé|Metodik|Učitel)$/);
+		}
+	});
+
+	it('finds the section a ref points into, by the longest field path', () => {
+		const at = (ref: Parameters<typeof specOf>[0]) => specOf(ref)?.section;
+		expect(at({ blockId: 'b', field: 'hint' })).toBe('ladder');
+		expect(at({ blockId: 'b', field: 'help' })).toBe('ladder');
+		expect(at({ blockId: 'b', stepId: 's', field: 'hint' })).toBe('main');
+		expect(at({ blockId: 'b', field: 'fsrs.weight' })).toBe('review');
+		expect(at({ blockId: 'b', field: 'learning.competencies.0.weight' })).toBe('topics');
+		expect(at({ blockId: 'b', field: 'learning.prerequisites.1.block_id' })).toBe('followup');
+		expect(at({ lessonId: 'l', blockId: 'b', field: 'bg_color' })).toBe('lesson');
+		expect(at({ field: 'only_once' })).toBe('run');
+		expect(at({ lessonId: 'l', field: 'ai_context' })).toBe('ai');
+		expect(at({ blockId: 'b', field: 'nothing.here' })).toBeUndefined();
 	});
 });
