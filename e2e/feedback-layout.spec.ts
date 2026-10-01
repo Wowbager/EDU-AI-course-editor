@@ -51,7 +51,10 @@ for (const marks of [false, true]) {
 			// Podíl bodů is advanced-only and always offered, so the line is too; opening it
 			// shows the fields the course's settings allow, spanning the whole row.
 			const first = answers.locator('.row').first();
-			await first.getByRole('button', { name: /^Podrobnosti odpovědi/ }).click();
+			// A warning on the share of points opens a row's line by itself; open it only if shut.
+			const more = first.getByRole('button', { name: /^Podrobnosti odpovědi/ });
+			if ((await more.getAttribute('aria-expanded')) !== 'true') await more.click();
+			await expect(more).toHaveAttribute('aria-expanded', 'true');
 			const detail = first.getByRole('group', { name: 'Podrobnosti odpovědi' });
 			await expect(
 				detail.getByRole('textbox', { name: 'Podíl bodů za tuto odpověď' })

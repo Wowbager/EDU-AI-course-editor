@@ -259,7 +259,10 @@ test('a problem with where an answer leads opens that answer’s detail line by 
 test('a detail line that was pointed at can still be closed by hand', async ({ page }) => {
 	await loadCourse(page);
 	const first = page.locator('.answers .row').first();
-	await first.getByRole('button', { name: /^Podrobnosti odpovědi/ }).click();
+	const more = first.getByRole('button', { name: /^Podrobnosti odpovědi/ });
+	// A warning on the row may have opened it already.
+	if ((await more.getAttribute('aria-expanded')) !== 'true') await more.click();
+	await expect(more).toHaveAttribute('aria-expanded', 'true');
 	await first
 		.getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' })
 		.selectOption('END');
