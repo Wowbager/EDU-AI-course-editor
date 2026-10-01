@@ -132,11 +132,26 @@ Not related, but checked while looking: `docker-entrypoint.sh` expands the templ
 `envsubst '$PORT $API_URL'` — an explicit allowlist — so the fix's `$asset` capture and
 nginx's own `$uri` survive expansion. That part is fine.
 
+### 41. Unread fields no longer say so on screen
+**Verified by reading the code** (Round 10). Until Round 10 every field nothing reads
+yet began its hint with "Zatím bez účinku — aplikace ani API tuto hodnotu nečtou, jen se
+uloží." The owner plans to make them take effect and does not want them kept in one
+group, so they now sit in the section they belong to (Opakování, Návaznost,
+Co karta procvičuje, V této lekci, Údaje o kartě, Průběh kurzu, Pro AI lektora) with the
+same hint as any other field. A teacher or metodik who fills in a `fsrs.*`, `gpf.grade`,
+`learning.*`, `xp` or `stop_gambling` field is therefore no longer told that the student
+sees no difference. Nothing is lost silently: the `unread: true` flag stays on the spec,
+is never offered in Učitel, and `fields.test.ts` still holds it to the ⚪ / ❌ / "Inert"
+rows of `docs/spec/COURSE-EDITOR-SPEC.md` in both directions, so that spec list is the
+record of what the app has yet to read. Closing this is the app (or API) reading those
+keys; an unread field that stays unread should say so again, or leave the editor.
+Related: #14, #15.
+
 ### 14. The FSRS fields write keys the app does not read
 **Verified: yes**, per `COURSE-EDITOR-SPEC.md` §6.5. The authoring spec names them
 `initial_difficulty`, `initial_stability`, `repetitions`…; the app reads `difficulty`,
-`stability`, `reps` and nothing else. They are marked "Zatím bez účinku" now. Which
-side is wrong is a spec question for the owner; the editor writes what the authoring
+`stability`, `reps` and nothing else. They were marked "Zatím bez účinku" until Round 10
+(see #41), and now sit unmarked in „Opakování“. Which side is wrong is a spec question for the owner; the editor writes what the authoring
 spec says.
 
 ### 15. A card's own XP is shown as its reward, and the app ignores it

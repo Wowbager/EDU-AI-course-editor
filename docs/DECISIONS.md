@@ -1781,6 +1781,69 @@ reason the teacher can see.
 
 ---
 
+## Round 10 — advanced settings in folds, named by what they do
+
+The owner found the advanced settings "really hard to use and too cluttered", and asked
+for "the more advanced settings and features" of Nastavení karty, the step and answer
+extras, and course and lesson settings to be simple and intuitive, "without big visual
+load". Fields nothing reads yet "will have effect", so they are planned for and "I
+wouldn't keep them in just one group". Containers: "Keep dialogs, restructure". The
+design brief (`docs/DESIGN.md`, PR #1) is proposed, not merged; principles 1, 3, 5, 6 and
+8 were followed. This entry covers the dialogs; the step and answer extras follow in the
+same round.
+
+### The registry decides where a field sits, not only who sees it
+
+`FieldSpec` has a `section`, and `SECTIONS` lists each level's sections in order, with
+the label a teacher reads. `sectionsFor(level, mode, feedback)` returns the sections that
+hold something the mode can see, so Metodik can add „Co karta procvičuje“ and Pokročilý
+„Opakování“ but a heading never shows over nothing. The first section of a level, `main`,
+has no heading and is always open. Hand-written components (topic picker, vector table,
+prerequisites) are placed by the same sections as the generic fields.
+
+Card: main (Délka, Zařadit do cvičení); Nápověda pro celou kartu; Co karta procvičuje;
+Dovednosti a obtížnost; Opakování (the ten `fsrs.*` fields in two quiet rows, Začátek and
+Plánování); Návaznost; V této lekci (the legacy binding fields, only for a card in a
+lesson); Údaje o kartě. Course: main, Pro AI lektora, Průběh kurzu, Údaje o kurzu.
+Lesson: main with one line, Didaktika lekce, Pro AI lektora, Údaje o lekci.
+
+*Rejected:* naming sections after modes ("Didaktika", "Technické", as before). The same
+fold would then change meaning between Metodik and Pokročilý, and the heading says who
+the field is for, not what it does. *Rejected:* one "Nepoužívané" group for the fields
+nothing reads: the owner plans to make them work, and a group of leftovers is the thing
+that read as clutter.
+
+### One fold primitive, and it opens when something points into it
+
+`SettingsSection` is a quiet heading with a chevron and `aria-expanded`, over a region.
+It opens with one click, and opens by itself when the selection or a visible issue
+addresses one of its fields (`sectionTargeted`, from the field's registry entry). That is
+what makes the preview's question mark and a review jump land on the card-wide hint in
+its fold. It never closes by itself, and its state is local, so a dialog opens folded
+every time. *Rejected:* remembering open folds across dialogs (proposed, not built).
+
+### Hints are quieter
+
+A field's hint shows under the control only while the field has focus; otherwise it is
+the label's tooltip. A switch (`Toggle`) never draws it under itself, only as a tooltip
+and for screen readers: a line that appears on focus moves the switch away from the
+pointer, and a click that first blurs it is lost (the "Více otázek v jedné kartě" e2e
+caught exactly that). `hintFor` no longer prefixes "Zatím bez účinku"; the `unread` flag
+and its check against the spec stay (OPEN-PROBLEMS #41).
+
+### Changed without being asked
+
+- The card's settings button is the same quiet gear icon in all three modes. Metodik and
+  Pokročilý used to get a text button. Its tooltip lists the open fields and the folds
+  by heading, instead of up to thirty field names.
+- The lesson dialog says what is in the lesson on one quiet line ("12 karet · 25 min")
+  instead of five chips; the two percentages stay in „Didaktika lekce“, from Metodik up.
+- In course settings, "Kdo kurz uvidí" is one quiet link that opens the versions dialog
+  (the dialog's open flag moved from the topbar to `VersionStore`), instead of a sentence
+  telling the teacher where to go.
+- The topic picker and the vector table both stay; the vector table no longer has its
+  own Upravit / Skrýt, because its fold does that.
+
 ## Formatting — one formatter, and the two places it is not allowed
 
 The repo had a house style and no formatter: `useTabs` nearly everywhere (129 files to
