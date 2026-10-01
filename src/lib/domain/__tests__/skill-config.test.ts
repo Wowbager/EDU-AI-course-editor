@@ -6,6 +6,7 @@ import {
 	dimensionsByDomain,
 	looksLikeGpfTaxonomy,
 	skillConfigFromGpfTaxonomy,
+	skillTree,
 	type GpfDomain
 } from '../skill-config';
 import { parseCourse } from '../document';
@@ -71,5 +72,63 @@ describe('the admin taxonomy export', () => {
 		const smaller = skillConfigFromGpfTaxonomy(taxonomy.slice(0, 1));
 		const result = validate(parseCourse(fixture('spec-16-course.json')), smaller);
 		expect(result.errors.map((e) => e.code)).toContain('E_VECTOR_LENGTH');
+	});
+});
+
+describe('skillTree', () => {
+	const dim = (i: number, code: string, extra: object = {}) => ({
+		dimension_index: i,
+		code,
+		name: `n${i}`,
+		...extra
+	});
+	const cfg = (dimensions: ReturnType<typeof dim>[]) => ({
+		vector: { id: 'x', name: 'x', dimension_count: dimensions.length, dimensions }
+	});
+
+	it('is empty without a config', () => {
+		expect(skillTree(null)).toEqual([]);
+		expect(skillTree(undefined)).toEqual([]);
+		expect(skillTree({ vector: null })).toEqual([]);
+	});
+
+	it('turns the bundled taxonomy into 5 areas, 17 skills and 35 levels', () => {
+		const tree = skillTree(skillConfigFromGpfTaxonomy(taxonomy));
+		expect(tree).toHaveLength(5);
+		expect(tree.flatMap((a) => a.skills)).toHaveLength(17);
+		expect(tree.flatMap((a) => a.skills.flatMap((s) => s.levels))).toHaveLength(35);
+		const zlomky = tree[0].skills.find((s) => s.code === 'N2')!;
+		expect(zlomky.name).toBe('Zlomky');
+		expect(zlomky.levels.map((l) => l.level)).toEqual([1, 2, 3]);
+		expect(zlomky.levels.map((l) => l.dimension.code)).toEqual(['N2.1', 'N2.2', 'N2.3']);
+	});
+
+	it('keeps first-appearance order by dimension_index', () => {
+		const tree = skillTree(
+			cfg([
+				dim(2, 'B1.1', { domain_code: 'B', domain_name: 'Bé' }),
+				dim(0, 'A1.1', { domain_code: 'A', domain_name: 'Á' }),
+				dim(1, 'A1.2', { domain_code: 'A', domain_name: 'Á' })
+			])
+		);
+		expect(tree.map((a) => a.code)).toEqual(['A', 'B']);
+		expect(tree[0].skills[0].levels.map((l) => l.dimension.dimension_index)).toEqual([0, 1]);
+	});
+
+	it('derives the skill from the code before the last dot when there is no construct', () => {
+		const tree = skillTree(cfg([dim(0, 'N2.1'), dim(1, 'N2.2'), dim(2, 'N3.1')]));
+		expect(tree).toHaveLength(1);
+		expect(tree[0].skills.map((s) => [s.code, s.name, s.levels.length])).toEqual([
+			['N2', 'N2', 2],
+			['N3', 'N3', 1]
+		]);
+	});
+
+	it('makes each dimension its own skill when it has no code at all', () => {
+		const tree = skillTree(cfg([dim(0, ''), dim(1, '')]));
+		expect(tree[0].skills.map((s) => [s.name, s.levels.length])).toEqual([
+			['n0', 1],
+			['n1', 1]
+		]);
 	});
 });
