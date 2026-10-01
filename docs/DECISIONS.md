@@ -1872,6 +1872,29 @@ alone is not worth one.
 - The topic picker and the vector table both stay; the vector table no longer has its
   own Upravit / Skrýt, because its fold does that.
 
+### Symbols are icons or words, never typed glyphs
+
+The owner: unicode symbols "should be replaced by proper icons". A typed glyph draws in
+the font's weight and size, not the icon set's, and a screen reader reads it out
+("multiplication sign"). So:
+
+- Close buttons draw lucide `X` instead of `×`, and the banners' close buttons got the
+  accessible name they lacked („Zavřít“).
+- A place in the review list and the export dialog is a list of parts drawn by
+  `ui/Crumbs.svelte`, with `ChevronRight` between them; `issuePlace` and a row's
+  `detail` return the parts instead of a string joined with ` › `.
+- Where an answer leads is drawn with the branch icon (`CornerDownRight`, as on the
+  step's inbound chip), not `→`.
+- Where an icon cannot go — a tooltip, a validation sentence, a count — the glyph became
+  words: „Alt+šipka nahoru nebo dolů“, „Bloky „A“ a „B“ na sebe čekají navzájem“,
+  „Sdílený: 3 lekce“, „načíst 3krát“, „(z toho 2 s vysvětlením pro žáka)“.
+
+Kept on purpose: `±` in „Tolerance ±“, which is the mathematical sign the field is about,
+and punctuation — the quotes „“, dashes, `…` and the `·` separator. Text a course author
+typed (a button label „Pokračovat →“) is content and is left as written. The preview's
+„Zpět“ already went this way in `3103114`; its tests now find the preview's button, since
+the topbar's undo is also named „Zpět“ (#33).
+
 ## Formatting — one formatter, and the two places it is not allowed
 
 The repo had a house style and no formatter: `useTabs` nearly everywhere (129 files to

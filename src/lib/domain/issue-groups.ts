@@ -19,7 +19,7 @@ import { blockLabel, capitalize, lessonLabelById, optionLabelById, stepLabel } f
 export interface IssueRow {
 	issue: Issue;
 	/** Step and answer inside the group, e.g. "Krok 2 › „Čitatel je 5“"; empty for the group itself. */
-	detail: string;
+	detail: string[];
 	/** Where "Přejít" lands — the issue's ref, with the lesson that shows it filled in. */
 	target: Ref;
 }
@@ -45,7 +45,7 @@ export function issueLessonId(index: DocIndex, ref: Ref): string | undefined {
 }
 
 /** "Krok 2 › „odpověď“" — the part of a ref below the card. */
-function detailOf(doc: CourseV2, ref: Ref): string {
+function detailOf(doc: CourseV2, ref: Ref): string[] {
 	const block =
 		ref.blockId !== undefined ? doc.blocks.find((b) => b.block_id === ref.blockId) : undefined;
 	const step =
@@ -63,7 +63,7 @@ function detailOf(doc: CourseV2, ref: Ref): string {
 			optionLabelById(step?.question, ref.optionId, { max: 30 }) ?? `odpověď ${ref.optionId}`
 		);
 	}
-	return parts.join(' › ');
+	return parts;
 }
 
 /**
@@ -71,7 +71,7 @@ function detailOf(doc: CourseV2, ref: Ref): string {
  * the document resolves (a dangling reference), because then the id is the only
  * thing left to name it by.
  */
-export function issuePlace(doc: CourseV2, ref: Ref): string {
+export function issuePlace(doc: CourseV2, ref: Ref): string[] {
 	const { lessonId, blockId } = ref;
 	const block = blockId !== undefined ? doc.blocks.find((b) => b.block_id === blockId) : undefined;
 	const parts: string[] = [];
@@ -79,9 +79,8 @@ export function issuePlace(doc: CourseV2, ref: Ref): string {
 	if (blockId !== undefined) {
 		parts.push(block !== undefined ? blockLabel(doc, block, { lessonId, max: 30 }) : blockId);
 	}
-	const detail = detailOf(doc, ref);
-	if (detail !== '') parts.push(detail);
-	return parts.length === 0 ? 'kurz' : parts.join(' › ');
+	parts.push(...detailOf(doc, ref));
+	return parts.length === 0 ? ['kurz'] : parts;
 }
 
 export function groupIssues(

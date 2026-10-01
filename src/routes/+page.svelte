@@ -458,7 +458,9 @@
 				<div class="banner error">
 					<strong>Soubor se nepodařilo načíst.</strong>
 					{importError}
-					<button type="button" onclick={() => (importError = null)}>×</button>
+					<button type="button" aria-label="Zavřít" onclick={() => (importError = null)}
+						><X size={16} aria-hidden="true"></X></button
+					>
 				</div>
 			{/if}
 
@@ -475,7 +477,7 @@
 						}}>Zobrazit</button
 					>
 					<button type="button" aria-label="Skrýt oznámení" onclick={() => (inherited = false)}
-						>×</button
+						><X size={16} aria-hidden="true"></X></button
 					>
 				</div>
 			{/if}
@@ -491,7 +493,9 @@
 								…a dalších {importNotes.length - 8}.
 							</li>{/if}
 					</ul>
-					<button type="button" onclick={() => (importNotes = [])}>×</button>
+					<button type="button" aria-label="Zavřít" onclick={() => (importNotes = [])}
+						><X size={16} aria-hidden="true"></X></button
+					>
 				</div>
 			{/if}
 

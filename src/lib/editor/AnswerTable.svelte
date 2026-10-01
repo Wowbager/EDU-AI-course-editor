@@ -22,7 +22,7 @@
 	import { addOption, deleteOption, setField } from '$lib/domain/commands';
 	import { optionOutcomesApply } from '$lib/domain/derive';
 	import { MIN_CHOICE_OPTIONS } from '$lib/domain/validate';
-	import { Check, ChevronRight, Plus, Trash } from '@lucide/svelte';
+	import { Check, ChevronRight, CornerDownRight, Plus, Trash } from '@lucide/svelte';
 
 	interface Props {
 		doc: CourseV2;
@@ -74,17 +74,22 @@
 		}
 	});
 
-	/** What is set on an answer, in a few words; defaults say nothing. */
-	function summaryOf(option: (typeof options)[number]): string[] {
-		const parts: string[] = [];
+	/**
+	 * What is set on an answer, in a few words; defaults say nothing. Where the answer
+	 * leads is drawn with the branch icon, not a typed arrow.
+	 */
+	function summaryOf(option: (typeof options)[number]): { text: string; branch?: true }[] {
+		const parts: { text: string; branch?: true }[] = [];
 		if (branching) {
 			const where = goToSummary(doc, block, option.go_to, showIds, store.index);
-			if (where !== '') parts.push(`→ ${where}`);
+			if (where !== '') parts.push({ text: where, branch: true });
 		}
 		if (quizMarks && option.mark !== undefined && option.mark !== '') {
-			parts.push(`známka ${option.mark}`);
+			parts.push({ text: `známka ${option.mark}` });
 		}
-		if (advanced && option.score_koef !== undefined) parts.push(`podíl bodů ${option.score_koef}`);
+		if (advanced && option.score_koef !== undefined) {
+			parts.push({ text: `podíl bodů ${option.score_koef}` });
+		}
 		return parts;
 	}
 	// The last answers have to stay: a question with nothing to choose from is not a
@@ -198,7 +203,15 @@
 				{#if !isOpen(optionKeys[i])}
 					{@const summary = summaryOf(option)}
 					{#if summary.length > 0}
-						<p class="set-values">{summary.join(' · ')}</p>
+						<p class="set-values">
+							{#each summary as part, j (j)}
+								{#if j > 0}<span aria-hidden="true"> · </span>{/if}
+								<span class="set-value">
+									{#if part.branch}<CornerDownRight size={12} aria-label="Kam dál:"
+										></CornerDownRight>{/if}{part.text}
+								</span>
+							{/each}
+						</p>
 					{/if}
 				{/if}
 			</div>
@@ -377,6 +390,12 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 6px;
+	}
+
+	.set-value {
+		display: inline-flex;
+		align-items: center;
+		gap: 3px;
 	}
 
 	.set-values {

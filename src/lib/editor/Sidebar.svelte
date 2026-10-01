@@ -332,7 +332,7 @@
 											class="tree-card"
 											class:selected={block.block_id === selectedBlock}
 											onclick={() => select(lesson.lesson_id, block.block_id)}
-											title="Alt+↑/↓ přesune kartu"
+											title="Alt+šipka nahoru nebo dolů přesune kartu"
 											onkeydowncapture={(event) =>
 												rowKey(event, lesson.lesson_id, block.block_id, position)}
 										>

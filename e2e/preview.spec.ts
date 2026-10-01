@@ -155,7 +155,9 @@ test.describe('live preview', () => {
 	test('Vyzkoušet plays the lesson and Zpět retraces it', async ({ page }) => {
 		await openCard(page, 2, QUIZ);
 
-		const back = page.getByRole('button', { name: '← Zpět' });
+		const back = page
+			.getByRole('complementary', { name: 'Náhled pro žáka' })
+			.getByRole('button', { name: 'Zpět', exact: true });
 		await expect(back).toHaveCount(0);
 
 		await play(page, QUIZ);
@@ -216,7 +218,9 @@ test.describe('live preview', () => {
 		// setLesson carries a step.
 		expect(log.down('highlight', mark)).toHaveLength(0);
 
-		const back = page.getByRole('button', { name: '← Zpět' });
+		const back = page
+			.getByRole('complementary', { name: 'Náhled pro žáka' })
+			.getByRole('button', { name: 'Zpět', exact: true });
 		await answerRight(page);
 		await expect(back).toBeEnabled({ timeout: 15_000 });
 		const last = positions().at(-1)!;

@@ -39,6 +39,7 @@
 	import StepEditor from './StepEditor.svelte';
 	import { useStepView, useStore } from '$lib/ui/context';
 	import { uniqueKeys } from '$lib/ui/keys';
+	import { counted } from '$lib/ui/plural';
 	import { cardSettingsSummary } from '$lib/ui/fields';
 	import { addStep, bindBlock, reorderSteps, setField } from '$lib/domain/commands';
 	import { lessonLabel } from '$lib/domain/naming';
@@ -309,7 +310,7 @@
 		{/if}
 		{#if sharedWith > 1}
 			<Chip tone="warning" title="Blok je i v jiné lekci — úprava se projeví všude">
-				Sdílený ({sharedWith}×)
+				Sdílený: {counted(sharedWith, 'lekce', 'lekce', 'lekcí')}
 			</Chip>
 		{/if}
 		<!--

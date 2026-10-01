@@ -199,7 +199,7 @@ test('the detail line opens from the row, and a set value is read without openin
 
 	// A value that is set shows as inert text; the unset answer says nothing.
 	await expect(rows.nth(0).locator('.set-values')).toHaveText('známka 2');
-	await expect(rows.nth(1).locator('.set-values')).toHaveText('→ konec bloku');
+	await expect(rows.nth(1).locator('.set-values')).toHaveText('konec bloku');
 	await expect(rows.nth(2).locator('.set-values')).toHaveCount(0);
 
 	// Opening the line swaps the text for the fields that hold the values.
@@ -270,5 +270,5 @@ test('a detail line that was pointed at can still be closed by hand', async ({ p
 	await expect(
 		first.getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' })
 	).toHaveCount(0);
-	await expect(first.locator('.set-values')).toContainText('→ konec bloku');
+	await expect(first.locator('.set-values')).toContainText('konec bloku');
 });

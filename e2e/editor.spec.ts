@@ -351,10 +351,10 @@ test('deleting a branched step asks where its branches should go', async ({ page
 	// The remediation step is the target of a wrong answer's `go_to`. It is addressed
 	// by its position, because a teacher never sees a step id (plan §8) — and the
 	// inbound-branch chip says a branch points at it.
-	// Matched on the step's own label, not on any text containing it — the `go_to`
-	// picker lists the other steps by the same names.
+	// Matched on the step's own label in its header, not on any text containing it —
+	// the `go_to` picker and an answer's summary name the other steps the same way.
 	const step = page.locator('.step').filter({
-		has: page.getByText('Krok 3', { exact: true })
+		has: page.locator('header').getByText('Krok 3', { exact: true })
 	});
 	await expect(step).toHaveCount(1);
 	await expect(step.getByTitle('Na tento krok vede větvení z jiné odpovědi')).toContainText('1');

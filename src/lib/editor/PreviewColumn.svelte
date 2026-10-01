@@ -401,8 +401,8 @@
 				<div class="fallback">
 					<p><strong>Přehrávač se nespustil.</strong></p>
 					<p>
-						Zkusili jsme ho načíst {BOOT_ATTEMPTS}× a pokaždé se zasekl — nejspíš přerušené spojení
-						při stahování. Kurz se dál ukládá, jen ho teď nevidíš očima žáka.
+						Zkusili jsme ho načíst {BOOT_ATTEMPTS}krát a pokaždé se zasekl — nejspíš přerušené
+						spojení při stahování. Kurz se dál ukládá, jen ho teď nevidíš očima žáka.
 					</p>
 					<Button variant="secondary" size="s" onclick={retry}>Zkusit znovu</Button>
 				</div>

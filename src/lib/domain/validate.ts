@@ -834,13 +834,18 @@ function checkPrerequisiteGraph(doc: CourseV2, index: DocIndex, add: Add) {
 			const block = doc.blocks.find((b) => b.block_id === id)!;
 			return `„${blockLabel(doc, block)}“`;
 		});
-		add(
-			'error',
-			'E_PREREQ_CYCLE',
-			{ blockId: cycle[0] },
-			`Bloky ${names.join(' → ')} na sebe čekají navzájem. Žádný z nich se žákovi neodemkne.`
-		);
+		add('error', 'E_PREREQ_CYCLE', { blockId: cycle[0] }, cycleMessage(names.slice(0, -1)));
 	}
+}
+
+/**
+ * A cycle in words. `findCycles` closes each cycle on its first id, which the caller
+ * drops; the names are then listed as a sentence rather than joined with arrows.
+ */
+function cycleMessage(names: string[]): string {
+	if (names.length === 1) return `Blok ${names[0]} čeká sám na sebe. Žákovi se neodemkne.`;
+	const list = `${names.slice(0, -1).join(', ')} a ${names.at(-1)}`;
+	return `Bloky ${list} na sebe čekají navzájem. Žádný z nich se žákovi neodemkne.`;
 }
 
 function findCycles(doc: CourseV2): string[][] {

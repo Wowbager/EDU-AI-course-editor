@@ -11,6 +11,7 @@
 	import { heldBack } from '$lib/ui/issue-visibility';
 	import Button from '$lib/ui/Button.svelte';
 	import { CircleX, X } from '@lucide/svelte';
+	import Crumbs from '$lib/ui/Crumbs.svelte';
 	import { plural } from '$lib/ui/plural';
 
 	interface Props {
@@ -47,7 +48,7 @@
 
 	// A teacher is never shown an id (§8); `issuePlace` names everything the way the
 	// rest of the editor does, and prints an id only for a reference nothing resolves.
-	const where = (issue: Issue): string => issuePlace(store.doc, issue.ref);
+	const where = (issue: Issue): string[] => issuePlace(store.doc, issue.ref);
 </script>
 
 <aside class="panel" aria-label="Kontrola kurzu">
@@ -69,7 +70,7 @@
 				<li>
 					<button type="button" class="issue" onclick={() => jump(issue)}>
 						<span class="message">{issue.message}</span>
-						<span class="where">{where(issue)}</span>
+						<Crumbs class="issue-where" parts={where(issue)} />
 					</button>
 				</li>
 			{/each}
@@ -83,7 +84,7 @@
 				<li>
 					<button type="button" class="issue" onclick={() => jump(issue)}>
 						<span class="message">{issue.message}</span>
-						<span class="where">{where(issue)}</span>
+						<Crumbs class="issue-where" parts={where(issue)} />
 					</button>
 					<button
 						type="button"
@@ -188,7 +189,7 @@
 		font: var(--type-body-small);
 	}
 
-	.where {
+	:global(.issue-where) {
 		color: var(--e-text-faint);
 		font: var(--type-code);
 	}

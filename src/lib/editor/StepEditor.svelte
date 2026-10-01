@@ -283,8 +283,8 @@
 		const parts: string[] = [];
 		if (loss.answers > 0) {
 			const extras: string[] = [];
-			if (loss.withFeedback > 0) extras.push(`${loss.withFeedback}× s vysvětlením pro žáka`);
-			if (loss.withBranching > 0) extras.push(`${loss.withBranching}× s větvením na jiný krok`);
+			if (loss.withFeedback > 0) extras.push(`${loss.withFeedback} s vysvětlením pro žáka`);
+			if (loss.withBranching > 0) extras.push(`${loss.withBranching} s větvením na jiný krok`);
 			const suffix = extras.length > 0 ? ` (z toho ${extras.join(', ')})` : '';
 			parts.push(`smaže ${answersCount(loss.answers)}${suffix}`);
 		}

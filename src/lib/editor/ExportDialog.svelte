@@ -14,6 +14,7 @@
 	 */
 	import Modal from '$lib/ui/Modal.svelte';
 	import Button from '$lib/ui/Button.svelte';
+	import Crumbs from '$lib/ui/Crumbs.svelte';
 	import { useStore } from '$lib/ui/context';
 	import { groupIssues, type IssueGroup, type IssueRow } from '$lib/domain/issue-groups';
 	import { counted, warningsCount } from '$lib/ui/plural';
@@ -68,7 +69,7 @@
 					{#each group.rows as row, i (i)}
 						<li>
 							<div class="text">
-								{#if row.detail}<span class="detail">{row.detail}</span>{/if}
+								{#if row.detail.length > 0}<Crumbs class="issue-detail" parts={row.detail} />{/if}
 								<span class="message">{row.issue.message}</span>
 								{#if higherMode(row.target)}
 									{@const need = higherMode(row.target)!}
@@ -217,7 +218,7 @@
 		min-width: 0;
 	}
 
-	.detail {
+	:global(.issue-detail) {
 		color: var(--e-text-muted);
 		font-size: var(--text-xs);
 	}

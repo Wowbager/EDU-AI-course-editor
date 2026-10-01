@@ -59,7 +59,7 @@ describe('grouping the broken variant for the export review', () => {
 		expect(stepRows.length).toBeGreaterThan(0);
 		for (const row of stepRows) {
 			// E_DUPLICATE_STEP_ID is about the id itself, and a step that resolves is named.
-			expect(row.detail).toMatch(/^Krok \d+/);
+			expect(row.detail[0]).toMatch(/^Krok \d+/);
 		}
 	});
 });
@@ -77,7 +77,7 @@ describe('issueLessonId and issuePlace', () => {
 	});
 
 	it('names the course when a ref points at nothing smaller', () => {
-		expect(issuePlace(doc, { field: 'version' })).toBe('kurz');
+		expect(issuePlace(doc, { field: 'version' })).toEqual(['kurz']);
 	});
 
 	it('puts course-level issues in one "Celý kurz" group', () => {
@@ -90,7 +90,7 @@ describe('issueLessonId and issuePlace', () => {
 		const groups = groupIssues(doc, index, [issue('A'), issue('B')]);
 		expect(groups).toHaveLength(1);
 		expect(groups[0]).toMatchObject({ kind: 'course', title: 'Celý kurz' });
-		expect(groups[0].rows.map((r) => r.detail)).toEqual(['', '']);
+		expect(groups[0].rows.map((r) => r.detail)).toEqual([[], []]);
 	});
 
 	it('says a card in no lesson is in none', () => {

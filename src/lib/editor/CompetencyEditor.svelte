@@ -8,6 +8,7 @@
 	 * front end and nothing else has to move.
 	 */
 	import type { BlockV2 } from '$lib/domain/schema';
+	import { X } from '@lucide/svelte';
 	import Chip from '$lib/ui/Chip.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import { useStore } from '$lib/ui/context';
@@ -82,7 +83,9 @@
 						onchange={(e) => reweight(key, e.currentTarget.value)}
 					/>
 					<span class="unit">%</span>
-					<button type="button" aria-label={`Odebrat ${key}`} onclick={() => remove(key)}>×</button>
+					<button type="button" aria-label={`Odebrat ${key}`} onclick={() => remove(key)}
+						><X size={14} aria-hidden="true"></X></button
+					>
 				</li>
 			{/each}
 		</ul>
