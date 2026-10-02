@@ -1,5 +1,8 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { XCircle } from '@lucide/svelte';
+	import Toast from '$lib/editor/Toast.svelte';
+	import { notices } from '$lib/state/notice.svelte';
 
 	/**
 	 * A real modal: focus goes in, Escape and the backdrop get you out, and the page
@@ -32,7 +35,10 @@
 		// Whatever had focus opened us; it is where focus belongs again afterwards.
 		const opener = document.activeElement;
 		element.showModal();
+		// Counted without being read: the effect must not rerun because the count moved.
+		untrack(() => (notices.modals += 1));
 		return () => {
+			untrack(() => (notices.modals -= 1));
 			if (element.open) element.close();
 			if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
 		};
@@ -73,6 +79,12 @@
 		{#if footer}
 			<footer>{@render footer()}</footer>
 		{/if}
+
+		<!-- Everything outside a modal is inert, the page's notice included: an undo
+		     offered there could be seen and not clicked. -->
+		<div class="notice">
+			<Toast inModal />
+		</div>
 	</div>
 </dialog>
 
@@ -98,9 +110,21 @@
 	}
 
 	.panel {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		max-height: 80vh;
+	}
+
+	/* Over the bottom of the dialog, clear of its footer's buttons. */
+	.notice {
+		position: absolute;
+		left: 20px;
+		right: 20px;
+		bottom: 64px;
+		display: flex;
+		justify-content: center;
+		pointer-events: none;
 	}
 
 	header {

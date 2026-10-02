@@ -24,6 +24,12 @@ export interface Notice {
  */
 export class Notices {
 	current = $state<Notice | null>(null);
+	/**
+	 * How many modal dialogs are open. A modal makes the rest of the page inert, so a
+	 * notice drawn in the page could be seen but not clicked: while one is open, the
+	 * innermost dialog draws the notice instead, and the page's slot stays empty.
+	 */
+	modals = $state(0);
 	#count = 0;
 	#timer: ReturnType<typeof setTimeout> | undefined;
 

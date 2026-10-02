@@ -84,6 +84,14 @@ test('a skill is added in three steps, switched to "Využívá" and removed agai
 	await row.getByRole('button', { name: 'Odebrat Zlomky' }).click();
 	await expect(row).toHaveCount(0);
 	await expect(section.getByText('nenastaveno', { exact: true })).toBeVisible();
+
+	// The notice is drawn in the dialog, the one place a click can reach while it is open.
+	const notice = dialog.locator('.toast');
+	await expect(notice).toContainText('Dovednost odebrána.');
+	await notice.getByRole('button', { name: 'Vrátit zpět' }).click();
+	await expect(row).toHaveCount(1);
+	// One notice, not a second copy behind the dialog.
+	await expect(page.locator('.toast')).toHaveCount(0);
 });
 
 test('the code and the difficulty appear only in Pokročilý', async ({ page }) => {

@@ -1,6 +1,7 @@
 <script lang="ts">
 	/**
-	 * The editor's one notice (`state/notice.svelte.ts`), drawn once by the page.
+	 * The editor's one notice (`state/notice.svelte.ts`), drawn by the page, or by the
+	 * open modal dialog while there is one (`notices.modals`).
 	 *
 	 * The live region is always in the page and the notice comes into it, because a
 	 * screen reader announces a change inside a region that is already there and does
@@ -9,8 +10,14 @@
 	import { notices } from '$lib/state/notice.svelte';
 	import { useStore } from '$lib/ui/context';
 
+	interface Props {
+		/** Drawn inside a modal dialog, which is then the only place it can be clicked. */
+		inModal?: boolean;
+	}
+	let { inModal = false }: Props = $props();
+
 	const store = useStore();
-	const notice = $derived(notices.current);
+	const notice = $derived(inModal === notices.modals > 0 ? notices.current : null);
 	// Never let a stale notice undo a later, unrelated edit.
 	const undoable = $derived(notice?.entry !== undefined && store.undoStack.at(-1) === notice.entry);
 
