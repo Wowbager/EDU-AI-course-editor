@@ -7,6 +7,7 @@
 	 * codes are typed rather than picked; when the table arrives this becomes its
 	 * front end and nothing else has to move.
 	 */
+	import { parseNumberInput } from '$lib/domain/number-input';
 	import type { BlockV2 } from '$lib/domain/schema';
 	import { Trash2 } from '@lucide/svelte';
 	import { tick } from 'svelte';
@@ -45,9 +46,8 @@
 
 	/** A weight is a percentage; empty or unreadable is `undefined`, never 0. */
 	function readWeight(raw: string): number | undefined {
-		if (raw.trim() === '') return undefined;
-		const value = Number(raw.replace(',', '.'));
-		return Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : undefined;
+		const value = parseNumberInput(raw);
+		return value === undefined ? undefined : Math.min(100, Math.max(0, value));
 	}
 
 	function add() {

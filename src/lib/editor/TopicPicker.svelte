@@ -14,6 +14,7 @@
 	 * "využívá" in a small box. The list comes from the course's skill configuration,
 	 * never from a constant here (§3 invariant 6).
 	 */
+	import { parseNumberInput } from '$lib/domain/number-input';
 	import { tick } from 'svelte';
 	import type { BlockV2 } from '$lib/domain/schema';
 	import Chip from '$lib/ui/Chip.svelte';
@@ -91,10 +92,8 @@
 
 	/** An emptied (or unreadable) field gives back the default, never 0 clamped to the minimum. */
 	function setElo(index: number, raw: string) {
-		const parsed = raw.trim() === '' ? NaN : Number(raw.replace(',', '.'));
-		const elo = Number.isFinite(parsed)
-			? Math.min(ELO_MAX, Math.max(ELO_MIN, parsed))
-			: ELO_BASELINE;
+		const parsed = parseNumberInput(raw);
+		const elo = parsed === undefined ? ELO_BASELINE : Math.min(ELO_MAX, Math.max(ELO_MIN, parsed));
 		commit(topics.map((t) => (t.dimensionIndex === index ? { ...t, elo } : t)));
 	}
 

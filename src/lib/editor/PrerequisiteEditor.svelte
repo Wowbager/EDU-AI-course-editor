@@ -11,6 +11,7 @@
 	 * The app does not enforce these yet. The label says so rather than promising an
 	 * effect the student will never experience.
 	 */
+	import { parseNumberInput } from '$lib/domain/number-input';
 	import type { BlockV2, CourseV2, PrerequisiteRule } from '$lib/domain/schema';
 	import { useStore } from '$lib/ui/context';
 	import Button from '$lib/ui/Button.svelte';
@@ -100,9 +101,8 @@
 	const percent = (level: number) => Math.round(level * 100);
 
 	function setLevel(index: number, input: HTMLInputElement) {
-		const raw = input.value.trim().replace(',', '.');
-		const value = raw === '' ? NaN : Number(raw);
-		if (!Number.isFinite(value)) {
+		const value = parseNumberInput(input.value);
+		if (value === undefined) {
 			// The level is required by the format: emptying the field keeps the old one.
 			problem = 'Doplň, kolik procent musí žák zvládat. Zůstala původní hodnota.';
 			input.value = String(percent(rules[index]?.min_level ?? DEFAULT_LEVEL));
