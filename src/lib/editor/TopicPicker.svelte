@@ -31,7 +31,7 @@
 		type SkillDimension,
 		type SkillTreeSkill
 	} from '$lib/domain/skill-config';
-	import { ChevronLeft, Plus, X } from '@lucide/svelte';
+	import { ChevronLeft, Plus, Trash2 } from '@lucide/svelte';
 
 	interface Props {
 		block: BlockV2;
@@ -89,12 +89,14 @@
 	const setRelation = (index: number, relation: 1 | 2) =>
 		commit(topics.map((t) => (t.dimensionIndex === index ? { ...t, relation } : t)));
 
-	const setElo = (index: number, elo: number) =>
-		commit(
-			topics.map((t) =>
-				t.dimensionIndex === index ? { ...t, elo: Math.min(ELO_MAX, Math.max(ELO_MIN, elo)) } : t
-			)
-		);
+	/** An emptied (or unreadable) field gives back the default, never 0 clamped to the minimum. */
+	function setElo(index: number, raw: string) {
+		const parsed = raw.trim() === '' ? NaN : Number(raw.replace(',', '.'));
+		const elo = Number.isFinite(parsed)
+			? Math.min(ELO_MAX, Math.max(ELO_MIN, parsed))
+			: ELO_BASELINE;
+		commit(topics.map((t) => (t.dimensionIndex === index ? { ...t, elo } : t)));
+	}
 
 	// The box: a native popover, placed once by `placeMenu` as `Menu` does.
 	type Step = 'skill' | 'level' | 'relation';
@@ -284,8 +286,13 @@
 									min={ELO_MIN}
 									max={ELO_MAX}
 									step="0.5"
+									placeholder={`výchozí ${ELO_BASELINE}`}
 									value={topic.elo}
-									onchange={(e) => setElo(topic.dimensionIndex, Number(e.currentTarget.value))}
+									onchange={(e) => {
+										setElo(topic.dimensionIndex, e.currentTarget.value);
+										// The row may not re-render when the value is unchanged.
+										if (e.currentTarget.value.trim() === '') e.currentTarget.value = '';
+									}}
 								/>
 							</label>
 						{/if}
@@ -297,7 +304,7 @@
 							aria-label={`Odebrat ${skillName}`}
 							onclick={() => remove(topic.dimensionIndex)}
 						>
-							<X size={14} aria-hidden="true"></X>
+							<Trash2 size={15} aria-hidden="true"></Trash2>
 						</button>
 					</li>
 				{/each}
@@ -460,7 +467,7 @@
 	}
 
 	input[type='number'] {
-		width: 64px;
+		width: 84px;
 		padding: 2px 6px;
 		border: 1px solid var(--e-border);
 		border-radius: var(--radius-xs);
@@ -468,32 +475,20 @@
 		font-size: var(--text-s);
 	}
 
-	/* Faded, not hidden: it must stay reachable by keyboard. */
+	/* Always visible, only quiet: a delete nobody can find is no delete. */
 	.remove {
 		display: inline-flex;
-		padding: 4px;
+		padding: 6px;
 		border: none;
 		border-radius: var(--radius-xs);
 		background: none;
 		color: var(--e-text-faint);
 		cursor: pointer;
-		opacity: 0;
-		transition: opacity 120ms;
+		transition: color 120ms;
 	}
 
-	li:hover .remove,
-	li:focus-within .remove,
+	.remove:hover,
 	.remove:focus-visible {
-		opacity: 1;
-	}
-
-	@media (hover: none) {
-		.remove {
-			opacity: 1;
-		}
-	}
-
-	.remove:hover {
 		color: var(--e-error);
 	}
 
