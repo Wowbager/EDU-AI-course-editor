@@ -60,7 +60,13 @@ describe('what a card is called', () => {
 
 	it('strips markdown and LaTeX delimiters out of the derived name', () => {
 		const b = block({ steps: [{ id: 's1', type: 'text', content: '## Zlomek $\\frac{a}{b}$' }] });
-		expect(blockPreview(b)).toBe('Zlomek \\frac{a}{b}');
+		expect(blockPreview(b)).toBe('Zlomek a/b');
+	});
+
+	it('shows an authored title with LaTeX as words, without changing it', () => {
+		const b = block({ name: 'Zlomek \\frac{5}{7}' });
+		expect(blockPreview(b)).toBe('Zlomek 5/7');
+		expect(b.name).toBe('Zlomek \\frac{5}{7}');
 	});
 
 	it('names an empty card by its position in the lesson when it has one', () => {

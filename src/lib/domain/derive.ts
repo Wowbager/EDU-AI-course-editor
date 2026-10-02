@@ -6,6 +6,7 @@
  */
 import type { BlockStep, BlockV2, CourseV2, LessonV2, QuestionConfig } from './schema';
 import type { DocIndex } from './index-doc';
+import { plainMath } from './plain-math';
 
 /** `"3 min"` / `"3"` / `3` → 3. Undefined when the block declares no duration. */
 export function blockDurationMinutes(block: BlockV2): number | undefined {
@@ -224,7 +225,7 @@ export function derivedBlockName(block: BlockV2, max = 70, position?: number): s
  */
 export function plainFirstLine(markdown: string): string {
 	return (
-		markdown
+		plainMath(markdown)
 			// Markdown and LaTeX delimiters are syntax, not words. A card called
 			// "Zlomek $\frac{a}{b}$ popisuje…" is harder to recognise than one called
 			// "Zlomek \frac{a}{b} popisuje…", and much harder than the prose around it.
@@ -343,7 +344,8 @@ export function mediaFileName(url: string | undefined): string {
  */
 export function blockPreview(block: BlockV2, max = 70, position?: number): string {
 	const authored = (block.name ?? '').trim();
-	if (authored !== '') return truncate(authored, max);
+	// Display only: the authored text may carry LaTeX, and it stays that way in the document.
+	if (authored !== '') return truncate(plainMath(authored), max);
 	return derivedBlockName(block, max, position);
 }
 
