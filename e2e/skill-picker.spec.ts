@@ -35,7 +35,7 @@ test('a skill is added in three steps, switched to "Využívá" and removed agai
 	const { dialog, section } = await load(page);
 	const picker = page.getByRole('dialog', { name: 'Přidat dovednost' });
 
-	await expect(section.getByText('nenastaveno')).toBeVisible();
+	await expect(section.getByText('nenastaveno', { exact: true })).toBeVisible();
 	await section.getByRole('button', { name: 'Přidat dovednost', exact: true }).click();
 	await expect(picker).toBeVisible();
 
@@ -83,7 +83,7 @@ test('a skill is added in three steps, switched to "Využívá" and removed agai
 
 	await row.getByRole('button', { name: 'Odebrat Zlomky' }).click();
 	await expect(row).toHaveCount(0);
-	await expect(section.getByText('nenastaveno')).toBeVisible();
+	await expect(section.getByText('nenastaveno', { exact: true })).toBeVisible();
 });
 
 test('the code and the difficulty appear only in Pokročilý', async ({ page }) => {

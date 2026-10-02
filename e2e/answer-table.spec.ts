@@ -54,7 +54,7 @@ test.beforeEach(async ({ page }) => {
 	await openEditor(page);
 });
 
-test('the trash of an answer shows when its row is pointed at, and is red only under the pointer', async ({
+test('the trash of an answer is faintly there, full when its row is pointed at, and red only under the pointer', async ({
 	page
 }) => {
 	await addQuestionCard(page);
@@ -70,12 +70,13 @@ test('the trash of an answer shows when its row is pointed at, and is red only u
 			.nth(i)
 			.evaluate((el) => getComputedStyle(el).color);
 	await page.mouse.move(0, 0);
-	await expect.poll(() => opacity(0)).toBe(0);
+	// Faint, never invisible: a teacher must be able to see that an answer can go.
+	await expect.poll(() => opacity(0)).toBe(0.45);
 
 	const rows = page.locator('.answers .row');
 	await rows.nth(0).hover();
 	await expect.poll(() => opacity(0)).toBe(1);
-	await expect.poll(() => opacity(1)).toBe(0);
+	await expect.poll(() => opacity(1)).toBe(0.45);
 	const rest = await color(0);
 
 	await trash(page).nth(0).hover();
@@ -192,8 +193,8 @@ test('the detail line opens from the row, and a set value is read without openin
 		options[1].go_to = 'END';
 	});
 	const rows = page.locator('.answers .row');
-	// The control is quiet until the row is pointed at, and named for a screen reader.
-	await expect(details(page).first()).toHaveCSS('opacity', '0');
+	// The control is faint until the row is pointed at, and named for a screen reader.
+	await expect(details(page).first()).toHaveCSS('opacity', '0.45');
 	await rows.first().hover();
 	await expect(details(page).first()).toHaveCSS('opacity', '1');
 

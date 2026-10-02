@@ -197,6 +197,8 @@ test('the card keeps Nastavení karty in view and the rest in one menu, deleting
 	await expect(menu.getByRole('menuitem')).toHaveText([
 		'Duplikovat kartu',
 		'Odebrat z lekce',
+		'Posunout nahoru',
+		'Posunout dolů',
 		'Smazat kartu'
 	]);
 	await page.keyboard.press('Escape');

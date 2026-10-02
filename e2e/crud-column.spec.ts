@@ -1,4 +1,4 @@
-import { expect, test, openEditor } from './fixtures';
+import { cardMenu, expect, test, openEditor, openMenu } from './fixtures';
 
 const COURSE = 'src/lib/domain/__tests__/fixtures/corpus/zlomky-5-trida.json';
 
@@ -35,22 +35,36 @@ test('a card, a step and a lesson move without dragging', async ({ page }) => {
 	const snippets = page.locator('.tree-card .snippet');
 	await page.locator('.tree-card').nth(1).click();
 	const second = await snippets.nth(1).innerText();
-	await page.getByRole('button', { name: 'Další akce s kartou' }).click();
-	await page.getByRole('menuitem', { name: 'Posunout nahoru' }).click();
+	let menu = await cardMenu(page);
+	await menu.getByRole('menuitem', { name: 'Posunout nahoru' }).click();
 	await expect(snippets.nth(0)).toHaveText(second);
 	// At the top it cannot go further up.
-	await page.getByRole('button', { name: 'Další akce s kartou' }).click();
-	await expect(page.getByRole('menuitem', { name: 'Posunout nahoru' })).toBeDisabled();
+	menu = await cardMenu(page);
+	await expect(menu.getByRole('menuitem', { name: 'Posunout nahoru' })).toBeDisabled();
 	await page.keyboard.press('Escape');
+	await expect(menu).toBeHidden();
 
 	// A step: the handle answers the arrow keys, the menu has the same two actions.
 	const grips = page.getByRole('button', { name: /^Přesunout krok/ });
-	const firstText = await page.locator('article.step').first().innerText();
+	// Compared by content: the header's "Krok N" follows the position, as it should.
+	const content = (i: number) =>
+		page
+			.getByRole('group', { name: /^Obsah kroku/ })
+			.nth(i)
+			.getByRole('textbox')
+			.first();
+	const firstText = (await content(0).textContent()) ?? '';
 	await grips.first().focus();
 	await page.keyboard.press('ArrowDown');
-	await expect(page.locator('article.step').nth(1)).toHaveText(firstText);
-	await page.getByRole('button', { name: 'Další akce s krokem' }).first().click();
-	await expect(page.getByRole('menuitem', { name: 'Posunout nahoru' })).toBeDisabled();
+	await expect(content(1)).toHaveText(firstText);
+	const stepMenu = page.getByRole('menu', { name: 'Další akce s krokem', exact: true });
+	await openMenu(
+		page,
+		page.getByRole('button', { name: 'Další akce s krokem' }).first(),
+		'Další akce s krokem',
+		stepMenu.getByRole('menuitem', { name: 'Posunout nahoru' })
+	);
+	await expect(stepMenu.getByRole('menuitem', { name: 'Posunout nahoru' })).toBeDisabled();
 	await page.keyboard.press('Escape');
 
 	// A lesson, from its settings.
