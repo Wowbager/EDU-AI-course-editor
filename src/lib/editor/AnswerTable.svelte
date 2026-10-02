@@ -23,6 +23,7 @@
 	import { optionOutcomesApply } from '$lib/domain/derive';
 	import { MIN_CHOICE_OPTIONS } from '$lib/domain/validate';
 	import { Check, ChevronRight, CornerDownRight, Plus, Trash } from '@lucide/svelte';
+	import { withUndoNotice } from './undo-notice';
 
 	interface Props {
 		doc: CourseV2;
@@ -257,7 +258,12 @@
 								: 'Smazat odpověď'}
 							ariaLabel={`Smazat odpověď ${option.text || 'bez textu'}`}
 							onclick={() =>
-								store.apply((d) => deleteOption(d, block.block_id, step.id, option.id))}
+								withUndoNotice(
+									store,
+									'Odpověď smazána.',
+									() => store.apply((d) => deleteOption(d, block.block_id, step.id, option.id)),
+									{ lessonId: store.selection?.lessonId, blockId: block.block_id, stepId: step.id }
+								)}
 						>
 							<Trash size={14}></Trash>
 						</Button>
@@ -418,7 +424,7 @@
 		background: none;
 		color: var(--e-text-muted);
 		cursor: pointer;
-		opacity: 0;
+		opacity: 0.45;
 		transition: opacity 120ms;
 	}
 
@@ -558,13 +564,12 @@
 	}
 
 	/*
-     * Removing an answer is rare, so its button is not part of the table's look: it
-     * is there when the row is pointed at or worked in, and red only under the pointer.
-     * A screen with no hover shows it always.
+     * Removing an answer is rare, so its button is faint (like the step handle) and
+     * full when the row is pointed at or worked in, red only under the pointer.
      */
 	.trash {
 		display: inline-flex;
-		opacity: 0;
+		opacity: 0.45;
 		transition: opacity 120ms;
 	}
 

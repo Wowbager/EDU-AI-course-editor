@@ -15,6 +15,7 @@
 	 * never from a constant here (§3 invariant 6).
 	 */
 	import { parseNumberInput } from '$lib/domain/number-input';
+	import { withUndoNotice } from './undo-notice';
 	import { tick } from 'svelte';
 	import type { BlockV2 } from '$lib/domain/schema';
 	import Chip from '$lib/ui/Chip.svelte';
@@ -85,7 +86,14 @@
 		store.apply((d) => setTopics(d, block.block_id, next, count, naming));
 	}
 
-	const remove = (index: number) => commit(topics.filter((t) => t.dimensionIndex !== index));
+	/** Like a removed step or answer, a removed skill says so and offers its undo. */
+	const remove = (index: number) =>
+		withUndoNotice(
+			store,
+			'Dovednost odebrána.',
+			() => commit(topics.filter((t) => t.dimensionIndex !== index)),
+			{ lessonId: store.selection?.lessonId, blockId: block.block_id }
+		);
 
 	const setRelation = (index: number, relation: 1 | 2) =>
 		commit(topics.map((t) => (t.dimensionIndex === index ? { ...t, relation } : t)));

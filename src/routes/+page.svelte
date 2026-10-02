@@ -137,7 +137,7 @@
 	 */
 	let modal = $state<
 		| { kind: 'course' }
-		| { kind: 'lesson'; lessonId: string }
+		| { kind: 'lesson'; lessonId: string; focusName?: boolean }
 		| { kind: 'card'; blockId: string }
 		| null
 	>(null);
@@ -228,12 +228,14 @@
 				return;
 			store.load(imported);
 			inherited = true;
-			// A file brings its number with it: recorded as a version, so the next
-			// save cannot reuse the number it was already published under.
-			void versions.recordImport(imported);
 			// Every question gets its own card in the app; the teacher's cards stay
 			// as they were written (`domain/groups.ts`).
 			const { split, keptTogether } = store.splitQuestions();
+			// A file brings its number with it: recorded as a version, so the next
+			// save cannot reuse the number it was already published under. Recorded
+			// after the split, as the editor holds the course: before it, the split
+			// itself made the new version read "upraveno" before any edit was made.
+			void versions.recordImport($state.snapshot(store.source));
 			store.selection =
 				imported.lessons[0] !== undefined ? { lessonId: imported.lessons[0].lesson_id } : null;
 			importNotes = [...report.notes, ...splitNotes(split, keptTogether)];
@@ -448,7 +450,8 @@
 			collapsed={sidebarCollapsed}
 			ontoggle={() => (sidebarCollapsed = !sidebarCollapsed)}
 			oncourseSettings={() => (modal = { kind: 'course' })}
-			onlessonSettings={(lessonId) => (modal = { kind: 'lesson', lessonId })}
+			onlessonSettings={(lessonId, options) =>
+				(modal = { kind: 'lesson', lessonId, focusName: options?.focusName })}
 			oncardSettings={(blockId) => (modal = { kind: 'card', blockId })}
 			onrepairBlock={(blockId) => (repairTarget = { blockId })}
 		/>
@@ -581,7 +584,12 @@
 	{#if modal?.kind === 'course'}
 		<CourseSettings {doc} onclose={() => (modal = null)} />
 	{:else if modal?.kind === 'lesson'}
-		<LessonSettings {doc} lessonId={modal.lessonId} onclose={() => (modal = null)} />
+		<LessonSettings
+			{doc}
+			lessonId={modal.lessonId}
+			focusName={modal.focusName}
+			onclose={() => (modal = null)}
+		/>
 	{:else if modal?.kind === 'card' && card !== undefined && card.block_id === modal.blockId}
 		<CardSettings
 			{doc}
