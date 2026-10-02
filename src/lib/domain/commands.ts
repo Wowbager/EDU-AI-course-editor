@@ -23,6 +23,7 @@ import type {
 } from './schema';
 import type { Ref } from './ref';
 import { lessonLabel } from './naming';
+import { deepCopy } from './clone';
 import { ELO_BASELINE } from './skill-config';
 import { buildIndex, referencesToBlock, referencesToStep, type Reference } from './index-doc';
 import {
@@ -685,7 +686,7 @@ export function duplicateStep(
 		throw new CommandError(`Krok „${stepId}“ v bloku není.`, { blockId, stepId });
 
 	const id = nextStepId(block.steps, blockId, reserved);
-	const copy: BlockStep = structuredClone(source);
+	const copy: BlockStep = deepCopy(source);
 	copy.id = id;
 
 	return {
@@ -1085,7 +1086,7 @@ export function setVisibility(doc: CourseV2, visibility: Visibility): CommandRes
  */
 export function restoreVersion(doc: CourseV2, saved: CourseV2, number: number): CommandResult {
 	const restored: CourseV2 = {
-		...structuredClone(saved),
+		...deepCopy(saved),
 		course_id: doc.course_id,
 		version: doc.version
 	};

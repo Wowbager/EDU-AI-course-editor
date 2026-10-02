@@ -18,6 +18,7 @@
  */
 import type { CourseV2 } from './schema';
 import { serialiseToJson } from './document';
+import { deepCopy } from './clone';
 
 export type Visibility = 'private' | 'public' | 'logged_only' | 'draft' | 'approved' | 'locked';
 
@@ -161,7 +162,7 @@ export function snapshot(
 	now: Date,
 	extra: Pick<VersionMeta, 'note' | 'restoredFrom' | 'origin'> = {}
 ): CourseVersion {
-	const frozen: CourseV2 = { ...structuredClone(doc), version: number };
+	const frozen: CourseV2 = { ...deepCopy(doc), version: number };
 	return {
 		courseId: doc.course_id,
 		version: number,

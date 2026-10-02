@@ -946,3 +946,35 @@ describe('deleting a lesson', () => {
 		expect(next.lessons.map((l) => l.order)).toEqual([1, 2]);
 	});
 });
+
+// ──────────────────── reactive documents ────────────────────
+
+/** What a Svelte `$state` document is to a command: every object behind a Proxy. */
+function reactive<T>(value: T): T {
+	if (typeof value !== 'object' || value === null) return value;
+	return new Proxy(value as object, {
+		get: (target, key, receiver) => reactive(Reflect.get(target, key, receiver))
+	}) as T;
+}
+
+describe('commands on a reactive (Proxy) document', () => {
+	it('structuredClone really cannot copy it, which is what broke Duplikovat krok', () => {
+		expect(() => structuredClone(reactive({ a: 1 }))).toThrow();
+	});
+
+	it('duplicateStep copies a step it was handed through a Proxy, independently', () => {
+		const doc = reactive(base());
+		const block = doc.blocks.find((b) => b.steps.length > 0)!;
+		const source = block.steps[0];
+		const result = duplicateStep(doc, block.block_id, source.id);
+		const updated = result.doc.blocks.find((b) => b.block_id === block.block_id)!;
+		expect(updated.steps).toHaveLength(block.steps.length + 1);
+		const copy = updated.steps.find((s) => s.id === result.ref!.stepId)!;
+		expect(copy.id).not.toBe(source.id);
+		expect({ ...copy, id: source.id, order: source.order }).toEqual(
+			JSON.parse(JSON.stringify({ ...source }))
+		);
+		copy.content = 'změněno';
+		expect(source.content).not.toBe('změněno');
+	});
+});
