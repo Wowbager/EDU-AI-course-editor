@@ -1967,6 +1967,45 @@ found the gaps (Nejkratší / Nejdelší odstup) under four fields of the memory
 gave up. The section now opens with „Kdy se karta vrací“, the two gaps first, and the
 model's starting values follow under „Výchozí odhad paměti“.
 
+### Every item can be added, seen, changed, removed and moved
+
+The owner, looking at a card with one skill: "is there a way to delete the dovednost?",
+and glyphs above the selected card in the sidebar; then: "the user must be able to add,
+edit and remove items (basically just making sure that everything follows the CRUD)". A
+subagent audited every settings and editor-column flow; what it found and what changed:
+
+- **Broken:** „Duplikovat krok“ threw on every step. `structuredClone` cannot copy the
+  `$state` proxy the UI hands a command, so commands copy through `deepCopy` (a JSON round
+  trip, `domain/clone.ts`), tested on a Proxy document.
+- **Removing is visible.** A skill's, an RVP output's and a prerequisite's delete is a
+  faint icon that turns red on hover, never invisible. An answer's delete and its
+  „Podrobnosti odpovědi“ sit at 0.45 opacity at rest instead of 0. Removing a skill, a step
+  or an answer says so with „Vrátit zpět“, as removing a card always did
+  (`withUndoNotice`). Lesson Smazat needs a second click, like a card's.
+- **Moving needs no drag.** „Posunout nahoru / dolů“ in the card's ⋯ menu, in a step's new
+  ⋯ menu, and as buttons in Nastavení lekce (`moveStep`, `moveLesson`); the step's handle
+  answers the arrow keys.
+- **Editing cannot write nonsense.** Ročník, Úroveň zvládnutí, Bloomova úroveň and Odhad
+  obtížnosti are named options (`numeric` selects, still numbers in the document). An
+  emptied number is unset (`parseNumberInput`), and an emptied skill difficulty returns to
+  the baseline. An RVP code is edited in place, and adding one the card has is refused. A
+  prerequisite starts from a card picker, so there is no empty rule; its threshold is a
+  percentage. A prerequisite's threshold is required by the format, so emptying it keeps
+  the old one and says so.
+- **What a teacher reads.** Card names show formulas as text (`plainMath`: `\frac{5}{7}` →
+  5/7), in display only. Empty FSRS fields say their default (`FieldSpec.default`).
+  „Upraveno“ is a Czech date and read-only, since nothing in the editor writes it. The
+  sidebar's action band covers the whole row, so no glyph shows above it.
+- **Smaller:** a new lesson opens its settings with the name selected; „Více otázek v
+  jedné kartě“ says how many cards it will merge or split; an imported course no longer
+  reads „upraveno“ (version 1 is recorded after the import's question split, so it holds
+  the form the editor works with rather than the file's bytes).
+
+*Rejected:* hover-only removal inside the dialogs, which the brief's "actions on hover"
+suggested: a row of settings is not running content, and a delete the owner could not
+find is not quiet, it is missing. *Not changed:* the amber „nenastaveno“ / „výchozí sada“
+chips; ids in Pokročilý's „Údaje o …“ and step headers, which that mode exists to show.
+
 ### Changed without being asked
 
 - Nastavení kurzu uses the same list, so the three dialogs work alike.
