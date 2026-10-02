@@ -21,18 +21,20 @@
 	import { fieldsFor, listsSections, sectionsFor } from '$lib/ui/fields';
 	import { sectionHasIssue, sectionTargeted } from '$lib/ui/settings-target';
 	import { SettingsSearch, setSettingsSearch } from '$lib/ui/settings-search.svelte';
-	import { duplicateLesson, setField } from '$lib/domain/commands';
+	import { duplicateLesson, moveLesson, setField } from '$lib/domain/commands';
 	import { removeLesson } from './lesson-actions';
 	import { lessonDidactics, lessonTotals } from '$lib/domain/derive';
 	import { cardsCount } from '$lib/ui/plural';
-	import { Copy, Trash } from '@lucide/svelte';
+	import { ArrowDown, ArrowUp, Copy, Trash } from '@lucide/svelte';
 
 	interface Props {
 		doc: CourseV2;
 		lessonId: string;
+		/** Select the name on opening: the lesson was just made and has a placeholder name. */
+		focusName?: boolean;
 		onclose: () => void;
 	}
-	let { doc, lessonId, onclose }: Props = $props();
+	let { doc, lessonId, focusName = false, onclose }: Props = $props();
 
 	const store = useStore();
 	const lesson = $derived(doc.lessons.find((l) => l.lesson_id === lessonId));
@@ -54,6 +56,44 @@
 	}));
 	setSettingsSearch(search);
 
+	/**
+	 * Smazat takes two clicks, like a card's: the first arms it (and says so in its
+	 * name), the second deletes. It disarms after a few seconds and when focus leaves.
+	 */
+	const ARMED_MS = 4000;
+	let armed = $state(false);
+	$effect(() => {
+		if (!armed) return;
+		const timer = setTimeout(() => (armed = false), ARMED_MS);
+		return () => clearTimeout(timer);
+	});
+
+	function clickDelete() {
+		if (!armed) {
+			armed = true;
+			return;
+		}
+		armed = false;
+		removeLesson(store, lessonId);
+		onclose();
+	}
+
+	const place = $derived(doc.lessons.findIndex((l) => l.lesson_id === lessonId));
+	const move = (delta: -1 | 1) => store.apply((d) => moveLesson(d, lessonId, delta));
+
+	let fieldsEl = $state<HTMLElement | null>(null);
+	$effect(() => {
+		if (!focusName || fieldsEl === null) return;
+		// After the dialog has put focus where it wants it.
+		const input = fieldsEl.querySelector<HTMLInputElement>('input');
+		if (input === null) return;
+		const timer = setTimeout(() => {
+			input.focus();
+			input.select();
+		}, 0);
+		return () => clearTimeout(timer);
+	});
+
 	const set = (field: string, value: unknown) =>
 		store.apply((d) => setField(d, { lessonId, field }, value));
 	const read = (path: string): unknown => (lesson as Record<string, unknown> | undefined)?.[path];
@@ -62,8 +102,24 @@
 {#snippet pane(id: string)}
 	{#if lesson !== undefined}
 		{#if id === 'main'}
-			<div class="fields">
+			<div class="fields" bind:this={fieldsEl}>
 				<FieldGroup fields={inSection('main')} {read} write={set} />
+			</div>
+
+			<div class="order">
+				<Button variant="ghost" size="s" onclick={() => move(-1)} disabled={place <= 0}>
+					<ArrowUp size={16}></ArrowUp>
+					Posunout nahoru
+				</Button>
+				<Button
+					variant="ghost"
+					size="s"
+					onclick={() => move(1)}
+					disabled={place < 0 || place >= doc.lessons.length - 1}
+				>
+					<ArrowDown size={16}></ArrowDown>
+					Posunout dolů
+				</Button>
 			</div>
 
 			{#if totals !== undefined}
@@ -127,15 +183,13 @@
 		Duplikovat
 	</Button>
 	<Button
-		variant="danger"
-		onclick={() => {
-			removeLesson(store, lessonId);
-			onclose();
-		}}
-		ariaLabel="Smazat lekci"
+		variant={armed ? 'danger-solid' : 'danger'}
+		onclick={clickDelete}
+		onblur={() => (armed = false)}
+		ariaLabel={armed ? 'Opravdu smazat lekci? Klikni znovu' : 'Smazat lekci'}
 	>
 		<Trash size={16}></Trash>
-		Smazat
+		{armed ? 'Opravdu smazat? Klikni znovu' : 'Smazat'}
 	</Button>
 	<div class="spacer"></div>
 	<Button variant="secondary" onclick={onclose}>Hotovo</Button>
@@ -148,6 +202,11 @@
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
+	}
+
+	.order {
+		display: flex;
+		gap: 4px;
 	}
 
 	.totals {

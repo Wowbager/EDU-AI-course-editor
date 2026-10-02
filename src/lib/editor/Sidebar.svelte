@@ -51,7 +51,7 @@
 		collapsed: boolean;
 		ontoggle: () => void;
 		oncourseSettings: () => void;
-		onlessonSettings: (lessonId: string) => void;
+		onlessonSettings: (lessonId: string, options?: { focusName?: boolean }) => void;
 		oncardSettings: (blockId: string) => void;
 		/** A card another card points at: the repair dialog decides where those go. */
 		onrepairBlock: (blockId: string) => void;
@@ -199,6 +199,16 @@
 			return;
 		}
 		oncardkey(event, lessonId, blockId, position);
+	}
+
+	/**
+	 * A new lesson is named "Nová lekce" until the teacher says otherwise, so its
+	 * settings open with the name selected: typing renames it.
+	 */
+	function newLesson() {
+		const result = store.apply((d, r) => addLesson(d, undefined, r));
+		const lessonId = result.ref?.lessonId;
+		if (lessonId !== undefined) onlessonSettings(lessonId, { focusName: true });
 	}
 
 	function backToRow() {
@@ -403,7 +413,7 @@
 				already in the course ("Nová lekce", "Nová lekce 2", …). Passing the
 				literal here is what made every new lesson identical in this list.
 			-->
-			<Button variant="secondary" onclick={() => store.apply((d, r) => addLesson(d, undefined, r))}>
+			<Button variant="secondary" onclick={newLesson}>
 				<Plus size={16}></Plus> Nová lekce
 			</Button>
 		</div>
@@ -658,15 +668,16 @@
 	 */
 	.tree-actions {
 		position: absolute;
-		top: 50%;
+		top: 0;
+		bottom: 0;
 		right: 0;
 		display: flex;
 		align-items: center;
-		padding: 2px 6px;
-		background: var(--surface);
-		border-radius: var(--radius-xs);
+		padding: 0 6px 0 10px;
+		/* The band spans the whole row height, so no glyph of the title shows above it. */
+		background: linear-gradient(to right, transparent, var(--surface) 10px);
+		border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
 		opacity: 0;
-		transform: translateY(-50%);
 		transition: opacity 120ms ease;
 		pointer-events: none;
 	}

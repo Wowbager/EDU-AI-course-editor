@@ -41,7 +41,13 @@
 	import { uniqueKeys } from '$lib/ui/keys';
 	import { counted } from '$lib/ui/plural';
 	import { cardSettingsSummary } from '$lib/ui/fields';
-	import { addStep, bindBlock, reorderSteps, setField } from '$lib/domain/commands';
+	import {
+		addStep,
+		bindBlock,
+		moveBlockInLesson,
+		reorderSteps,
+		setField
+	} from '$lib/domain/commands';
 	import { lessonLabel } from '$lib/domain/naming';
 	import { cardActions } from './card-actions';
 	import {
@@ -51,7 +57,17 @@
 		effectiveBlockXp,
 		isPracticeBlock
 	} from '$lib/domain/derive';
-	import { Copy, Ellipsis, ListPlus, ListX, Plus, Settings, Trash } from '@lucide/svelte';
+	import {
+		ArrowDown,
+		ArrowUp,
+		Copy,
+		Ellipsis,
+		ListPlus,
+		ListX,
+		Plus,
+		Settings,
+		Trash
+	} from '@lucide/svelte';
 	import { STEP_TYPES } from '$lib/lang';
 	import { cardTypeIcon, cardTypeLabel } from '$lib/ui/card-types';
 
@@ -258,6 +274,24 @@
 		);
 	}
 
+	/** The card's place among its lesson's cards; -1 when it is opened outside a lesson. */
+	const place = $derived(
+		lessonId === undefined
+			? -1
+			: (doc.lessons
+					.find((l) => l.lesson_id === lessonId)
+					?.blocks.findIndex((b) => b.block_id === block.block_id) ?? -1)
+	);
+	const lessonCards = $derived(
+		doc.lessons.find((l) => l.lesson_id === lessonId)?.blocks.length ?? 0
+	);
+
+	function moveCard(delta: -1 | 1) {
+		if (lessonId === undefined) return;
+		const id = lessonId;
+		store.apply((d) => moveBlockInLesson(d, id, block.block_id, delta));
+	}
+
 	function showNotice(message: string, ref: Ref) {
 		const entry = store.undoStack.at(-1);
 		if (entry !== undefined) notices.show({ text: message, entry, ref });
@@ -384,6 +418,14 @@
 						: 'Odebere kartu z této lekce. Obsah zůstává v části Karty mimo lekci; smazat jde přes Smazat kartu.'}
 				>
 					Odebrat z lekce
+				</MenuItem>
+			{/if}
+			{#if place >= 0}
+				<MenuItem icon={ArrowUp} onclick={() => moveCard(-1)} disabled={place === 0}>
+					Posunout nahoru
+				</MenuItem>
+				<MenuItem icon={ArrowDown} onclick={() => moveCard(1)} disabled={place >= lessonCards - 1}>
+					Posunout dolů
 				</MenuItem>
 			{/if}
 			<MenuSeparator />

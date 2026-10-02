@@ -45,7 +45,7 @@
 		oncardkey: (event: KeyboardEvent, lessonId: string, blockId: string, position: number) => void;
 		errorsIn: (lessonId: string) => number;
 		errorsOn: (blockId: string) => number;
-		onlessonSettings: (lessonId: string) => void;
+		onlessonSettings: (lessonId: string, options?: { focusName?: boolean }) => void;
 		oncardSettings: (blockId: string) => void;
 		onrepairBlock: (blockId: string) => void;
 	}
@@ -266,6 +266,14 @@
 	) {
 		if (peekKey(event, key)) return;
 		oncardkey(event, lessonId, blockId, position);
+	} /**
+	 * A new lesson is named "Nová lekce" until the teacher says otherwise, so its
+	 * settings open with the name selected: typing renames it.
+	 */
+	function newLesson() {
+		const result = store.apply((d, r) => addLesson(d, undefined, r));
+		const lessonId = result.ref?.lessonId;
+		if (lessonId !== undefined) onlessonSettings(lessonId, { focusName: true });
 	}
 </script>
 
@@ -450,7 +458,7 @@
 	class="new-lesson"
 	aria-label="Nová lekce"
 	title="Nová lekce"
-	onclick={() => store.apply((d, r) => addLesson(d, undefined, r))}
+	onclick={newLesson}
 >
 	<Plus size={16}></Plus>
 </button>

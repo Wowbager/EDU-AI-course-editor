@@ -18,6 +18,7 @@
 	import type { BlockV2, CourseV2, LessonBlockBinding } from '$lib/domain/schema';
 	import Modal from '$lib/ui/Modal.svelte';
 	import Button from '$lib/ui/Button.svelte';
+	import { counted } from '$lib/ui/plural';
 	import Toggle from '$lib/ui/Toggle.svelte';
 	import FieldGroup from '$lib/ui/FieldGroup.svelte';
 	import SettingsNav from '$lib/ui/SettingsNav.svelte';
@@ -136,6 +137,19 @@
 				(card !== undefined && store.source.blocks.filter((b) => groupOf(b) === card).length > 1))
 	);
 
+	/** What flipping the toggle would do, said before it is flipped. */
+	const togetherConsequence = $derived.by(() => {
+		if (together) {
+			const n = questionCount(block);
+			return `Rozdělí kartu na ${counted(n, 'samostatnou kartu', 'samostatné karty', 'samostatných karet')}.`;
+		}
+		if (card === undefined) return '';
+		const n = store.source.blocks
+			.filter((b) => groupOf(b) === card)
+			.reduce((sum, b) => sum + Math.max(1, questionCount(b)), 0);
+		return `Spojí ${counted(n, 'otázku', 'otázky', 'otázek')} této karty do jedné.`;
+	});
+
 	function keepTogether(on: boolean) {
 		if (on && card !== undefined) {
 			store.applySource((d) => ({
@@ -195,6 +209,7 @@
 				hint="Žák dostane otázky v jedné kartě a aplikace je hodnotí jako jednu: nejlepší skóre, poslední známka, jedna karta k procvičování. Vypnuto: každá otázka je vlastní karta."
 				onchange={keepTogether}
 			/>
+			<p class="note" data-testid="together-consequence">{togetherConsequence}</p>
 		{/if}
 	{/if}
 {/snippet}

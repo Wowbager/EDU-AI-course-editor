@@ -231,7 +231,10 @@ test('deleting a lesson from its settings says so, moves on, and Vrátit zpět b
 	await expect(rows.nth(0)).toHaveClass(/selected/);
 
 	await page.getByRole('button', { name: 'Nastavení lekce Co je zlomek?' }).click();
+	// Two clicks: the first only arms it.
 	await page.getByRole('button', { name: 'Smazat lekci' }).click();
+	await expect(rows).toHaveCount(3);
+	await page.getByRole('button', { name: 'Opravdu smazat lekci? Klikni znovu' }).click();
 
 	// One sentence about what the lesson left behind, wherever the teacher looks.
 	const toast = page.locator('.toast');

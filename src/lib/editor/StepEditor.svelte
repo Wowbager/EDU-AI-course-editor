@@ -21,7 +21,7 @@
 	import FieldGroup from '$lib/ui/FieldGroup.svelte';
 	import { useStepView, useStore } from '$lib/ui/context';
 	import { dragHandle } from 'svelte-dnd-action';
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { refKey } from '$lib/domain/ref';
 	import Button from '$lib/ui/Button.svelte';
 	import { allows, fieldSpec, fieldsFor } from '$lib/ui/fields';
@@ -32,12 +32,16 @@
 		duplicateStep,
 		planDeleteStep,
 		setField,
-		setQuestionType
+		setQuestionType,
+		moveStep
 	} from '$lib/domain/commands';
 	import {
 		Check,
 		ChevronDown,
+		ArrowDown,
+		ArrowUp,
 		ChevronRight,
+		Ellipsis,
 		Copy,
 		CornerDownRight,
 		GripVertical,
@@ -51,6 +55,9 @@
 	import SettingsSection from '$lib/ui/SettingsSection.svelte';
 	import { sectionTargeted } from '$lib/ui/settings-target';
 	import { STEP_TYPES } from '$lib/lang';
+	import { withUndoNotice } from './undo-notice';
+	import Menu from '$lib/ui/Menu.svelte';
+	import MenuItem from '$lib/ui/MenuItem.svelte';
 
 	interface Props {
 		doc: CourseV2;
@@ -373,7 +380,12 @@
 
 	function remove() {
 		try {
-			store.apply((d) => deleteStep(d, block.block_id, step.id));
+			withUndoNotice(
+				store,
+				'Krok smazán.',
+				() => store.apply((d) => deleteStep(d, block.block_id, step.id)),
+				{ lessonId: store.selection?.lessonId, blockId: block.block_id, stepId: step.id }
+			);
 		} catch (error) {
 			if (error instanceof CommandError) onrepair(block.block_id, step.id);
 			else throw error;
@@ -415,6 +427,21 @@
 			!stepView.expanded(block.block_id, stepKey, step.id, store.selection)
 	);
 
+	const place = $derived(block.steps.findIndex((s) => s.id === step.id));
+
+	/** One place up or down — the buttons' and the handle's arrow keys' version of a drag. */
+	async function move(delta: -1 | 1) {
+		const to = place + delta;
+		if (place < 0 || to < 0 || to >= block.steps.length) return;
+		const focusGrip = root?.contains(document.activeElement) ?? false;
+		store.apply((d) => moveStep(d, block.block_id, step.id, delta));
+		// Moving a node in the DOM can drop its focus; give it back to the same handle.
+		if (focusGrip) {
+			await tick();
+			root?.querySelector<HTMLElement>('.grip')?.focus();
+		}
+	}
+
 	/**
 	 * The press on the handle, as a listener on the handle itself. A delegated
 	 * `onmousedown` never arrives: `svelte-dnd-action` handles the same press on the
@@ -424,6 +451,11 @@
 		const press = () => ongrab(handle);
 		const key = (event: KeyboardEvent) => {
 			if (event.key === 'Enter' || event.key === ' ') ongrab(handle);
+			else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+				event.preventDefault();
+				event.stopPropagation();
+				move(event.key === 'ArrowUp' ? -1 : 1);
+			}
 		};
 		handle.addEventListener('mousedown', press);
 		handle.addEventListener('touchstart', press);
@@ -467,7 +499,7 @@
 			class="grip"
 			use:dragHandle
 			aria-label="Přesunout krok {position}"
-			title="Přetažením změníš pořadí kroků"
+			title="Přetažením (nebo šipkami nahoru a dolů) změníš pořadí kroků"
 			use:grabbed
 		>
 			<GripVertical size={16}></GripVertical>
@@ -514,6 +546,18 @@
 		{/if}
 		<!-- Out of the way until the step is the one being worked on. -->
 		<div class="actions">
+			<Menu label="Další akce s krokem" icon={Ellipsis} placement="bottom-end">
+				<MenuItem icon={ArrowUp} onclick={() => move(-1)} disabled={place <= 0}>
+					Posunout nahoru
+				</MenuItem>
+				<MenuItem
+					icon={ArrowDown}
+					onclick={() => move(1)}
+					disabled={place < 0 || place >= block.steps.length - 1}
+				>
+					Posunout dolů
+				</MenuItem>
+			</Menu>
 			<Button
 				variant="ghost"
 				size="s"
