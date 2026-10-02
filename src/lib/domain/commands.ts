@@ -292,6 +292,20 @@ export function reorderLessons(doc: CourseV2, orderedIds: string[]): CommandResu
 	};
 }
 
+/**
+ * Move a lesson one place up (`-1`) or down (`1`) — the button's version of a drag.
+ * At either edge nothing moves and the same document comes back.
+ */
+export function moveLesson(doc: CourseV2, lessonId: string, delta: -1 | 1): CommandResult {
+	requireLesson(doc, lessonId);
+	const ids = doc.lessons.map((l) => l.lesson_id);
+	const from = ids.indexOf(lessonId);
+	const to = from + delta;
+	if (to < 0 || to >= ids.length) return { doc, description: 'Pořadí lekcí se nezměnilo' };
+	[ids[from], ids[to]] = [ids[to], ids[from]];
+	return reorderLessons(doc, ids);
+}
+
 // ──────────────────────────────────────── bindings ────────────────────────────────────────
 
 /** Bind an existing block into a lesson — the shared-block case (§5). */
@@ -750,6 +764,23 @@ export function reorderSteps(doc: CourseV2, blockId: string, orderedIds: string[
 		doc: mapBlock(doc, blockId, (b) => ({ ...b, steps: renumberOrder(reordered) })),
 		description: 'Změněno pořadí kroků'
 	};
+}
+
+/** Move a step one place up (`-1`) or down (`1`); at an edge the same document comes back. */
+export function moveStep(
+	doc: CourseV2,
+	blockId: string,
+	stepId: string,
+	delta: -1 | 1
+): CommandResult {
+	const block = requireBlock(doc, blockId);
+	const ids = block.steps.map((s) => s.id);
+	const from = ids.indexOf(stepId);
+	const to = from + delta;
+	if (from < 0 || to < 0 || to >= ids.length)
+		return { doc, description: 'Pořadí kroků se nezměnilo' };
+	[ids[from], ids[to]] = [ids[to], ids[from]];
+	return reorderSteps(doc, blockId, ids);
 }
 
 // ───────────────────────────────────────── options ─────────────────────────────────────────

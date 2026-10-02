@@ -22,6 +22,8 @@ import {
 	planDeleteStep,
 	renameBlock,
 	moveBlockInLesson,
+	moveLesson,
+	moveStep,
 	reorderBindings,
 	reorderSteps,
 	setField,
@@ -944,5 +946,40 @@ describe('deleting a lesson', () => {
 		const next = deleteLesson(doc, doc.lessons[0].lesson_id).doc;
 		expect(next.blocks).toBe(doc.blocks);
 		expect(next.lessons.map((l) => l.order)).toEqual([1, 2]);
+	});
+});
+
+describe('moveLesson and moveStep', () => {
+	it('moves a lesson one place and renumbers order', () => {
+		const doc = addLesson(base(), 'Druhá').doc;
+		const ids = doc.lessons.map((l) => l.lesson_id);
+		expect(ids.length).toBeGreaterThan(1);
+		const down = moveLesson(doc, ids[0], 1).doc;
+		expect(down.lessons.map((l) => l.lesson_id).slice(0, 2)).toEqual([ids[1], ids[0]]);
+		expect(down.lessons.map((l) => l.order)).toEqual(down.lessons.map((_, i) => i + 1));
+		expect(moveLesson(down, ids[0], -1).doc.lessons.map((l) => l.lesson_id)).toEqual(ids);
+	});
+
+	it('leaves the document alone for a lesson at either edge', () => {
+		const doc = addLesson(base(), 'Druhá').doc;
+		expect(moveLesson(doc, doc.lessons[0].lesson_id, -1).doc).toBe(doc);
+		expect(moveLesson(doc, doc.lessons[doc.lessons.length - 1].lesson_id, 1).doc).toBe(doc);
+	});
+
+	it('moves a step one place without touching ids', () => {
+		const doc = base();
+		const block = doc.blocks.find((b) => b.steps.length > 1)!;
+		const ids = block.steps.map((s) => s.id);
+		const moved = moveStep(doc, block.block_id, ids[0], 1).doc;
+		const after = moved.blocks.find((b) => b.block_id === block.block_id)!;
+		expect(after.steps.map((s) => s.id).slice(0, 2)).toEqual([ids[1], ids[0]]);
+		expect(after.steps.map((s) => s.order)).toEqual(after.steps.map((_, i) => i + 1));
+	});
+
+	it('leaves the document alone for a step at either edge', () => {
+		const doc = base();
+		const block = doc.blocks.find((b) => b.steps.length > 1)!;
+		expect(moveStep(doc, block.block_id, block.steps[0].id, -1).doc).toBe(doc);
+		expect(moveStep(doc, block.block_id, block.steps[block.steps.length - 1].id, 1).doc).toBe(doc);
 	});
 });
