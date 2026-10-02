@@ -8,7 +8,8 @@
 	 * front end and nothing else has to move.
 	 */
 	import type { BlockV2 } from '$lib/domain/schema';
-	import { X } from '@lucide/svelte';
+	import { Trash2 } from '@lucide/svelte';
+	import { tick } from 'svelte';
 	import Chip from '$lib/ui/Chip.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import { useStore } from '$lib/ui/context';
@@ -25,6 +26,12 @@
 
 	let code = $state('');
 	let weight = $state('50');
+	/** What the last action refused, in words, shown under the list. */
+	let problem = $state('');
+	let editing = $state<string | null>(null);
+	let draft = $state('');
+
+	const DUPLICATE = 'Tenhle výstup už karta má.';
 
 	function write(next: Record<string, number>) {
 		store.apply((d) =>
@@ -36,25 +43,71 @@
 		);
 	}
 
+	/** A weight is a percentage; empty or unreadable is `undefined`, never 0. */
+	function readWeight(raw: string): number | undefined {
+		if (raw.trim() === '') return undefined;
+		const value = Number(raw.replace(',', '.'));
+		return Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : undefined;
+	}
+
 	function add() {
 		const trimmed = code.trim();
 		if (trimmed === '') return;
-		const value = Number(weight);
-		if (Number.isNaN(value)) return;
+		if (trimmed in (block.learning?.competencies ?? {})) {
+			problem = DUPLICATE;
+			return;
+		}
+		const value = readWeight(weight);
+		if (value === undefined) {
+			problem = 'Doplň váhu výstupu v procentech.';
+			return;
+		}
+		problem = '';
 		write({ ...(block.learning?.competencies ?? {}), [trimmed]: value });
 		code = '';
 	}
 
 	function remove(key: string) {
+		problem = '';
 		const next = { ...(block.learning?.competencies ?? {}) };
 		delete next[key];
 		write(next);
 	}
 
-	function reweight(key: string, raw: string) {
-		const value = Number(raw);
-		if (Number.isNaN(value)) return;
+	function reweight(key: string, input: HTMLInputElement) {
+		const value = readWeight(input.value);
+		if (value === undefined) {
+			// Emptying the field must not mean "0 %": the previous weight stays.
+			problem = 'Váha musí být číslo od 0 do 100, zůstala původní.';
+			input.value = String(block.learning?.competencies?.[key] ?? '');
+			return;
+		}
+		problem = '';
 		write({ ...(block.learning?.competencies ?? {}), [key]: value });
+	}
+
+	async function startRename(key: string) {
+		editing = key;
+		draft = key;
+		await tick();
+		const field = document.querySelector<HTMLInputElement>('input.rename');
+		field?.focus();
+		field?.select();
+	}
+
+	function finishRename(key: string) {
+		if (editing !== key) return;
+		editing = null;
+		const next = draft.trim();
+		if (next === '' || next === key) return;
+		const current = block.learning?.competencies ?? {};
+		if (next in current) {
+			problem = DUPLICATE;
+			return;
+		}
+		problem = '';
+		// Rebuilt in place so the row keeps its position.
+		write(Object.fromEntries(Object.entries(current).map(([k, v]) => [k === key ? next : k, v])));
 	}
 </script>
 
@@ -72,7 +125,32 @@
 		<ul>
 			{#each entries as [key, value] (key)}
 				<li>
-					<code>{key}</code>
+					{#if editing === key}
+						<input
+							type="text"
+							class="rename"
+							aria-label={`Kód výstupu ${key}`}
+							bind:value={draft}
+							onblur={() => finishRename(key)}
+							onkeydown={(e) => {
+								if (e.key === 'Enter') {
+									e.preventDefault();
+									e.currentTarget.blur();
+								} else if (e.key === 'Escape') {
+									e.preventDefault();
+									editing = null;
+								}
+							}}
+						/>
+					{:else}
+						<button
+							type="button"
+							class="code"
+							title="Změnit kód"
+							aria-label={`Změnit kód ${key}`}
+							onclick={() => startRename(key)}>{key}</button
+						>
+					{/if}
 					<input
 						type="number"
 						min="0"
@@ -80,11 +158,15 @@
 						step="5"
 						aria-label={`Váha výstupu ${key}`}
 						{value}
-						onchange={(e) => reweight(key, e.currentTarget.value)}
+						onchange={(e) => reweight(key, e.currentTarget)}
 					/>
 					<span class="unit">%</span>
-					<button type="button" aria-label={`Odebrat ${key}`} onclick={() => remove(key)}
-						><X size={14} aria-hidden="true"></X></button
+					<button
+						type="button"
+						class="remove"
+						title="Odebrat výstup"
+						aria-label={`Odebrat ${key}`}
+						onclick={() => remove(key)}><Trash2 size={15} aria-hidden="true"></Trash2></button
 					>
 				</li>
 			{/each}
@@ -104,10 +186,21 @@
 				}
 			}}
 		/>
-		<input type="number" min="0" max="100" step="5" aria-label="Váha výstupu" bind:value={weight} />
+		<input
+			type="number"
+			min="0"
+			max="100"
+			step="5"
+			placeholder="50"
+			aria-label="Váha výstupu"
+			bind:value={weight}
+		/>
 		<span class="unit">%</span>
 		<Button variant="secondary" size="s" onclick={add}>Přidat</Button>
 	</div>
+	{#if problem !== ''}
+		<p class="problem" role="alert">{problem}</p>
+	{/if}
 </section>
 
 <style>
@@ -150,11 +243,27 @@
 		gap: 6px;
 	}
 
-	code {
+	.code {
 		min-width: 110px;
+		padding: 2px 4px;
+		border: none;
+		border-bottom: 1px dashed var(--e-border);
+		background: none;
 		font-family: var(--font-code);
 		font-size: var(--text-s);
 		color: var(--e-text);
+		text-align: left;
+		cursor: text;
+	}
+
+	.code:hover {
+		background: var(--surface-light);
+	}
+
+	.problem {
+		margin: 0;
+		color: var(--e-error);
+		font-size: var(--text-xs);
 	}
 
 	input[type='text'] {
@@ -178,16 +287,19 @@
 		font-size: var(--text-xs);
 	}
 
-	li button {
+	/* Always visible, only quiet. */
+	.remove {
+		display: inline-flex;
+		padding: 6px;
 		border: none;
+		border-radius: var(--radius-xs);
 		background: none;
 		color: var(--e-text-faint);
-		font-size: var(--text-l);
-		line-height: 1;
 		cursor: pointer;
 	}
 
-	li button:hover {
+	.remove:hover,
+	.remove:focus-visible {
 		color: var(--e-error);
 	}
 </style>
