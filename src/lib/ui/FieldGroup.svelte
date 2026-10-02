@@ -68,13 +68,20 @@
 				<select
 					aria-label={spec.label}
 					value={asText(value) ?? ''}
-					onchange={(e) =>
-						write(spec.path, e.currentTarget.value === '' ? undefined : e.currentTarget.value)}
+					onchange={(e) => {
+						const raw = e.currentTarget.value;
+						if (raw === '') return write(spec.path, undefined);
+						write(spec.path, spec.numeric ? Number(raw) : raw);
+					}}
 				>
 					<option value="">— nenastaveno —</option>
 					{#each spec.options ?? [] as option (option.value)}
 						<option value={option.value}>{option.label}</option>
 					{/each}
+					<!-- A value outside the list stays visible as it is, not lost. -->
+					{#if asText(value) !== undefined && !(spec.options ?? []).some((o) => o.value === asText(value))}
+						<option value={asText(value)}>{asText(value)}</option>
+					{/if}
 				</select>
 				{#if hint}<span class="hint">{hint}</span>{/if}
 			</div>

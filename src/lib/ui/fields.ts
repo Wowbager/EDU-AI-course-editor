@@ -72,6 +72,8 @@ export interface FieldSpec {
 	hint?: string;
 	/** For `select`. */
 	options?: readonly { value: string; label: string }[];
+	/** For `select`: the document stores the chosen option as a number, not a string. */
+	numeric?: true;
 	/** Set when a hand-written component owns this field rather than `FieldGroup`. */
 	custom?: true;
 	/**
@@ -603,9 +605,22 @@ export const FIELDS: readonly FieldSpec[] = [
 		section: 'topics',
 		unread: true,
 		mode: 'metodik',
-		kind: 'number',
+		kind: 'select',
+		numeric: true,
 		label: 'Ročník',
-		hint: 'Pro koho je karta určená, 1–10.'
+		hint: 'Pro koho je karta určená.',
+		options: [
+			{ value: '1', label: '1. ročník' },
+			{ value: '2', label: '2. ročník' },
+			{ value: '3', label: '3. ročník' },
+			{ value: '4', label: '4. ročník' },
+			{ value: '5', label: '5. ročník' },
+			{ value: '6', label: '6. ročník' },
+			{ value: '7', label: '7. ročník' },
+			{ value: '8', label: '8. ročník' },
+			{ value: '9', label: '9. ročník' },
+			{ value: '10', label: '10. ročník' }
+		]
 	},
 	{
 		level: 'block',
@@ -613,10 +628,17 @@ export const FIELDS: readonly FieldSpec[] = [
 		section: 'topics',
 		unread: true,
 		mode: 'metodik',
-		kind: 'number',
+		kind: 'select',
+		numeric: true,
 		// Not just „Úroveň“: the skills right above it have levels of their own.
 		label: 'Úroveň zvládnutí',
-		hint: '1 pod očekáváním … 4 nad očekáváním.'
+		hint: 'Kam karta míří vůči očekávání pro ročník.',
+		options: [
+			{ value: '1', label: '1 – pod očekáváním' },
+			{ value: '2', label: '2 – částečně splňuje' },
+			{ value: '3', label: '3 – splňuje' },
+			{ value: '4', label: '4 – nad očekáváním' }
+		]
 	},
 	{
 		level: 'block',
@@ -646,9 +668,18 @@ export const FIELDS: readonly FieldSpec[] = [
 		section: 'topics',
 		unread: true,
 		mode: 'metodik',
-		kind: 'number',
+		kind: 'select',
+		numeric: true,
 		label: 'Bloomova úroveň',
-		hint: '1 zapamatovat … 6 tvořit.'
+		hint: 'Jakou myšlenkovou práci karta po žákovi chce.',
+		options: [
+			{ value: '1', label: '1 – zapamatovat' },
+			{ value: '2', label: '2 – porozumět' },
+			{ value: '3', label: '3 – aplikovat' },
+			{ value: '4', label: '4 – analyzovat' },
+			{ value: '5', label: '5 – hodnotit' },
+			{ value: '6', label: '6 – tvořit' }
+		]
 	},
 	{
 		level: 'block',
@@ -656,9 +687,17 @@ export const FIELDS: readonly FieldSpec[] = [
 		section: 'topics',
 		unread: true,
 		mode: 'metodik',
-		kind: 'number',
+		kind: 'select',
+		numeric: true,
 		label: 'Odhad obtížnosti',
-		hint: '1–5. Jen odhad autora; živý signál je obtížnost po dovednostech.'
+		hint: 'Jen odhad autora; živý signál je obtížnost po dovednostech.',
+		options: [
+			{ value: '1', label: '1 – velmi snadná' },
+			{ value: '2', label: '2 – snadná' },
+			{ value: '3', label: '3 – střední' },
+			{ value: '4', label: '4 – obtížná' },
+			{ value: '5', label: '5 – velmi obtížná' }
+		]
 	},
 
 	{
