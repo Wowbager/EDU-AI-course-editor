@@ -90,6 +90,17 @@ export interface FieldSpec {
 	 */
 	feedback?: true;
 	ref?: Ref;
+	/**
+	 * What the player does when the field is empty, as the teacher would read it
+	 * (`'1 den'`, `'0,3'`). Shown as "výchozí …" instead of "nevyplněno". Every field
+	 * whose hint names a default has one (`fields.test.ts`).
+	 */
+	default?: string;
+	/**
+	 * `datetime`: an ISO timestamp that nothing in the editor writes and nobody should
+	 * type. Shown read-only, in Czech form.
+	 */
+	display?: 'datetime';
 }
 
 /**
@@ -299,7 +310,8 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'text',
 		label: 'Naposledy upraveno',
-		hint: 'Razítko poslední úpravy; doplní se při uložení.'
+		hint: 'Razítko poslední úpravy; doplní se při uložení.',
+		display: 'datetime'
 	},
 	{
 		level: 'course',
@@ -714,7 +726,8 @@ export const FIELDS: readonly FieldSpec[] = [
 		unread: true,
 		mode: 'advanced',
 		kind: 'text',
-		label: 'Upraveno'
+		label: 'Upraveno',
+		display: 'datetime'
 	},
 	{
 		level: 'block',
@@ -787,7 +800,8 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Počáteční obtížnost',
-		hint: '0–1, výchozí 0,3. Jak těžké je si to udržet.'
+		hint: '0–1, výchozí 0,3. Jak těžké je si to udržet.',
+		default: '0,3'
 	},
 	{
 		level: 'block',
@@ -797,7 +811,8 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Počáteční stabilita',
-		hint: 'Ve dnech, výchozí 2,5.'
+		hint: 'Ve dnech, výchozí 2,5.',
+		default: '2,5 dne'
 	},
 	{
 		level: 'block',
@@ -807,7 +822,8 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Počáteční vybavení',
-		hint: '0–1, výchozí 0,65.'
+		hint: '0–1, výchozí 0,65.',
+		default: '0,65'
 	},
 	{
 		level: 'block',
@@ -817,7 +833,8 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Rychlost zapomínání',
-		hint: 'Výchozí 0,25.'
+		hint: 'Výchozí 0,25.',
+		default: '0,25'
 	},
 	{
 		level: 'block',
@@ -847,7 +864,8 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Nejkratší odstup',
-		hint: 'Ve dnech, výchozí 1.'
+		hint: 'Ve dnech, výchozí 1.',
+		default: '1 den'
 	},
 	{
 		level: 'block',
@@ -857,7 +875,8 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Nejdelší odstup',
-		hint: 'Ve dnech, výchozí 90.'
+		hint: 'Ve dnech, výchozí 90.',
+		default: '90 dní'
 	},
 	{
 		level: 'block',

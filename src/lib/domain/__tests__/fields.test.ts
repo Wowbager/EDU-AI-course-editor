@@ -572,3 +572,12 @@ describe('sections', () => {
 		expect(at({ blockId: 'b', field: 'nothing.here' })).toBeUndefined();
 	});
 });
+
+describe('field defaults', () => {
+	it('every field whose hint names a default shows it when empty', () => {
+		const missing = FIELDS.filter(
+			(spec) => /výchozí/i.test(spec.hint ?? '') && spec.default === undefined
+		).map((spec) => `${spec.level}.${spec.path}`);
+		expect(missing).toEqual([]);
+	});
+});

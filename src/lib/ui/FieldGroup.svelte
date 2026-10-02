@@ -17,6 +17,8 @@
 	 */
 	import FocusField from './FocusField.svelte';
 	import Toggle from './Toggle.svelte';
+	import { parseNumberInput } from '$lib/domain/number-input';
+	import { formatDateTimeCs } from '$lib/domain/format-date';
 	import { hintFor, type FieldSpec } from './fields';
 	import { useSettingsSearch } from './settings-search.svelte';
 
@@ -38,10 +40,10 @@
 
 	function writeNumber(path: string, raw: string | undefined) {
 		if (raw === undefined || raw.trim() === '') return write(path, undefined);
-		const value = Number(raw);
-		// A field left unparseable would silently write NaN into the document, which
-		// serialises as null and fails validation somewhere far from here.
-		if (Number.isNaN(value)) return;
+		const value = parseNumberInput(raw);
+		// Text that is not a number is not written: NaN would serialise as null and fail
+		// validation somewhere far from here. Empty above is "not set", never 0.
+		if (value === undefined) return;
 		write(path, value);
 	}
 </script>
@@ -77,6 +79,13 @@
 				{#if hint}<span class="hint">{hint}</span>{/if}
 			</div>
 		</div>
+	{:else if spec.display === 'datetime'}
+		<div class="field-row" class:match>
+			<span class="field-label" title={hint}>{spec.label}</span>
+			<div class="control">
+				<span class="read-only">{asText(value) ? formatDateTimeCs(asText(value)!) : '—'}</span>
+			</div>
+		</div>
 	{:else}
 		<div class="field-row" class:match>
 			<span class="field-label" title={hint}>{spec.label}</span>
@@ -86,7 +95,7 @@
 					value={asText(value)}
 					multiline={spec.kind === 'multiline'}
 					monospace={spec.kind === 'number'}
-					emptyText="nevyplněno"
+					emptyText={spec.default === undefined ? 'nevyplněno' : `výchozí ${spec.default}`}
 					ref={spec.ref}
 					invalid={invalid?.(spec.path) === true}
 					onchange={(v) =>
@@ -130,6 +139,11 @@
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
+	}
+
+	.read-only {
+		padding-top: 6px;
+		color: var(--e-text);
 	}
 
 	select {
