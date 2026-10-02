@@ -11,6 +11,7 @@
 	 * The app does not enforce these yet. The label says so rather than promising an
 	 * effect the student will never experience.
 	 */
+	import { withUndoNotice } from './undo-notice';
 	import { parseNumberInput } from '$lib/domain/number-input';
 	import type { BlockV2, CourseV2, PrerequisiteRule } from '$lib/domain/schema';
 	import { useStore } from '$lib/ui/context';
@@ -80,7 +81,11 @@
 		);
 	}
 
-	const remove = (index: number) => write(rules.filter((_, i) => i !== index));
+	const remove = (index: number) =>
+		withUndoNotice(store, 'Předpoklad odebrán.', () => write(rules.filter((_, i) => i !== index)), {
+			lessonId: store.selection?.lessonId,
+			blockId: block.block_id
+		});
 
 	function update(index: number, patch: Partial<PrerequisiteRule>) {
 		write(rules.map((rule, i) => (i === index ? { ...rule, ...patch } : rule)));

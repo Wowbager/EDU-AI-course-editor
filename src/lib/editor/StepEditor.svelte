@@ -941,15 +941,15 @@
 	}
 
 	/*
-     * Duplicate and delete show on the step being pointed at, typed into or targeted.
-     * Every other step is just its content. A screen with no hover shows them always,
-     * since there is no other way to reach them.
+     * Duplicate, delete and the step's menu are faint on every step and full on the one
+     * being pointed at, typed into or targeted — as an answer's are. Invisible, a teacher
+     * had no way to know a step could be removed. A screen with no hover shows them full.
      */
 	.actions {
 		display: flex;
 		align-items: center;
 		gap: 4px;
-		opacity: 0;
+		opacity: 0.45;
 		transition: opacity 120ms;
 	}
 

@@ -710,6 +710,14 @@
 		box-shadow: var(--shadow-light);
 	}
 
+	/* While the action band is over the row's end, the name ends with an ellipsis before
+	   it rather than being cut mid-letter under it. */
+	.tree-row:hover .tree-card .snippet,
+	.tree-row:focus-within .tree-card .snippet,
+	.tree-row.selected .tree-card .snippet {
+		padding-right: var(--actions-room, 132px);
+	}
+
 	.snippet {
 		overflow: hidden;
 		color: var(--e-text);

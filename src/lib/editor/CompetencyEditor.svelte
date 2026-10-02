@@ -7,6 +7,7 @@
 	 * codes are typed rather than picked; when the table arrives this becomes its
 	 * front end and nothing else has to move.
 	 */
+	import { withUndoNotice } from './undo-notice';
 	import { parseNumberInput } from '$lib/domain/number-input';
 	import type { BlockV2 } from '$lib/domain/schema';
 	import { Trash2 } from '@lucide/svelte';
@@ -71,7 +72,10 @@
 		problem = '';
 		const next = { ...(block.learning?.competencies ?? {}) };
 		delete next[key];
-		write(next);
+		withUndoNotice(store, 'Výstup odebrán.', () => write(next), {
+			lessonId: store.selection?.lessonId,
+			blockId: block.block_id
+		});
 	}
 
 	function reweight(key: string, input: HTMLInputElement) {

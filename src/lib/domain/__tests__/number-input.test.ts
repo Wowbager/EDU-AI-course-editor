@@ -3,6 +3,12 @@ import { parseNumberInput } from '../number-input';
 import { formatDateTimeCs } from '../format-date';
 
 describe('parseNumberInput', () => {
+	it('takes the number a type="number" input binds, which broke adding an RVP output', () => {
+		expect(parseNumberInput(70)).toBe(70);
+		expect(parseNumberInput(0)).toBe(0);
+		expect(parseNumberInput(Number.NaN)).toBeUndefined();
+	});
+
 	it('treats empty and blank as not set, not 0', () => {
 		expect(parseNumberInput('')).toBeUndefined();
 		expect(parseNumberInput('   ')).toBeUndefined();

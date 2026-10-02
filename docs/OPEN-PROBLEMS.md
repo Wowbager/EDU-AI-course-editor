@@ -410,6 +410,26 @@ others; "Cvičení" and "Opakování" name the same property in the chip and the
 touches every spec that locates by accessible name, so it wants its own round with the e2e
 suite in hand.
 
+### 43. What the Round 11 CRUD re-audit left
+**Found by a scripted audit of every settings and editor-column flow, not fixed.**
+Reproduced in the browser unless said otherwise.
+- A skill's level cannot be changed in place (remove it and add it again), and neither
+  skills nor answers can be reordered.
+- Předpoklady: choosing a skill silently clears the card select, and the threshold stays
+  disabled until one of the two is chosen, with nothing saying why. The card picker lists
+  cards with the same title twice („Kolik je?“), with nothing to tell them apart.
+- „Barva karty“ and „Pozadí karty“ (V této lekci) are free text with no picker, and
+  „Zařadit do cvičení“ appears both in Základní and in V této lekci (the second is the
+  legacy binding flag).
+- Zpět is enabled right after an import and goes back to the empty „Nový kurz“.
+- „Kdo kurz uvidí: Veřejný“ in course settings reads as text rather than a way to the
+  version dialog.
+- Playwright sees a `pageerror` with an empty message on every page load; the editor works.
+  Not traced.
+- Pokročilý shows block and step ids in „Kam dál“ and the step headers, and GPF codes on
+  skill rows. Pokročilý is meant to show them; listed so the choice is a decision, not an
+  accident.
+
 ### 11. Folding is remembered for the session only
 **By design for now.** `StepView` lives as long as the page. A reload opens every step
 again. Worth persisting with the draft if authors of long cards ask for it. Appears last

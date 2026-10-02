@@ -94,6 +94,18 @@ test('RVP outputs: no duplicate, an emptied weight stays, the code is edited in 
 
 	await pane.getByRole('button', { name: 'Odebrat M-5-1-03' }).click();
 	await expect(pane.getByRole('button', { name: 'Změnit kód M-5-1-03' })).toHaveCount(0);
+	await page
+		.getByRole('dialog', { name: 'Nastavení karty' })
+		.locator('.toast')
+		.getByRole('button', { name: 'Vrátit zpět' })
+		.click();
+	await expect(pane.getByRole('button', { name: 'Změnit kód M-5-1-03' })).toBeVisible();
+
+	// A typed weight, not only the default: the number input hands over a number.
+	await code.fill('M-5-1-07');
+	await pane.getByRole('spinbutton', { name: 'Váha výstupu', exact: true }).fill('70');
+	await pane.getByRole('button', { name: 'Přidat', exact: true }).click();
+	await expect(pane.getByRole('spinbutton', { name: 'Váha výstupu M-5-1-07' })).toHaveValue('70');
 });
 
 test('a prerequisite starts from the card, named and grouped by lesson', async ({ page }) => {

@@ -2001,6 +2001,18 @@ subagent audited every settings and editor-column flow; what it found and what c
   reads „upraveno“ (version 1 is recorded after the import's question split, so it holds
   the form the editor works with rather than the file's bytes).
 
+A second audit of the merged result found a regression and four gaps, fixed before
+hand-back: adding an RVP output with a typed weight did nothing (a `type="number"` input
+binds a number, which `parseNumberInput` now takes); „Podíl bodů“ read „0,5“ as NaN; a
+step's own actions were still invisible at rest; removing an RVP output or a prerequisite
+offered no undo; and a selected card's name was cut mid-letter under the action band
+instead of ending in an ellipsis. Its other findings are OPEN-PROBLEMS #43.
+
+**A notice raised in a dialog is drawn in the dialog.** A modal makes the rest of the page
+inert, so the „Vrátit zpět“ of a skill removed in Nastavení karty showed behind the
+backdrop and could not be clicked. `Modal` now counts itself open (`notices.modals`) and
+draws the notice inside; the page's slot stays empty meanwhile.
+
 *Rejected:* hover-only removal inside the dialogs, which the brief's "actions on hover"
 suggested: a row of settings is not running content, and a delete the owner could not
 find is not quiet, it is missing. *Not changed:* the amber „nenastaveno“ / „výchozí sada“

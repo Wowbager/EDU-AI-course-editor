@@ -10,6 +10,7 @@
 	 * line under the row that a quiet control opens. A value that is set shows as
 	 * inert text under the answer, so it is read without opening anything.
 	 */
+	import { parseNumberInput } from '$lib/domain/number-input';
 	import { untrack } from 'svelte';
 	import type { BlockStep, BlockV2, CourseV2 } from '$lib/domain/schema';
 	import FocusField from '$lib/ui/FocusField.svelte';
@@ -310,8 +311,12 @@
 								emptyText="1.0"
 								monospace
 								ref={ref(option.id, 'score_koef')}
-								onchange={(v) =>
-									set(option.id, 'score_koef', v === undefined ? undefined : Number(v))}
+								onchange={(v) => {
+									// Empty is unset; a comma is a decimal; text is not written.
+									const value = parseNumberInput(v);
+									if (v === undefined || v.trim() === '' || value !== undefined)
+										set(option.id, 'score_koef', value);
+								}}
 							/>
 						</div>
 					{/if}

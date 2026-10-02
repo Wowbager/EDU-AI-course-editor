@@ -9,8 +9,10 @@
  * `undefined` means "leave it unset" — the caller deletes the key (or, where the field
  * has a baseline such as `ELO_BASELINE`, writes that).
  */
-export function parseNumberInput(raw: string | undefined | null): number | undefined {
+export function parseNumberInput(raw: string | number | undefined | null): number | undefined {
 	if (raw === undefined || raw === null) return undefined;
+	// A `type="number"` input bound with `bind:value` hands over a number, not text.
+	if (typeof raw === 'number') return Number.isFinite(raw) ? raw : undefined;
 	const text = raw.replace(/\s/g, '').replace(',', '.');
 	if (text === '') return undefined;
 	const value = Number(text);
