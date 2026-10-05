@@ -90,6 +90,7 @@
 					<span>Typ kurzu</span>
 					<Segmented
 						wrap
+						explain
 						label="Typ kurzu"
 						options={EXPORT_TYPES}
 						value={doc.export_type}
@@ -98,13 +99,13 @@
 				</div>
 
 				<div class="row">
-					<span>Kdo kurz uvidí</span>
-					<button
-						type="button"
-						class="link"
-						title="Viditelnost se nastavuje ve verzích kurzu, spolu se zveřejněním."
-						onclick={openVersions}
-					>
+					<div class="name">
+						<span>Kdo kurz uvidí</span>
+						<span class="hint"
+							>Viditelnost se nastavuje ve verzích kurzu, spolu se zveřejněním.</span
+						>
+					</div>
+					<button type="button" class="link" onclick={openVersions}>
 						{VISIBILITY_LABEL[visibilityOf(doc)].label}
 					</button>
 				</div>
@@ -174,16 +175,30 @@
 		grid-column: 1 / -1;
 		min-width: 0;
 		display: grid;
-		grid-template-columns: 150px minmax(0, 1fr);
+		grid-template-columns: 220px minmax(0, 1fr);
 		gap: 12px;
 		align-items: start;
 		font-size: var(--text-m);
 	}
 
-	.row > span:first-child {
+	.row > span:first-child,
+	.name {
 		padding-top: 6px;
 		color: var(--e-text-muted);
 		font-size: var(--text-s);
+	}
+
+	.name {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.hint {
+		color: var(--e-text-faint);
+		font: var(--type-meta);
+		font-weight: var(--weight-regular);
+		line-height: 1.5;
 	}
 
 	@container course-settings (max-width: 560px) {

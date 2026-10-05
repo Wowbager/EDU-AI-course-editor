@@ -2158,3 +2158,21 @@ round's section above.
 - **`block.status` is authored and read by nothing** — no longer offered (Round 4).
 - **`PreviewLessonPlayer` keys its history by block index** — keyed by `blockId`
   (Round 4).
+
+## Round 12 — help text, short choices (hints part)
+
+- **A field's hint is always on screen, under its name in the label column**, small and
+  faint, never gated on focus. A tooltip was read by nobody and a line under the control
+  moved things (and an open select hid it). `Toggle` draws its hint the same way, and
+  `Segmented` has `explain`, which prints the selected option's `title` under the row
+  (moved out of VersionsDialog; also used for Typ kurzu). Both stay tied to the control
+  with `aria-describedby`.
+- **Short choices are `display: 'segmented'` on the spec**, set by hand, not inferred from
+  the option count: Úroveň zvládnutí, Odhad obtížnosti, Umístění obrázku / videa.
+  Ročník and Bloomova úroveň stay selects. Clicking the chosen segment again clears the
+  field, so "nenastaveno" stays reachable without a button. Numeric specs still write numbers.
+- **`Segmented` never wraps a label** and each button is as wide as the wider of its normal
+  and bold text; a `wrap` group with several rows has a rounded-rectangle, not pill, shape.
+- **Textareas grow with wrapped text** (`field-sizing: content`, measured fallback), three
+  rows minimum, fourteen maximum. Umístění obrázku / videa appears only on a step that has
+  an image / video.

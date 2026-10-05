@@ -99,7 +99,7 @@ test('teacher mode hides nothing behind a disclosure', async ({ page }) => {
 	await expect(dialog.getByRole('button', { expanded: false })).toHaveCount(0);
 });
 
-test('the card dialog lists its sections by name, shows one at a time, and says a hint only while focused', async ({
+test("the card dialog lists its sections by name, shows one at a time, and always shows a field's hint", async ({
 	page
 }) => {
 	await importCourse(page, 'spec-16-course.json');
@@ -131,9 +131,9 @@ test('the card dialog lists its sections by name, shows one at a time, and says 
 	const review = await openSection(dialog, 'Opakování');
 	await expect(dialog.getByRole('textbox', { name: 'Délka' })).toHaveCount(0);
 	const stability = review.getByRole('textbox', { name: 'Počáteční stabilita' });
-	// The hint is a tooltip on the label, and a line under the field only while it has focus.
+	// The hint is a line under the field's name, on screen before and while it has focus.
 	const hint = review.getByText('Ve dnech, výchozí 2,5.');
-	await expect(hint).toBeHidden();
+	await expect(hint).toBeVisible();
 	await stability.focus();
 	await expect(hint).toBeVisible();
 	// A field nothing reads yet no longer says so.
