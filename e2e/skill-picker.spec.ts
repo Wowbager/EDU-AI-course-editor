@@ -68,6 +68,9 @@ test('a skill is added in three steps, switched to "Využívá" and removed agai
 	await row.getByRole('radio', { name: 'Využívá' }).click();
 	await expect(row.getByRole('radio', { name: 'Využívá' })).toHaveAttribute('aria-checked', 'true');
 
+	// The relation is explained on screen, not only in a hover title.
+	await expect(section.getByText('karta dovednost učí')).toBeVisible();
+
 	// The level already chosen is not offered again.
 	await section.getByRole('button', { name: 'Přidat dovednost', exact: true }).click();
 	await picker.getByRole('button', { name: 'Zlomky', exact: true }).click();
@@ -92,6 +95,47 @@ test('a skill is added in three steps, switched to "Využívá" and removed agai
 	await expect(row).toHaveCount(1);
 	// One notice, not a second copy behind the dialog.
 	await expect(page.locator('.toast')).toHaveCount(0);
+});
+
+test('a skill is changed in place: level, other skill, relation kept, taken levels disabled', async ({
+	page
+}) => {
+	const { section } = await load(page);
+	const adding = page.getByRole('dialog', { name: 'Přidat dovednost' });
+	const changing = page.getByRole('dialog', { name: 'Změnit dovednost' });
+	await section.getByRole('button', { name: 'Přidat dovednost', exact: true }).click();
+	await adding.getByRole('button', { name: 'Zlomky', exact: true }).click();
+	await adding.getByRole('button', { name: /^Úroveň 1/ }).click();
+	await adding.getByRole('button', { name: /^Využívá/ }).click();
+	await section.getByRole('button', { name: 'Přidat dovednost', exact: true }).click();
+	await adding.getByRole('button', { name: 'Zlomky', exact: true }).click();
+	await adding.getByRole('button', { name: /^Úroveň 3/ }).click();
+	await adding.getByRole('button', { name: /^Je o tom/ }).click();
+
+	const row = section.getByRole('listitem').filter({ hasText: 'Úroveň 1' });
+	await row.getByRole('button', { name: /^Změnit dovednost Zlomky, úroveň 1/ }).click();
+	await expect(changing).toBeVisible();
+	// The current level is marked, another row's level is disabled, and there is no relation step.
+	await expect(changing.getByRole('button', { name: /^Úroveň 1/ })).toHaveAttribute(
+		'aria-current',
+		'true'
+	);
+	await expect(changing.getByRole('button', { name: /^Úroveň 3/ })).toBeDisabled();
+	await changing.getByRole('button', { name: /^Úroveň 2/ }).click();
+	await expect(changing).toBeHidden();
+
+	const changed = section.getByRole('listitem').filter({ hasText: 'Úroveň 2' });
+	await expect(changed).toHaveCount(1);
+	await expect(changed.getByRole('radio', { name: 'Využívá' })).toHaveAttribute(
+		'aria-checked',
+		'true'
+	);
+
+	// "Jiná dovednost" goes back to the list of skills.
+	await changed.getByRole('button', { name: /^Změnit dovednost Zlomky, úroveň 2/ }).click();
+	await changing.getByRole('button', { name: 'Jiná dovednost' }).click();
+	await expect(changing.getByRole('button', { name: 'Zlomky', exact: true })).toBeVisible();
+	await page.keyboard.press('Escape');
 });
 
 test('the code and the difficulty appear only in Pokročilý', async ({ page }) => {

@@ -62,7 +62,7 @@ for (const marks of [false, true]) {
 			await expect(
 				detail.getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' })
 			).toHaveCount(Number(branching));
-			await expect(detail.getByRole('combobox', { name: 'Známka za tuto odpověď' })).toHaveCount(
+			await expect(detail.getByRole('radiogroup', { name: 'Známka za tuto odpověď' })).toHaveCount(
 				Number(marks)
 			);
 			await noOverflow(answers.locator('.row, .cell, .detail'));

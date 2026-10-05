@@ -75,24 +75,41 @@ test('grade, level and Bloom are chosen from words and stored as numbers', async
 	await expect(difficulty.getByRole('radio', { checked: true })).toHaveCount(0);
 });
 
-test('RVP outputs: no duplicate, an emptied weight stays, the code is edited in place', async ({
+test('RVP outputs: adding is its own action, no duplicate, an emptied weight stays, the code is edited in place', async ({
 	page
 }) => {
 	const { pane } = await load(page, 'Co karta procvičuje');
 	const code = pane.getByRole('textbox', { name: 'Kód výstupu RVP' });
+	const add = pane.getByRole('button', { name: 'Přidat', exact: true });
+	const open = pane.getByRole('button', { name: 'Přidat výstup', exact: true });
+
+	// The add row is not there until asked for, and Zrušit closes it without saving.
+	await expect(code).toHaveCount(0);
+	await open.click();
+	await code.fill('M-5-1-99');
+	await pane.getByRole('button', { name: 'Zrušit', exact: true }).click();
+	await expect(code).toHaveCount(0);
+	await expect(pane.getByRole('button', { name: 'Změnit kód M-5-1-99' })).toHaveCount(0);
+
+	await open.click();
 	await code.fill('M-5-1-02');
-	await pane.getByRole('button', { name: 'Přidat', exact: true }).click();
+	await add.click();
+	// Saved: it is now a list row and the add row is closed again.
 	const weight = pane.getByRole('spinbutton', { name: 'Váha výstupu M-5-1-02' });
 	await expect(weight).toHaveValue('50');
+	await expect(code).toHaveCount(0);
 
+	await open.click();
 	await code.fill('M-5-1-02');
-	await pane.getByRole('button', { name: 'Přidat', exact: true }).click();
+	await add.click();
 	await expect(pane.getByText('Tenhle výstup už karta má.')).toBeVisible();
-	await expect(weight).toHaveValue('50');
+	const newWeight = pane.getByRole('spinbutton', { name: 'Váha výstupu', exact: true });
+	await expect(newWeight).toHaveValue('50');
 
-	await weight.fill('');
-	await weight.blur();
-	await expect(weight).toHaveValue('50');
+	await newWeight.fill('');
+	await newWeight.blur();
+	await expect(newWeight).toHaveValue('');
+	await pane.getByRole('button', { name: 'Zrušit', exact: true }).click();
 
 	await pane.getByRole('button', { name: 'Změnit kód M-5-1-02' }).click();
 	const rename = pane.getByRole('textbox', { name: 'Kód výstupu M-5-1-02' });
@@ -110,10 +127,40 @@ test('RVP outputs: no duplicate, an emptied weight stays, the code is edited in 
 	await expect(pane.getByRole('button', { name: 'Změnit kód M-5-1-03' })).toBeVisible();
 
 	// A typed weight, not only the default: the number input hands over a number.
+	await open.click();
 	await code.fill('M-5-1-07');
 	await pane.getByRole('spinbutton', { name: 'Váha výstupu', exact: true }).fill('70');
-	await pane.getByRole('button', { name: 'Přidat', exact: true }).click();
+	await add.click();
 	await expect(pane.getByRole('spinbutton', { name: 'Váha výstupu M-5-1-07' })).toHaveValue('70');
+});
+
+test('Pojmy are chips: added with Enter or a pasted list, no duplicates, removed with undo', async ({
+	page
+}) => {
+	const { pane } = await load(page, 'Co karta procvičuje');
+	const input = pane.getByRole('textbox', { name: 'Nový pojem' });
+	await input.fill('čitatel');
+	await input.press('Enter');
+	await expect(pane.getByRole('button', { name: 'Odebrat pojem čitatel' })).toBeVisible();
+	await expect(input).toHaveValue('');
+
+	await input.fill('jmenovatel, zlomková čára');
+	await pane.getByRole('button', { name: 'Přidat', exact: true }).first().click();
+	await expect(pane.getByRole('button', { name: 'Odebrat pojem jmenovatel' })).toBeVisible();
+	await expect(pane.getByRole('button', { name: 'Odebrat pojem zlomková čára' })).toBeVisible();
+
+	await input.fill('Čitatel');
+	await input.press('Enter');
+	await expect(pane.getByText('Pojem „Čitatel“ už karta má.')).toBeVisible();
+
+	await pane.getByRole('button', { name: 'Odebrat pojem čitatel' }).click();
+	await expect(pane.getByRole('button', { name: 'Odebrat pojem čitatel' })).toHaveCount(0);
+	await page
+		.getByRole('dialog', { name: 'Nastavení karty' })
+		.locator('.toast')
+		.getByRole('button', { name: 'Vrátit zpět' })
+		.click();
+	await expect(pane.getByRole('button', { name: 'Odebrat pojem čitatel' })).toBeVisible();
 });
 
 test('a prerequisite starts from the card, named and grouped by lesson', async ({ page }) => {
