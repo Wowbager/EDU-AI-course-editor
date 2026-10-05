@@ -87,6 +87,27 @@
 		};
 	}
 
+	/**
+	 * The row just added or changed: it may sit anywhere in taxonomy order, so it is
+	 * scrolled into view and marked for a moment. The mark is a background that fades
+	 * out; with reduced motion it is the same mark without the fade (it is simply
+	 * removed after the same time), and nothing stays on screen afterwards.
+	 */
+	let flashed = $state<number | null>(null);
+	let flashTimer: ReturnType<typeof setTimeout> | undefined;
+	const FLASH_MS = 1200;
+
+	async function flash(index: number) {
+		flashed = index;
+		clearTimeout(flashTimer);
+		flashTimer = setTimeout(() => (flashed = null), FLASH_MS);
+		await tick();
+		const row = list?.querySelector<HTMLElement>(`[data-dimension="${index}"]`);
+		const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		row?.scrollIntoView({ block: 'nearest', behavior: calm ? 'auto' : 'smooth' });
+	}
+	let list = $state<HTMLElement | null>(null);
+
 	function commit(next: BlockTopic[]) {
 		if (count === null) return;
 		store.apply((d) => setTopics(d, block.block_id, next, count, naming));
@@ -238,12 +259,15 @@
 				t.dimensionIndex === from ? { ...t, dimensionIndex: next.dimension_index } : t
 			)
 		);
+		flash(next.dimension_index);
 	}
 
 	function pickRelation(relation: 1 | 2) {
 		if (dimension === null || taken.has(dimension.dimension_index)) return close();
-		commit([...topics, { dimensionIndex: dimension.dimension_index, relation, elo: ELO_BASELINE }]);
+		const added = dimension.dimension_index;
+		commit([...topics, { dimensionIndex: added, relation, elo: ELO_BASELINE }]);
 		close();
+		flash(added);
 	}
 
 	function relationHeading(dim: SkillDimension): string {
@@ -269,23 +293,22 @@
 			</Chip>
 		{/if}
 		{#if store.skillConfig?.is_default}
-			<Chip
-				tone="warning"
-				title="Kurz nemá vlastní nastavení dovedností — použit výchozí seznam. Načti JSON kurzu z administrace, pokud používá jiný."
-			>
-				výchozí sada
-			</Chip>
+			<!-- Not a problem, so not amber: the course simply has no skill list of its own. -->
+			<Chip tone="neutral">výchozí sada</Chip>
+			<span class="default-note">
+				Kurz nemá vlastní seznam dovedností, karta vybírá z obecného.
+			</span>
 		{/if}
 	</header>
 
 	{#if count !== null}
 		{#if topics.length > 0}
-			<ul class="chosen">
+			<ul class="chosen" bind:this={list}>
 				{#each topics as topic (topic.dimensionIndex)}
 					{@const where = place.get(topic.dimensionIndex)}
 					{@const dim = dimensionAt(topic.dimensionIndex)}
 					{@const skillName = where?.skill.name ?? dim?.name ?? 'neznámá dovednost'}
-					<li>
+					<li data-dimension={topic.dimensionIndex} class:flash={flashed === topic.dimensionIndex}>
 						<button
 							type="button"
 							class="what"
@@ -462,6 +485,11 @@
 		gap: 6px;
 	}
 
+	.default-note {
+		color: var(--e-text-faint);
+		font-size: var(--text-xs);
+	}
+
 	header:empty {
 		display: none;
 	}
@@ -485,6 +513,17 @@
 		border: 1px solid var(--e-border);
 		border-radius: var(--radius-s);
 		background: var(--surface);
+	}
+
+	.chosen li.flash {
+		animation: row-flash 1200ms ease-out;
+	}
+
+	@keyframes row-flash {
+		from {
+			background: var(--primary-dark-12, var(--surface-light));
+			border-color: var(--primary);
+		}
 	}
 
 	/* A button, but not shaped like one: the row is the thing you click to change it. */

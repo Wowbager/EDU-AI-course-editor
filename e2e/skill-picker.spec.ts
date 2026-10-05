@@ -36,6 +36,11 @@ test('a skill is added in three steps, switched to "Využívá" and removed agai
 	const picker = page.getByRole('dialog', { name: 'Přidat dovednost' });
 
 	await expect(section.getByText('nenastaveno', { exact: true })).toBeVisible();
+	// The general set is a plain fact, not a warning: grey, and it says what it means.
+	const general = section.getByText('výchozí sada', { exact: true });
+	await expect(general).toBeVisible();
+	await expect(general).not.toHaveClass(/warning/);
+	await expect(section.getByText('Kurz nemá vlastní seznam dovedností')).toBeVisible();
 	await section.getByRole('button', { name: 'Přidat dovednost', exact: true }).click();
 	await expect(picker).toBeVisible();
 
@@ -55,6 +60,10 @@ test('a skill is added in three steps, switched to "Využívá" and removed agai
 	const row = section.getByRole('listitem').filter({ hasText: 'Zlomky' });
 	await expect(row).toHaveCount(1);
 	await expect(row).toContainText('Úroveň 2');
+	// "nenastaveno" is gone as soon as there is a skill; the new row is marked for a moment.
+	await expect(section.getByText('nenastaveno', { exact: true })).toHaveCount(0);
+	await expect(row).toHaveClass(/flash/);
+	await expect(row).not.toHaveClass(/flash/);
 	// A teacher never sees the code or the difficulty.
 	await expect(row).not.toContainText('N2.2');
 	await expect(row.getByRole('spinbutton')).toHaveCount(0);

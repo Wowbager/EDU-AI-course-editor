@@ -6,6 +6,11 @@
 	 * becomes several chips at once, so a list typed in another tool arrives as it was.
 	 * Terms are free text and the list is never reordered; a term that is already there
 	 * is refused with a sentence rather than silently dropped.
+	 *
+	 * Spelling stays the same across the course: while typing, terms other cards already
+	 * use are suggested in a small list under the field (arrows and Enter reach it, and
+	 * so does a click), and picking one adds it with the course's spelling. A term typed
+	 * out that matches one of them apart from case is written the way the course has it.
 	 */
 	import { withUndoNotice } from './undo-notice';
 	import type { BlockV2 } from '$lib/domain/schema';
@@ -21,6 +26,31 @@
 
 	const store = useStore();
 	const concepts = $derived(block.learning?.concepts ?? []);
+
+	const uid = $props.id();
+	const listId = `concept-suggestions-${uid}`;
+
+	/** Every term used in the course, first spelling wins, in document order. */
+	const courseTerms = $derived.by(() => {
+		const seen = new Map<string, string>();
+		for (const b of store.source.blocks)
+			for (const term of b.learning?.concepts ?? [])
+				if (!seen.has(term.toLowerCase())) seen.set(term.toLowerCase(), term);
+		return seen;
+	});
+	/** What the course has that this card has not, and that contains what is being typed. */
+	const suggestions = $derived.by(() => {
+		const typed = draft.trim().toLowerCase();
+		if (typed === '' || /[,;\n]/.test(typed)) return [];
+		const mine = new Set(concepts.map((c) => c.toLowerCase()));
+		return [...courseTerms]
+			.filter(([key]) => !mine.has(key) && key.includes(typed) && key !== typed)
+			.map(([, term]) => term)
+			.slice(0, 6);
+	});
+	let focused = $state(false);
+	let active = $state(-1);
+	const listing = $derived(focused && suggestions.length > 0);
 
 	let draft = $state('');
 	/** What the last action refused, in words, shown under the list. */
@@ -43,9 +73,12 @@
 			.filter((part) => part !== '');
 
 	function add(raw: string) {
+		active = -1;
 		const next = [...concepts];
 		const refused: string[] = [];
-		for (const term of split(raw)) {
+		for (const typed of split(raw)) {
+			// The course's own spelling, when it has one.
+			const term = courseTerms.get(typed.toLowerCase()) ?? typed;
 			if (next.some((c) => c.toLowerCase() === term.toLowerCase())) refused.push(term);
 			else next.push(term);
 		}
@@ -93,24 +126,65 @@
 	{/if}
 
 	<div class="add">
-		<input
-			type="text"
-			placeholder="např. čitatel"
-			aria-label="Nový pojem"
-			bind:value={draft}
-			onkeydown={(e) => {
-				if (e.key === 'Enter') {
+		<div class="field">
+			<input
+				type="text"
+				role="combobox"
+				autocomplete="off"
+				placeholder="např. čitatel"
+				aria-label="Nový pojem"
+				aria-expanded={listing}
+				aria-controls={listId}
+				aria-autocomplete="list"
+				aria-activedescendant={listing && active >= 0 ? `${listId}-${active}` : undefined}
+				bind:value={draft}
+				oninput={() => (active = -1)}
+				onfocus={() => (focused = true)}
+				onblur={() => (focused = false)}
+				onkeydown={(e) => {
+					if (e.key === 'ArrowDown' && listing) {
+						e.preventDefault();
+						active = (active + 1) % suggestions.length;
+					} else if (e.key === 'ArrowUp' && listing) {
+						e.preventDefault();
+						active = active <= 0 ? suggestions.length - 1 : active - 1;
+					} else if (e.key === 'Escape' && listing) {
+						// Closes the list, not the dialog around it.
+						e.preventDefault();
+						e.stopPropagation();
+						focused = false;
+					} else if (e.key === 'Enter') {
+						e.preventDefault();
+						add(listing && active >= 0 ? suggestions[active] : draft);
+					}
+				}}
+				onpaste={(e) => {
+					const text = e.clipboardData?.getData('text') ?? '';
+					if (!/[,;\n]/.test(text)) return;
 					e.preventDefault();
-					add(draft);
-				}
-			}}
-			onpaste={(e) => {
-				const text = e.clipboardData?.getData('text') ?? '';
-				if (!/[,;\n]/.test(text)) return;
-				e.preventDefault();
-				add(text);
-			}}
-		/>
+					add(text);
+				}}
+			/>
+			{#if listing}
+				<ul class="suggestions" id={listId} role="listbox" aria-label="Pojmy z jiných karet">
+					{#each suggestions as term, i (term)}
+						<!-- A press, not a click: the field would lose focus and close the list first. -->
+						<li
+							id={`${listId}-${i}`}
+							role="option"
+							aria-selected={i === active}
+							class:active={i === active}
+							onpointerdown={(e) => {
+								e.preventDefault();
+								add(term);
+							}}
+						>
+							{term}
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</div>
 		<Button variant="secondary" size="s" ariaLabel="Přidat pojem" onclick={() => add(draft)}
 			>Přidat</Button
 		>
@@ -173,6 +247,40 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
+	}
+
+	.field {
+		position: relative;
+	}
+
+	.suggestions {
+		position: absolute;
+		z-index: 5;
+		top: 100%;
+		left: 0;
+		display: block;
+		min-width: 100%;
+		margin: 2px 0 0;
+		padding: 2px;
+		border: 1px solid var(--e-border);
+		border-radius: var(--radius-xs);
+		background: var(--surface);
+		box-shadow: var(--shadow-medium);
+	}
+
+	.suggestions li {
+		display: block;
+		padding: 4px 8px;
+		border: none;
+		border-radius: var(--radius-xs);
+		background: none;
+		white-space: nowrap;
+		cursor: pointer;
+	}
+
+	.suggestions li:hover,
+	.suggestions li.active {
+		background: var(--surface-light);
 	}
 
 	input {

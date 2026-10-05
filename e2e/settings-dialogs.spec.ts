@@ -138,7 +138,7 @@ test('Pojmy are chips: added with Enter or a pasted list, no duplicates, removed
 	page
 }) => {
 	const { pane } = await load(page, 'Co karta procvičuje');
-	const input = pane.getByRole('textbox', { name: 'Nový pojem' });
+	const input = pane.getByRole('combobox', { name: 'Nový pojem' });
 	await input.fill('čitatel');
 	await input.press('Enter');
 	await expect(pane.getByRole('button', { name: 'Odebrat pojem čitatel' })).toBeVisible();
@@ -161,6 +161,43 @@ test('Pojmy are chips: added with Enter or a pasted list, no duplicates, removed
 		.getByRole('button', { name: 'Vrátit zpět' })
 		.click();
 	await expect(pane.getByRole('button', { name: 'Odebrat pojem čitatel' })).toBeVisible();
+});
+
+test('Pojmy: terms other cards use are suggested, and keep their spelling', async ({ page }) => {
+	const { dialog, pane } = await load(page, 'Co karta procvičuje');
+	const input = pane.getByRole('combobox', { name: 'Nový pojem' });
+	await input.fill('Čtvrtina');
+	await input.press('Enter');
+	await expect(pane.getByRole('button', { name: 'Odebrat pojem Čtvrtina' })).toBeVisible();
+	// Nothing to suggest on the card that has it.
+	await input.fill('čtvr');
+	await expect(page.getByRole('listbox')).toHaveCount(0);
+	await input.fill('');
+	await page.keyboard.press('Escape');
+	await expect(dialog).toBeHidden();
+
+	// On another card: typed in lower case, offered with the course's spelling.
+	await page.locator('.tree-card').nth(1).click();
+	await page.getByRole('button', { name: 'Nastavení karty' }).first().click();
+	const other = await openSection(
+		page.getByRole('dialog', { name: 'Nastavení karty' }),
+		'Co karta procvičuje'
+	);
+	const field = other.getByRole('combobox', { name: 'Nový pojem' });
+	await field.fill('čtvr');
+	const options = page.getByRole('listbox', { name: 'Pojmy z jiných karet' });
+	await expect(options.getByRole('option', { name: 'Čtvrtina' })).toBeVisible();
+	// The keyboard reaches the list.
+	await field.press('ArrowDown');
+	await field.press('Enter');
+	await expect(other.getByRole('button', { name: 'Odebrat pojem Čtvrtina' })).toBeVisible();
+	await expect(field).toHaveValue('');
+
+	// Typed out in full with another case: written the way the course has it.
+	await other.getByRole('button', { name: 'Odebrat pojem Čtvrtina' }).click();
+	await field.fill('čtvrtina');
+	await field.press('Enter');
+	await expect(other.getByRole('button', { name: 'Odebrat pojem Čtvrtina' })).toBeVisible();
 });
 
 test('a prerequisite is one line, added through the picker and changed in place', async ({

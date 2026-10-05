@@ -87,6 +87,55 @@
 		if (members === undefined || members.length < 2) return undefined;
 		return `část ${members.indexOf(block) + 1}/${members.length}`;
 	}
+	/**
+	 * Where a card sits in a run of parts of one card: the thin line that joins them is
+	 * drawn from the first part's middle to the last part's middle. Only neighbours in
+	 * the same lesson are joined, so a line never jumps over a card that is not a part.
+	 */
+	function joinOf(position: number): 'first' | 'middle' | 'last' | undefined {
+		const keyAt = (i: number) => {
+			const id = cards[i]?.binding.block_id;
+			const block = id === undefined ? undefined : doc.blocks.find((b) => b.block_id === id);
+			return block === undefined ? undefined : groupOf(block);
+		};
+		const key = keyAt(position);
+		if (key === undefined) return undefined;
+		const before = keyAt(position - 1) === key;
+		const after = keyAt(position + 1) === key;
+		if (before && after) return 'middle';
+		if (after) return 'first';
+		if (before) return 'last';
+		return undefined;
+	}
+
+	/**
+	 * The one-time note, the first time the tree shows split cards in Pokročilý. It is
+	 * not a toast: it has to stay until read, and a toast goes by itself after a few
+	 * seconds. Dismissed once, it is remembered per browser.
+	 */
+	const PARTS_NOTE_KEY = 'edu-editor:parts-note-seen';
+	let partsNote = $state(false);
+	const hasSplitCards = $derived(groupsOf(store.source).size > 0);
+	$effect(() => {
+		if (collapsed || store.mode !== 'advanced' || !hasSplitCards) {
+			partsNote = false;
+			return;
+		}
+		try {
+			if (localStorage.getItem(PARTS_NOTE_KEY) === null) partsNote = true;
+		} catch {
+			// No storage: the note shows each time the mode is switched, which is harmless.
+			partsNote = true;
+		}
+	});
+	function dismissPartsNote() {
+		partsNote = false;
+		try {
+			localStorage.setItem(PARTS_NOTE_KEY, '1');
+		} catch {
+			// Nothing to remember it in.
+		}
+	}
 	const selectedLesson = $derived(activeLessonId);
 	const selectedBlock = $derived(activeBlockId);
 
@@ -272,6 +321,16 @@
 			<span class="meta">Nastavení kurzu</span>
 		</button>
 
+		{#if partsNote}
+			<div class="parts-note" role="note">
+				<p>
+					V Pokročilém vidíš karty tak, jak je dostane aplikace: karta s více otázkami je rozdělená
+					na části.
+				</p>
+				<button type="button" onclick={dismissPartsNote}>Rozumím</button>
+			</div>
+		{/if}
+
 		<h2>Lekce</h2>
 
 		<ul use:dndzone={{ items, flipDurationMs: 150, dropTargetStyle: {} }} {onconsider} {onfinalize}>
@@ -323,7 +382,11 @@
 						>
 							{#each cards as card, position (card.id)}
 								{@const block = doc.blocks.find((b) => b.block_id === card.binding.block_id)}
-								<li class="tree-row" class:selected={block?.block_id === selectedBlock}>
+								<li
+									class="tree-row"
+									class:selected={block?.block_id === selectedBlock}
+									data-join={joinOf(position)}
+								>
 									{#if block === undefined}
 										<span class="missing" title={card.binding.block_id}>Chybějící karta</span>
 									{:else}
@@ -638,6 +701,61 @@
 	.cards {
 		gap: 1px;
 		margin: 0 6px;
+	}
+
+	/* Parts of one card: a thin line down the row's left edge, from the middle of the first
+	   part to the middle of the last, so "část 1/2" and "část 2/2" read as one card. */
+	.tree-row[data-join]::before {
+		content: '';
+		position: absolute;
+		left: -3px;
+		width: 1px;
+		background: var(--e-border-strong, var(--e-border));
+		pointer-events: none;
+	}
+
+	.tree-row[data-join='first']::before {
+		top: 50%;
+		bottom: -1px;
+	}
+
+	.tree-row[data-join='middle']::before {
+		top: -1px;
+		bottom: -1px;
+	}
+
+	.tree-row[data-join='last']::before {
+		top: -1px;
+		bottom: 50%;
+	}
+
+	.parts-note {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 4px;
+		margin: 4px 8px;
+		padding: 8px 10px;
+		border-left: 2px solid var(--e-border);
+		border-radius: var(--radius-xs);
+		background: var(--surface);
+		color: var(--e-text-muted);
+		font-size: var(--text-xs);
+		line-height: 1.5;
+	}
+
+	.parts-note p {
+		margin: 0;
+	}
+
+	.parts-note button {
+		padding: 0;
+		border: none;
+		background: none;
+		color: var(--primary);
+		font: inherit;
+		font-weight: var(--weight-semibold);
+		cursor: pointer;
 	}
 
 	.tree-card {
