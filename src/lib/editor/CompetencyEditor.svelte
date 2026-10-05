@@ -10,7 +10,7 @@
 	import { withUndoNotice } from './undo-notice';
 	import { parseNumberInput } from '$lib/domain/number-input';
 	import type { BlockV2 } from '$lib/domain/schema';
-	import { Trash2 } from '@lucide/svelte';
+	import { Plus, Trash2 } from '@lucide/svelte';
 	import { tick } from 'svelte';
 	import Chip from '$lib/ui/Chip.svelte';
 	import Button from '$lib/ui/Button.svelte';
@@ -26,6 +26,8 @@
 	const entries = $derived(Object.entries(block.learning?.competencies ?? {}));
 	const total = $derived(entries.reduce((sum, [, weight]) => sum + weight, 0));
 
+	/** The add row is closed until asked for, so it never looks like a saved one. */
+	let adding = $state(false);
 	let code = $state('');
 	let weight = $state('50');
 	/** What the last action refused, in words, shown under the list. */
@@ -65,7 +67,14 @@
 		}
 		problem = '';
 		write({ ...(block.learning?.competencies ?? {}), [trimmed]: value });
+		cancel();
+	}
+
+	function cancel() {
+		adding = false;
 		code = '';
+		weight = '50';
+		problem = '';
 	}
 
 	function remove(key: string) {
@@ -177,31 +186,44 @@
 		</ul>
 	{/if}
 
-	<div class="add">
-		<input
-			type="text"
-			placeholder="M-5-1-02"
-			aria-label="Kód výstupu RVP"
-			bind:value={code}
-			onkeydown={(e) => {
-				if (e.key === 'Enter') {
-					e.preventDefault();
-					add();
-				}
-			}}
-		/>
-		<input
-			type="number"
-			min="0"
-			max="100"
-			step="5"
-			placeholder="50"
-			aria-label="Váha výstupu"
-			bind:value={weight}
-		/>
-		<span class="unit">%</span>
-		<Button variant="secondary" size="s" onclick={add}>Přidat</Button>
-	</div>
+	{#if adding}
+		<div class="add" role="group" aria-label="Nový výstup">
+			<!-- svelte-ignore a11y_autofocus -->
+			<input
+				type="text"
+				placeholder="M-5-1-02"
+				aria-label="Kód výstupu RVP"
+				autofocus
+				bind:value={code}
+				onkeydown={(e) => {
+					if (e.key === 'Enter') {
+						e.preventDefault();
+						add();
+					} else if (e.key === 'Escape') {
+						e.preventDefault();
+						cancel();
+					}
+				}}
+			/>
+			<input
+				type="number"
+				min="0"
+				max="100"
+				step="5"
+				placeholder="50"
+				aria-label="Váha výstupu"
+				bind:value={weight}
+			/>
+			<span class="unit">%</span>
+			<Button variant="secondary" size="s" onclick={add}>Přidat</Button>
+			<Button variant="ghost" size="s" onclick={cancel}>Zrušit</Button>
+		</div>
+	{:else}
+		<Button variant="secondary" size="s" onclick={() => (adding = true)}>
+			<Plus size={14} aria-hidden="true"></Plus>
+			Přidat výstup
+		</Button>
+	{/if}
 	{#if problem !== ''}
 		<p class="problem" role="alert">{problem}</p>
 	{/if}

@@ -135,11 +135,17 @@
 				</p>
 			{/if}
 		{:else if id === 'didactics' && didactics !== undefined}
+			<p class="note">
+				Podíly se počítají z karet lekce a tady se jen čtou. Změníš je v nastavení jednotlivých
+				karet.
+			</p>
 			<dl>
-				<dt title="Podíl chybných odpovědí, které žákovi řeknou, kde udělal chybu">
-					Zpětná vazba u chybných odpovědí
-				</dt>
-				<dd>{Math.round(didactics.wrongOptionFeedbackShare * 100)} %</dd>
+				{#if store.showFeedback}
+					<dt title="Podíl chybných odpovědí, které žákovi řeknou, kde udělal chybu">
+						Zpětná vazba u chybných odpovědí
+					</dt>
+					<dd>{Math.round(didactics.wrongOptionFeedbackShare * 100)} %</dd>
+				{/if}
 				<dt title="Podíl karet zařazených do denního opakování">Karty zařazené do cvičení</dt>
 				<dd>{Math.round(didactics.practiceShare * 100)} %</dd>
 			</dl>
@@ -213,6 +219,12 @@
 		margin: 2px 0 0;
 		color: var(--e-text-faint);
 		font-size: var(--text-s);
+	}
+
+	.note {
+		margin: 0 0 8px;
+		color: var(--e-text-faint);
+		font-size: var(--text-xs);
 	}
 
 	dl {

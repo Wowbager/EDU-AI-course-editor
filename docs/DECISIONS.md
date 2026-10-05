@@ -2035,6 +2035,34 @@ se zlomky“ or not at all — the taxonomy's text, not ours).
 under its name; remembering the last open section; skills derived for a lesson from its
 cards, read-only in the lesson dialog (the format has no lesson vector).
 
+## Round 12 — editing in place, and the gaps in create / read / update / delete
+
+*Skills, answers, Pojmy, RVP outputs, Didaktika lekce.*
+
+- **A skill row is the way to change it.** The row's name is a button that opens the
+  same box as "Přidat dovednost" on the level step, the current level marked; "Jiná
+  dovednost" goes back to the skill list. The change replaces the row's subconstruct
+  and keeps its relation and difficulty, so there is no relation step; levels held by
+  other rows are disabled with the reason. It is still one `setTopics()` call, so it is
+  one undo. The two relations are explained by one visible line under the list, not a
+  hover title per row.
+- **Answers can be reordered.** "Posunout nahoru / dolů" in an answer's details call the
+  existing `reorderOptions`, disabled at the ends, absent on true/false (its pair is
+  fixed). The details line therefore exists for every choice question with more than
+  one answer. Známka is a `Segmented` with an explicit "Bez známky", so "no mark" stays
+  one click away.
+- **Pojmy are chips** (`ConceptsEditor`): Enter or "Přidat", a pasted list splits on
+  commas, semicolons and line breaks, a duplicate (case-insensitive) is refused in words,
+  removal offers undo. It sits beside the RVP outputs and is not gated by `fields.ts`,
+  because the `learning.concepts` entry there is `custom` and `fieldsFor` never lists
+  custom fields.
+- **RVP outputs: a list, plus an add action.** The empty code + weight row opens from
+  "+ Přidat výstup" with Přidat / Zrušit and closes after a save, so it no longer looks
+  like a saved row. Existing rows are unchanged.
+- **Didaktika lekce** says in one line that the shares are computed from the lesson's
+  cards and changed in each card, and hides the feedback share when Zpětná vazba is off
+  (it is meaningless then).
+
 ## Formatting — one formatter, and the two places it is not allowed
 
 The repo had a house style and no formatter: `useTabs` nearly everywhere (129 files to

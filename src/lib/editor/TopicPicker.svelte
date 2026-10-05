@@ -11,7 +11,9 @@
 	 *
 	 * The teacher thinks in skills with levels, not in 35 numbered dimensions: a row
 	 * reads "Zlomky · Úroveň 2", and adding walks through skill → level → "je o tom" or
-	 * "využívá" in a small box. The list comes from the course's skill configuration,
+	 * "využívá" in a small box. A row is editable in place: clicking its name opens the same
+	 * box on the level step (current level marked, "Jiná dovednost" goes back to the skill
+	 * list), and the change keeps the row's relation and difficulty. The list comes from the course's skill configuration,
 	 * never from a constant here (§3 invariant 6).
 	 */
 	import { parseNumberInput } from '$lib/domain/number-input';
@@ -48,6 +50,10 @@
 	const tree = $derived(skillTree(store.skillConfig));
 	const topics = $derived(blockTopics(block));
 	const chosen = $derived(new Set(topics.map((t) => t.dimensionIndex)));
+	/** The row being changed, or null when the box adds a new one. */
+	let editing = $state<number | null>(null);
+	/** What is taken by another row: when editing, the edited row's own level is free. */
+	const taken = $derived(new Set([...chosen].filter((i) => i !== editing)));
 	const strongCount = $derived(topics.filter((t) => t.relation === 2).length);
 
 	/** Where each dimension sits in the tree, for the rows. */
@@ -121,13 +127,14 @@
 			.map((area) => ({
 				...area,
 				skills: area.skills.filter((s) =>
-					s.levels.some((l) => !chosen.has(l.dimension.dimension_index))
+					s.levels.some((l) => !taken.has(l.dimension.dimension_index))
 				)
 			}))
 			.filter((area) => area.skills.length > 0)
 	);
-	const freeLevels = $derived(
-		skill?.levels.filter((l) => !chosen.has(l.dimension.dimension_index)) ?? []
+	/** Adding offers only the free levels; changing lists all, the taken ones disabled. */
+	const levelChoices = $derived(
+		(skill?.levels ?? []).filter((l) => editing !== null || !taken.has(l.dimension.dimension_index))
 	);
 
 	const isShowing = () => panel?.matches(':popover-open') ?? false;
@@ -139,11 +146,13 @@
 		)?.focus();
 	}
 
-	function show() {
-		const anchor = wrapper?.querySelector<HTMLElement>('.add-trigger');
+	/** `index` is the row to change; without it the box adds a skill. */
+	function show(anchor: HTMLElement | null | undefined, index: number | null = null) {
 		if (panel === null || !anchor || isShowing()) return;
-		step = 'skill';
-		skill = null;
+		editing = index;
+		const current = index === null ? undefined : place.get(index);
+		step = current ? 'level' : 'skill';
+		skill = current?.skill ?? null;
 		dimension = null;
 		panel.showPopover();
 		const box = panel.getBoundingClientRect();
@@ -170,12 +179,12 @@
 		wasOpenAtPointerDown = open;
 	}
 
-	function onclick() {
+	function onclick(event: MouseEvent, index: number | null = null) {
 		if (wasOpenAtPointerDown) {
 			wasOpenAtPointerDown = false;
 			return;
 		}
-		show();
+		show(event.currentTarget as HTMLElement, index);
 	}
 
 	$effect(() => {
@@ -195,8 +204,8 @@
 
 	function pickSkill(next: SkillTreeSkill) {
 		skill = next;
-		const free = next.levels.filter((l) => !chosen.has(l.dimension.dimension_index));
-		if (free.length === 1) pickLevel(free[0].dimension, 'skill');
+		const free = next.levels.filter((l) => !taken.has(l.dimension.dimension_index));
+		if (editing === null && free.length === 1) pickLevel(free[0].dimension, 'skill');
 		else {
 			step = 'level';
 			focusFirst();
@@ -206,6 +215,7 @@
 	/** `from` is the step the back link of the relation step returns to. */
 	let relationBack: Step = 'level';
 	function pickLevel(next: SkillDimension, from: Step = 'level') {
+		if (editing !== null) return replaceRow(next);
 		dimension = next;
 		relationBack = from;
 		step = 'relation';
@@ -217,8 +227,20 @@
 		focusFirst();
 	}
 
+	/** Changing a row keeps what the teacher set on it: the relation and the difficulty. */
+	function replaceRow(next: SkillDimension) {
+		const from = editing;
+		close();
+		if (from === null || from === next.dimension_index || taken.has(next.dimension_index)) return;
+		commit(
+			topics.map((t) =>
+				t.dimensionIndex === from ? { ...t, dimensionIndex: next.dimension_index } : t
+			)
+		);
+	}
+
 	function pickRelation(relation: 1 | 2) {
-		if (dimension === null || chosen.has(dimension.dimension_index)) return close();
+		if (dimension === null || taken.has(dimension.dimension_index)) return close();
 		commit([...topics, { dimensionIndex: dimension.dimension_index, relation, elo: ELO_BASELINE }]);
 		close();
 	}
@@ -263,7 +285,16 @@
 					{@const dim = dimensionAt(topic.dimensionIndex)}
 					{@const skillName = where?.skill.name ?? dim?.name ?? 'neznámá dovednost'}
 					<li>
-						<div class="what">
+						<button
+							type="button"
+							class="what"
+							aria-haspopup="dialog"
+							aria-controls={panelId}
+							title="Změnit dovednost nebo úroveň"
+							aria-label={`Změnit dovednost ${skillName}${where && where.skill.levels.length > 1 ? `, úroveň ${where.level}` : ''}`}
+							{onpointerdown}
+							onclick={(e) => onclick(e, topic.dimensionIndex)}
+						>
 							<span class="line">
 								<strong>{skillName}</strong>
 								{#if where && where.skill.levels.length > 1}
@@ -276,7 +307,7 @@
 							{#if dim && where && dim.name !== skillName}
 								<span class="desc">{dim.name}</span>
 							{/if}
-						</div>
+						</button>
 
 						<Segmented
 							label={`Jak karta pracuje s dovedností ${skillName}`}
@@ -316,6 +347,10 @@
 					</li>
 				{/each}
 			</ul>
+			<p class="help">
+				<strong>Je o tom</strong>: karta dovednost učí. <strong>Využívá</strong>: karta ji jen
+				potřebuje mimochodem.
+			</p>
 		{/if}
 
 		<div class="add" bind:this={wrapper}>
@@ -327,7 +362,7 @@
 				aria-expanded={open}
 				aria-controls={panelId}
 				{onpointerdown}
-				{onclick}
+				onclick={(e) => onclick(e)}
 			>
 				<Plus size={14} aria-hidden="true"></Plus>
 				Přidat dovednost
@@ -338,7 +373,7 @@
 				class="picker"
 				popover="auto"
 				role="dialog"
-				aria-label="Přidat dovednost"
+				aria-label={editing === null ? 'Přidat dovednost' : 'Změnit dovednost'}
 				bind:this={panel}
 				{ontoggle}
 			>
@@ -356,13 +391,27 @@
 					<h4>Úroveň</h4>
 					<button type="button" class="back" onclick={back}>
 						<ChevronLeft size={14} aria-hidden="true"></ChevronLeft>
-						Zpět
+						{editing === null ? 'Zpět' : 'Jiná dovednost'}
 					</button>
 					<div class="subject">{skill.name}</div>
-					{#each freeLevels as l (l.dimension.dimension_index)}
-						<button type="button" class="choice" onclick={() => pickLevel(l.dimension)}>
-							<span class="choice-title">Úroveň {l.level}</span>
-							<span class="choice-desc">{l.dimension.name}</span>
+					{#each levelChoices as l (l.dimension.dimension_index)}
+						{@const index = l.dimension.dimension_index}
+						{@const used = taken.has(index)}
+						<button
+							type="button"
+							class="choice"
+							class:current={index === editing}
+							disabled={used}
+							aria-current={index === editing ? 'true' : undefined}
+							onclick={() => pickLevel(l.dimension)}
+						>
+							<span class="choice-title">
+								Úroveň {l.level}{#if index === editing}
+									<span class="mark"> · teď vybráno</span>{/if}
+							</span>
+							<span class="choice-desc">
+								{l.dimension.name}{#if used}{' '}· už je na jiném řádku{/if}
+							</span>
 						</button>
 					{/each}
 				{:else if step === 'relation' && dimension}
@@ -431,12 +480,27 @@
 		background: var(--surface);
 	}
 
+	/* A button, but not shaped like one: the row is the thing you click to change it. */
 	.what {
 		display: flex;
 		flex: 1;
 		flex-direction: column;
+		align-items: flex-start;
 		gap: 2px;
 		min-width: 160px;
+		padding: 2px 4px;
+		margin: -2px -4px;
+		border: none;
+		border-radius: var(--radius-xs);
+		background: none;
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.what:hover,
+	.what:focus-visible {
+		background: var(--surface-light);
 	}
 
 	.line {
@@ -589,6 +653,25 @@
 	.choice:focus-visible,
 	.back:hover {
 		background: var(--surface-light);
+	}
+
+	.choice:disabled {
+		color: var(--e-text-faint);
+		cursor: not-allowed;
+	}
+
+	.choice:disabled:hover {
+		background: none;
+	}
+
+	.current {
+		border-color: var(--e-border);
+		background: var(--surface-light);
+	}
+
+	.mark {
+		color: var(--e-text-muted);
+		font-weight: normal;
 	}
 
 	.big {

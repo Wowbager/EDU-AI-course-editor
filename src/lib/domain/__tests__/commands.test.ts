@@ -25,6 +25,7 @@ import {
 	moveLesson,
 	moveStep,
 	reorderBindings,
+	reorderOptions,
 	reorderSteps,
 	setField,
 	setPractice,
@@ -174,6 +175,38 @@ describe('a reorder that changes nothing', () => {
 		const block = doc.blocks.find((b) => b.block_id === 'L1_B3_poznej')!;
 		const ids = block.steps.map((s) => s.id).reverse();
 		expect(reorderSteps(doc, block.block_id, ids).doc).not.toBe(doc);
+	});
+});
+
+describe('reordering answers', () => {
+	const optionIds = (doc: CourseV2) =>
+		doc.blocks
+			.find((b) => b.block_id === 'L1_B3_poznej')!
+			.steps.find((s) => s.id === 's2')!
+			.question!.options!.map((o) => o.id);
+
+	it('swaps two neighbours and keeps every answer with its own fields', () => {
+		const doc = base();
+		const ids = optionIds(doc);
+		expect(ids.length).toBeGreaterThan(2);
+		const swapped = [ids[1], ids[0], ...ids.slice(2)];
+		const next = reorderOptions(doc, 'L1_B3_poznej', 's2', swapped).doc;
+		expect(optionIds(next)).toEqual(swapped);
+		const before = doc.blocks
+			.find((b) => b.block_id === 'L1_B3_poznej')!
+			.steps.find((s) => s.id === 's2')!
+			.question!.options!.find((o) => o.id === ids[0]);
+		const after = next.blocks
+			.find((b) => b.block_id === 'L1_B3_poznej')!
+			.steps.find((s) => s.id === 's2')!
+			.question!.options!.find((o) => o.id === ids[0]);
+		expect(after).toEqual(before);
+	});
+
+	it('completes a partial list with the rest in their current order', () => {
+		const ids = optionIds(base());
+		const next = reorderOptions(base(), 'L1_B3_poznej', 's2', [ids[ids.length - 1]]).doc;
+		expect(optionIds(next)).toEqual([ids[ids.length - 1], ...ids.slice(0, -1)]);
 	});
 });
 

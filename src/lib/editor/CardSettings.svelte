@@ -24,6 +24,7 @@
 	import SettingsNav from '$lib/ui/SettingsNav.svelte';
 	import TopicPicker from './TopicPicker.svelte';
 	import CompetencyEditor from './CompetencyEditor.svelte';
+	import ConceptsEditor from './ConceptsEditor.svelte';
 	import PrerequisiteEditor from './PrerequisiteEditor.svelte';
 	import { useStore } from '$lib/ui/context';
 	import { fieldsFor, listsSections, sectionsFor, type FieldLevel } from '$lib/ui/fields';
@@ -184,6 +185,7 @@
 		<h4>Dovednosti</h4>
 		<TopicPicker {block} />
 		<h4 class="apart">Zařazení karty</h4>
+		<ConceptsEditor {block} />
 		<CompetencyEditor {block} />
 		<FieldGroup fields={inSection('topics')} {read} write={set} />
 	{:else if id === 'review'}

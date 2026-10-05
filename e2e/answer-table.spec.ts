@@ -154,28 +154,31 @@ test('a question with several picks has no "Kam dál" and no grade, since the ap
 		doc.quiz_evaluate = true;
 	});
 	// Both live in the answer's detail line, which is closed until it is asked for.
-	await expect(page.getByRole('combobox', { name: 'Známka za tuto odpověď' })).toHaveCount(0);
+	await expect(page.getByRole('radiogroup', { name: 'Známka za tuto odpověď' })).toHaveCount(0);
 	await details(page).first().click();
 	await expect(details(page).first()).toHaveAttribute('aria-expanded', 'true');
 	await expect(
-		page.getByRole('combobox', { name: 'Známka za tuto odpověď' }).first()
+		page.getByRole('radiogroup', { name: 'Známka za tuto odpověď' }).first()
 	).toBeVisible();
 	await expect(
 		page.getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' }).first()
 	).toBeVisible();
 
+	// The line stays (the order is changed there), without the two fields.
 	await multiple(page).check();
-	await expect(details(page)).toHaveCount(0);
-	await expect(page.getByRole('combobox', { name: 'Známka za tuto odpověď' })).toHaveCount(0);
+	await expect(page.getByRole('radiogroup', { name: 'Známka za tuto odpověď' })).toHaveCount(0);
 	await expect(page.getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' })).toHaveCount(
 		0
 	);
 
 	// The values are still in the card; switching back shows them again.
 	await multiple(page).uncheck();
-	await expect(page.getByRole('combobox', { name: 'Známka za tuto odpověď' }).first()).toHaveValue(
-		'1'
-	);
+	await expect(
+		page
+			.getByRole('radiogroup', { name: 'Známka za tuto odpověď' })
+			.first()
+			.getByRole('radio', { name: '1', exact: true })
+	).toHaveAttribute('aria-checked', 'true');
 });
 
 test('the detail line opens from the row, and a set value is read without opening it', async ({
@@ -206,13 +209,44 @@ test('the detail line opens from the row, and a set value is read without openin
 	// Opening the line swaps the text for the fields that hold the values.
 	await details(page).first().click();
 	await expect(rows.first().locator('.set-values')).toHaveCount(0);
-	await expect(rows.first().getByRole('combobox', { name: 'Známka za tuto odpověď' })).toHaveValue(
-		'2'
-	);
+	await expect(
+		rows
+			.first()
+			.getByRole('radiogroup', { name: 'Známka za tuto odpověď' })
+			.getByRole('radio', { name: '2', exact: true })
+	).toHaveAttribute('aria-checked', 'true');
 	await details(page).first().click();
-	await expect(rows.first().getByRole('combobox', { name: 'Známka za tuto odpověď' })).toHaveCount(
-		0
-	);
+	await expect(
+		rows.first().getByRole('radiogroup', { name: 'Známka za tuto odpověď' })
+	).toHaveCount(0);
+});
+
+test('an answer moves up and down from its detail line, and not past the ends', async ({
+	page
+}) => {
+	await loadCourse(page);
+	const rows = page.locator('.answers .row');
+	const texts = () => rows.locator('.cell.text').allInnerTexts();
+	const before = await texts();
+	expect(before.length).toBeGreaterThan(2);
+
+	await details(page).first().click();
+	const up = rows.first().getByRole('button', { name: /^Posunout nahoru/ });
+	const down = rows.first().getByRole('button', { name: /^Posunout dolů/ });
+	await expect(up).toBeDisabled();
+	await down.click();
+	await expect.poll(texts).toEqual([before[1], before[0], ...before.slice(2)]);
+
+	// The moved answer is now second, and its line stayed open with it.
+	await expect(rows.nth(1).getByRole('button', { name: /^Posunout nahoru/ })).toBeEnabled();
+	await rows
+		.nth(1)
+		.getByRole('button', { name: /^Posunout nahoru/ })
+		.click();
+	await expect.poll(texts).toEqual(before);
+
+	await details(page).last().click();
+	await expect(rows.last().getByRole('button', { name: /^Posunout dolů/ })).toBeDisabled();
 });
 
 test('the heading row goes when "Odpověď" would be its only label', async ({ page }) => {

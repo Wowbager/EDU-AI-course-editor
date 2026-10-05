@@ -15,15 +15,24 @@
 	import type { BlockStep, BlockV2, CourseV2 } from '$lib/domain/schema';
 	import FocusField from '$lib/ui/FocusField.svelte';
 	import Button from '$lib/ui/Button.svelte';
+	import Segmented from '$lib/ui/Segmented.svelte';
 	import GoToPicker, { goToSummary } from './GoToPicker.svelte';
 	import { sectionTargeted } from '$lib/ui/settings-target';
 	import { useStore } from '$lib/ui/context';
 	import { uniqueKeys } from '$lib/ui/keys';
 	import { allows } from '$lib/ui/fields';
-	import { addOption, deleteOption, setField } from '$lib/domain/commands';
+	import { addOption, deleteOption, reorderOptions, setField } from '$lib/domain/commands';
 	import { optionOutcomesApply } from '$lib/domain/derive';
 	import { MIN_CHOICE_OPTIONS } from '$lib/domain/validate';
-	import { Check, ChevronRight, CornerDownRight, Plus, Trash } from '@lucide/svelte';
+	import {
+		ArrowDown,
+		ArrowUp,
+		Check,
+		ChevronRight,
+		CornerDownRight,
+		Plus,
+		Trash
+	} from '@lucide/svelte';
 	import { withUndoNotice } from './undo-notice';
 
 	interface Props {
@@ -55,8 +64,10 @@
 	const fixedOptions = $derived(step.question?.type === 'true_false');
 	// "Odpověď" alone is not worth a heading: the column is the only one there is.
 	const headed = $derived(feedback);
-	// The detail line exists only when at least one of its three fields does.
-	const detailOffered = $derived(branching || quizMarks || advanced);
+	// A true/false pair has no order to change.
+	const movable = $derived(!fixedOptions && options.length > 1);
+	// The detail line exists only when at least one of its fields does.
+	const detailOffered = $derived(branching || quizMarks || advanced || movable);
 	const showIds = $derived(allows('step', 'id', store.mode));
 	// Which answers have their detail line open. Local to this table, like a fold.
 	let opened = $state<Record<string, boolean>>({});
@@ -127,6 +138,20 @@
 
 	const set = (optionId: string, field: string, value: unknown) =>
 		store.apply((d) => setField(d, ref(optionId, field), value));
+
+	/** One place up (-1) or down (1); the ends stay where they are. */
+	function move(index: number, by: -1 | 1) {
+		const ids = options.map((o) => o.id);
+		const to = index + by;
+		if (to < 0 || to >= ids.length) return;
+		[ids[index], ids[to]] = [ids[to], ids[index]];
+		store.apply((d) => reorderOptions(d, block.block_id, step.id, ids));
+	}
+
+	const MARKS = [
+		{ value: '', label: 'Bez známky' },
+		...['1', '2', '3', '4', '5'].map((m) => ({ value: m, label: m }))
+	];
 
 	function toggleChecked(optionId: string) {
 		const option = options.find((o) => o.id === optionId);
@@ -289,17 +314,39 @@
 					{#if quizMarks}
 						<div class="field">
 							<span class="label">Známka</span>
-							<select
-								class="mark"
-								aria-label="Známka za tuto odpověď"
+							<Segmented
+								label="Známka za tuto odpověď"
+								options={MARKS}
 								value={option.mark ?? ''}
-								onchange={(e) => set(option.id, 'mark', e.currentTarget.value || undefined)}
-							>
-								<option value="">—</option>
-								{#each ['1', '2', '3', '4', '5'] as mark (mark)}
-									<option value={mark}>{mark}</option>
-								{/each}
-							</select>
+								onchange={(v) => set(option.id, 'mark', v || undefined)}
+							/>
+						</div>
+					{/if}
+					{#if movable}
+						<div class="field">
+							<span class="label">Pořadí</span>
+							<span class="moves">
+								<Button
+									variant="secondary"
+									size="s"
+									disabled={i === 0}
+									ariaLabel={`Posunout nahoru: ${option.text || 'odpověď bez textu'}`}
+									onclick={() => move(i, -1)}
+								>
+									<ArrowUp size={14} aria-hidden="true"></ArrowUp>
+									Posunout nahoru
+								</Button>
+								<Button
+									variant="secondary"
+									size="s"
+									disabled={i === options.length - 1}
+									ariaLabel={`Posunout dolů: ${option.text || 'odpověď bez textu'}`}
+									onclick={() => move(i, 1)}
+								>
+									<ArrowDown size={14} aria-hidden="true"></ArrowDown>
+									Posunout dolů
+								</Button>
+							</span>
 						</div>
 					{/if}
 					{#if advanced}
@@ -606,13 +653,10 @@
 		color: var(--e-warning);
 	}
 
-	.mark {
-		padding: 3px 6px;
-		border: 1px solid var(--e-border);
-		border-radius: var(--radius-xs);
-		background: var(--surface);
-		font-family: var(--font-body);
-		font-size: var(--text-s);
+	.moves {
+		display: inline-flex;
+		flex-wrap: wrap;
+		gap: 6px;
 	}
 
 	.add {
