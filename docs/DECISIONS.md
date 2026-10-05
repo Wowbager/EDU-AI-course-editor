@@ -2124,6 +2124,43 @@ once); showing the lesson's name on rule lines when a card sits in several lesso
   cards and changed in each card, and hides the feedback share when Zpětná vazba is off
   (it is meaningless then).
 
+## Round 13 — what the teacher test found
+
+### Answers: the summary line is the way in, a cut-off step is said once, "Kam dál" loses no letters
+
+(#45 items 3, 4 and 8.)
+
+- **The line under an answer is a button.** "↳ Krok 3 · známka 4" looked like a link
+  and was inert. It is now a button in the same quiet type, with a tint and an
+  underline under the pointer and on focus. One click opens the answer's detail line
+  with the first field focused, which for a branching question is "Kam dál". It does
+  not open the picker itself: the line also says the mark, and a click on "známka 4"
+  that threw a list of steps over the page would be wrong. One more click is the price
+  for a click that always lands where the text was.
+- **The chevron stays.** It is the only way in for an answer that has nothing set (no
+  line to click), and the way to fold the line again. Both controls open the same
+  line; they are not two ways to do two things.
+- **"Kam dál" opens below its button.** If the list is taller than the room beneath,
+  the box shrinks and scrolls while there are at least 180px; only below that does it
+  open above. Before, it flipped as soon as the full height did not fit and covered
+  the answers over the trigger.
+- **A step that loses its last path is said once.** After a change of "Kam dál" or a
+  removed answer, `madeUnreachable` (`ui/issue-visibility.ts`) runs `validate()` on
+  the document before and after and keeps the "nothing leads here" warnings
+  (`W_UNREACHABLE_STEP`, `W_ORPHAN_BLOCK`) that are new. The line sits under the answer
+  that was changed ("Krok 3 teď nikam nevede — žák ho neuvidí · Vrátit zpět"), lasts
+  while that change is the last edit, and "Vrátit zpět" is the store's undo. The two
+  codes stay `review` in the timing table: this is a fourth case, a consequence of the
+  edit just made, not a state of the card. Kontrola kurzu still lists them all.
+  Rejected: a second reachability walk in the component (two rules would drift);
+  making `W_UNREACHABLE_STEP` `immediate` (it would warn on every half-built card, and
+  stay after the author had moved on).
+- **"Kam dál" search keeps the first letters.** `ChoicePicker.show` no longer awaits a
+  tick: it renders with `flushSync`, opens, places and focuses in the click itself.
+  Typing without waiting after the click lands in the search field (e2e). Rejected:
+  buffering keystrokes at the trigger; with nothing asynchronous there is nothing to
+  buffer.
+
 ## Formatting — one formatter, and the two places it is not allowed
 
 The repo had a house style and no formatter: `useTabs` nearly everywhere (129 files to

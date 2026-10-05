@@ -313,3 +313,100 @@ test('a detail line that was pointed at can still be closed by hand', async ({ p
 	);
 	await expect(first.locator('.set-values')).toContainText('konec bloku');
 });
+
+/** The "Kam dál" box of the first answer whose line is open. */
+const goTo = (page: Page) => page.getByRole('button', { name: 'Kam pokračovat po této odpovědi' });
+const goToBox = (page: Page) =>
+	page.getByRole('dialog', { name: 'Kam pokračovat po této odpovědi' });
+
+test('the line under an answer is a button: it looks quiet, answers to the pointer, and opens "Kam dál"', async ({
+	page
+}) => {
+	await loadCourse(page);
+	const rows = page.locator('.answers .row');
+	// Answer b leads to step 3 in the fixture, and its line says so.
+	const summary = rows.nth(1).locator('.set-values');
+	await expect(summary).toContainText('Krok 3');
+	await expect(summary).toHaveJSProperty('tagName', 'BUTTON');
+	const resting = await summary.evaluate((el) => getComputedStyle(el).backgroundColor);
+	await summary.hover();
+	await expect
+		.poll(() => summary.evaluate((el) => getComputedStyle(el).textDecorationLine))
+		.toBe('underline');
+	expect(await summary.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe(resting);
+
+	// One click: the detail line is open and the cursor is on "Kam dál".
+	await summary.click();
+	await expect(rows.nth(1).locator('.set-values')).toHaveCount(0);
+	await expect(rows.nth(1).getByRole('group', { name: 'Podrobnosti odpovědi' })).toBeVisible();
+	await expect(
+		rows.nth(1).getByRole('button', { name: 'Kam pokračovat po této odpovědi' })
+	).toBeFocused();
+	// The chevron is still there to fold the line away.
+	await expect(rows.nth(1).getByRole('button', { name: /^Podrobnosti odpovědi/ })).toHaveAttribute(
+		'aria-expanded',
+		'true'
+	);
+});
+
+test('the "Kam dál" box opens below its button, not over the answers above it', async ({
+	page
+}) => {
+	await loadCourse(page);
+	await page.locator('.answers .row').nth(1).locator('.set-values').click();
+	const trigger = goTo(page).first();
+	await trigger.click();
+	const box = goToBox(page);
+	await expect(box).toBeVisible();
+	const t = (await trigger.boundingBox())!;
+	const b = (await box.boundingBox())!;
+	expect(b.y).toBeGreaterThanOrEqual(t.y + t.height - 1);
+});
+
+test('letters typed at once after opening "Kam dál" are not lost', async ({ page }) => {
+	await loadCourse(page);
+	await page.locator('.answers .row').nth(1).locator('.set-values').click();
+	await goTo(page).first().click();
+	// No waiting: the keys follow the click as fast as they can.
+	await page.keyboard.type('Krok');
+	await expect(goToBox(page).getByRole('searchbox', { name: 'Hledat v nabídce' })).toHaveValue(
+		'Krok'
+	);
+});
+
+test('an answer that cuts a step off says so once, and "Vrátit zpět" brings it back', async ({
+	page
+}) => {
+	await loadCourse(page);
+	const rows = page.locator('.answers .row');
+	const line = page.locator('.answers .cut-off');
+	// Answer b is the only way to step 3; sending it to the end leaves step 3 without a path.
+	await rows.nth(1).locator('.set-values').click();
+	await goTo(page).first().click();
+	await goToBox(page).getByRole('button', { name: 'Ukončit blok' }).click();
+	await expect(line).toHaveCount(1);
+	await expect(line).toContainText('Krok 3 teď nikam nevede — žák ho neuvidí');
+	await expect(rows.nth(1).locator('.cut-off')).toBeVisible();
+
+	// Undo is this change only: the answer leads to step 3 again and the line is gone.
+	await line.getByRole('button', { name: 'Vrátit zpět' }).click();
+	await expect(line).toHaveCount(0);
+	await expect(goTo(page).first()).toContainText('Krok 3');
+
+	// Do it again; the next edit of anything clears the line.
+	await goTo(page).first().click();
+	await goToBox(page).getByRole('button', { name: 'Ukončit blok' }).click();
+	await expect(line).toHaveCount(1);
+	await page.getByRole('textbox', { name: 'Text odpovědi' }).first().click();
+	await page.keyboard.type('x');
+	await expect(line).toHaveCount(0);
+});
+
+test('a change that loses nothing says nothing', async ({ page }) => {
+	await loadCourse(page);
+	await page.locator('.answers .row').nth(1).locator('.set-values').click();
+	await goTo(page).first().click();
+	// Carrying on from answer b reaches step 3 by the step order, so nothing is lost.
+	await goToBox(page).getByRole('button', { name: 'Pokračovat dál' }).click();
+	await expect(page.locator('.answers .cut-off')).toHaveCount(0);
+});

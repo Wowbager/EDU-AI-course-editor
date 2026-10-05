@@ -13,9 +13,9 @@
 	 * Keys: arrows move through the items, Enter picks, and typing anywhere goes to the
 	 * search field, which exists only when the list is longer than eight items.
 	 */
-	import { tick } from 'svelte';
+	import { flushSync, tick } from 'svelte';
 	import { Check, ChevronLeft, ChevronRight } from '@lucide/svelte';
-	import { placeMenu } from './placement';
+	import { placeMenu, VIEWPORT_MARGIN } from './placement';
 	import {
 		filterGroups,
 		firstToFocus,
@@ -47,13 +47,20 @@
 
 	const isShowing = () => panel?.matches(':popover-open') ?? false;
 
-	/** Opens below `anchor`, on `at` (item ids from the first step) when given. */
-	export async function show(anchor: HTMLElement, at: string[] = []) {
+	/**
+	 * Opens below `anchor` (above it only when there is no room below), on `at` (item
+	 * ids from the first step) when given. Everything happens in the click that calls
+	 * it, with no `await`: the content is rendered with `flushSync` so it can be
+	 * measured, and focus is inside the box before the browser handles the next key.
+	 * A teacher who clicks and types at once, as a teacher who knows the card does,
+	 * loses no letters; a `tick()` here once cost the first ones.
+	 */
+	export function show(anchor: HTMLElement, at: string[] = []) {
 		if (panel === null || isShowing()) return;
 		path = at;
 		query = '';
 		// Rendered before it is measured, or the box is placed by its previous size.
-		await tick();
+		flushSync();
 		panel.showPopover();
 		place(anchor);
 		anchorRef = anchor;
@@ -65,11 +72,23 @@
 	}
 
 	let anchorRef: HTMLElement | null = null;
+	/**
+	 * Below the trigger. A box that is taller than the room under it shrinks and scrolls
+	 * as long as that room is worth having (`MIN_BELOW`); only when there is hardly any
+	 * does it open above — otherwise it would sit on the answers over the trigger.
+	 */
+	const MIN_BELOW = 180;
 	function place(anchor: HTMLElement) {
 		if (panel === null) return;
+		const at = anchor.getBoundingClientRect();
+		panel.style.maxHeight = '';
+		const room = window.innerHeight - at.bottom - 4 - VIEWPORT_MARGIN;
+		if (panel.getBoundingClientRect().height > room && room >= MIN_BELOW) {
+			panel.style.maxHeight = `${room}px`;
+		}
 		const box = panel.getBoundingClientRect();
 		const spot = placeMenu(
-			anchor.getBoundingClientRect(),
+			at,
 			{ width: box.width, height: box.height },
 			{ width: window.innerWidth, height: window.innerHeight },
 			'bottom-start'
@@ -80,8 +99,8 @@
 
 	const items = () => [...(panel?.querySelectorAll<HTMLElement>('.choice') ?? [])];
 
-	async function focusStart() {
-		await tick();
+	/** Synchronous: the DOM already shows the step (`show` flushes, `enter` ticks). */
+	function focusStart() {
 		const current = panel?.querySelector<HTMLElement>('.choice.current');
 		if (current) {
 			current.focus();

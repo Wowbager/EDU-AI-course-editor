@@ -18,12 +18,19 @@
  * Once the author has looked at the export review, what that review listed is shown
  * (`reviewed`, the keys of those issues): they are now fixing, not writing. An issue
  * that comes up afterwards, on a card they have just added, keeps its own timing.
+ * A fourth case sits beside the three: a thing the author's own change has just
+ * stopped reaching. `W_UNREACHABLE_STEP` and `W_ORPHAN_BLOCK` stay `review` — listed
+ * in the export review and never nagging while a card is built — but the answer table
+ * says so once, under the answer that was changed, right after the change
+ * (`madeUnreachable`), and says nothing on the next edit. It is the same check as the
+ * review's, run on the document before and after, so there is no second rule.
  * None of this touches severity — errors still block the
  * file whether or not they are on screen (§3 invariant 5), and the export review
  * and validation panel always list every issue.
  */
 import type { Ref } from '$lib/domain/ref';
-import type { Issue } from '$lib/domain/validate';
+import type { CourseV2 } from '$lib/domain/schema';
+import { validate, type Issue } from '$lib/domain/validate';
 import { isFeedbackRef } from '$lib/ui/fields';
 
 export type Timing = 'immediate' | 'onLeave' | 'review';
@@ -151,4 +158,27 @@ export function isVisible(
 			return touched.fields.has(fieldKey(issue.ref));
 		}
 	}
+}
+
+/** The warnings that say "nothing leads here": a step no path reaches, a card no one links to. */
+export const UNREACHABLE_CODES: ReadonlySet<string> = new Set([
+	'W_UNREACHABLE_STEP',
+	'W_ORPHAN_BLOCK'
+]);
+
+/**
+ * What the change from `before` to `after` made unreachable: the "nothing leads here"
+ * warnings of `after` that `before` did not have, in document order. Something that
+ * was already unreachable is not new, and something that became reachable is not
+ * listed. Both are `validate()`'s own findings, so the rule is the review's.
+ */
+export function madeUnreachable(before: CourseV2, after: CourseV2): Issue[] {
+	const was = new Set(
+		validate(before)
+			.warnings.filter((i) => UNREACHABLE_CODES.has(i.code))
+			.map(issueKey)
+	);
+	return validate(after).warnings.filter(
+		(i) => UNREACHABLE_CODES.has(i.code) && !was.has(issueKey(i))
+	);
 }

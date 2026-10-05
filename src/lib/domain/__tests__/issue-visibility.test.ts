@@ -7,11 +7,14 @@ import {
 	HELD_WITH_FEEDBACK,
 	isVisible,
 	issueKey,
+	madeUnreachable,
 	TIMING,
 	timingOf,
 	type Touched
 } from '$lib/ui/issue-visibility';
 import type { Issue } from '../validate';
+import { parseCourse } from '../document';
+import { setField } from '../commands';
 
 const nothing: Touched = { cards: new Set(), fields: new Set() };
 
@@ -232,4 +235,53 @@ describe('a card is born quiet', () => {
 			expect(shown.map((i) => i.code)).toEqual([]);
 		});
 	}
+});
+
+describe('what a change just made unreachable', () => {
+	const course = () =>
+		parseCourse(
+			JSON.parse(
+				readFileSync(
+					fileURLToPath(new URL('./fixtures/spec-16-course.json', import.meta.url)),
+					'utf8'
+				)
+			)
+		);
+	const change = (doc: ReturnType<typeof course>, optionId: string, value: string) =>
+		setField(doc, { blockId: 'L1_B3_poznej', stepId: 's2', optionId, field: 'go_to' }, value).doc;
+
+	it('names the step that only that answer led to', () => {
+		const before = course();
+		const after = change(before, 'b', 'END');
+		const lost = madeUnreachable(before, after);
+		expect(lost.map((i) => [i.code, i.ref.stepId])).toEqual([['W_UNREACHABLE_STEP', 's3']]);
+	});
+
+	it('says nothing for a change that loses nothing, or that wins a step back', () => {
+		const before = course();
+		expect(madeUnreachable(before, change(before, 'b', 's4'))).toHaveLength(1);
+		const broken = change(before, 'b', 'END');
+		expect(madeUnreachable(broken, change(broken, 'b', 's3'))).toEqual([]);
+		// Already unreachable before: not this change's doing.
+		expect(madeUnreachable(broken, change(broken, 'd', 'END'))).toEqual([]);
+	});
+
+	it('names a card nothing links to any more', () => {
+		// The card is in no lesson and no one lists it as a prerequisite, so answer c is
+		// the only thing that leads to it.
+		const base = JSON.parse(JSON.stringify(course()));
+		for (const block of base.blocks) {
+			delete block.default_practice;
+			delete block.learning?.prerequisites;
+			for (const step of block.steps) delete step.default_practice;
+		}
+		for (const lesson of base.lessons) {
+			lesson.blocks = lesson.blocks.filter(
+				(b: { block_id: string }) => b.block_id !== 'L1_B2_casti'
+			);
+		}
+		const before = parseCourse(base);
+		const after = change(before, 'c', 'END');
+		expect(madeUnreachable(before, after).map((i) => i.code)).toContain('W_ORPHAN_BLOCK');
+	});
 });

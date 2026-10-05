@@ -7,20 +7,29 @@
 	 * The grid holds what an answer *is*: the mark of right or wrong, the option text
 	 * and the feedback the student sees after choosing it. What it *does* (§8.2: where
 	 * it leads, the mark collected in quiz mode, the share of points) sits in a detail
-	 * line under the row that a quiet control opens. A value that is set shows as
-	 * inert text under the answer, so it is read without opening anything.
+	 * line under the row. A value that is set is read under the answer without opening
+	 * anything, and that line is itself the way in: it opens the detail line with the
+	 * first field focused (for a branch, "Kam dál"), so what you read is what you click.
+	 * The chevron stays for the answers that say nothing yet (nothing to click) and for
+	 * folding the line away again.
+	 *
+	 * A change of "Kam dál" (or removing an answer) that leaves a step or a card with no
+	 * way to it says so once under that answer, with "Vrátit zpět" (`madeUnreachable`),
+	 * and says nothing after the next edit.
 	 */
 	import { parseNumberInput } from '$lib/domain/number-input';
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import type { BlockStep, BlockV2, CourseV2 } from '$lib/domain/schema';
 	import FocusField from '$lib/ui/FocusField.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import Segmented from '$lib/ui/Segmented.svelte';
-	import GoToPicker, { goToSummary } from './GoToPicker.svelte';
+	import GoToPicker, { blockLabelOf, goToSummary } from './GoToPicker.svelte';
 	import { sectionTargeted } from '$lib/ui/settings-target';
 	import { useStore } from '$lib/ui/context';
 	import { uniqueKeys } from '$lib/ui/keys';
 	import { allows } from '$lib/ui/fields';
+	import { madeUnreachable } from '$lib/ui/issue-visibility';
+	import type { UndoEntry } from '$lib/state/doc-store.svelte';
 	import { addOption, deleteOption, reorderOptions, setField } from '$lib/domain/commands';
 	import { optionOutcomesApply } from '$lib/domain/derive';
 	import { MIN_CHOICE_OPTIONS } from '$lib/domain/validate';
@@ -88,6 +97,19 @@
 	});
 
 	/**
+	 * Opens an answer's detail line and puts the cursor in its first field, which is
+	 * "Kam dál" for a branching question. Used by the summary line under the answer.
+	 */
+	async function openDetail(key: string, i: number) {
+		opened[key] = true;
+		await tick();
+		document
+			.getElementById(`${uid}-detail-${i}`)
+			?.querySelector<HTMLElement>('button, input, textarea, [role="radio"]')
+			?.focus();
+	}
+
+	/**
 	 * What is set on an answer, in a few words; defaults say nothing. Where the answer
 	 * leads is drawn with the branch icon, not a typed arrow.
 	 */
@@ -148,6 +170,49 @@
 		store.apply((d) => reorderOptions(d, block.block_id, step.id, ids));
 	}
 
+	/**
+	 * What the last change cut off: the step or card nothing leads to any more, said
+	 * under the answer that was changed. It lives as long as that change is the last
+	 * edit, so the next one of any kind clears it, and "Vrátit zpět" can only ever undo
+	 * this change. `optionId` is empty for a removed answer, which has no row left.
+	 */
+	let cutOff = $state<{ entry: UndoEntry; optionId: string; text: string } | null>(null);
+	const cutOffNow = $derived(
+		cutOff !== null && store.undoStack.at(-1) === cutOff.entry ? cutOff : null
+	);
+
+	/** "Krok 3", the card's name: the words the summary line and the picker use. */
+	function lostName(issue: ReturnType<typeof madeUnreachable>[number]): string {
+		const target = doc.blocks.find((b) => b.block_id === issue.ref.blockId);
+		if (target === undefined) return '';
+		if (issue.ref.stepId === undefined) return `karta „${blockLabelOf(doc, target, showIds)}“`;
+		const position = target.steps.findIndex((s) => s.id === issue.ref.stepId) + 1;
+		return showIds ? issue.ref.stepId : `Krok ${position}`;
+	}
+
+	/** Runs `change`; if it left something unreachable that was reachable, remembers it. */
+	function withReachNotice(optionId: string, change: () => void) {
+		const before = store.doc;
+		const top = store.undoStack.at(-1);
+		change();
+		const entry = store.undoStack.at(-1);
+		cutOff = null;
+		if (entry === undefined || entry === top) return;
+		const lost = madeUnreachable(before, store.doc);
+		if (lost.length === 0) return;
+		const names = lost.map(lostName).filter((n) => n !== '');
+		if (names.length === 0) return;
+		const shown = names.length > 3 ? [...names.slice(0, 3), 'další'] : names;
+		const list =
+			shown.length === 1 ? shown[0] : `${shown.slice(0, -1).join(', ')} a ${shown.at(-1)}`;
+		const many = lost.length > 1;
+		// A step is "ho", a card "ji", several "je".
+		const pronoun = many ? 'je' : lost[0].ref.stepId === undefined ? 'ji' : 'ho';
+		const head = showIds ? list : `${list.charAt(0).toUpperCase()}${list.slice(1)}`;
+		const text = `${head} teď ${many ? 'nikam nevedou' : 'nikam nevede'} — žák ${pronoun} neuvidí`;
+		cutOff = { entry, optionId, text };
+	}
+
 	const MARKS = [
 		{ value: '', label: 'Bez známky' },
 		...['1', '2', '3', '4', '5'].map((m) => ({ value: m, label: m }))
@@ -185,6 +250,14 @@
 		}
 	}
 </script>
+
+{#snippet cutOffLine(text: string)}
+	<p class="cut-off" role="status">
+		{text}
+		<span aria-hidden="true"> · </span>
+		<button type="button" class="undo" onclick={() => store.undo()}>Vrátit zpět</button>
+	</p>
+{/snippet}
 
 <div class="answers" class:bare={!headed} style:--answer-tracks={tracks}>
 	{#if headed}
@@ -230,7 +303,14 @@
 				{#if !isOpen(optionKeys[i])}
 					{@const summary = summaryOf(option)}
 					{#if summary.length > 0}
-						<p class="set-values">
+						<button
+							type="button"
+							class="set-values"
+							aria-controls="{uid}-detail-{i}"
+							aria-expanded="false"
+							title="Upravit podrobnosti odpovědi"
+							onclick={() => openDetail(optionKeys[i], i)}
+						>
 							{#each summary as part, j (j)}
 								{#if j > 0}<span aria-hidden="true"> · </span>{/if}
 								<span class="set-value">
@@ -238,8 +318,11 @@
 										></CornerDownRight>{/if}{part.text}
 								</span>
 							{/each}
-						</p>
+						</button>
 					{/if}
+				{/if}
+				{#if cutOffNow !== null && cutOffNow.optionId === option.id}
+					{@render cutOffLine(cutOffNow.text)}
 				{/if}
 			</div>
 
@@ -284,11 +367,17 @@
 								: 'Smazat odpověď'}
 							ariaLabel={`Smazat odpověď ${option.text || 'bez textu'}`}
 							onclick={() =>
-								withUndoNotice(
-									store,
-									'Odpověď smazána.',
-									() => store.apply((d) => deleteOption(d, block.block_id, step.id, option.id)),
-									{ lessonId: store.selection?.lessonId, blockId: block.block_id, stepId: step.id }
+								withReachNotice('', () =>
+									withUndoNotice(
+										store,
+										'Odpověď smazána.',
+										() => store.apply((d) => deleteOption(d, block.block_id, step.id, option.id)),
+										{
+											lessonId: store.selection?.lessonId,
+											blockId: block.block_id,
+											stepId: step.id
+										}
+									)
 								)}
 						>
 							<Trash size={14}></Trash>
@@ -307,7 +396,7 @@
 								{block}
 								stepId={step.id}
 								value={option.go_to}
-								onchange={(v) => set(option.id, 'go_to', v)}
+								onchange={(v) => withReachNotice(option.id, () => set(option.id, 'go_to', v))}
 							/>
 						</div>
 					{/if}
@@ -371,6 +460,10 @@
 			{/if}
 		</div>
 	{/each}
+
+	{#if cutOffNow !== null && cutOffNow.optionId === ''}
+		{@render cutOffLine(cutOffNow.text)}
+	{/if}
 
 	{#each [...listIssues.errors, ...listIssues.warnings] as issue (issue.code)}
 		<p class="list-issue" class:warning={issue.severity === 'warning'}>
@@ -456,11 +549,65 @@
 		gap: 3px;
 	}
 
+	/*
+	 * The line under an answer is a button that looks like a caption: quiet at rest,
+	 * and a tinted pill with an underline when it is pointed at or focused, so it
+	 * reads as something to click without a border on every row.
+	 */
 	.set-values {
-		margin: 2px 0 0;
-		padding: 0 6px;
+		display: inline-flex;
+		flex-wrap: wrap;
+		align-items: center;
+		column-gap: 3px;
+		margin: 2px 0 0 -2px;
+		padding: 1px 6px;
+		border: 0;
+		border-radius: var(--radius-xs);
+		background: none;
 		color: var(--e-text-faint);
+		font: inherit;
 		font-size: var(--text-xs);
+		text-align: left;
+		cursor: pointer;
+		transition:
+			background 120ms,
+			color 120ms;
+	}
+
+	.set-values:hover,
+	.set-values:focus-visible {
+		background: var(--surface);
+		color: var(--e-text);
+		text-decoration: underline;
+		text-underline-offset: 2px;
+	}
+
+	.set-values:focus-visible {
+		outline: 2px solid var(--e-focus-ring);
+		outline-offset: 1px;
+	}
+
+	.cut-off {
+		margin: 4px 0 0;
+		padding: 0 6px;
+		color: var(--e-warning);
+		font-size: var(--text-xs);
+	}
+
+	.undo {
+		padding: 0;
+		border: 0;
+		background: none;
+		color: inherit;
+		font: inherit;
+		font-weight: var(--weight-semibold);
+		text-decoration: underline;
+		cursor: pointer;
+	}
+
+	.undo:focus-visible {
+		outline: 2px solid var(--e-focus-ring);
+		outline-offset: 1px;
 	}
 
 	/* The control that opens an answer's detail line is there when the row is. */
