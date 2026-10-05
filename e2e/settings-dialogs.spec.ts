@@ -60,18 +60,18 @@ test('grade, level and Bloom are chosen from words and stored as numbers', async
 	// Level and difficulty are a few short choices: segments, not selects. The chosen
 	// one is stored as a number, and clicking it again gives "nenastaveno" back.
 	const level = pane.getByRole('radiogroup', { name: 'Úroveň zvládnutí' });
-	await level.getByRole('radio', { name: '3 – splňuje' }).click();
-	await expect(level.getByRole('radio', { name: '3 – splňuje' })).toHaveAttribute(
+	await level.getByRole('radio', { name: 'splňuje', exact: true }).click();
+	await expect(level.getByRole('radio', { name: 'splňuje', exact: true })).toHaveAttribute(
 		'aria-checked',
 		'true'
 	);
 	const difficulty = pane.getByRole('radiogroup', { name: 'Odhad obtížnosti' });
-	await difficulty.getByRole('radio', { name: '2 – snadná' }).click();
-	await expect(difficulty.getByRole('radio', { name: '2 – snadná' })).toHaveAttribute(
+	await difficulty.getByRole('radio', { name: 'snadná', exact: true }).click();
+	await expect(difficulty.getByRole('radio', { name: 'snadná', exact: true })).toHaveAttribute(
 		'aria-checked',
 		'true'
 	);
-	await difficulty.getByRole('radio', { name: '2 – snadná' }).click();
+	await difficulty.getByRole('radio', { name: 'snadná', exact: true }).click();
 	await expect(difficulty.getByRole('radio', { checked: true })).toHaveCount(0);
 });
 

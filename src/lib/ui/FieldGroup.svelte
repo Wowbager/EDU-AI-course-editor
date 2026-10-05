@@ -71,7 +71,12 @@
 		</div>
 	{:else if spec.kind === 'select' && spec.display === 'segmented'}
 		{@const current = asText(value) ?? ''}
-		{@const options = (spec.options ?? []).map((o) => ({ value: o.value, label: o.label }))}
+		<!-- The number in "3 – splňuje" is the order the segments already show; without it
+		     a four- or five-step scale fits on one row. -->
+		{@const options = (spec.options ?? []).map((o) => ({
+			value: o.value,
+			label: o.label.replace(/^\d+ – /, '')
+		}))}
 		<div class="field-row" class:match>
 			<div class="field-label">
 				<span>{spec.label}</span>
