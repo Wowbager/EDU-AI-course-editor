@@ -161,13 +161,13 @@ test('a question with several picks has no "Kam dál" and no grade, since the ap
 		page.getByRole('radiogroup', { name: 'Známka za tuto odpověď' }).first()
 	).toBeVisible();
 	await expect(
-		page.getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' }).first()
+		page.getByRole('button', { name: 'Kam pokračovat po této odpovědi' }).first()
 	).toBeVisible();
 
 	// The line stays (the order is changed there), without the two fields.
 	await multiple(page).check();
 	await expect(page.getByRole('radiogroup', { name: 'Známka za tuto odpověď' })).toHaveCount(0);
-	await expect(page.getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' })).toHaveCount(
+	await expect(page.getByRole('button', { name: 'Kam pokračovat po této odpovědi' })).toHaveCount(
 		0
 	);
 
@@ -284,10 +284,10 @@ test('a problem with where an answer leads opens that answer’s detail line by 
 	await page.locator('.tree-card').nth(2).click();
 	const rows = page.locator('.answers .row');
 	await expect(
-		rows.nth(1).getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' })
+		rows.nth(1).getByRole('button', { name: 'Kam pokračovat po této odpovědi' })
 	).toBeVisible();
 	await expect(
-		rows.nth(0).getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' })
+		rows.nth(0).getByRole('button', { name: 'Kam pokračovat po této odpovědi' })
 	).toHaveCount(0);
 });
 
@@ -298,12 +298,14 @@ test('a detail line that was pointed at can still be closed by hand', async ({ p
 	// A warning on the row may have opened it already.
 	if ((await more.getAttribute('aria-expanded')) !== 'true') await more.click();
 	await expect(more).toHaveAttribute('aria-expanded', 'true');
-	await first
-		.getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' })
-		.selectOption('END');
+	await first.getByRole('button', { name: 'Kam pokračovat po této odpovědi' }).click();
+	await page
+		.getByRole('dialog', { name: 'Kam pokračovat po této odpovědi' })
+		.getByRole('button', { name: 'Ukončit blok' })
+		.click();
 	await first.getByRole('button', { name: /^Podrobnosti odpovědi/ }).click();
-	await expect(
-		first.getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' })
-	).toHaveCount(0);
+	await expect(first.getByRole('button', { name: 'Kam pokračovat po této odpovědi' })).toHaveCount(
+		0
+	);
 	await expect(first.locator('.set-values')).toContainText('konec bloku');
 });

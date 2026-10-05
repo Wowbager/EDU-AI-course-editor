@@ -1420,7 +1420,7 @@ export function sectionsFor(
 export const listsSections = (mode: Mode): boolean => mode !== 'teacher';
 
 /** Lower case without diacritics, so „opakovani“ finds „Opakování“. */
-const fold = (text: string): string =>
+export const fold = (text: string): string =>
 	text
 		.normalize('NFD')
 		.replace(/\p{Diacritic}/gu, '')

@@ -2035,7 +2035,68 @@ se zlomky“ or not at all — the taxonomy's text, not ours).
 under its name; remembering the last open section; skills derived for a lesson from its
 cards, read-only in the lesson dialog (the format has no lesson vector).
 
-## Round 12 — editing in place, and the gaps in create / read / update / delete
+## Round 12 — settings a teacher can read, and change in place
+
+The owner, testing Round 11: skills could only be added and removed, „Využívá“ wrapped its
+neighbour, an open dropdown covered the help text, and Předpoklady was „exactly what I
+wanted to avoid: super long dropdown menu“. Every setting stays (the public app is months
+behind the one in development, so what it reads today decides nothing). Opakování's
+explanations wait for the newer app: `OPEN-PROBLEMS.md` #44.
+
+### Help text on screen, short choices as segments
+
+- **A field's hint is always on screen, under its name in the label column**, small and
+  faint, never gated on focus. A tooltip was read by nobody and a line under the control
+  moved things (and an open select hid it). `Toggle` draws its hint the same way, and
+  `Segmented` has `explain`, which prints the selected option's `title` under the row
+  (moved out of VersionsDialog; also used for Typ kurzu). Both stay tied to the control
+  with `aria-describedby`.
+- **Short choices are `display: 'segmented'` on the spec**, set by hand, not inferred from
+  the option count: Úroveň zvládnutí, Odhad obtížnosti, Umístění obrázku / videa.
+  The segments drop the "3 – " prefix, so a scale fits one row. Ročník and Bloomova
+  úroveň stay selects. Clicking the chosen segment again clears the
+  field, so "nenastaveno" stays reachable without a button. Numeric specs still write numbers.
+- **`Segmented` never wraps a label** and each button is as wide as the wider of its normal
+  and bold text; a `wrap` group with several rows has a rounded-rectangle, not pill, shape.
+- **Textareas grow with wrapped text** (`field-sizing: content`, measured fallback), three
+  rows minimum, fourteen maximum. Umístění obrázku / videa appears only on a step that has
+  an image / video.
+
+### One way to pick from a list
+
+**The picker (`ChoicePicker`).** „Přidat předpoklad“ was a select of every card and every
+skill in the course, and „Kam dál“ and the repair dialog were selects of every card. One
+shared box now does all of it, in the style of „Přidat dovednost“ and the rail's peek:
+a native popover placed once with `placeMenu`, closed by Escape or a click outside,
+two-line items under headings, a marked current choice, a disabled item that says why
+(it is listed, not hidden), a search field only when a step has more than eight items
+(every word must match, diacritics and case ignored), and a drill-down step with a „Zpět“
+link for area → skill → level. Arrows move, Enter picks, typing goes to the search. The
+data is plain `PickerStep`s and the rules (filtering, path walking) are in
+`ui/choice-picker.ts`, tested without a browser. The component is only the box; the
+owner has the trigger and calls `show(anchor, path)`, where the path opens it on the step
+of a choice made earlier.
+
+**Cards that tell themselves apart (`domain/card-names.ts`).** Two cards can be called
+the same („Kolik je?“, or several empty „Karta 1“). A card whose name another shares
+carries its place — „Lekce 2, karta 3“, or „mimo lekce“ — as a second line in the
+picker and after the name in a summary. Nothing is written to the document. `GoToPicker`,
+its row summary and the repair dialog use it; the repair dialog's step list stays a
+select (it has a handful of items).
+
+**Předpoklady.** Each rule is one sentence — „Nejdřív karta „Kolik je?“ (Lekce 2) · aspoň
+50 %“ — with no selects; the sentence is the button that reopens the picker on the current
+choice, so a rule's card or skill changes in place and the percentage stays. Switching
+from a card to a skill is choosing the other branch. A card that already waits for this one
+(`cardsWaitingFor`, which shares its edges with the Kontrola kurzu cycle check) cannot be
+picked: „na tuhle kartu čeká“. A card used by another rule of this card says „už je v
+předpokladech“. Skill codes show only in Pokročilý, faint. The note that the app does not
+enforce prerequisites is kept.
+
+**Proposed, not built:** the search across steps (one query over area, skill and level at
+once); showing the lesson's name on rule lines when a card sits in several lessons.
+
+### Editing in place, and the gaps in create / read / update / delete
 
 *Skills, answers, Pojmy, RVP outputs, Didaktika lekce.*
 
@@ -2187,20 +2248,3 @@ round's section above.
 - **`PreviewLessonPlayer` keys its history by block index** — keyed by `blockId`
   (Round 4).
 
-## Round 12 — help text, short choices (hints part)
-
-- **A field's hint is always on screen, under its name in the label column**, small and
-  faint, never gated on focus. A tooltip was read by nobody and a line under the control
-  moved things (and an open select hid it). `Toggle` draws its hint the same way, and
-  `Segmented` has `explain`, which prints the selected option's `title` under the row
-  (moved out of VersionsDialog; also used for Typ kurzu). Both stay tied to the control
-  with `aria-describedby`.
-- **Short choices are `display: 'segmented'` on the spec**, set by hand, not inferred from
-  the option count: Úroveň zvládnutí, Odhad obtížnosti, Umístění obrázku / videa.
-  Ročník and Bloomova úroveň stay selects. Clicking the chosen segment again clears the
-  field, so "nenastaveno" stays reachable without a button. Numeric specs still write numbers.
-- **`Segmented` never wraps a label** and each button is as wide as the wider of its normal
-  and bold text; a `wrap` group with several rows has a rounded-rectangle, not pill, shape.
-- **Textareas grow with wrapped text** (`field-sizing: content`, measured fallback), three
-  rows minimum, fourteen maximum. Umístění obrázku / videa appears only on a step that has
-  an image / video.

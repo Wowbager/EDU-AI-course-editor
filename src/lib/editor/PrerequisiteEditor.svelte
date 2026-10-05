@@ -2,13 +2,20 @@
 	/**
 	 * `learning.prerequisites` — readiness gates (§6.4).
 	 *
-	 * A rule names either a card or a skill code, plus the mastery level required
-	 * (stored 0–1, shown as a percentage). Adding one asks first which card the pupil
-	 * has to master, in a small box like the skill picker's, and only then creates the
-	 * rule: there is no half-made rule pointing at nothing. Cards are named by their
-	 * own text and grouped by lesson, never by id.
+	 * A rule names either a card or a skill level, plus the mastery required (stored
+	 * 0–1, shown as a percentage). Each rule is one sentence — „Nejdřív karta „Kolik
+	 * je?“ (Lekce 2) · aspoň 50 %“ — with no selects in it. The sentence is a button:
+	 * it reopens the picker on the current choice, so the card or skill can be changed
+	 * in place and the percentage stays. „Přidat předpoklad“ asks „Na co karta čeká?“
+	 * and offers another card (grouped by lesson) or a skill (area → skill → level, as
+	 * „Přidat dovednost“ does); only then is a rule created, so there is none pointing
+	 * at nothing.
 	 *
-	 * The app does not enforce these yet. The label says so rather than promising an
+	 * A card that already waits for this one, directly or through others, would make a
+	 * cycle (Kontrola kurzu's „na sebe čekají navzájem“), so it is listed but cannot be
+	 * picked. A card already used by another rule of this card is listed the same way.
+	 *
+	 * The app does not enforce these yet. The note says so rather than promising an
 	 * effect the student will never experience.
 	 */
 	import { withUndoNotice } from './undo-notice';
@@ -16,12 +23,13 @@
 	import type { BlockV2, CourseV2, PrerequisiteRule } from '$lib/domain/schema';
 	import { useStore } from '$lib/ui/context';
 	import Button from '$lib/ui/Button.svelte';
-	import { placeMenu } from '$lib/ui/placement';
+	import ChoicePicker from '$lib/ui/ChoicePicker.svelte';
+	import type { PickerStep } from '$lib/ui/choice-picker';
 	import { setField } from '$lib/domain/commands';
-	import { blockPreview } from '$lib/domain/derive';
-	import { lessonLabel } from '$lib/domain/naming';
+	import { cardGroups, cardNames } from '$lib/domain/card-names';
+	import { cardsWaitingFor } from '$lib/domain/validate';
+	import { skillTree } from '$lib/domain/skill-config';
 	import { Plus, Trash2 } from '@lucide/svelte';
-	import { tick } from 'svelte';
 
 	interface Props {
 		doc: CourseV2;
@@ -30,44 +38,44 @@
 	let { doc, block }: Props = $props();
 
 	const store = useStore();
-	const uid = $props.id();
-	const panelId = `prerequisite-picker-${uid}`;
 	const rules = $derived(block.learning?.prerequisites ?? []);
-	const dimensions = $derived(store.skillConfig?.vector?.dimensions ?? []);
+	const tree = $derived(skillTree(store.skillConfig));
+	const advanced = $derived(store.mode === 'advanced');
 	const DEFAULT_LEVEL = 0.5;
 
-	interface CardOption {
-		id: string;
-		name: string;
-	}
-	/** Every other card by name, in lesson order; cards in no lesson come last. */
-	const groups = $derived.by(() => {
-		const byId = new Map(doc.blocks.map((b) => [b.block_id, b]));
-		const seen = new Set<string>();
-		const result: { title: string; cards: CardOption[] }[] = [];
-		for (const lesson of doc.lessons) {
-			const cards: CardOption[] = [];
-			lesson.blocks.forEach((binding, position) => {
-				const card = byId.get(binding.block_id);
-				if (!card || card.block_id === block.block_id || seen.has(card.block_id)) return;
-				seen.add(card.block_id);
-				cards.push({ id: card.block_id, name: blockPreview(card, 50, position + 1) });
-			});
-			if (cards.length > 0) result.push({ title: lessonLabel(doc, lesson), cards });
-		}
-		const loose = doc.blocks
-			.filter((b) => b.block_id !== block.block_id && !seen.has(b.block_id))
-			.map((b) => ({ id: b.block_id, name: blockPreview(b, 50) }));
-		if (loose.length > 0) result.push({ title: 'Karty mimo lekce', cards: loose });
-		return result;
-	});
-	const knownIds = $derived(new Set(groups.flatMap((g) => g.cards.map((c) => c.id))));
-	const usedIds = $derived(new Set(rules.flatMap((r) => (r.block_id ? [r.block_id] : []))));
-	const offered = $derived(
-		groups
-			.map((g) => ({ ...g, cards: g.cards.filter((c) => !usedIds.has(c.id)) }))
-			.filter((g) => g.cards.length > 0)
+	const names = $derived(cardNames(doc));
+	/** The skill level a rule's code stands for, with where it sits in the tree. */
+	const levelOf = $derived(
+		new Map(
+			tree.flatMap((area) =>
+				area.skills.flatMap((skill) =>
+					skill.levels.map((l) => [l.dimension.code, { area, skill, level: l }] as const)
+				)
+			)
+		)
 	);
+
+	/** What a rule says before „aspoň“, in words. */
+	function describe(rule: PrerequisiteRule): { text: string; where?: string; code?: string } {
+		if (rule.block_id !== undefined) {
+			const card = names.get(rule.block_id);
+			if (card === undefined) return { text: 'Nejdřív karta, která už neexistuje' };
+			return {
+				text: `Nejdřív karta „${card.name}“`,
+				where: card.collides ? card.place : card.lesson
+			};
+		}
+		if (rule.skill !== undefined) {
+			const found = levelOf.get(rule.skill);
+			if (found === undefined) return { text: 'Nejdřív dovednost, která už není v nastavení' };
+			const many = found.skill.levels.length > 1;
+			return {
+				text: `Nejdřív dovednost ${found.skill.name}${many ? ` · Úroveň ${found.level.level}` : ''}`,
+				code: advanced ? rule.skill : undefined
+			};
+		}
+		return { text: 'Nejdřív … (vyber kartu nebo dovednost)' };
+	}
 
 	let problem = $state('');
 
@@ -87,21 +95,6 @@
 			blockId: block.block_id
 		});
 
-	function update(index: number, patch: Partial<PrerequisiteRule>) {
-		write(rules.map((rule, i) => (i === index ? { ...rule, ...patch } : rule)));
-	}
-
-	/** A rule names a card or a skill, never both — picking one clears the other. */
-	function pickBlock(index: number, blockId: string) {
-		update(
-			index,
-			blockId === '' ? { block_id: undefined } : { block_id: blockId, skill: undefined }
-		);
-	}
-	function pickSkill(index: number, skill: string) {
-		update(index, skill === '' ? { skill: undefined } : { skill, block_id: undefined });
-	}
-
 	/** The stored 0–1 as a whole percentage. */
 	const percent = (level: number) => Math.round(level * 100);
 
@@ -115,66 +108,121 @@
 		}
 		problem = '';
 		const level = Math.min(100, Math.max(0, value)) / 100;
-		update(index, { min_level: level });
+		write(rules.map((rule, i) => (i === index ? { ...rule, min_level: level } : rule)));
 		input.value = String(percent(level));
 	}
 
-	// The box: a native popover placed once, as the skill picker's is.
-	let wrapper = $state<HTMLElement | null>(null);
-	let panel = $state<HTMLElement | null>(null);
-	let open = $state(false);
-	let wasOpenAtPointerDown = false;
+	// The picker: one box, opened from „Přidat předpoklad“ (a new rule) or from a rule's
+	// line (`editing` is its index, and its choice is marked).
+	let picker = $state<ReturnType<typeof ChoicePicker> | null>(null);
+	let editing = $state<number | null>(null);
 
-	const isShowing = () => panel?.matches(':popover-open') ?? false;
-
-	async function show() {
-		const anchor = wrapper?.querySelector<HTMLElement>('.add-trigger');
-		if (panel === null || !anchor || isShowing()) return;
-		panel.showPopover();
-		const box = panel.getBoundingClientRect();
-		const spot = placeMenu(
-			anchor.getBoundingClientRect(),
-			{ width: box.width, height: box.height },
-			{ width: window.innerWidth, height: window.innerHeight },
-			'bottom-start'
+	const waiting = $derived(cardsWaitingFor(doc, block.block_id));
+	const cardStep = $derived.by((): PickerStep => {
+		const own = editing === null ? undefined : rules[editing];
+		const used = new Set(
+			rules.flatMap((r, i) => (r.block_id !== undefined && i !== editing ? [r.block_id] : []))
 		);
-		panel.style.top = `${spot.top}px`;
-		panel.style.left = `${spot.left}px`;
-		await tick();
-		panel.querySelector<HTMLElement>('.choice')?.focus();
-	}
-
-	function close() {
-		if (isShowing()) panel?.hidePopover();
-	}
-
-	const ontoggle = (event: Event) => (open = (event as ToggleEvent).newState === 'open');
-	const onpointerdown = () => (wasOpenAtPointerDown = open);
-	function onclick() {
-		if (wasOpenAtPointerDown) {
-			wasOpenAtPointerDown = false;
-			return;
-		}
-		show();
-	}
-
-	$effect(() => {
-		if (!open) return;
-		const dismiss = (event: Event) => {
-			if (event.target instanceof Node && panel?.contains(event.target)) return;
-			close();
-		};
-		window.addEventListener('scroll', dismiss, true);
-		window.addEventListener('resize', dismiss);
-		return () => {
-			window.removeEventListener('scroll', dismiss, true);
-			window.removeEventListener('resize', dismiss);
+		return {
+			title: 'Jaká karta',
+			empty: 'Žádná další karta, na kterou by šlo navázat.',
+			groups: cardGroups(doc, { exclude: block.block_id }).map((group) => ({
+				heading: group.title,
+				items: group.cards.map((card) => ({
+					id: card.id,
+					name: card.name,
+					detail: card.collides ? card.place : undefined,
+					current: own?.block_id === card.id,
+					disabledReason: waiting.has(card.id)
+						? 'na tuhle kartu čeká'
+						: used.has(card.id)
+							? 'už je v předpokladech'
+							: undefined
+				}))
+			}))
 		};
 	});
 
-	function pickCard(id: string) {
-		write([...rules, { block_id: id, min_level: DEFAULT_LEVEL }]);
-		close();
+	const skillStep = $derived.by((): PickerStep => {
+		const own = editing === null ? undefined : rules[editing]?.skill;
+		return {
+			title: 'Dovednost',
+			empty: 'Kurz nemá nastavené dovednosti.',
+			groups: tree.map((area) => ({
+				heading: area.name,
+				items: area.skills.map((skill) => {
+					const levelItems = skill.levels.map((l) => ({
+						id: l.dimension.code,
+						name: `Úroveň ${l.level}`,
+						detail: l.dimension.name,
+						hint: advanced ? l.dimension.code : undefined,
+						current: own === l.dimension.code
+					}));
+					// A skill with one level has nothing to choose after it.
+					return skill.levels.length === 1
+						? { ...levelItems[0], name: skill.name, detail: undefined }
+						: {
+								id: `${area.code}/${skill.code}`,
+								name: skill.name,
+								current: levelItems.some((l) => l.current),
+								next: { title: 'Úroveň', subject: skill.name, groups: [{ items: levelItems }] }
+							};
+				})
+			}))
+		};
+	});
+
+	const root = $derived<PickerStep>({
+		title: 'Na co karta čeká?',
+		groups: [
+			{
+				items: [
+					{
+						id: 'card',
+						name: 'Jinou kartu',
+						detail: 'Počká, až žák zvládne jinou kartu.',
+						current: editing !== null && rules[editing]?.block_id !== undefined,
+						next: cardStep
+					},
+					{
+						id: 'skill',
+						name: 'Dovednost',
+						detail: 'Počká, až žák zvládne dovednost na určité úrovni.',
+						current: editing !== null && rules[editing]?.skill !== undefined,
+						next: skillStep
+					}
+				]
+			}
+		]
+	});
+
+	/** Where the picker opens for a rule: on the list its current choice is in. */
+	function pathOf(rule: PrerequisiteRule): string[] {
+		if (rule.block_id !== undefined) return ['card'];
+		const found = rule.skill === undefined ? undefined : levelOf.get(rule.skill);
+		if (found === undefined) return [];
+		return found.skill.levels.length > 1
+			? ['skill', `${found.area.code}/${found.skill.code}`]
+			: ['skill'];
+	}
+
+	function openFor(anchor: HTMLElement, index: number | null) {
+		editing = index;
+		picker?.show(anchor, index === null ? [] : pathOf(rules[index]));
+	}
+
+	function picked(path: string[]) {
+		const [kind, ...rest] = path;
+		const choice: Partial<PrerequisiteRule> =
+			kind === 'card'
+				? { block_id: rest[rest.length - 1], skill: undefined }
+				: { skill: rest[rest.length - 1], block_id: undefined };
+		if (editing === null) write([...rules, { min_level: DEFAULT_LEVEL, ...choice }]);
+		else {
+			// A rule names a card or a skill, never both; the percentage stays.
+			write(rules.map((rule, i) => (i === editing ? { ...rule, ...choice } : rule)));
+		}
+		editing = null;
 	}
 </script>
 
@@ -185,36 +233,19 @@
 	</header>
 
 	{#each rules as rule, index (index)}
+		{@const said = describe(rule)}
 		<div class="rule">
-			<select
-				aria-label="Karta, kterou musí žák zvládat"
-				value={rule.block_id ?? ''}
-				onchange={(e) => pickBlock(index, e.currentTarget.value)}
+			<button
+				type="button"
+				class="what"
+				aria-haspopup="dialog"
+				title="Změnit, na co karta čeká"
+				onclick={(e) => openFor(e.currentTarget, index)}
 			>
-				<option value="">— karta —</option>
-				{#each groups as group (group.title)}
-					<optgroup label={group.title}>
-						{#each group.cards as card (card.id)}
-							<option value={card.id}>{card.name}</option>
-						{/each}
-					</optgroup>
-				{/each}
-				{#if rule.block_id !== undefined && !knownIds.has(rule.block_id)}
-					<option value={rule.block_id}>Karta, která už neexistuje</option>
-				{/if}
-			</select>
-
-			<select
-				aria-label="Dovednost, kterou musí žák zvládat"
-				value={rule.skill ?? ''}
-				onchange={(e) => pickSkill(index, e.currentTarget.value)}
-			>
-				<option value="">— dovednost —</option>
-				{#each dimensions as dimension (dimension.dimension_index)}
-					<option value={dimension.code}>{dimension.code} — {dimension.name}</option>
-				{/each}
-			</select>
-
+				{said.text}{#if said.where}<span class="where">({said.where})</span
+					>{/if}{#if said.code}<span class="code">{said.code}</span>{/if}
+			</button>
+			<span class="sep" aria-hidden="true">·</span>
 			<label>
 				aspoň
 				<input
@@ -245,43 +276,18 @@
 		<p class="problem" role="alert">{problem}</p>
 	{/if}
 
-	<div class="add" bind:this={wrapper}>
-		<Button
-			class="add-trigger"
-			variant="secondary"
-			size="s"
-			aria-haspopup="dialog"
-			aria-expanded={open}
-			aria-controls={panelId}
-			{onpointerdown}
-			{onclick}
-		>
-			<Plus size={14} aria-hidden="true"></Plus>
-			Přidat předpoklad
-		</Button>
+	<Button
+		class="add-trigger"
+		variant="secondary"
+		size="s"
+		aria-haspopup="dialog"
+		onclick={(e) => openFor(e.currentTarget as HTMLElement, null)}
+	>
+		<Plus size={14} aria-hidden="true"></Plus>
+		Přidat předpoklad
+	</Button>
 
-		<div
-			id={panelId}
-			class="picker"
-			popover="auto"
-			role="dialog"
-			aria-label="Přidat předpoklad"
-			bind:this={panel}
-			{ontoggle}
-		>
-			<h4>Kterou kartu musí žák zvládat</h4>
-			{#each offered as group (group.title)}
-				<div class="area">{group.title}</div>
-				{#each group.cards as card (card.id)}
-					<button type="button" class="choice" onclick={() => pickCard(card.id)}>
-						{card.name}
-					</button>
-				{/each}
-			{:else}
-				<p class="empty">Žádná další karta, na kterou by šlo navázat.</p>
-			{/each}
-		</div>
-	</div>
+	<ChoicePicker label="Na co karta čeká?" {root} onpick={picked} bind:this={picker} />
 </section>
 
 <style>
@@ -313,32 +319,60 @@
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 6px;
+		gap: 4px 6px;
 	}
 
-	select {
-		max-width: 220px;
+	/* The sentence is the control: quiet until pointed at, like a row of the answer table. */
+	.what {
 		padding: 3px 6px;
-		border: 1px solid var(--e-border);
+		border: 1px solid transparent;
 		border-radius: var(--radius-xs);
-		background: var(--surface);
-		font-size: var(--text-s);
+		background: none;
 		color: var(--e-text);
+		font-family: var(--font-body);
+		font-size: var(--text-s);
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.what:hover,
+	.what:focus-visible {
+		border-color: var(--e-border-strong);
+		background: var(--surface);
+	}
+
+	.where {
+		margin-left: 6px;
+		color: var(--e-text-muted);
+	}
+
+	.code {
+		margin-left: 6px;
+		color: var(--e-text-faint);
+		font-family: var(--font-code);
+		font-size: var(--text-xs);
+	}
+
+	.sep {
+		color: var(--e-text-faint);
 	}
 
 	label {
 		display: inline-flex;
 		align-items: center;
 		gap: 4px;
-		color: var(--e-text-faint);
-		font-size: var(--text-xs);
+		color: var(--e-text);
+		font-size: var(--text-s);
 	}
 
+	/* A value, not a placeholder: full text colour. */
 	input {
 		width: 64px;
 		padding: 3px 6px;
 		border: 1px solid var(--e-border);
 		border-radius: var(--radius-xs);
+		background: var(--surface);
+		color: var(--e-text);
 		font-family: var(--font-code);
 		font-size: var(--text-s);
 	}
@@ -363,69 +397,5 @@
 	.remove:hover,
 	.remove:focus-visible {
 		color: var(--e-error);
-	}
-
-	/* The box looks like the skill picker's. */
-	.picker:popover-open {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		position: fixed;
-		inset: auto;
-		top: 0;
-		left: 0;
-		margin: 0;
-		box-sizing: border-box;
-		width: 360px;
-		max-width: calc(100vw - 16px);
-		max-height: min(420px, calc(100vh - 16px));
-		overflow-y: auto;
-		padding: 10px 12px 8px;
-		border: 1px solid var(--e-border);
-		border-radius: var(--radius-s);
-		background: var(--surface);
-		color: var(--e-text);
-		box-shadow: var(--shadow-strong);
-	}
-
-	h4 {
-		margin: 0 0 6px;
-		color: var(--e-text-faint);
-		font-size: var(--text-xs);
-		font-weight: var(--weight-semibold);
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-	}
-
-	.area {
-		margin: 8px 0 2px;
-		color: var(--e-text-muted);
-		font-size: var(--text-xs);
-		font-weight: var(--weight-semibold);
-	}
-
-	.empty {
-		margin: 4px 0;
-		color: var(--e-text-muted);
-		font-size: var(--text-s);
-	}
-
-	.choice {
-		display: block;
-		width: 100%;
-		padding: 6px 8px;
-		border: 1px solid transparent;
-		border-radius: var(--radius-xs);
-		background: none;
-		color: var(--e-text);
-		font-family: var(--font-body);
-		font-size: var(--text-s);
-		text-align: left;
-		cursor: pointer;
-	}
-
-	.choice:hover,
-	.choice:focus-visible {
-		background: var(--surface-light);
 	}
 </style>

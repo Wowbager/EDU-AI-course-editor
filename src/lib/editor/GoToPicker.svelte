@@ -2,6 +2,7 @@
 	import type { BlockStep, BlockV2, CourseV2 } from '$lib/domain/schema';
 	import type { DocIndex } from '$lib/domain/index-doc';
 	import { blockPreview, stepSummary } from '$lib/domain/derive';
+	import { cardNames } from '$lib/domain/card-names';
 	import { STEP_TYPES } from '$lib/lang';
 
 	/** The names the picker and the answer table's summary share (§8: "Krok 3", not "s3"). */
@@ -15,11 +16,9 @@
 		return `${name} (${type.toLowerCase()})`;
 	}
 
+	/** A card's name; when another card has the same, its place follows (card-names.ts). */
 	export function blockLabelOf(doc: CourseV2, b: BlockV2, showIds: boolean): string {
-		const position = doc.lessons
-			.map((lesson) => lesson.blocks.findIndex((binding) => binding.block_id === b.block_id))
-			.find((i) => i >= 0);
-		const name = blockPreview(b, 40, position === undefined ? undefined : position + 1);
+		const name = cardNames(doc, 40).get(b.block_id)?.label ?? blockPreview(b, 40);
 		return showIds ? `${b.block_id} — ${name}` : name;
 	}
 
@@ -57,11 +56,20 @@
 	 * `go_to` is always chosen, never typed (§3 invariant 9). A free-text field here
 	 * produces branches that point nowhere, and the student finds out, not the author.
 	 *
+	 * The choice is made in the shared picker (`ChoicePicker`): „Průběh“ and the steps of
+	 * this card come first, the other cards follow grouped by lesson, and a search field
+	 * appears once the list is long. A card whose name another card shares shows where
+	 * it is.
+	 *
 	 * The picker is hidden entirely for exercise blocks and exercise_v2 courses, where
 	 * the player ignores branching (§9).
 	 */
 	import { useStore } from '$lib/ui/context';
 	import { allows } from '$lib/ui/fields';
+	import ChoicePicker from '$lib/ui/ChoicePicker.svelte';
+	import type { PickerGroup } from '$lib/ui/choice-picker';
+	import { cardGroups } from '$lib/domain/card-names';
+	import { ChevronDown } from '@lucide/svelte';
 
 	interface Props {
 		value: string | undefined | null;
@@ -117,40 +125,80 @@
 			return undefined;
 		return { value: current, label: `${blockLabel(card)} (od jedné z dalších otázek)` };
 	});
+
+	/** What the closed button says: the same words the list uses. */
+	const shownLabel = $derived.by(() => {
+		const keyword = KEYWORDS.find((k) => k.value === current);
+		if (keyword) return keyword.label;
+		const step = steps.find((s) => s.id === current);
+		if (step) return label(step);
+		const target = blocks.find((b) => b.block_id === current);
+		if (target) return blockLabel(target);
+		return into?.label ?? 'Neplatný cíl';
+	});
+
+	const groups = $derived.by((): PickerGroup[] => {
+		const result: PickerGroup[] = [
+			{
+				heading: 'Průběh',
+				items: KEYWORDS.map((k) => ({ id: k.value, name: k.label, current: k.value === current }))
+			}
+		];
+		if (steps.length > 0) {
+			result.push({
+				heading: 'Krok v tomto bloku',
+				items: steps.map((s) => ({ id: s.id, name: label(s), current: s.id === current }))
+			});
+		}
+		for (const group of cardGroups(doc, { exclude: block.block_id, max: 40 })) {
+			result.push({
+				heading: group.title,
+				items: group.cards.map((card) => ({
+					id: card.id,
+					name: card.name,
+					detail: card.collides ? card.place : undefined,
+					hint: showIds ? card.id : undefined,
+					current: card.id === current
+				}))
+			});
+		}
+		if (into !== undefined) {
+			result.push({
+				heading: 'Jiný blok v kurzu',
+				items: [{ id: into.value, name: into.label, current: true }]
+			});
+		}
+		return result;
+	});
+
+	let picker = $state<ReturnType<typeof ChoicePicker> | null>(null);
 </script>
 
-<select
+<button
+	type="button"
 	class="picker"
+	aria-haspopup="dialog"
 	aria-label="Kam pokračovat po této odpovědi"
-	value={current}
-	onchange={(e) => onchange(e.currentTarget.value === '' ? undefined : e.currentTarget.value)}
+	title={shownLabel}
+	onclick={(e) => picker?.show(e.currentTarget)}
 >
-	<optgroup label="Průběh">
-		{#each KEYWORDS as keyword (keyword.value)}
-			<option value={keyword.value}>{keyword.label}</option>
-		{/each}
-	</optgroup>
-	{#if steps.length > 0}
-		<optgroup label="Krok v tomto bloku">
-			{#each steps as step, i (i)}
-				<option value={step.id}>{label(step)}</option>
-			{/each}
-		</optgroup>
-	{/if}
-	{#if blocks.length > 0}
-		<optgroup label="Jiný blok v kurzu">
-			{#each blocks as target, i (i)}
-				<option value={target.block_id}>{blockLabel(target)}</option>
-			{/each}
-			{#if into !== undefined}
-				<option value={into.value}>{into.label}</option>
-			{/if}
-		</optgroup>
-	{/if}
-</select>
+	<span class="shown">{shownLabel}</span>
+	<ChevronDown size={14} aria-hidden="true"></ChevronDown>
+</button>
+
+<ChoicePicker
+	label="Kam pokračovat po této odpovědi"
+	root={{ title: 'Kam dál', groups }}
+	onpick={(path) => onchange(path[0] === '' ? undefined : path[0])}
+	bind:this={picker}
+/>
 
 <style>
 	.picker {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 6px;
 		width: 100%;
 		max-width: 260px;
 		padding: 4px 6px;
@@ -160,11 +208,19 @@
 		font-family: var(--font-body);
 		font-size: var(--text-s);
 		color: var(--e-text-muted);
+		text-align: left;
 		cursor: pointer;
 	}
 
+	.shown {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
 	.picker:hover,
-	.picker:focus {
+	.picker:focus-visible {
 		border-color: var(--e-border-strong);
 		background: var(--surface);
 		color: var(--e-text);
