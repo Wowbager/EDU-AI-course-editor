@@ -23,7 +23,8 @@
 		/** `l` for the settings panels, which are two columns of fields. */
 		size?: 'm' | 'l';
 		children: import('svelte').Snippet;
-		footer?: import('svelte').Snippet;
+		/** Gets the notice's slot as its argument and must render it (`{@render notice()}`). */
+		footer?: import('svelte').Snippet<[import('svelte').Snippet]>;
 	}
 	let { title, onclose, size = 'm', children, footer }: Props = $props();
 
@@ -77,16 +78,18 @@
 		</div>
 
 		{#if footer}
-			<footer>{@render footer()}</footer>
+			<footer>{@render footer(notice)}</footer>
+		{:else}
+			<div class="float">{@render notice()}</div>
 		{/if}
-
-		<!-- Everything outside a modal is inert, the page's notice included: an undo
-		     offered there could be seen and not clicked. -->
-		<div class="notice">
-			<Toast inModal />
-		</div>
 	</div>
 </dialog>
+
+{#snippet notice()}
+	<div class="notice">
+		<Toast inModal />
+	</div>
+{/snippet}
 
 <style>
 	dialog {
@@ -116,12 +119,26 @@
 		max-height: 80vh;
 	}
 
-	/* Over the bottom of the dialog, clear of its footer's buttons. */
+	/* In a footer: the room left of the buttons, empty until there is something to say. */
 	.notice {
+		display: flex;
+		flex: 1;
+		min-width: 0;
+		justify-content: flex-start;
+		pointer-events: none;
+	}
+
+	/* Not taller than the buttons beside it, so the footer does not jump when it appears. */
+	.notice :global(.toast) {
+		padding: 3px 4px 3px 14px;
+	}
+
+	/* A dialog with no footer: over the bottom of the panel. */
+	.float {
 		position: absolute;
 		left: 20px;
 		right: 20px;
-		bottom: 64px;
+		bottom: 16px;
 		display: flex;
 		justify-content: center;
 		pointer-events: none;

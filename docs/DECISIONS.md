@@ -2124,6 +2124,43 @@ once); showing the lesson's name on rule lines when a card sits in several lesso
   cards and changed in each card, and hides the feedback share when Zpětná vazba is off
   (it is meaningless then).
 
+## Round 13 — what the teacher test found
+
+### Settings hidden by the mode, and the notice in a dialog (#45 points 1, 6, 10)
+
+**One quiet line, derived.** A settings dialog ends with one faint line while a higher
+mode has more in it: "Dovednosti, pojmy a zařazení do cvičení najdeš v režimu Metodik ·
+Přepnout". It is `modeGain` in `ui/fields.ts`, a pure function over the same
+`FIELDS`/`SECTIONS` tables the dialogs render (unit-tested), so it cannot say something
+false. It names the *next* mode that adds anything, never the top one; it names sections
+by their own `gain` wording (else their heading) and, while that is fewer than three
+things, fields that join a section already shown; more than four become "… a další".
+Absent in Pokročilý. "Přepnout" sets `store.mode` and opens on the first section the
+mode adds (`SettingsSearch.show`, read by `SettingsNav`). Placement: under the section
+list and the pane in list modes, at the end of the page in Učitel. The step's "Další
+nastavení kroku" has no line: the step editor is not a dialog with a foot.
+
+**Search in every mode.** `matchHigherModes` finds what only a higher mode has, one result
+per section with the lowest mode that shows it: "Nejdelší odstup · je v režimu Pokročilý ·
+Přepnout". Switching keeps the query, so the field lands marked by the existing
+`FieldGroup` mark. In Učitel the dialog has no list and a handful of fields; a search
+field standing open would be the loudest thing on it. It is one faint word, "Hledat
+nastavení", at the top of the page that opens into the field when clicked (focus moves
+in at once). It collapses again on blur while empty.
+
+**The notice in the footer.** `Modal` hands its footer snippet the notice's slot and the
+footer renders it left of its buttons (`{@render notice()}`): empty space that is always
+there, with the toast made no taller than the buttons so the footer does not jump. It is
+the same `Toast inModal` as before (`notices.modals`), so a notice raised in a dialog is
+still clickable. A dialog without a footer keeps the old floating position. The course
+dialog gets the footer with "Hotovo" (point 10).
+
+Rejected: greyed or locked sections for the hidden modes (a list of things you cannot
+use, in the dialog of the teacher who has no use for them yet); a banner at the top of the
+dialog (loudest place, and the line is only wanted by someone who looks for a setting);
+naming Pokročilý from Učitel (two steps away, and Metodik is the step that is asked for);
+a search field always open in Učitel (visual load for a dialog of three fields).
+
 ## Formatting — one formatter, and the two places it is not allowed
 
 The repo had a house style and no formatter: `useTabs` nearly everywhere (129 files to

@@ -28,6 +28,8 @@ import {
 	sectionsFor,
 	listsSections,
 	matchSections,
+	matchHigherModes,
+	modeGain,
 	specOf,
 	visible,
 	type FieldLevel,
@@ -605,5 +607,52 @@ describe('field defaults', () => {
 			(spec) => /výchozí/i.test(spec.hint ?? '') && spec.default === undefined
 		).map((spec) => `${spec.level}.${spec.path}`);
 		expect(missing).toEqual([]);
+	});
+});
+
+describe('what a higher mode adds', () => {
+	it('names the next mode that adds something, in teacher words', () => {
+		expect(modeGain(['block'], 'teacher')).toEqual({
+			mode: 'metodik',
+			section: 'topics',
+			text: 'Dovednosti, pojmy a zařazení do cvičení najdeš v režimu Metodik'
+		});
+		expect(modeGain(['block'], 'metodik')).toMatchObject({
+			mode: 'advanced',
+			section: 'review',
+			text: 'Opakování, návaznost a údaje o kartě najdeš v režimu Pokročilý'
+		});
+		expect(modeGain(['lesson'], 'teacher')).toMatchObject({
+			mode: 'metodik',
+			section: 'didactics'
+		});
+		expect(modeGain(['course'], 'metodik')?.text).toBe(
+			'Průběh kurzu a údaje o kurzu najdeš v režimu Pokročilý'
+		);
+	});
+
+	it('says nothing in Pokročilý, where everything is shown', () => {
+		for (const level of ['course', 'lesson', 'block', 'binding'] as const) {
+			expect(modeGain([level], 'advanced')).toBeUndefined();
+		}
+	});
+
+	it('names only what is really not shown yet', () => {
+		// A card in a lesson also gains the lesson's own section (its colours).
+		expect(modeGain(['block', 'binding'], 'teacher')?.mode).toBe('metodik');
+		expect(modeGain(['block', 'binding'], 'metodik')?.text).toContain('barvu karty');
+	});
+
+	it('finds what only a higher mode has, with the mode that has it', () => {
+		const found = matchHigherModes(['block'], 'nejdelší odstup', 'teacher');
+		expect(found).toEqual([
+			{ mode: 'advanced', level: 'block', section: 'review', label: 'Nejdelší odstup' }
+		]);
+		expect(matchHigherModes(['block'], 'nejdelší odstup', 'advanced')).toEqual([]);
+		expect(matchHigherModes(['block'], 'dovednost', 'teacher')[0]).toMatchObject({
+			mode: 'metodik',
+			section: 'topics'
+		});
+		expect(matchHigherModes(['block'], '  ', 'teacher')).toEqual([]);
 	});
 });

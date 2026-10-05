@@ -8,7 +8,9 @@
 	 * The two exceptions are the course type and its status: both are consequential
 	 * enough to earn a segmented control and a written consequence per option.
 	 */
+	import type { Snippet } from 'svelte';
 	import type { CourseV2, ExportType } from '$lib/domain/schema';
+	import Button from '$lib/ui/Button.svelte';
 	import { VISIBILITY_LABEL, visibilityOf } from '$lib/domain/versions';
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import Modal from '$lib/ui/Modal.svelte';
@@ -37,10 +39,13 @@
 	const targeted = (id: string) => sectionTargeted(store, ['course'], id, {});
 	const alert = (id: string) => sectionHasIssue(store, ['course'], id, {});
 
-	const search = new SettingsSearch(['course'], () => ({
-		mode: store.mode,
-		feedback: store.showFeedback
-	}));
+	const search = new SettingsSearch(
+		() => ['course'],
+		() => ({
+			mode: store.mode,
+			feedback: store.showFeedback
+		})
+	);
 	setSettingsSearch(search);
 
 	/** Visibility is set with publishing, in the versions dialog; this only leads there. */
@@ -130,12 +135,18 @@
 		list={listsSections(store.mode)}
 		{targeted}
 		{alert}
-		search={store.mode === 'advanced' ? search : undefined}
+		levels={['course']}
+		{search}
 		{pane}
 	/>
 {/snippet}
 
-<Modal title="Nastavení kurzu" size="l" {onclose} children={body} />
+{#snippet actions(notice: Snippet)}
+	{@render notice()}
+	<Button variant="secondary" onclick={onclose}>Hotovo</Button>
+{/snippet}
+
+<Modal title="Nastavení kurzu" size="l" {onclose} children={body} footer={actions} />
 
 <style>
 	/* Information that leads somewhere: quiet text, with a faint underline so it reads

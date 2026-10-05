@@ -67,6 +67,11 @@ export interface FieldSpec {
 	 */
 	section: string;
 	label: string;
+	/**
+	 * What the "najdeš v režimu …" line (`modeGain`) calls this field, in lower case,
+	 * where the label is a verb phrase that does not read in a list.
+	 */
+	gain?: string;
 	kind: FieldKind;
 	/** What it does to the student. Shown under the control; house style is consequences. */
 	hint?: string;
@@ -141,6 +146,8 @@ export interface SectionSpec {
 	 * mode that shows it. A section with fields needs no mode, it follows them.
 	 */
 	mode?: Mode;
+	/** What the "najdeš v režimu …" line (`modeGain`) calls this section, in lower case. */
+	gain?: readonly string[];
 }
 
 const MAIN: SectionSpec = { id: 'main', label: 'Základní', open: true, icon: 'main' };
@@ -165,7 +172,7 @@ export const SECTIONS: Record<FieldLevel, readonly SectionSpec[]> = {
 		{ id: 'ai', label: 'Pro AI lektora', icon: 'ai' },
 		{ id: 'meta', label: 'Údaje o lekci', icon: 'meta', keywords: 'identifikátor' }
 	],
-	binding: [{ id: 'lesson', label: 'V této lekci', icon: 'lesson' }],
+	binding: [{ id: 'lesson', label: 'V této lekci', icon: 'lesson', gain: ['barvu karty'] }],
 	block: [
 		MAIN,
 		{ id: 'ladder', label: 'Nápověda pro celou kartu', icon: 'ladder' },
@@ -173,6 +180,7 @@ export const SECTIONS: Record<FieldLevel, readonly SectionSpec[]> = {
 			id: 'topics',
 			label: 'Co karta procvičuje',
 			icon: 'topics',
+			gain: ['dovednosti', 'pojmy'],
 			keywords: 'dovednost dovednosti úroveň je o tom využívá obtížnost RVP výstupy'
 		},
 		{
@@ -553,6 +561,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'metodik',
 		kind: 'toggle',
 		label: 'Zařadit do cvičení',
+		gain: 'zařazení do cvičení',
 		hint: 'Vhodné pro definice, postupy a fakta — ne pro úvody a přechody. Zhruba pětina až třetina karet.'
 	},
 	{
@@ -1035,6 +1044,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'metodik',
 		kind: 'toggle',
 		label: 'Zařadit do cvičení',
+		gain: 'zařazení do cvičení',
 		hint: 'U výkladu se příznak dává na krok; zařadí se celá karta.'
 	},
 
@@ -1462,13 +1472,134 @@ export function matchSections(
 	return { sections, fields };
 }
 
+/** The part of a section or field that is not yet shown in `mode`, and the mode that adds it. */
+export interface ModeGain {
+	/** The lowest higher mode that adds anything to these dialogs. */
+	mode: Mode;
+	/** Section to open on after switching: the first one the mode adds, or the first one it adds fields to. */
+	section: string;
+	/** The line, in teacher words and as one sentence, without the switch. */
+	text: string;
+}
+
+const cap = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+const lower = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
+
+/** "a", "a, b" and "a, b a c": Czech lists have no serial comma. */
+const joinList = (items: readonly string[]): string =>
+	items.length < 2 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} a ${items.at(-1)}`;
+
+/**
+ * What the next mode up that has anything more to show adds to the dialogs of
+ * `levels`, said for the quiet line at the foot of a settings dialog: sections by their
+ * own wording (`gain`, else the heading), then — only while sections do not already
+ * name enough — fields that join sections already shown. It names the *next* mode with
+ * a gain, never the top one, so the line is true and the step small. `undefined` when no
+ * higher mode adds anything: the line is absent in Pokročilý, and nothing is greyed out.
+ * Read off the same tables the dialogs render, so it cannot say something false.
+ */
+export function modeGain(
+	levels: readonly FieldLevel[],
+	mode: Mode,
+	feedback: boolean = true
+): ModeGain | undefined {
+	for (const next of MODES.filter((m) => MODE_RANK[m] > MODE_RANK[mode])) {
+		const sections: { level: FieldLevel; spec: SectionSpec }[] = [];
+		const fields: FieldSpec[] = [];
+		for (const level of levels) {
+			const had = sectionsFor(level, mode, feedback);
+			const now = sectionsFor(level, next, feedback);
+			for (const spec of now) {
+				if (!had.some((s) => s.id === spec.id)) sections.push({ level, spec });
+			}
+			for (const spec of FIELDS) {
+				if (spec.level !== level || spec.unread === true) continue;
+				if (visible(spec, mode, feedback) || !visible(spec, next, feedback)) continue;
+				if (had.some((s) => s.id === spec.section)) fields.push(spec);
+			}
+		}
+		if (sections.length === 0 && fields.length === 0) continue;
+		const items = sections.flatMap(({ spec }) => spec.gain ?? [lower(spec.label)]);
+		if (items.length < 3) {
+			for (const spec of fields) {
+				const name = spec.gain ?? lower(spec.label);
+				if (!items.includes(name)) items.push(name);
+			}
+		}
+		const shown = items.length > 4 ? [...items.slice(0, 3), 'další'] : items;
+		return {
+			mode: next,
+			section: sections[0]?.spec.id ?? fields[0].section,
+			text: `${cap(joinList(shown))} najdeš v režimu ${MODE_LABELS[next].label}`
+		};
+	}
+	return undefined;
+}
+
+/** A search result that lives only in a mode above the current one. */
+export interface HigherMatch {
+	mode: Mode;
+	level: FieldLevel;
+	section: string;
+	/** What was found: the field's label, or the section's name when the section itself matched. */
+	label: string;
+}
+
+/**
+ * What the settings search finds in `levels` that `mode` does not show: one result per
+ * section, with the lowest mode that shows what matched. This is how a search never
+ * comes up empty for something that exists; the dialog offers to switch.
+ */
+export function matchHigherModes(
+	levels: readonly FieldLevel[],
+	query: string,
+	mode: Mode,
+	feedback: boolean = true
+): HigherMatch[] {
+	const words = fold(query)
+		.split(/\s+/)
+		.filter((w) => w !== '');
+	if (words.length === 0) return [];
+	const hits = (text: string) => {
+		const folded = fold(text);
+		return words.every((w) => folded.includes(w));
+	};
+	const found = new Map<string, HigherMatch>();
+	const add = (match: HigherMatch) => {
+		const key = `${match.level}.${match.section}`;
+		const old = found.get(key);
+		if (old === undefined || MODE_RANK[match.mode] < MODE_RANK[old.mode]) found.set(key, match);
+	};
+	for (const level of levels) {
+		const shown = sectionsFor(level, mode, feedback);
+		for (const spec of FIELDS) {
+			if (spec.level !== level || visible(spec, mode, feedback)) continue;
+			if (!feedback && spec.feedback === true) continue;
+			if (!hits(`${spec.label} ${spec.hint ?? ''}`)) continue;
+			add({ mode: spec.mode, level, section: spec.section, label: spec.label });
+		}
+		for (const section of SECTIONS[level]) {
+			if (shown.some((s) => s.id === section.id)) continue;
+			if (!hits(`${section.label} ${section.keywords ?? ''}`)) continue;
+			const own = FIELDS.filter((f) => f.level === level && f.section === section.id).map(
+				(f) => f.mode
+			);
+			const lowest = [section.mode, ...own]
+				.filter((m): m is Mode => m !== undefined)
+				.sort((a, b) => MODE_RANK[a] - MODE_RANK[b])[0];
+			if (lowest === undefined) continue;
+			add({ mode: lowest, level, section: section.id, label: section.label });
+		}
+	}
+	return [...found.values()].sort((a, b) => MODE_RANK[a.mode] - MODE_RANK[b.mode]);
+}
+
 /**
  * What the card's settings dialog holds in `mode`, as a sentence for a tooltip: the
  * open fields by name, then the folds by their headings. Read off the same tables the
  * dialog renders, so a button that says what is behind it cannot drift from the dialog.
  */
 export function cardSettingsSummary(mode: Mode, feedback: boolean = true): string {
-	const lower = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
 	const open = FIELDS.filter(
 		(spec) =>
 			spec.level === 'block' &&

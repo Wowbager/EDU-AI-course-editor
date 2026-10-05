@@ -119,11 +119,10 @@ test('RVP outputs: adding is its own action, no duplicate, an emptied weight sta
 
 	await pane.getByRole('button', { name: 'Odebrat M-5-1-03' }).click();
 	await expect(pane.getByRole('button', { name: 'Změnit kód M-5-1-03' })).toHaveCount(0);
-	await page
-		.getByRole('dialog', { name: 'Nastavení karty' })
-		.locator('.toast')
-		.getByRole('button', { name: 'Vrátit zpět' })
-		.click();
+	// The notice is in the dialog's footer, beside Hotovo, not over the fields.
+	const toast = page.getByRole('dialog', { name: 'Nastavení karty' }).locator('footer .toast');
+	await expect(toast).toBeVisible();
+	await toast.getByRole('button', { name: 'Vrátit zpět' }).click();
 	await expect(pane.getByRole('button', { name: 'Změnit kód M-5-1-03' })).toBeVisible();
 
 	// A typed weight, not only the default: the number input hands over a number.
@@ -155,11 +154,10 @@ test('Pojmy are chips: added with Enter or a pasted list, no duplicates, removed
 
 	await pane.getByRole('button', { name: 'Odebrat pojem čitatel' }).click();
 	await expect(pane.getByRole('button', { name: 'Odebrat pojem čitatel' })).toHaveCount(0);
-	await page
-		.getByRole('dialog', { name: 'Nastavení karty' })
-		.locator('.toast')
-		.getByRole('button', { name: 'Vrátit zpět' })
-		.click();
+	// The notice is in the dialog's footer, beside Hotovo, not over the fields.
+	const toast = page.getByRole('dialog', { name: 'Nastavení karty' }).locator('footer .toast');
+	await expect(toast).toBeVisible();
+	await toast.getByRole('button', { name: 'Vrátit zpět' }).click();
 	await expect(pane.getByRole('button', { name: 'Odebrat pojem čitatel' })).toBeVisible();
 });
 
