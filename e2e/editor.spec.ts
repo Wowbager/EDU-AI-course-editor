@@ -170,8 +170,8 @@ test('in Metodik the list is there even with few sections, and Učitel has none'
 	await page.getByRole('button', { name: 'Nastavení karty' }).click();
 	let dialog = page.getByRole('dialog', { name: 'Nastavení karty' });
 	await expect(dialog.getByRole('tab', { name: 'Co karta procvičuje', exact: true })).toBeVisible();
-	// Only Pokročilý has the search.
-	await expect(dialog.getByRole('searchbox', { name: 'Hledat nastavení' })).toHaveCount(0);
+	// The search is in every mode.
+	await expect(dialog.getByRole('searchbox', { name: 'Hledat nastavení' })).toBeVisible();
 	await dialog.press('Escape');
 	await expect(dialog).toBeHidden();
 
@@ -180,6 +180,52 @@ test('in Metodik the list is there even with few sections, and Učitel has none'
 	dialog = page.getByRole('dialog', { name: 'Nastavení karty' });
 	await expect(dialog.getByRole('textbox', { name: 'Délka' })).toBeVisible();
 	await expect(dialog.getByRole('tablist')).toHaveCount(0);
+	// ... and its search is one faint word until it is asked for.
+	await expect(dialog.getByRole('searchbox', { name: 'Hledat nastavení' })).toHaveCount(0);
+	await dialog.getByRole('button', { name: 'Hledat nastavení' }).click();
+	await expect(dialog.getByRole('searchbox', { name: 'Hledat nastavení' })).toBeFocused();
+});
+
+test('a dialog says what the next mode adds, and Přepnout opens on it', async ({ page }) => {
+	await importCourse(page, 'spec-16-course.json');
+	await page.getByRole('button', { name: 'Nastavení karty' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Nastavení karty' });
+	await expect(dialog).toContainText(
+		'Dovednosti, pojmy a zařazení do cvičení najdeš v režimu Metodik'
+	);
+	await dialog.getByRole('button', { name: 'Přepnout', exact: true }).click();
+	await expect(page.getByRole('radio', { name: 'Metodik' })).toBeChecked();
+	await expect(dialog.getByRole('tab', { name: 'Co karta procvičuje' })).toHaveAttribute(
+		'aria-selected',
+		'true'
+	);
+	// Now it names what Pokročilý adds, and in Pokročilý there is no line.
+	await expect(dialog).toContainText('najdeš v režimu Pokročilý');
+	await dialog.getByRole('button', { name: 'Přepnout', exact: true }).click();
+	await expect(page.getByRole('radio', { name: 'Pokročilý' })).toBeChecked();
+	await expect(dialog.getByRole('tab', { name: 'Opakování', exact: true })).toHaveAttribute(
+		'aria-selected',
+		'true'
+	);
+	await expect(dialog).not.toContainText('najdeš v režimu');
+	await expect(dialog.getByRole('button', { name: 'Přepnout' })).toHaveCount(0);
+});
+
+test('the search in Učitel finds a Pokročilý field, and Přepnout lands on it, marked', async ({
+	page
+}) => {
+	await importCourse(page, 'spec-16-course.json');
+	await page.getByRole('button', { name: 'Nastavení karty' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Nastavení karty' });
+	await dialog.getByRole('button', { name: 'Hledat nastavení' }).click();
+	await dialog.getByRole('searchbox', { name: 'Hledat nastavení' }).fill('nejdelsi odstup');
+	const row = dialog.getByRole('listitem').filter({ hasText: 'Nejdelší odstup' });
+	await expect(row).toContainText('je v režimu Pokročilý');
+	await row.getByRole('button', { name: 'Přepnout' }).click();
+	await expect(page.getByRole('radio', { name: 'Pokročilý' })).toBeChecked();
+	const pane = dialog.getByRole('tabpanel', { name: 'Opakování', exact: true });
+	await expect(pane.getByRole('textbox', { name: 'Nejdelší odstup' })).toBeVisible();
+	await expect(pane.locator('.match')).toHaveCount(1);
 });
 
 test('a type change that loses answers says Zpět brings them back, even from another card', async ({
@@ -503,4 +549,13 @@ test("the card title's placeholder is a name, not a cue: upright, while a cue st
 	await expect(page.locator('.cm-placeholder', { hasText: 'Zadání otázky' }).first()).toHaveText(
 		'Zadání otázky'
 	);
+});
+
+test('the course dialog closes with Hotovo, like the card and lesson dialogs', async ({ page }) => {
+	await importCourse(page, 'spec-16-course.json');
+	await page.getByRole('button', { name: /Nastavení kurzu/ }).click();
+	const dialog = page.getByRole('dialog', { name: 'Nastavení kurzu' });
+	await expect(dialog.locator('footer').getByRole('button', { name: 'Hotovo' })).toBeVisible();
+	await dialog.getByRole('button', { name: 'Hotovo' }).click();
+	await expect(dialog).toBeHidden();
 });

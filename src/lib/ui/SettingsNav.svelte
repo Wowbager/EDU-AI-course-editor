@@ -16,14 +16,31 @@
 	 * marks a section with a problem by a dot. It switches only when opened: a section
 	 * the author is reading never changes under them because an issue appeared.
 	 *
-	 * With a `search` (Pokročilý), typing narrows the list to the sections it finds and
-	 * shows the first of them; `FieldGroup` marks the fields themselves.
+	 * The search is in every mode. Typing narrows the list to the sections it finds and
+	 * shows the first of them; `FieldGroup` marks the fields themselves. What only a
+	 * higher mode has comes up as a result of its own, "je v režimu Pokročilý · Přepnout",
+	 * so a search never ends empty for something that exists. Učitel has no list, so the
+	 * search is one faint word at the top of the page ("Hledat nastavení") that opens
+	 * into the field when clicked: its dialogs have a handful of fields, and a field
+	 * standing open over them would be the loudest thing on the page.
+	 *
+	 * One quiet line closes the dialog while a higher mode has more in it ("Dovednosti a
+	 * pojmy najdeš v režimu Metodik · Přepnout", `modeGain`); Přepnout switches the mode
+	 * and opens the dialog on the first section that mode adds. Absent in Pokročilý.
 	 */
 	import type { Snippet } from 'svelte';
 	import { untrack } from 'svelte';
+	import { tick } from 'svelte';
 	import { Search } from '@lucide/svelte';
 	import SettingsSection from './SettingsSection.svelte';
-	import type { SectionSpec } from './fields';
+	import {
+		MODE_LABELS,
+		modeGain,
+		type FieldLevel,
+		type HigherMatch,
+		type SectionSpec
+	} from './fields';
+	import { useStore } from './context';
 	import { SECTION_ICONS } from './section-icons';
 	import type { SettingsSearch } from './settings-search.svelte';
 
@@ -35,10 +52,30 @@
 		targeted: (id: string) => boolean;
 		/** An issue the author can see is in this section. */
 		alert: (id: string) => boolean;
-		search?: SettingsSearch;
+		/** The levels of field the dialog holds: what the line and the search look through. */
+		levels: readonly FieldLevel[];
+		search: SettingsSearch;
 		pane: Snippet<[string]>;
 	}
-	let { sections, list, targeted, alert, search, pane }: Props = $props();
+	let { sections, list, targeted, alert, levels, search, pane }: Props = $props();
+
+	const store = useStore();
+	const gain = $derived(modeGain(levels, store.mode, store.showFeedback));
+
+	/** Switch to the mode that has it and open on the section that holds it. */
+	function switchTo(mode: HigherMatch['mode'], section: string) {
+		store.mode = mode;
+		search.show(section);
+	}
+
+	// Učitel: the search is closed until asked for.
+	let searchOpen = $state(false);
+	let searchInput = $state<HTMLInputElement | null>(null);
+	async function openSearch() {
+		searchOpen = true;
+		await tick();
+		searchInput?.focus();
+	}
 
 	const uid = $props.id();
 
@@ -47,8 +84,17 @@
 	);
 
 	const shown = $derived(
-		search?.active ? sections.filter((s) => search.result.sections.has(s.id)) : sections
+		search.active ? sections.filter((s) => search.result.sections.has(s.id)) : sections
 	);
+
+	// After a switch of mode the dialog opens on the section that mode added.
+	$effect(() => {
+		const jump = search.jump;
+		if (jump === null) return;
+		untrack(() => {
+			if (sections.some((s) => s.id === jump.section)) current = jump.section;
+		});
+	});
 	/** The section on screen: the chosen one, unless the search has filtered it out. */
 	const active = $derived(
 		shown.some((s) => s.id === current) ? current : (shown[0]?.id ?? undefined)
@@ -86,34 +132,85 @@
 	}
 </script>
 
+{#snippet searchField()}
+	<label class="search">
+		<Search size={14} aria-hidden="true"></Search>
+		<input
+			type="search"
+			placeholder="Hledat nastavení"
+			aria-label="Hledat nastavení"
+			bind:value={search.query}
+			bind:this={searchInput}
+			onblur={() => {
+				if (!list && !search.active) searchOpen = false;
+			}}
+		/>
+	</label>
+{/snippet}
+
+{#snippet higherResults()}
+	{#if search.active && search.higher.length > 0}
+		<ul class="higher" aria-label="Nalezeno v jiném režimu">
+			{#each search.higher.slice(0, 5) as match (match.level + match.section)}
+				<li>
+					<span class="what">{match.label}</span>
+					<span class="where">je v režimu {MODE_LABELS[match.mode].label}</span>
+					<button type="button" class="switch" onclick={() => switchTo(match.mode, match.section)}>
+						Přepnout
+					</button>
+				</li>
+			{/each}
+		</ul>
+	{/if}
+{/snippet}
+
+{#snippet more()}
+	{#if gain !== undefined}
+		<p class="more">
+			{gain.text} ·
+			<button type="button" class="switch" onclick={() => switchTo(gain.mode, gain.section)}>
+				Přepnout
+			</button>
+		</p>
+	{/if}
+{/snippet}
+
 {#if !list}
+	{#if searchOpen || search.active}
+		<div class="top">
+			{@render searchField()}
+		</div>
+		{@render higherResults()}
+	{:else}
+		<div class="top">
+			<button type="button" class="find" onclick={openSearch}>
+				<Search size={13} aria-hidden="true"></Search>
+				Hledat nastavení
+			</button>
+		</div>
+	{/if}
 	{#if sections[0] !== undefined}
 		{@render pane(sections[0].id)}
 	{/if}
 	{#if sections.length > 1}
 		<div class="folds">
 			{#each sections.slice(1) as section (section.id)}
-				<SettingsSection label={section.label} autoOpen={targeted(section.id)}>
+				<SettingsSection
+					label={section.label}
+					autoOpen={targeted(section.id) ||
+						(search.active && search.result.sections.has(section.id))}
+				>
 					{@render pane(section.id)}
 				</SettingsSection>
 			{/each}
 		</div>
 	{/if}
+	{@render more()}
 {:else}
 	<div class="shell">
 		<div class="layout">
 			<nav class="nav" aria-label="Části nastavení">
-				{#if search}
-					<label class="search">
-						<Search size={14} aria-hidden="true"></Search>
-						<input
-							type="search"
-							placeholder="Hledat nastavení"
-							aria-label="Hledat nastavení"
-							bind:value={search.query}
-						/>
-					</label>
-				{/if}
+				{@render searchField()}
 				<div role="tablist" aria-orientation="vertical" aria-label="Části nastavení">
 					{#each shown as section, index (section.id)}
 						{@const Icon = SECTION_ICONS[section.icon]}
@@ -137,7 +234,8 @@
 						</button>
 					{/each}
 				</div>
-				{#if shown.length === 0}
+				{@render higherResults()}
+				{#if shown.length === 0 && search.higher.length === 0}
 					<p class="none">Nic takového tu není.</p>
 				{/if}
 				<span id="{uid}-alert" hidden>Je tu něco k opravě.</span>
@@ -160,6 +258,7 @@
 				</div>
 			{/if}
 		</div>
+		{@render more()}
 	</div>
 {/if}
 
@@ -277,6 +376,98 @@
 		height: 8px;
 		border-radius: 50%;
 		background: var(--e-error);
+	}
+
+	/* Učitel: one faint word until it is wanted. */
+	.top {
+		display: flex;
+		justify-content: flex-end;
+		margin-bottom: 4px;
+	}
+
+	.top .search {
+		flex: 1;
+	}
+
+	.find {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		padding: 2px 4px;
+		border: 0;
+		border-radius: var(--radius-xs);
+		background: none;
+		color: var(--e-text-faint);
+		font: var(--type-meta);
+		cursor: pointer;
+	}
+
+	.find:hover {
+		color: var(--e-text);
+	}
+
+	.find:focus-visible,
+	.switch:focus-visible {
+		outline: 2px solid var(--e-focus-ring);
+		outline-offset: 1px;
+	}
+
+	.higher {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		margin: 0;
+		padding: 0 4px;
+		list-style: none;
+		font-size: var(--text-xs);
+	}
+
+	.higher li {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 0 6px;
+	}
+
+	.higher .what {
+		flex-basis: 100%;
+		color: var(--e-text);
+	}
+
+	.higher .where {
+		color: var(--e-text-faint);
+	}
+
+	/* The line at the foot: faint, one line, part of the dialog and not a banner. */
+	.more {
+		margin: 0;
+		color: var(--e-text-faint);
+		font-size: var(--text-xs);
+	}
+
+	.shell .more {
+		padding: 9px 22px;
+		border-top: 1px solid var(--e-border);
+	}
+
+	.folds + .more {
+		margin-top: 14px;
+	}
+
+	.switch {
+		padding: 0;
+		border: 0;
+		background: none;
+		color: var(--e-text-muted);
+		font: inherit;
+		text-decoration: underline dotted;
+		text-underline-offset: 3px;
+		cursor: pointer;
+	}
+
+	.switch:hover {
+		color: var(--e-text);
+		text-decoration-style: solid;
 	}
 
 	.none {

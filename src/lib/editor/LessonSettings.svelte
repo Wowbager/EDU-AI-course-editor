@@ -12,6 +12,7 @@
 	 * reachable only by hovering a sidebar row, and one quiet line that says what is in
 	 * the lesson.
 	 */
+	import type { Snippet } from 'svelte';
 	import type { CourseV2 } from '$lib/domain/schema';
 	import Modal from '$lib/ui/Modal.svelte';
 	import Button from '$lib/ui/Button.svelte';
@@ -50,10 +51,13 @@
 	const alert = (id: string) => sectionHasIssue(store, ['lesson'], id, { lessonId });
 	const list = $derived(listsSections(store.mode));
 
-	const search = new SettingsSearch(['lesson'], () => ({
-		mode: store.mode,
-		feedback: store.showFeedback
-	}));
+	const search = new SettingsSearch(
+		() => ['lesson'],
+		() => ({
+			mode: store.mode,
+			feedback: store.showFeedback
+		})
+	);
 	setSettingsSearch(search);
 
 	/**
@@ -165,18 +169,11 @@
 	{#if lesson === undefined}
 		<p>Tato lekce v kurzu není.</p>
 	{:else}
-		<SettingsNav
-			{sections}
-			{list}
-			{targeted}
-			{alert}
-			search={store.mode === 'advanced' ? search : undefined}
-			{pane}
-		/>
+		<SettingsNav {sections} {list} {targeted} {alert} levels={['lesson']} {search} {pane} />
 	{/if}
 {/snippet}
 
-{#snippet actions()}
+{#snippet actions(notice: Snippet)}
 	<Button
 		variant="ghost"
 		onclick={() => {
@@ -197,7 +194,7 @@
 		<Trash size={16}></Trash>
 		{armed ? 'Opravdu smazat? Klikni znovu' : 'Smazat'}
 	</Button>
-	<div class="spacer"></div>
+	{@render notice()}
 	<Button variant="secondary" onclick={onclose}>Hotovo</Button>
 {/snippet}
 
@@ -257,9 +254,5 @@
 		font-family: var(--font-code);
 		font-size: var(--text-s);
 		color: var(--e-text-faint);
-	}
-
-	.spacer {
-		flex: 1;
 	}
 </style>

@@ -15,6 +15,7 @@
 	 * `SettingsNav` lists down the left from Metodik up. It renders those tables rather
 	 * than keeping a second opinion about either.
 	 */
+	import type { Snippet } from 'svelte';
 	import type { BlockV2, CourseV2, LessonBlockBinding } from '$lib/domain/schema';
 	import Modal from '$lib/ui/Modal.svelte';
 	import Button from '$lib/ui/Button.svelte';
@@ -88,10 +89,13 @@
 	const targeted = (id: string) => sectionTargeted(store, [levelOf(id)], id, scope);
 	const alert = (id: string) => sectionHasIssue(store, [levelOf(id)], id, scope);
 
-	const search = new SettingsSearch(['block', 'binding'], () => ({
-		mode: store.mode,
-		feedback: store.showFeedback
-	}));
+	const search = new SettingsSearch(
+		() => (binding === undefined ? ['block'] : ['block', 'binding']),
+		() => ({
+			mode: store.mode,
+			feedback: store.showFeedback
+		})
+	);
 	setSettingsSearch(search);
 
 	/**
@@ -222,12 +226,14 @@
 		list={listsSections(mode)}
 		{targeted}
 		{alert}
-		search={mode === 'advanced' ? search : undefined}
+		levels={binding === undefined ? ['block'] : ['block', 'binding']}
+		{search}
 		{pane}
 	/>
 {/snippet}
 
-{#snippet actions()}
+{#snippet actions(notice: Snippet)}
+	{@render notice()}
 	<Button variant="secondary" onclick={onclose}>Hotovo</Button>
 {/snippet}
 
