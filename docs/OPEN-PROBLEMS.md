@@ -457,26 +457,18 @@ To check against the newer app when it lands: in the public code (`block_model.d
 keeps those names, one side has to change before any of these fields does anything.
 
 ### 45. What the Round 12 teacher test found and left
-**Found by an agent doing six teacher tasks by reading only the screen, not fixed.**
-- Učitel hides skills, Pojmy, Předpoklady and „Jen jednou“ (Metodik or Pokročilý), and
-  nothing in a dialog says more settings exist in another mode. The settings search
-  exists only in Pokročilý. The biggest obstacle in the test.
-- Pokročilý lists the blocks a card is exported as („část 1/2“), so lesson card counts,
-  XP and the warning count differ between modes. By design (`Sidebar.svelte`, `partOf`),
-  but unexplained on screen.
-- The faint „↳ Krok 3“ under an answer looks like a link and does nothing; „Kam dál“ is
-  reached through the small chevron. The picker that opens covers the answers above it.
-- Changing where an answer leads can make a step unreachable; the warning appears only in
-  Kontrola kurzu, not at the moment of the change.
-- A new skill is placed by its order in the taxonomy, so it can appear above the row the
-  teacher just added.
-- The undo notice inside a dialog covers the dialog's text near its bottom edge.
-- Pojmy keep the case they were typed in („čitatel“ beside an imported „Čitatel“).
-- The first letters typed right after opening „Kam dál“ may not reach the search field.
-  Seen once by a script; not reproduced by hand.
-- „výchozí sada“ and „nenastaveno“ chips stay amber after skills are set, and read as
-  errors (already noted in Round 11).
-- The course dialog closes only with ×; the card and lesson dialogs have „Hotovo“.
+**Found by an agent doing six teacher tasks by reading only the screen. Mostly fixed in
+Round 13 (`DECISIONS.md` → Round 13); what is left:**
+- Pojmy typed fresh keep the case they were typed in; only a term the course already uses
+  takes the course's spelling.
+- The step's „Další nastavení kroku“ has no line naming what a higher mode adds there.
+- Fixed in Round 13, kept as a record: settings hidden by the mode (a line naming what
+  the next mode adds, with „Přepnout“, and search in every mode); split cards in Pokročilý
+  (joined in the tree, explained once); „↳ Krok 3“ is the way to an answer's „Kam dál“,
+  and the picker opens below it; a step cut off by a change is said under the answer;
+  a new skill row is marked; the undo notice sits in the dialog's footer; Pojmy suggest
+  the course's terms; „Kam dál“ keeps letters typed while it opens; „výchozí sada“ is a
+  grey label with its meaning; the course dialog has „Hotovo“.
 
 ### 11. Folding is remembered for the session only
 **By design for now.** `StepView` lives as long as the page. A reload opens every step
