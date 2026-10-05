@@ -159,7 +159,10 @@
 			(f) =>
 				!INLINE_STEP.includes(f.path) &&
 				// The step's switch only duplicates the card's own when the card is in practice.
-				(f.path !== 'default_practice' || stepPracticeOffered(doc, block, step))
+				(f.path !== 'default_practice' || stepPracticeOffered(doc, block, step)) &&
+				// Where a picture or video sits matters only on a step that has one.
+				(f.path !== 'image.position' || step.type === 'image' || step.image !== undefined) &&
+				(f.path !== 'video.position' || step.type === 'video' || step.video !== undefined)
 		)
 	);
 	// A selection or a visible issue that points into the fold opens it.
@@ -811,14 +814,12 @@
 	-->
 			{#if showLadder && ladderShown}
 				<div class="help-ladder">
-					<!--
-    			The consequence of each rung lives in the tooltip, not under the field. It
-    			is the same two sentences on every step of every card, and printed out it
-    			buries the step's own content under its footnotes. The card's own pair
-    			spells them out once, where they teach something.
-    		-->
+					<!-- The consequence of each rung sits under its name, like every other field's. -->
 					<div class="field-row">
-						<span class="field-label" title={hintSpec?.hint}>{hintSpec?.label ?? 'Nápověda'}</span>
+						<div class="field-label">
+							<span>{hintSpec?.label ?? 'Nápověda'}</span>
+							{#if hintSpec?.hint}<span class="hint">{hintSpec.hint}</span>{/if}
+						</div>
 						<FocusField
 							label={hintSpec?.label ?? 'Nápověda'}
 							value={step.hint}
@@ -835,9 +836,10 @@
 						/>
 					</div>
 					<div class="field-row">
-						<span class="field-label" title={helpSpec?.hint}
-							>{helpSpec?.label ?? 'Podrobná pomoc'}</span
-						>
+						<div class="field-label">
+							<span>{helpSpec?.label ?? 'Podrobná pomoc'}</span>
+							{#if helpSpec?.hint}<span class="hint">{helpSpec.hint}</span>{/if}
+						</div>
 						<FocusField
 							label={helpSpec?.label ?? 'Podrobná pomoc'}
 							value={step.help}
@@ -1054,7 +1056,7 @@
 
 	.field-row {
 		display: grid;
-		grid-template-columns: 130px 1fr;
+		grid-template-columns: 170px 1fr;
 		gap: 12px;
 		align-items: start;
 		font-size: var(--text-m);
@@ -1062,8 +1064,18 @@
 
 	.field-label {
 		padding-top: 6px;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
 		color: var(--e-text-muted);
 		font-size: var(--text-s);
+	}
+
+	.hint {
+		color: var(--e-text-faint);
+		font: var(--type-meta);
+		font-weight: var(--weight-regular);
+		line-height: 1.5;
 	}
 
 	.field-hint {

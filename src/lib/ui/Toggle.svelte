@@ -3,22 +3,28 @@
 		checked: boolean;
 		label: string;
 		/**
-		 * The consequence for the student. A tooltip on the label, and read out by a
-		 * screen reader, but never drawn under the switch: a line that appears on focus
-		 * moves the switch under the pointer, and the click that blurs it is then lost.
+		 * The consequence for the student, always drawn under the toggle's name (never
+		 * only on focus: a line that appears then moves the switch under the pointer,
+		 * and the click that blurs it is lost) and tied to the switch for a screen reader.
 		 */
 		hint?: string;
 		onchange: (checked: boolean) => void;
 	}
 	let { checked, label, hint, onchange }: Props = $props();
+	const hintId = $props.id();
 </script>
 
-<label class="toggle" title={hint}>
-	<input type="checkbox" {checked} onchange={(e) => onchange(e.currentTarget.checked)} />
+<label class="toggle">
+	<input
+		type="checkbox"
+		{checked}
+		aria-describedby={hint ? hintId : undefined}
+		onchange={(e) => onchange(e.currentTarget.checked)}
+	/>
 	<span class="track" aria-hidden="true"><span class="thumb"></span></span>
 	<span class="text">
 		<span class="label">{label}</span>
-		{#if hint}<span class="hint">{hint}</span>{/if}
+		{#if hint}<span class="hint" id={hintId}>{hint}</span>{/if}
 	</span>
 </label>
 
@@ -83,11 +89,9 @@
 	}
 
 	.hint {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
+		color: var(--e-text-faint);
+		font: var(--type-meta);
+		font-weight: var(--weight-regular, 400);
+		line-height: 1.5;
 	}
 </style>

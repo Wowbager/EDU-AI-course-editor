@@ -8,15 +8,20 @@
 	 * enough to make it editable. Fields marked `custom` are owned by a real
 	 * component and are never handed here; `fieldsFor` filters them out.
 	 *
-	 * The hint is the field's own sentence about what it does to the student. It shows
-	 * under the control while the field has focus, and is a tooltip on the label the
-	 * rest of the time: a dialog of thirty fields with thirty sentences under them is
-	 * the clutter this replaced. It used to be passed as the field's placeholder, which
-	 * meant the sentence vanished the moment anyone used the field — and where a spec
-	 * had no hint, the empty string fell through to the label, printing it twice.
+	 * The hint is the field's own sentence about what it does to the student. It is
+	 * always on screen, small and faint, under the field's name in the label column:
+	 * never under the control and never only while the field has focus, so nothing
+	 * shifts when a field is used and an open select covers nothing. It used to be a
+	 * tooltip, which nobody read, and before that the field's placeholder, which
+	 * vanished the moment anyone used the field. A field with no hint prints none.
+	 *
+	 * A `select` spec with `display: 'segmented'` is drawn as a Segmented. Clicking the
+	 * chosen segment again clears the field ("nenastaveno"), so the state a select
+	 * offered as its first option stays reachable without an extra button.
 	 */
 	import FocusField from './FocusField.svelte';
 	import Toggle from './Toggle.svelte';
+	import Segmented from './Segmented.svelte';
 	import { parseNumberInput } from '$lib/domain/number-input';
 	import { formatDateTimeCs } from '$lib/domain/format-date';
 	import { hintFor, type FieldSpec } from './fields';
@@ -34,6 +39,9 @@
 
 	/** The dialog's search, if it has one: a field it found is marked. */
 	const search = useSettingsSearch();
+
+	const uid = $props.id();
+	const hintId = (spec: FieldSpec) => `${uid}-${spec.level}-${spec.path}`;
 
 	const asText = (value: unknown): string | undefined =>
 		value === undefined || value === null ? undefined : String(value);
@@ -61,12 +69,40 @@
 				onchange={(v) => write(spec.path, v || undefined)}
 			/>
 		</div>
+	{:else if spec.kind === 'select' && spec.display === 'segmented'}
+		{@const current = asText(value) ?? ''}
+		{@const options = (spec.options ?? []).map((o) => ({ value: o.value, label: o.label }))}
+		<div class="field-row" class:match>
+			<div class="field-label">
+				<span>{spec.label}</span>
+				{#if hint}<span class="hint" id={hintId(spec)}>{hint}</span>{/if}
+			</div>
+			<div class="control wide">
+				<Segmented
+					wrap
+					label={spec.label}
+					options={current !== '' && !options.some((o) => o.value === current)
+						? [...options, { value: current, label: current }]
+						: options}
+					value={current}
+					describedby={hint ? hintId(spec) : undefined}
+					onchange={(v) => {
+						if (v === current) return write(spec.path, undefined);
+						write(spec.path, spec.numeric ? Number(v) : v);
+					}}
+				/>
+			</div>
+		</div>
 	{:else if spec.kind === 'select'}
 		<div class="field-row" class:match>
-			<span class="field-label" title={hint}>{spec.label}</span>
+			<div class="field-label">
+				<span>{spec.label}</span>
+				{#if hint}<span class="hint" id={hintId(spec)}>{hint}</span>{/if}
+			</div>
 			<div class="control">
 				<select
 					aria-label={spec.label}
+					aria-describedby={hint ? hintId(spec) : undefined}
 					value={asText(value) ?? ''}
 					onchange={(e) => {
 						const raw = e.currentTarget.value;
@@ -83,19 +119,24 @@
 						<option value={asText(value)}>{asText(value)}</option>
 					{/if}
 				</select>
-				{#if hint}<span class="hint">{hint}</span>{/if}
 			</div>
 		</div>
 	{:else if spec.display === 'datetime'}
 		<div class="field-row" class:match>
-			<span class="field-label" title={hint}>{spec.label}</span>
+			<div class="field-label">
+				<span>{spec.label}</span>
+				{#if hint}<span class="hint" id={hintId(spec)}>{hint}</span>{/if}
+			</div>
 			<div class="control">
 				<span class="read-only">{asText(value) ? formatDateTimeCs(asText(value)!) : '—'}</span>
 			</div>
 		</div>
 	{:else}
 		<div class="field-row" class:match>
-			<span class="field-label" title={hint}>{spec.label}</span>
+			<div class="field-label">
+				<span>{spec.label}</span>
+				{#if hint}<span class="hint" id={hintId(spec)}>{hint}</span>{/if}
+			</div>
 			<div class="control">
 				<FocusField
 					label={spec.label}
@@ -104,11 +145,11 @@
 					monospace={spec.kind === 'number'}
 					emptyText={spec.default === undefined ? 'nevyplněno' : `výchozí ${spec.default}`}
 					ref={spec.ref}
+					describedby={hint ? hintId(spec) : undefined}
 					invalid={invalid?.(spec.path) === true}
 					onchange={(v) =>
 						spec.kind === 'number' ? writeNumber(spec.path, v) : write(spec.path, v)}
 				/>
-				{#if hint}<span class="hint">{hint}</span>{/if}
 			</div>
 		</div>
 	{/if}
@@ -136,6 +177,9 @@
 		min-width: 0;
 		overflow-wrap: anywhere;
 		padding-top: 6px;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
 		color: var(--e-text-muted);
 		font-size: var(--text-s);
 	}
@@ -146,6 +190,11 @@
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
+	}
+
+	/* Segments need the row: the name and its hint above, the choices under them. */
+	.wide {
+		grid-column: 1 / -1;
 	}
 
 	.read-only {
@@ -165,18 +214,14 @@
 		color: var(--e-text);
 	}
 
-	/* Shown only while the field has focus; the label's title carries it otherwise. */
+	/* Always drawn, under the field's name; the type-meta size keeps it a footnote. */
 	.hint {
-		display: none;
 		min-width: 0;
 		overflow-wrap: anywhere;
 		color: var(--e-text-faint);
-		font-size: var(--text-xs);
+		font: var(--type-meta);
+		font-weight: var(--weight-regular, 400);
 		line-height: 1.5;
 		white-space: normal;
-	}
-
-	.field-row:focus-within .hint {
-		display: block;
 	}
 </style>

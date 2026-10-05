@@ -36,6 +36,8 @@
 		 */
 		onblur?: () => void;
 		ref?: Ref;
+		/** Id of the line that describes this field, drawn by the caller. */
+		describedby?: string;
 	}
 
 	let {
@@ -51,7 +53,8 @@
 		invalid = false,
 		onchange,
 		onblur,
-		ref
+		ref,
+		describedby
 	}: Props = $props();
 
 	import { untrack } from 'svelte';
@@ -64,6 +67,19 @@
 	let lastEmitted: string | undefined;
 	let editing = false;
 	let element = $state<HTMLInputElement | HTMLTextAreaElement | null>(null);
+
+	// A multiline field grows with its wrapped text, from three rows up to fourteen.
+	// Browsers with `field-sizing: content` do it in CSS; the rest are measured here.
+	const sizesItself = typeof CSS !== 'undefined' && CSS.supports('field-sizing', 'content');
+	$effect(() => {
+		draft;
+		const area = element;
+		if (!multiline || sizesItself || !(area instanceof HTMLTextAreaElement)) return;
+		area.style.height = 'auto';
+		const line = parseFloat(getComputedStyle(area).lineHeight) || 20;
+		const pad = area.offsetHeight - area.clientHeight + 12;
+		area.style.height = `${Math.min(Math.max(area.scrollHeight + 2, 3 * line + pad), 14 * line + pad)}px`;
+	});
 
 	let mounted = false;
 	// External undo/import/selection changes replace the value without echoing an edit.
@@ -151,13 +167,14 @@
 			bind:this={element}
 			value={draft}
 			aria-label={label}
+			aria-describedby={describedby}
 			aria-invalid={flagged || undefined}
 			placeholder={emptyText ?? (placeholder || label)}
 			class="field"
 			class:mono={monospace}
 			class:invalid={flagged}
 			{disabled}
-			rows={Math.min(14, Math.max(3, draft.split('\n').length + 1))}
+			rows={3}
 			oninput={input}
 			onfocus={begin}
 			onblur={commit}
@@ -166,6 +183,7 @@
 		<input
 			value={draft}
 			aria-label={label}
+			aria-describedby={describedby}
 			aria-invalid={flagged || undefined}
 			placeholder={emptyText ?? (placeholder || label)}
 			class="field"
@@ -214,6 +232,13 @@
 		resize: vertical;
 		overflow-wrap: anywhere;
 		outline: 0px solid transparent;
+	}
+
+	/* Three rows to start with, then the text decides, up to fourteen. */
+	textarea.field {
+		field-sizing: content;
+		min-height: calc(3lh + 14px);
+		max-height: calc(14lh + 14px);
 	}
 
 	.field.compact {

@@ -101,8 +101,12 @@ export interface FieldSpec {
 	/**
 	 * `datetime`: an ISO timestamp that nothing in the editor writes and nobody should
 	 * type. Shown read-only, in Czech form.
+	 *
+	 * `segmented`: for a `select` with a few short options (the rule of thumb: five or
+	 * fewer, set by hand per field, not inferred). Drawn as a Segmented; clicking the
+	 * chosen segment again clears the field.
 	 */
-	display?: 'datetime';
+	display?: 'datetime' | 'segmented';
 }
 
 /**
@@ -629,6 +633,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		unread: true,
 		mode: 'metodik',
 		kind: 'select',
+		display: 'segmented',
 		numeric: true,
 		// Not just „Úroveň“: the skills right above it have levels of their own.
 		label: 'Úroveň zvládnutí',
@@ -688,6 +693,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		unread: true,
 		mode: 'metodik',
 		kind: 'select',
+		display: 'segmented',
 		numeric: true,
 		label: 'Odhad obtížnosti',
 		hint: 'Jen odhad autora; živý signál je obtížnost po dovednostech.',
@@ -1068,6 +1074,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		section: 'extras',
 		mode: 'advanced',
 		kind: 'select',
+		display: 'segmented',
 		label: 'Umístění obrázku',
 		options: POSITION_OPTIONS
 	},
@@ -1077,6 +1084,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		section: 'extras',
 		mode: 'advanced',
 		kind: 'select',
+		display: 'segmented',
 		label: 'Umístění videa',
 		options: POSITION_OPTIONS
 	},

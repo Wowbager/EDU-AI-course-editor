@@ -57,14 +57,22 @@ test('grade, level and Bloom are chosen from words and stored as numbers', async
 		.getByRole('combobox', { name: 'Bloomova úroveň' })
 		.selectOption({ label: '3 – aplikovat' });
 	await expect(pane.getByRole('combobox', { name: 'Bloomova úroveň' })).toHaveValue('3');
-	await pane
-		.getByRole('combobox', { name: 'Úroveň zvládnutí' })
-		.selectOption({ label: '3 – splňuje' });
-	await expect(pane.getByRole('combobox', { name: 'Úroveň zvládnutí' })).toHaveValue('3');
-	await pane
-		.getByRole('combobox', { name: 'Odhad obtížnosti' })
-		.selectOption({ label: '2 – snadná' });
-	await expect(pane.getByRole('combobox', { name: 'Odhad obtížnosti' })).toHaveValue('2');
+	// Level and difficulty are a few short choices: segments, not selects. The chosen
+	// one is stored as a number, and clicking it again gives "nenastaveno" back.
+	const level = pane.getByRole('radiogroup', { name: 'Úroveň zvládnutí' });
+	await level.getByRole('radio', { name: '3 – splňuje' }).click();
+	await expect(level.getByRole('radio', { name: '3 – splňuje' })).toHaveAttribute(
+		'aria-checked',
+		'true'
+	);
+	const difficulty = pane.getByRole('radiogroup', { name: 'Odhad obtížnosti' });
+	await difficulty.getByRole('radio', { name: '2 – snadná' }).click();
+	await expect(difficulty.getByRole('radio', { name: '2 – snadná' })).toHaveAttribute(
+		'aria-checked',
+		'true'
+	);
+	await difficulty.getByRole('radio', { name: '2 – snadná' }).click();
+	await expect(difficulty.getByRole('radio', { checked: true })).toHaveCount(0);
 });
 
 test('RVP outputs: no duplicate, an emptied weight stays, the code is edited in place', async ({

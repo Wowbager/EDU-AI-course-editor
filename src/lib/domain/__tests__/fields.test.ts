@@ -218,6 +218,32 @@ describe('what each mode is for', () => {
  * nothing inert in teacher mode, and wherever an inert field is offered, its hint
  * admits that it changes nothing for the student today.
  */
+describe('segmented selects', () => {
+	const segmented = FIELDS.filter((spec) => spec.display === 'segmented');
+
+	it('are the short choices, by name, and nothing else', () => {
+		expect(segmented.map((spec) => spec.path).sort()).toEqual([
+			'gpf.level',
+			'image.position',
+			'learning.difficulty',
+			'video.position'
+		]);
+	});
+
+	it('are selects with at most five options', () => {
+		for (const spec of segmented) {
+			expect(spec.kind).toBe('select');
+			expect(spec.options?.length ?? 99).toBeLessThanOrEqual(5);
+		}
+	});
+
+	it('leave the long lists as selects', () => {
+		for (const path of ['gpf.grade', 'learning.bloom_level']) {
+			expect(FIELDS.find((spec) => spec.path === path)?.display).toBeUndefined();
+		}
+	});
+});
+
 describe('every offered field has a consumer, or says it has none', async () => {
 	const { readFileSync } = await import('node:fs');
 	const { fileURLToPath } = await import('node:url');

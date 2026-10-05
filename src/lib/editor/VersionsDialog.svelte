@@ -211,12 +211,12 @@
 			<h3>Kdo kurz uvidí</h3>
 			<Segmented
 				wrap
+				explain
 				label="Kdo kurz uvidí"
 				options={choices.map((v) => ({ value: v, ...VISIBILITY_LABEL[v] }))}
 				value={visibility}
 				onchange={(v: Visibility) => store.apply((d) => setVisibility(d, v))}
 			/>
-			<p class="muted">{VISIBILITY_LABEL[visibility].title}</p>
 			{#if published !== null && published.visibility !== visibility}
 				<p class="muted">
 					Zveřejněná verze {published.version} je zatím „{VISIBILITY_LABEL[published.visibility]
