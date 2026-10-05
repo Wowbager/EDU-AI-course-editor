@@ -238,7 +238,7 @@ test('a card that already waits for this one cannot be picked as its prerequisit
 	await picker.getByRole('button', { name: /^Jinou kartu/ }).click();
 	// The second card waits for it directly, and the next three through the chain
 	// (each of lesson 1's cards waits for the one before).
-	const waiting = picker.getByRole('button', { name: /na tuhle kartu čeká/ });
+	const waiting = picker.getByRole('button', { name: /čeká na tuhle kartu/ });
 	await expect(waiting).toHaveCount(4);
 	await expect(waiting.first()).toContainText('Části zlomku');
 	for (const item of await waiting.all())

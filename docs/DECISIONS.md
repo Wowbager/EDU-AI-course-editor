@@ -2089,7 +2089,7 @@ select (it has a handful of items).
 choice, so a rule's card or skill changes in place and the percentage stays. Switching
 from a card to a skill is choosing the other branch. A card that already waits for this one
 (`cardsWaitingFor`, which shares its edges with the Kontrola kurzu cycle check) cannot be
-picked: „na tuhle kartu čeká“. A card used by another rule of this card says „už je v
+picked: „čeká na tuhle kartu, nemůže být před ní“. A card used by another rule of this card says „už je v
 předpokladech“. Skill codes show only in Pokročilý, faint. The note that the app does not
 enforce prerequisites is kept.
 

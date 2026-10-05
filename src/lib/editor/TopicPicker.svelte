@@ -35,7 +35,7 @@
 		type SkillDimension,
 		type SkillTreeSkill
 	} from '$lib/domain/skill-config';
-	import { ChevronLeft, Plus, Trash2 } from '@lucide/svelte';
+	import { ChevronLeft, Pencil, Plus, Trash2 } from '@lucide/svelte';
 
 	interface Props {
 		block: BlockV2;
@@ -304,6 +304,8 @@
 								{#if store.mode === 'advanced' && dim?.code}
 									<span class="code">{dim.code}</span>
 								{/if}
+								<!-- The row is the way to change it; say so without hovering. -->
+								<Pencil class="edit" size={13} aria-hidden="true"></Pencil>
 							</span>
 							{#if dim && where && dim.name !== skillName}
 								<span class="desc">{dim.name}</span>
@@ -506,6 +508,18 @@
 	.what:hover,
 	.what:focus-visible {
 		background: var(--surface-light);
+	}
+
+	.what :global(.edit) {
+		align-self: center;
+		color: var(--e-text-faint);
+		opacity: 0.6;
+	}
+
+	.what:hover :global(.edit),
+	.what:focus-visible :global(.edit) {
+		color: var(--primary);
+		opacity: 1;
 	}
 
 	.line {

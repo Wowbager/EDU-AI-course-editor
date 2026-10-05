@@ -134,7 +134,7 @@
 					detail: card.collides ? card.place : undefined,
 					current: own?.block_id === card.id,
 					disabledReason: waiting.has(card.id)
-						? 'na tuhle kartu čeká'
+						? 'čeká na tuhle kartu, nemůže být před ní'
 						: used.has(card.id)
 							? 'už je v předpokladech'
 							: undefined
