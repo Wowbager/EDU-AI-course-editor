@@ -118,7 +118,8 @@
 	let dimension = $state<SkillDimension | null>(null);
 	let wrapper = $state<HTMLElement | null>(null);
 	let panel = $state<HTMLElement | null>(null);
-	let wasOpenAtPointerDown = false;
+	/** Which trigger's box was open when the press began: a click on that one only closes it. */
+	let openAtPointerDown: number | null | undefined = undefined;
 	let open = $state(false);
 
 	/** Skills with something left to choose, under their area. */
@@ -176,14 +177,14 @@
 	}
 
 	function onpointerdown() {
-		wasOpenAtPointerDown = open;
+		openAtPointerDown = open ? editing : undefined;
 	}
 
 	function onclick(event: MouseEvent, index: number | null = null) {
-		if (wasOpenAtPointerDown) {
-			wasOpenAtPointerDown = false;
-			return;
-		}
+		const sameBox = openAtPointerDown === index;
+		openAtPointerDown = undefined;
+		if (sameBox) return;
+		// Another row's box: the press already closed it, and this one opens straight away.
 		show(event.currentTarget as HTMLElement, index);
 	}
 
@@ -349,7 +350,7 @@
 			</ul>
 			<p class="help">
 				<strong>Je o tom</strong>: karta dovednost učí. <strong>Využívá</strong>: karta ji jen
-				potřebuje mimochodem.
+				potřebuje mimochodem. Většina karet učí jednu nebo dvě.
 			</p>
 		{/if}
 
@@ -435,7 +436,11 @@
 			</div>
 		</div>
 
-		<p class="help">Většina karet má jednu nebo dvě dovednosti, které učí. Ostatní jen využívá.</p>
+		{#if topics.length === 0}
+			<p class="help">
+				Většina karet má jednu nebo dvě dovednosti, které učí. Ostatní jen využívá.
+			</p>
+		{/if}
 	{/if}
 </section>
 
