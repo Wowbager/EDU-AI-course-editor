@@ -138,6 +138,18 @@ test('Smazat kartu asks where the pointers should go when another card needs the
 	const dialog = page.getByRole('dialog', { name: /Smazat kartu/ });
 	await expect(dialog).toBeVisible();
 	await expect(dialog).toContainText('tuto kartu obsahuje');
+	// The card to redirect to is chosen in the shared picker, not in a native select.
+	await dialog.getByRole('button', { name: /tuto kartu obsahuje/ }).click();
+	const picker = page.getByRole('dialog', { name: 'Kam odkaz povede' });
+	await expect(picker.getByRole('button', { name: 'Zrušit odkaz' })).toHaveAttribute(
+		'aria-current',
+		'true'
+	);
+	await picker.locator('.choice').nth(1).click();
+	await expect(picker).toBeHidden();
+	await expect(dialog.getByRole('button', { name: /tuto kartu obsahuje/ })).toContainText(
+		'Přesměrovat na kartu'
+	);
 	await dialog.getByRole('button', { name: 'Zpět', exact: true }).click();
 	expect((await exported(page)).blocks).toHaveLength(3);
 	await cardAction(page, ERASE);

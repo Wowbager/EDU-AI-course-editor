@@ -9,6 +9,10 @@
 	import { useStore } from '$lib/ui/context';
 	import Modal from '$lib/ui/Modal.svelte';
 	import Button from '$lib/ui/Button.svelte';
+	import ChoicePicker from '$lib/ui/ChoicePicker.svelte';
+	import type { PickerGroup } from '$lib/ui/choice-picker';
+	import { cardGroups, cardNames } from '$lib/domain/card-names';
+	import { ChevronDown } from '@lucide/svelte';
 	import {
 		deleteBlock,
 		deleteStep,
@@ -62,26 +66,47 @@
 	let choices = $state<Record<string, string>>({});
 	const keyOf = (reference: Reference) => JSON.stringify(reference.from);
 
-	const targets = $derived([
+	/** A step's choices are few and stay a plain list; a card's are many, and go to the picker. */
+	const stepTargets = $derived([
 		{ value: '', label: 'Zrušit odkaz' },
-		...(target.stepId !== undefined
-			? [
-					{ value: 'AGAIN', label: 'Místo toho: zkusit znovu' },
-					{ value: 'END', label: 'Místo toho: ukončit kartu' },
-					...(targetBlock?.steps
-						.filter((s) => s.id !== target.stepId)
-						.map((s) => ({
-							value: s.id,
-							label: `Přesměrovat na krok ${stepPosition(targetBlock, s)}${showIds ? ` (${s.id})` : ''}`
-						})) ?? [])
-				]
-			: doc.blocks
-					.filter((b) => b.block_id !== target.blockId)
-					.map((b) => ({
-						value: b.block_id,
-						label: `Přesměrovat na kartu „${blockLabel(doc, b, { max: 46 })}“${showIds ? ` (${b.block_id})` : ''}`
-					})))
+		{ value: 'AGAIN', label: 'Místo toho: zkusit znovu' },
+		{ value: 'END', label: 'Místo toho: ukončit kartu' },
+		...(targetBlock?.steps
+			.filter((s) => s.id !== target.stepId)
+			.map((s) => ({
+				value: s.id,
+				label: `Přesměrovat na krok ${stepPosition(targetBlock, s)}${showIds ? ` (${s.id})` : ''}`
+			})) ?? [])
 	]);
+
+	const names = $derived(cardNames(doc, 46));
+	const cardGroupsList = $derived(cardGroups(doc, { exclude: target.blockId, max: 46 }));
+	/** The reference whose „Kam“ the picker is open for. */
+	let asking = $state('');
+	let picker = $state<ReturnType<typeof ChoicePicker> | null>(null);
+
+	const pickerGroups = $derived.by((): PickerGroup[] => [
+		{
+			items: [{ id: '', name: 'Zrušit odkaz', current: (choices[asking] ?? '') === '' }]
+		},
+		...cardGroupsList.map((group) => ({
+			heading: group.title,
+			items: group.cards.map((card) => ({
+				id: card.id,
+				name: card.name,
+				detail: card.collides ? card.place : undefined,
+				hint: showIds ? card.id : undefined,
+				current: choices[asking] === card.id
+			}))
+		}))
+	]);
+
+	function chosenLabel(key: string): string {
+		const id = choices[key] ?? '';
+		if (id === '') return 'Zrušit odkaz';
+		const card = names.get(id);
+		return `Přesměrovat na kartu „${card?.label ?? id}“`;
+	}
 
 	const describe = (reference: Reference): string => {
 		const { lessonId, blockId, stepId, optionId } = reference.from;
@@ -143,18 +168,43 @@
 			{#each references as reference (keyOf(reference))}
 				<li>
 					<span class="what">{describe(reference)}</span>
-					<select
-						aria-label={describe(reference)}
-						value={choices[keyOf(reference)] ?? ''}
-						onchange={(e) => (choices = { ...choices, [keyOf(reference)]: e.currentTarget.value })}
-					>
-						{#each targets as option (option.value)}
-							<option value={option.value}>{option.label}</option>
-						{/each}
-					</select>
+					{#if target.stepId !== undefined}
+						<select
+							aria-label={describe(reference)}
+							value={choices[keyOf(reference)] ?? ''}
+							onchange={(e) =>
+								(choices = { ...choices, [keyOf(reference)]: e.currentTarget.value })}
+						>
+							{#each stepTargets as option (option.value)}
+								<option value={option.value}>{option.label}</option>
+							{/each}
+						</select>
+					{:else}
+						<button
+							type="button"
+							class="choose"
+							aria-haspopup="dialog"
+							aria-label={describe(reference)}
+							onclick={(e) => {
+								asking = keyOf(reference);
+								picker?.show(e.currentTarget);
+							}}
+						>
+							<span class="shown">{chosenLabel(keyOf(reference))}</span>
+							<ChevronDown size={14} aria-hidden="true"></ChevronDown>
+						</button>
+					{/if}
 				</li>
 			{/each}
 		</ul>
+		{#if target.stepId === undefined}
+			<ChoicePicker
+				label="Kam odkaz povede"
+				root={{ title: 'Kam odkaz povede', groups: pickerGroups }}
+				onpick={(path) => (choices = { ...choices, [asking]: path[0] })}
+				bind:this={picker}
+			/>
+		{/if}
 	{/if}
 {/snippet}
 
@@ -201,6 +251,27 @@
 	.what {
 		color: var(--e-text);
 		font-size: var(--text-s);
+	}
+
+	.choose {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 6px;
+		padding: 5px 8px;
+		border: 1px solid var(--e-border);
+		border-radius: var(--radius-xs);
+		background: var(--surface);
+		color: var(--e-text);
+		font-family: var(--font-body);
+		font-size: var(--text-s);
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.shown {
+		min-width: 0;
+		overflow-wrap: anywhere;
 	}
 
 	select {

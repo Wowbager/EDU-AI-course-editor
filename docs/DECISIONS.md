@@ -2035,6 +2035,40 @@ se zlomky“ or not at all — the taxonomy's text, not ours).
 under its name; remembering the last open section; skills derived for a lesson from its
 cards, read-only in the lesson dialog (the format has no lesson vector).
 
+## Round 12 — one way to pick from a list
+
+**The picker (`ChoicePicker`).** „Přidat předpoklad“ was a select of every card and every
+skill in the course, and „Kam dál“ and the repair dialog were selects of every card. One
+shared box now does all of it, in the style of „Přidat dovednost“ and the rail's peek:
+a native popover placed once with `placeMenu`, closed by Escape or a click outside,
+two-line items under headings, a marked current choice, a disabled item that says why
+(it is listed, not hidden), a search field only when a step has more than eight items
+(every word must match, diacritics and case ignored), and a drill-down step with a „Zpět“
+link for area → skill → level. Arrows move, Enter picks, typing goes to the search. The
+data is plain `PickerStep`s and the rules (filtering, path walking) are in
+`ui/choice-picker.ts`, tested without a browser. The component is only the box; the
+owner has the trigger and calls `show(anchor, path)`, where the path opens it on the step
+of a choice made earlier.
+
+**Cards that tell themselves apart (`domain/card-names.ts`).** Two cards can be called
+the same („Kolik je?“, or several empty „Karta 1“). A card whose name another shares
+carries its place — „Lekce 2, karta 3“, or „mimo lekce“ — as a second line in the
+picker and after the name in a summary. Nothing is written to the document. `GoToPicker`,
+its row summary and the repair dialog use it; the repair dialog's step list stays a
+select (it has a handful of items).
+
+**Předpoklady.** Each rule is one sentence — „Nejdřív karta „Kolik je?“ (Lekce 2) · aspoň
+50 %“ — with no selects; the sentence is the button that reopens the picker on the current
+choice, so a rule's card or skill changes in place and the percentage stays. Switching
+from a card to a skill is choosing the other branch. A card that already waits for this one
+(`cardsWaitingFor`, which shares its edges with the Kontrola kurzu cycle check) cannot be
+picked: „na tuhle kartu čeká“. A card used by another rule of this card says „už je v
+předpokladech“. Skill codes show only in Pokročilý, faint. The note that the app does not
+enforce prerequisites is kept.
+
+**Proposed, not built:** the search across steps (one query over area, skill and level at
+once); showing the lesson's name on rule lines when a card sits in several lessons.
+
 ## Formatting — one formatter, and the two places it is not allowed
 
 The repo had a house style and no formatter: `useTabs` nearly everywhere (129 files to

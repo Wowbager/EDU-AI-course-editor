@@ -848,7 +848,8 @@ function cycleMessage(names: string[]): string {
 	return `Bloky ${list} na sebe čekají navzájem. Žádný z nich se žákovi neodemkne.`;
 }
 
-function findCycles(doc: CourseV2): string[][] {
+/** Who waits for whom: each card to the cards named in its prerequisites. */
+function prerequisiteEdges(doc: CourseV2): Map<string, string[]> {
 	const edges = new Map<string, string[]>();
 	for (const block of doc.blocks) {
 		edges.set(
@@ -858,6 +859,33 @@ function findCycles(doc: CourseV2): string[][] {
 				.filter((id): id is string => typeof id === 'string' && id !== '')
 		);
 	}
+	return edges;
+}
+
+/**
+ * The cards that already wait for this one, directly or through others. Naming one of
+ * them as this card's prerequisite would close a cycle (`findCycles`), so the picker
+ * for prerequisites offers none of them.
+ */
+export function cardsWaitingFor(doc: CourseV2, blockId: string): Set<string> {
+	const edges = prerequisiteEdges(doc);
+	const waiting = new Set<string>();
+	let grew = true;
+	while (grew) {
+		grew = false;
+		for (const [id, needs] of edges) {
+			if (waiting.has(id)) continue;
+			if (needs.some((n) => n === blockId || waiting.has(n))) {
+				waiting.add(id);
+				grew = true;
+			}
+		}
+	}
+	return waiting;
+}
+
+function findCycles(doc: CourseV2): string[][] {
+	const edges = prerequisiteEdges(doc);
 
 	const cycles: string[][] = [];
 	const state = new Map<string, 'visiting' | 'done'>();

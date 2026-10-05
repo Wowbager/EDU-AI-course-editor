@@ -60,7 +60,7 @@ for (const marks of [false, true]) {
 				detail.getByRole('textbox', { name: 'Podíl bodů za tuto odpověď' })
 			).toBeVisible();
 			await expect(
-				detail.getByRole('combobox', { name: 'Kam pokračovat po této odpovědi' })
+				detail.getByRole('button', { name: 'Kam pokračovat po této odpovědi' })
 			).toHaveCount(Number(branching));
 			await expect(detail.getByRole('combobox', { name: 'Známka za tuto odpověď' })).toHaveCount(
 				Number(marks)
