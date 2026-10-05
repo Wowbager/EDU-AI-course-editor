@@ -181,6 +181,9 @@
 			{@render searchField()}
 		</div>
 		{@render higherResults()}
+		{#if search.active && search.result.sections.size === 0 && search.higher.length === 0}
+			<p class="none page">Nic takového tu není. Zkus jiné slovo.</p>
+		{/if}
 	{:else}
 		<div class="top">
 			<button type="button" class="find" onclick={openSearch}>
@@ -385,6 +388,11 @@
 		margin-bottom: 4px;
 	}
 
+	/* An open field is a row of its own, not pressed against the first field. */
+	.top:has(.search) {
+		margin-bottom: 12px;
+	}
+
 	.top .search {
 		flex: 1;
 	}
@@ -420,6 +428,26 @@
 		padding: 0 4px;
 		list-style: none;
 		font-size: var(--text-xs);
+	}
+
+	/* On the one-page dialog (Učitel) the results are the answer to the search: as large as
+	   the fields, and set apart from the page under them. */
+	.top + .higher {
+		margin: 0 0 16px;
+		padding: 10px 12px;
+		border-radius: var(--radius-xs);
+		background: var(--primary-dark-06);
+		font-size: var(--text-s);
+	}
+
+	.top + .higher .what {
+		flex-basis: auto;
+		font-weight: var(--weight-medium);
+	}
+
+	.none.page {
+		margin: 0 0 16px;
+		font-size: var(--text-s);
 	}
 
 	.higher li {

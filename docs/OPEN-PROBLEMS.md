@@ -462,6 +462,14 @@ Round 13 (`DECISIONS.md` → Round 13); what is left:**
 - Pojmy typed fresh keep the case they were typed in; only a term the course already uses
   takes the course's spelling.
 - The step's „Další nastavení kroku“ has no line naming what a higher mode adds there.
+- From the Round 13 teacher test (all eight tasks done, these slowed it down):
+  Pokročilý also changes the XP totals and names steps „s1“ instead of „Krok 1“, which
+  the one-time note does not mention; the import banner says „V editoru vypadají stejně“
+  while Pokročilý shows them split. The cut-off warning says „Krok 3“, not the step's
+  name. „Kam dál“ groups read as jargon („Průběh“, „Krok v tomto bloku“, „Ukončit blok“).
+  Answer feedback shows raw Markdown (`**nahoře**`). Search knows a few teacher words per
+  section, not a thesaurus. Settings in a higher mode still need the switch: that is
+  the modes' design, now signposted.
 - Fixed in Round 13, kept as a record: settings hidden by the mode (a line naming what
   the next mode adds, with „Přepnout“, and search in every mode); split cards in Pokročilý
   (joined in the tree, explained once); „↳ Krok 3“ is the way to an answer's „Kam dál“,

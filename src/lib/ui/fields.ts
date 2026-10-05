@@ -187,9 +187,15 @@ export const SECTIONS: Record<FieldLevel, readonly SectionSpec[]> = {
 			id: 'review',
 			label: 'Opakování',
 			icon: 'review',
-			keywords: 'jak často se karta vrací interval cvičení FSRS'
+			keywords:
+				'jak často kdy se karta vrací vrátí nejdéle nejdříve interval opakování cvičení FSRS'
 		},
-		{ id: 'followup', label: 'Návaznost', icon: 'followup', keywords: 'předpoklady' },
+		{
+			id: 'followup',
+			label: 'Návaznost',
+			icon: 'followup',
+			keywords: 'předpoklady dostupná až po odemknout zamknout napřed nejdřív'
+		},
 		{
 			id: 'meta',
 			label: 'Údaje o kartě',

@@ -228,6 +228,26 @@ test('the search in Učitel finds a Pokročilý field, and Přepnout lands on it
 	await expect(pane.locator('.match')).toHaveCount(1);
 });
 
+test("the search in Učitel knows a teacher's words, and says when it finds nothing", async ({
+	page
+}) => {
+	await importCourse(page, 'spec-16-course.json');
+	await page.getByRole('button', { name: 'Nastavení karty' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Nastavení karty' });
+	await dialog.getByRole('button', { name: 'Hledat nastavení' }).click();
+	const field = dialog.getByRole('searchbox', { name: 'Hledat nastavení' });
+	await field.fill('kdy se vrátí');
+	await expect(dialog.getByRole('list', { name: 'Nalezeno v jiném režimu' })).toContainText(
+		'je v režimu'
+	);
+	await field.fill('dostupná až po');
+	await expect(dialog.getByRole('list', { name: 'Nalezeno v jiném režimu' })).toContainText(
+		'je v režimu Pokročilý'
+	);
+	await field.fill('xyzzy');
+	await expect(dialog.getByText('Nic takového tu není. Zkus jiné slovo.')).toBeVisible();
+});
+
 test('a type change that loses answers says Zpět brings them back, even from another card', async ({
 	page
 }) => {
