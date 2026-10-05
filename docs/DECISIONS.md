@@ -2320,3 +2320,32 @@ round's section above.
 - **`PreviewLessonPlayer` keys its history by block index** — keyed by `blockId`
   (Round 4).
 
+
+## Round 13 — what the teacher test found
+
+### Cards: split parts, new skills, concept spelling, chips (#45 points 2, 5, 7, 9)
+
+- **Split cards in Pokročilý (2).** The parts of one card are joined in the tree by a thin
+  vertical line in the margin left of the rows (first part from its middle down, last part
+  from the top to its middle), only for neighbours in the same lesson. The first time the
+  tree shows split cards in Pokročilý, a small note above the lessons says why there are
+  more cards than before, with "Rozumím"; once closed it is remembered in this browser
+  (`localStorage`, guarded). Rejected: the toast mechanism (`notices`), because it goes by
+  itself after six seconds and this has to be read; a banner in the editor column, because
+  the teacher is looking at the tree when the counts change. The folded rail does not show
+  parts, so it has no line.
+- **A skill just added or changed (5).** Taxonomy order is kept; the row is scrolled into
+  view (`nearest`, smooth unless reduced motion) and its background and border fade out over
+  1.2 s. With reduced motion the scroll is instant; the fade is a colour change, not
+  movement, so it stays. Nothing remains afterwards.
+- **Concept spelling (7).** Terms other cards use (case-insensitive substring of what is
+  typed, minus the ones this card has) are listed under the field, reachable with arrows,
+  Enter and a click; picking one adds it in the course's spelling. A term typed out in full
+  with another case is also written the way the course has it. Rejected: a native `datalist`,
+  which cannot be picked into "added" (it only fills the field) and looks different per
+  browser. The field is now a `combobox` for assistive technology.
+- **Skill chips (9).** "výchozí sada" is a neutral grey chip with a short line beside it
+  ("Kurz nemá vlastní seznam dovedností, karta vybírá z obecného."): it means the course
+  came without its own skill configuration, so the general taxonomy is used. It was never
+  a problem on the card. "nenastaveno" (amber) shows only while the card has no skills; the
+  chips live only in `TopicPicker.svelte`.

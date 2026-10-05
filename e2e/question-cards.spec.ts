@@ -70,6 +70,21 @@ test('a second question stays in the teacher’s card, and is its own card for t
 	await expect(page.locator('.tree-card', { hasText: 'část 1/2' })).toHaveCount(1);
 	await expect(page.locator('.tree-card', { hasText: 'část 2/2' })).toHaveCount(1);
 
+	// The parts are joined by a line, and the first time a note says why there are more cards.
+	const joined = page.locator('.tree-row[data-join]');
+	await expect(joined).toHaveCount(2);
+	await expect(joined.nth(0)).toHaveAttribute('data-join', 'first');
+	await expect(joined.nth(1)).toHaveAttribute('data-join', 'last');
+	const note = page.getByRole('note').filter({ hasText: 'karta s více otázkami je rozdělená' });
+	await expect(note).toBeVisible();
+	await note.getByRole('button', { name: 'Rozumím' }).click();
+	await expect(note).toHaveCount(0);
+	// Closed once: not again, not even after switching away and back.
+	await page.getByRole('radio', { name: 'Učitel' }).click();
+	await page.getByRole('radio', { name: 'Pokročilý' }).click();
+	await expect(page.locator('.tree-card')).toHaveCount(3);
+	await expect(note).toHaveCount(0);
+
 	// And back: one card again, still selected.
 	await page.getByRole('radio', { name: 'Učitel' }).click();
 	await expect(page.locator('.tree-card')).toHaveCount(2);
