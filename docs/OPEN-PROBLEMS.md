@@ -430,6 +430,32 @@ Reproduced in the browser unless said otherwise.
   skill rows. Pokročilý is meant to show them; listed so the choice is a decision, not an
   accident.
 
+### 44. Opakování explains too little, and waits for the newer app
+**Known, deliberately not fixed yet.** The owner's call (Round 12): the fields of the card's
+Opakování section need better explanations, and those are to be written once the newer
+version of the app is public. The public app code is months behind the app in
+development, so what it reads today is no guide to what these fields will do.
+
+What a teacher misses today, field by field:
+
+| Field | Missing for a teacher |
+|---|---|
+| Počáteční obtížnost (`fsrs.initial_difficulty`) | what a higher number does (intervals grow more slowly) and when to change it |
+| Počáteční stabilita (`fsrs.initial_stability`) | that it is in effect the first gap before the card returns; "stabilita" is jargon |
+| Počáteční vybavení (`fsrs.initial_recall`) | that it is the assumed chance the student still remembers |
+| Rychlost zapomínání (`fsrs.forgetting_rate`) | the direction (higher = the card comes back sooner) and a range |
+| Počet opakování (`fsrs.repetitions`) | that it is only for imported, already practised content; no default or unit |
+| Priorita v opakování (`fsrs.weight`) | the scale, the default and that higher comes first |
+| Nejkratší / Nejdelší odstup (`fsrs.min_interval`, `max_interval`) | what the gap is: the time until the card returns |
+| Podmínka vynechání (`fsrs.skip_condition`) | which variables an expression may use; it is free text with one example |
+| Časový limit (`fsrs.time_limit_sec`) | whether it is enforced, and what happens when it runs out |
+
+To check against the newer app when it lands: in the public code (`block_model.dart`,
+`FsrsParameters.fromJson`) the app reads `block.fsrs.stability`, `difficulty`, `reps`,
+`lapses`, `last_review` and `due_date`, while the editor writes the format's
+`initial_stability`, `initial_difficulty`, `repetitions` and the rest. If the newer app
+keeps those names, one side has to change before any of these fields does anything.
+
 ### 11. Folding is remembered for the session only
 **By design for now.** `StepView` lives as long as the page. A reload opens every step
 again. Worth persisting with the draft if authors of long cards ask for it. Appears last
