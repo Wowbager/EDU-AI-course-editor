@@ -145,7 +145,7 @@ test('Pojmy are chips: added with Enter or a pasted list, no duplicates, removed
 	await expect(input).toHaveValue('');
 
 	await input.fill('jmenovatel, zlomková čára');
-	await pane.getByRole('button', { name: 'Přidat', exact: true }).first().click();
+	await pane.getByRole('button', { name: 'Přidat pojem', exact: true }).click();
 	await expect(pane.getByRole('button', { name: 'Odebrat pojem jmenovatel' })).toBeVisible();
 	await expect(pane.getByRole('button', { name: 'Odebrat pojem zlomková čára' })).toBeVisible();
 
@@ -175,7 +175,7 @@ test('a prerequisite is one line, added through the picker and changed in place'
 	await picker.getByRole('button', { name: /^Jinou kartu/ }).click();
 	// The card being edited is not offered; the others are grouped by lesson.
 	await expect(picker.getByRole('button', { name: 'Zpět' })).toBeVisible();
-	await picker.locator('.choice').nth(1).click();
+	await picker.locator('.choice:not([aria-disabled="true"])').first().click();
 	await expect(picker).toBeHidden();
 
 	const line = pane.getByRole('button', { name: /^Nejdřív karta „/ });
@@ -229,16 +229,21 @@ test('a card that already waits for this one cannot be picked as its prerequisit
 		buffer: Buffer.from(JSON.stringify(doc))
 	});
 	await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+	await page.getByRole('radio', { name: 'Pokročilý' }).click();
 	await page.getByRole('button', { name: 'Nastavení karty' }).first().click();
 	const dialog = page.getByRole('dialog', { name: 'Nastavení karty' });
 	const pane = await openSection(dialog, 'Návaznost');
 	await pane.getByRole('button', { name: 'Přidat předpoklad' }).click();
 	const picker = page.getByRole('dialog', { name: 'Na co karta čeká?' });
 	await picker.getByRole('button', { name: /^Jinou kartu/ }).click();
+	// The second card waits for it directly, and the next three through the chain
+	// (each of lesson 1's cards waits for the one before).
 	const waiting = picker.getByRole('button', { name: /na tuhle kartu čeká/ });
-	await expect(waiting).toHaveCount(1);
-	await expect(waiting).toHaveAttribute('aria-disabled', 'true');
-	await waiting.click();
+	await expect(waiting).toHaveCount(4);
+	await expect(waiting.first()).toContainText('Části zlomku');
+	for (const item of await waiting.all())
+		await expect(item).toHaveAttribute('aria-disabled', 'true');
+	await waiting.first().click({ force: true });
 	await expect(picker).toBeVisible();
 	await expect(pane.getByRole('button', { name: /^Nejdřív/ })).toHaveCount(0);
 });

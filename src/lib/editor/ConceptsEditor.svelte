@@ -111,7 +111,9 @@
 				add(text);
 			}}
 		/>
-		<Button variant="secondary" size="s" onclick={() => add(draft)}>Přidat</Button>
+		<Button variant="secondary" size="s" ariaLabel="Přidat pojem" onclick={() => add(draft)}
+			>Přidat</Button
+		>
 	</div>
 	{#if problem !== ''}
 		<p class="problem" role="alert">{problem}</p>

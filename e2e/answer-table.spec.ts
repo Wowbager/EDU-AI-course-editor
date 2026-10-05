@@ -226,7 +226,11 @@ test('an answer moves up and down from its detail line, and not past the ends', 
 }) => {
 	await loadCourse(page);
 	const rows = page.locator('.answers .row');
-	const texts = () => rows.locator('.cell.text').allInnerTexts();
+	// The answers' own text: the summary line under a row changes as its details open.
+	const texts = () =>
+		rows
+			.getByRole('textbox', { name: 'Text odpovědi' })
+			.evaluateAll((els) => els.map((el) => (el as HTMLInputElement).value ?? el.textContent));
 	const before = await texts();
 	expect(before.length).toBeGreaterThan(2);
 
