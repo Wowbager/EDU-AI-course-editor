@@ -10,7 +10,7 @@ import { setField } from '$lib/domain/commands';
 import { buildScreen, screenSlice, type ScreenRegion } from '$lib/screen';
 import { FIXTURES, MODES, storeFor } from './fixtures';
 
-const REGIONS: ScreenRegion[] = ['topbar', 'tree', 'issues', 'preview', 'notices', 'ui'];
+const REGIONS: ScreenRegion[] = ['topbar', 'tree', 'issues', 'preview', 'notices', 'ui', 'ai'];
 
 describe.each(FIXTURES)('%s', (name) => {
 	describe.each(MODES)('in %s mode', (mode) => {

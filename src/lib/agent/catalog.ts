@@ -18,9 +18,16 @@ import { BLOCK_TYPES, STEP_TYPES } from '$lib/domain/schema';
 import { defineSpec, type ToolAnnotations, type ToolSpec } from './tool';
 import type { ScreenRegion } from '$lib/screen/types';
 
-/** Every region of the screen model. Adding one to `Screen` is a type error until it is here. */
+/**
+ * Every region of the screen model the agent may read. Adding one to `Screen` is a type
+ * error until it is here or in `NOT_OFFERED`.
+ */
 export const SCREEN_REGIONS = ['topbar', 'tree', 'issues', 'preview', 'notices', 'ui'] as const;
-const _allRegions: [Exclude<ScreenRegion, (typeof SCREEN_REGIONS)[number]>] extends [never]
+/** `ai` is the assistant's own drawer: reading it would be reading the chat back to itself. */
+export type NotOffered = 'ai';
+const _allRegions: [Exclude<ScreenRegion, (typeof SCREEN_REGIONS)[number] | NotOffered>] extends [
+	never
+]
 	? true
 	: never = true;
 void _allRegions;

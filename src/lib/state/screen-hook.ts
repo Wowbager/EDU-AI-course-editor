@@ -12,7 +12,7 @@ import { screenSlice } from '$lib/screen/serialise';
 import type { Screen, ScreenRegion } from '$lib/screen/types';
 import type { DocStore } from './doc-store.svelte';
 
-const REGIONS: ScreenRegion[] = ['topbar', 'tree', 'issues', 'preview', 'notices', 'ui'];
+const REGIONS: ScreenRegion[] = ['topbar', 'tree', 'issues', 'preview', 'notices', 'ui', 'ai'];
 
 export interface ScreenHook {
 	/** Every region, as plain JSON. */

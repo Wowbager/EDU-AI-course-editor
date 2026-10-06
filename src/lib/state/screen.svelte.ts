@@ -4,6 +4,7 @@
  * only the place that reads the store and hands them what they need, so a component
  * and an AI tool read one and the same object.
  */
+import { buildAi } from '$lib/screen/ai';
 import { buildIssues } from '$lib/screen/issues';
 import { buildNotices } from '$lib/screen/notices';
 import { buildPreview } from '$lib/screen/preview';
@@ -11,6 +12,7 @@ import { buildTopbar } from '$lib/screen/topbar';
 import { buildTree } from '$lib/screen/tree';
 import { buildUi } from '$lib/screen/ui';
 import type {
+	AiRegion,
 	IssuesRegion,
 	NoticesRegion,
 	PreviewRegion,
@@ -69,6 +71,15 @@ export class ScreenModel implements Screen {
 				sidebarCollapsed: s.ui.sidebarCollapsed,
 				dismissedIssues: s.ui.dismissedIssues,
 				partsNoteSeen: s.ui.partsNoteSeen
+			},
+			ai: {
+				panelOpen: s.ai.panelOpen,
+				configured: s.ai.configured,
+				running: s.ai.running,
+				thinking: s.ai.thinking,
+				lines: s.ai.lines,
+				actions: s.aiActions,
+				confirm: s.ai.confirm?.request ?? null
 			}
 		};
 	});
@@ -79,4 +90,5 @@ export class ScreenModel implements Screen {
 	preview = $derived<PreviewRegion>(buildPreview(this.input));
 	notices = $derived<NoticesRegion>(buildNotices(this.input));
 	ui = $derived<UiRegion>(buildUi(this.input));
+	ai = $derived<AiRegion>(buildAi(this.input));
 }

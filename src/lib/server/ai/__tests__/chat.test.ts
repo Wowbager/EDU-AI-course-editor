@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { StreamEvent } from '$lib/agent/protocol';
 import type { ToolDefinition } from '$lib/agent/server-prompt';
 import { WORKSPACE_HEADER } from '$lib/server/versions/owner';
-import { handleChat, MAX_MESSAGES, MAX_TOOL_CONTENT, type ChatDeps } from '../chat';
+import { chatStatus, handleChat, MAX_MESSAGES, MAX_TOOL_CONTENT, type ChatDeps } from '../chat';
 import { readAiConfig } from '../config';
 import { AiLimits } from '../limits';
 import type { ChatParams } from '../provider';
@@ -204,5 +204,17 @@ describe('POST /ai/chat', () => {
 		ctl.abort();
 		expect(signal?.aborted).toBe(true);
 		await reader.cancel();
+	});
+});
+
+describe('GET /ai/chat', () => {
+	it('says whether there is an AI, and nothing else', async () => {
+		const on = chatStatus(readAiConfig({ AI_API_KEY: 'k' }));
+		expect(on.status).toBe(200);
+		expect(await on.json()).toEqual({ configured: true });
+		expect(await chatStatus(readAiConfig({})).json()).toEqual({ configured: false });
+		expect(await chatStatus(readAiConfig({ AI_API_KEY: 'k', AI_PROVIDER: 'x' })).json()).toEqual({
+			configured: false
+		});
 	});
 });

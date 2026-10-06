@@ -94,6 +94,13 @@ export function conversationProblem(
 	return null;
 }
 
+/** `GET /ai/chat`: whether there is an AI at all, and nothing else about it. */
+export function chatStatus(config: AiConfig): Response {
+	return new Response(JSON.stringify({ configured: isConfigured(config) }), {
+		headers: { 'content-type': 'application/json', 'cache-control': 'no-store' }
+	});
+}
+
 export async function handleChat(request: Request, deps: ChatDeps): Promise<Response> {
 	const { config } = deps;
 	if (!isConfigured(config)) return refuse(503, 'AI není nastavena.', 'not_configured');

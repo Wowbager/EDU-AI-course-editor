@@ -50,6 +50,7 @@ import type { DraftStatus, OpenState, SkillConfigStatus } from '$lib/screen/type
 import { PreviewState } from './preview-state.svelte';
 import { ScreenModel } from './screen.svelte';
 import { UiState } from './ui-state.svelte';
+import { AiState } from './ai-state.svelte';
 
 /** Who made a change: the teacher at the keyboard, or the AI agent through a tool. */
 export type Origin = 'teacher' | 'ai';
@@ -130,6 +131,8 @@ export class DocStore {
 
 	/** Which panels are open (`screen.ui`). */
 	ui = new UiState();
+	/** The AI assistant's drawer and conversation (`screen.ai`). */
+	ai = new AiState();
 	/** What the preview column has learned about the player (`screen.preview`). */
 	preview = new PreviewState();
 	/** The autosave of the draft, reported by the `DraftSession`; null before it exists. */

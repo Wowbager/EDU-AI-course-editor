@@ -13,7 +13,9 @@ import type { CourseVersion, Publication, VersionIndex } from '$lib/domain/versi
 import { VersionConflict, type VersionBackend } from './backend';
 
 const KEY_STORAGE = 'edu-editor:workspace:v1';
-const HEADER = 'x-editor-workspace';
+/** The header that names the owner; the AI chat sends it too (`agent/chat.svelte.ts`). */
+export const WORKSPACE_HEADER = 'x-editor-workspace';
+const HEADER = WORKSPACE_HEADER;
 
 /** This browser's key, made on first use. `null` where storage is unavailable. */
 export function workspaceKey(): string | null {

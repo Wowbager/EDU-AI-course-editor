@@ -18,6 +18,8 @@ import type { CourseVersionState } from '$lib/domain/versions';
 import type { BlockType } from '$lib/domain/schema';
 import type { Mode } from '$lib/ui/fields';
 import type { Touched } from '$lib/ui/issue-visibility';
+import type { ConfirmRequest } from '$lib/agent/tool';
+import type { AiAction } from '$lib/state/doc-store.svelte';
 
 // ───────────────────────────── what the builders are given ─────────────────────────────
 
@@ -94,6 +96,26 @@ export interface UiInput {
 	partsNoteSeen: boolean | null;
 }
 
+/** One line of the conversation as the teacher reads it. */
+export interface AiLine {
+	id: number;
+	role: 'user' | 'assistant' | 'notice' | 'error';
+	text: string;
+}
+
+export interface AiInput {
+	panelOpen: boolean;
+	/** Whether the server has an AI set up; null until it has been asked. */
+	configured: boolean | null;
+	running: boolean;
+	thinking: boolean;
+	lines: readonly AiLine[];
+	/** What the AI changed this session (`DocStore.aiActions`). */
+	actions: readonly AiAction[];
+	/** The question the AI is waiting on, if any. */
+	confirm: ConfirmRequest | null;
+}
+
 export interface ScreenInput {
 	/** What the editor shows and edits (a question card is one card). */
 	doc: CourseV2;
@@ -118,6 +140,7 @@ export interface ScreenInput {
 	/** Already limited to its lifetime: null once any later edit has happened. */
 	cutOff: CutOffInput | null;
 	ui: UiInput;
+	ai: AiInput;
 }
 
 // ───────────────────────────────────── the regions ─────────────────────────────────────
@@ -314,6 +337,29 @@ export interface UiRegion {
 	parts_note: { eligible: boolean; shown: boolean };
 }
 
+export interface AiRegion {
+	/** The top bar's button. It names the state, so an unconfigured server says so there. */
+	button: { label: string; title: string; disabled: boolean; pressed: boolean };
+	panel_open: boolean;
+	configured: boolean | null;
+	/** Said in the drawer when there is no AI; null otherwise. */
+	status_text: string | null;
+	running: boolean;
+	/** The quiet note while the model thinks; null otherwise. */
+	thinking_text: string | null;
+	messages: { key: string; role: AiLine['role']; text: string }[];
+	messages_count: number;
+	/** What the empty drawer says; null once there is a conversation. */
+	empty_text: string | null;
+	actions_heading: string | null;
+	/** The AI's changes this session, oldest first. `text` names places as the screen does. */
+	actions: { key: string; text: string; undone: boolean; ref: Ref | null }[];
+	/** Whether "Vrátit změny AI" has anything to return. */
+	can_revert: boolean;
+	/** The question the AI is waiting on. */
+	confirm: { title: string; message: string; items: string[]; destructive: boolean } | null;
+}
+
 export interface Screen {
 	topbar: TopbarRegion;
 	tree: TreeRegion;
@@ -321,6 +367,7 @@ export interface Screen {
 	preview: PreviewRegion;
 	notices: NoticesRegion;
 	ui: UiRegion;
+	ai: AiRegion;
 }
 
 export type ScreenRegion = keyof Screen;

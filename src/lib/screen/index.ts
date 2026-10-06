@@ -3,6 +3,7 @@
  * exposes the regions as `store.screen.<region>`; the AI tools read the same objects
  * (`serialise.ts`).
  */
+import { buildAi } from './ai';
 import { buildIssues } from './issues';
 import { buildNotices } from './notices';
 import { buildPreview } from './preview';
@@ -11,7 +12,7 @@ import { buildTree } from './tree';
 import { buildUi } from './ui';
 import type { Screen, ScreenInput } from './types';
 
-export { buildIssues, buildNotices, buildPreview, buildTopbar, buildTree, buildUi };
+export { buildAi, buildIssues, buildNotices, buildPreview, buildTopbar, buildTree, buildUi };
 export { issueSets, panelKey } from './issues';
 export { cutOffText } from './notices';
 export { resolveOpen } from './open';
@@ -25,6 +26,7 @@ export function buildScreen(input: ScreenInput): Screen {
 		issues: buildIssues(input),
 		preview: buildPreview(input),
 		notices: buildNotices(input),
-		ui: buildUi(input)
+		ui: buildUi(input),
+		ai: buildAi(input)
 	};
 }

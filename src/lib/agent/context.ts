@@ -133,7 +133,8 @@ export function createHeadlessContext(store: DocStore, options: HeadlessOptions)
 		issues: store.screen.issues,
 		preview: store.screen.preview,
 		notices: store.screen.notices,
-		ui: store.screen.ui
+		ui: store.screen.ui,
+		ai: store.screen.ai
 	});
 	const writer: AgentWriter = {
 		get doc() {
