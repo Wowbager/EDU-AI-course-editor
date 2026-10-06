@@ -324,6 +324,55 @@ which of those files is canonical. That is why it was not merged as part of the
   there is a login, set a spending cap on the provider key itself.
 - Limits live in memory, and reset when the server restarts.
 
+### 50. What the AI tool layer reads and cannot yet read (Round 14, tool layer)
+**Not bugs; places where "the AI is told what the teacher sees" is not yet complete.**
+- **A card's content is read from the document, not from the screen model.** The card
+  region (Round 14 part 3) does not exist yet, so `get_card` and `search_text` read
+  `src/lib/agent/card-content.ts`, which keeps only the fields the mode and the Zpětná
+  vazba toggle show (`fields.ts`) and lists the rest as `hidden_in_mode`. When
+  `store.screen.card` lands, those two tools must read it and `card-content.ts` goes. The
+  parity test (`handlers.test.ts`, "AI ≡ screen") then covers the card too.
+- **The tree draws cards only in the open lesson**, so an agent needs one `get_outline`
+  call per other lesson. That answer is the same tree built with that lesson open
+  (`not_open: true`, nothing `selected`), not something the teacher currently sees.
+- **Two copies of two rules remain until part 3.** `RepairDialog` words what points at a
+  card in its own function, and `plan_delete` words it again (`describeReference` in
+  `agent/handlers.ts`); `TopicPicker` builds the classification from the strongest topic
+  and `topicNaming` (`domain/skill-config.ts`) does the same for the AI. Both should
+  become one function in `screen/` or `domain/`, called by the component and the tool.
+- **A type change that drops answers is judged by the tool alone.** `StepEditor` has its
+  own planner for the same warning; the tool asks when any answer with text would go.
+- **Simulator ids are the exported course's.** In Učitel and Metodik one question card
+  can be two exported blocks, so a simulator result may name a block the teacher's tree
+  has no row for. The result says so (`note`); the agent addresses places by tree paths.
+
+### 51. The AI panel, the chat loop and the wiring are not built (Round 14, tool layer)
+**Open work, not a defect.** The tools run against `createHeadlessContext`; nothing in the
+editor calls them yet.
+- No `AgentContext` over the browser: the confirmation dialog behind `confirm`, the
+  preview column behind `showPreview` (the headless one only sets `store.preview.view`;
+  Vyzkoušet also needs the column to pin its run), and `store.onBeforeAiSession` is not
+  connected to the `VersionStore`, so the "Před úpravami AI" version is not saved yet.
+- No client tool loop (`chat.svelte.ts`), no panel with the action log and "Vrátit změny AI",
+  no system notice when the teacher edits between turns, no per-message round limit
+  (`limits.maxToolRounds` is declared and unused).
+- The `declined` and `stale` answers are written for the model; how the panel shows them
+  to the teacher is undecided.
+
+### 52. Limits of the AI session and its log
+- **A revert ends the session and empties the log.** Undoing the revert (Ctrl+Z) brings
+  the AI's changes back but not their entries in the log, and the session does not
+  resume: the next AI change starts a new checkpoint from the course as it then is.
+- **The revert takes the teacher's own edits with it**, as restoring a version does. The
+  confirmation says so; a narrower revert (only the AI's changes) would need the changes
+  replayed and is not built.
+- **A confirmation for a batch is judged against the course as it was before the batch.**
+  A type change in an operation that follows another that changed the same question is
+  checked for dropped answers against the old state.
+- **Reserved ids stay reserved after a revert.** A lesson or card the AI created and the
+  revert removed keeps its id taken, on purpose (§3 invariants 1 and 2), so the next new
+  one gets a later number.
+
 ## Unconfirmed
 
 Entries not reproduced, or reproduced only from the code. They stay until someone sees

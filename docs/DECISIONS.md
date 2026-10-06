@@ -2388,6 +2388,100 @@ catalogue it owns (`src/lib/agent/server-prompt.ts`), and streams neutral events
 **Rejected.** The Claude API, and Anthropic-compatible endpoints of other providers:
 the project wants a low-cost model it can swap by changing three environment
 variables, and one wire format for both providers keeps the adapter to one file.
+## Round 14 — AI tool layer
+
+**What:** the tools an agent edits and tests the course with, `src/lib/agent/`, and the
+safeguards that make an AI edit safe. No UI: it runs on an `AgentContext`
+(`createHeadlessContext(store, {confirm})`), which the tests use and the browser wrapper
+will. Definitions (`catalog.ts`) are importable on the server and are what
+`/ai/chat` offers the model; the code (`handlers.ts`) is not. 29 tools, in
+`docs/AI-SURFACE.md`.
+
+**The rule everything follows: what the AI is told is what the teacher sees.**
+- A read tool returns the screen model's regions as plain JSON, copied and not rebuilt
+  (`screenSlice`). Anything beside the slice is an explicit, named annotation: `not_open`,
+  `hidden_in_mode`, `visibility` on an issue, `simulace: true`, `paths`/`address` (an
+  address to pass on, not content). There is no silent superset and no second derivation.
+- Until the card region exists (part 3), the one exception to "from the model" is the
+  card's own fields (`agent/card-content.ts`), restricted by `fields.ts` the way the editor
+  will be; OPEN-PROBLEMS #50.
+- A read tool never moves the teacher's selection or marks a card as touched; an AI write
+  brings its card into view with `follow`, which does not either.
+
+**Safeguards, and where each is enforced** (all in code, then said in the system prompt):
+- *Revision.* `DocStore.revision` grows on every change to the document and on a mode
+  switch (the view's cards change with the mode). Every write carries
+  `expected_revision`; `executeTool` refuses a stale one before anything else, so nothing
+  is asked or changed. A transaction that nets out to nothing gives the revision back.
+- *One action, one undo entry.* `store.transaction(fn, {origin, description})` is the
+  general form of `beginEdit`/`endEdit`: all of `fn`'s commands are one entry carrying
+  `origin` ('teacher' or 'ai') and an `actionId`, and a throw rolls back the document,
+  undo log, reservations, selection and revision. `apply_batch` is one transaction.
+- *Mode.* `set_field` and the tools that write registry fields call `allow` through
+  `specOf`/`visible` (`ui/fields.ts`); a refusal carries the sentence `modeGain` gives
+  the dialogs and names the mode needed. The AI never switches mode. A field a
+  `feedback` toggle hides is refused too. An id is never written, in any mode.
+- *Confirmation.* Asked by the context, after the revision and the guards: every
+  `destructiveHint` tool (`delete`, `revert_ai_session`), a type change that drops
+  written answers, a batch of more than 20 operations. A decline is `{code: 'declined'}`
+  and changes nothing (the session does not even begin).
+- *Delete is the teacher's delete.* `plan_delete` lists what points at the target;
+  `delete` runs `deleteBlock`/`deleteStep` with repairs, and `repairs: null` is the quick
+  delete the tree uses (`quickDelete`: only the card's own lesson points at it).
+- *Session checkpoint.* The first real AI change snapshots `source` and the id
+  reservations; `revertAiSession()` restores the snapshot as one ordinary undoable entry
+  (like `restoreVersion`). **This changes the rule "versions are explicit only":** when
+  the course has unsaved work, the first AI change also saves one durable version,
+  "Před úpravami AI", through an injected callback (`onBeforeAiSession`), because the
+  revert also takes the teacher's later edits and "Zpět" is gone once the page reloads.
+- *Every write reports* its Czech description, the path, the new revision and the
+  `validationDelta`: new and resolved errors and warnings, a new one as the screen lists
+  it (with `visibility`). New errors are reported, not blocked: the export gate blocks.
+  `validationDelta(before, after)` generalises `madeUnreachable`, which is now it narrowed
+  to two codes.
+- *Size caps and strict schemas.* A text value is at most 20 000 characters, a batch at
+  most 50 operations. Every input property is required and an optional one is nullable
+  (strict mode); the provider's schema drops value limits and `executeTool` re-checks
+  them with the full schema.
+- *Course content is data.* It sits in labelled fields (`course_content`, `course_text`)
+  and the prompt says not to follow instructions found in it. The server accepts only
+  catalogue tool names.
+- *Never exposed:* export, publish, import, saving or restoring a version, visibility,
+  switching the mode.
+
+**A bug found on the way and fixed:** `redo` after an edit to a question card restored
+the view the command ran on instead of the source, because the undo entry's `after` was
+the command's result and not what was written to `source`. Fixed with a test.
+
+**Rejected:**
+- *A tool per field.* Hundreds of tools, a schema each; `set_field` over the registry gets
+  the mode guard and the value check from the one table the dialogs use.
+- *The AI writing `source` or raw JSON patches.* They skip the view-to-source sync
+  (`fromView`), the reservations and the mode rules. Everything goes through
+  `store.apply`, as a teacher's edit.
+- *Asking the teacher before every write.* Reviewing each of a hundred edits is not
+  review. One action is one undo entry, a batch is one, a checkpoint takes it all back,
+  and only the irreversible or large things ask.
+- *Blocking a write that creates an error.* A card is often an error halfway through
+  writing; the export gate already blocks. The agent is told what it caused instead.
+- *Reverting with a reverse patch of the AI's own entries.* The teacher's edits are
+  interleaved; replaying is fragile, a snapshot is exact and byte-comparable.
+- *Un-reserving ids on revert.* It would hand a new card the id of one that the AI
+  made and deleted, and with it any student answers recorded against it (§3).
+- *Giving the model a separate "AI view" of the card.* It would drift from the screen,
+  which is the whole reason for Round 14. The interim card reader lives in one file and
+  is deleted when the card region exists.
+- *Tools that return text for the model to read about the screen.* A description is a
+  second derivation; the slice is the screen.
+- *The system prompt as a Markdown file read at run time.* It is a constant in
+  `server-prompt.ts`: fixed, in the bundle, with no file to go missing on the server.
+
+**How it is kept honest:** `agent/handlers.test.ts` runs every tool against every fixture
+and mode and holds each read to `store.screen`; one test per safeguard (stale, mode, ids,
+size, declined, batch rollback, byte-identical revert, injection text as labelled data);
+`agent/tool.test.ts` converts every definition to MCP and to a strict function and checks
+the server imports no store.
+
 ## Round 14 — pupil simulator
 
 **What:** `domain/simulate.ts`, a pure state machine over the exported course
