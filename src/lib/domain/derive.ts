@@ -7,6 +7,7 @@
 import type { BlockStep, BlockV2, CourseV2, LessonV2, QuestionConfig } from './schema';
 import type { DocIndex } from './index-doc';
 import { plainMath } from './plain-math';
+import { exportedBlocksOf } from './groups';
 
 /** `"3 min"` / `"3"` / `3` → 3. Undefined when the block declares no duration. */
 export function blockDurationMinutes(block: BlockV2): number | undefined {
@@ -36,6 +37,22 @@ export function effectiveBlockXp(block: BlockV2): number {
 	return typeof block.xp === 'number' ? block.xp : derivedBlockXp(block);
 }
 
+/**
+ * How many blocks the app receives for a lesson: one per binding of the exported
+ * course, so a question card counts once per question. The app's own lesson card says
+ * "N" from `blocksJson.length` and estimates its time at 4 minutes of each
+ * (`course_model.dart` `parseLessons`, "questionCount: blockCount"). A binding that
+ * resolves to nothing is still one entry in that list.
+ */
+export function exportedBlockCount(lesson: LessonV2, index: DocIndex): number {
+	let count = 0;
+	for (const binding of lesson.blocks) {
+		const block = index.blocksById.get(binding.block_id);
+		count += block === undefined ? 1 : exportedBlocksOf(block).length;
+	}
+	return count;
+}
+
 export interface LessonTotals {
 	/** Sum of block durations, clamped 1–120; estimated at ~4 min/block when none declare one. */
 	durationMinutes: number;
@@ -43,8 +60,16 @@ export interface LessonTotals {
 	durationEstimated: boolean;
 	/** §14 warning 2: some blocks declare a duration and some do not. */
 	durationPartial: boolean;
+	/**
+	 * What the app shows as the lesson's reward: the derived XP of its steps, whatever
+	 * a card's own `xp` says (`course_model.dart` `_calculateBlockMaxXp`; OPEN-PROBLEMS
+	 * #15), and 1 for a binding that resolves to nothing.
+	 */
 	xp: number;
+	/** Blocks as the app counts them: one per question of a question card. */
 	blockCount: number;
+	/** Cards as the tree lists them in the lesson. */
+	cardCount: number;
 	questionStepCount: number;
 }
 
@@ -57,18 +82,21 @@ export function lessonTotals(lesson: LessonV2, index: DocIndex): LessonTotals {
 
 	for (const binding of lesson.blocks) {
 		const block = index.blocksById.get(binding.block_id);
-		if (block === undefined) continue;
+		if (block === undefined) {
+			xp += 1;
+			continue;
+		}
 		resolved++;
 		const minutes = blockDurationMinutes(block);
 		if (minutes !== undefined && minutes > 0) {
 			total += minutes;
 			withDuration++;
 		}
-		xp += effectiveBlockXp(block);
+		xp += derivedBlockXp(block);
 		questionStepCount += block.steps.filter((s) => s.type === 'question').length;
 	}
 
-	const blockCount = lesson.blocks.length;
+	const blockCount = exportedBlockCount(lesson, index);
 	const durationEstimated = withDuration === 0;
 	const durationMinutes = durationEstimated ? clamp(blockCount * 4, 5, 60) : clamp(total, 1, 120);
 
@@ -76,8 +104,9 @@ export function lessonTotals(lesson: LessonV2, index: DocIndex): LessonTotals {
 		durationMinutes,
 		durationEstimated,
 		durationPartial: withDuration > 0 && withDuration < resolved,
-		xp,
+		xp: Math.max(xp, 1),
 		blockCount,
+		cardCount: lesson.blocks.length,
 		questionStepCount
 	};
 }
@@ -87,6 +116,7 @@ export interface CourseTotals {
 	durationMinutes: number;
 	xp: number;
 	lessonCount: number;
+	/** Blocks as the app counts them (`exportedBlockCount`), bound to a lesson or not. */
 	blockCount: number;
 	/** XP a student can actually earn, after the course-level `max_xp` cap (§3.4). */
 	cappedXp: number;
@@ -95,6 +125,8 @@ export interface CourseTotals {
 export function courseTotals(doc: CourseV2, index: DocIndex): CourseTotals {
 	let durationMinutes = 0;
 	let xp = 0;
+	let blockCount = 0;
+	for (const block of doc.blocks) blockCount += exportedBlocksOf(block).length;
 	for (const lesson of doc.lessons) {
 		const totals = lessonTotals(lesson, index);
 		durationMinutes += totals.durationMinutes;
@@ -105,7 +137,7 @@ export function courseTotals(doc: CourseV2, index: DocIndex): CourseTotals {
 		durationMinutes,
 		xp,
 		lessonCount: doc.lessons.length,
-		blockCount: doc.blocks.length,
+		blockCount,
 		cappedXp
 	};
 }

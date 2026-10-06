@@ -160,11 +160,13 @@ marked unread now, but the card header still says "N XP · vlastní hodnota" whe
 typed (and just "N XP" when it is derived, since Round 8 dropped "· automaticky"). Worth
 showing the derived figure with the authored one crossed out, or not offering the field.
 
-Since Round 7 it also makes the totals differ between modes. A card with its own XP
-keeps it on its first block only, so the view shows the card's 20 XP while Pokročilý
-adds the derived XP of the card's other blocks: the admin's test course reads 335 XP in
-Učitel and 380 XP in Pokročilý. What the app awards is neither: it counts steps, which
-the split does not change. Showing the derived figure everywhere would fix both.
+**Totals fixed (Round 14 part 2).** A lesson's and the course's XP are the derived XP of
+its steps in every mode, as the app counts them (`course_model.dart`
+`_calculateBlockMaxXp`, which never reads `xp`), and a binding that resolves to nothing
+is 1. The admin's test course reads the same in Učitel and Pokročilý
+(`__tests__/view-vs-source.test.ts`). **Still open:** the card header's "N XP · vlastní
+hodnota" (`CardEditor`) still shows the authored figure as if it were the reward; it moves
+with the card region in part 3, and should show the derived figure.
 
 ### 17. The player still talks to other origins while it runs — app-side
 **Verified: yes.** Google Fonts (the app's `google_fonts`) and `accounts.google.com`

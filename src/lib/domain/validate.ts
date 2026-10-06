@@ -19,8 +19,14 @@
  */
 import type { BlockStep, BlockV2, CourseV2, QuestionConfig } from './schema';
 import type { Ref } from './ref';
+import { exportedBlocksOf } from './groups';
 import { buildIndex, isGoToKeyword, reachableSteps, type DocIndex } from './index-doc';
-import { blockDurationMinutes, isPracticeBlock, optionOutcomesApply } from './derive';
+import {
+	blockDurationMinutes,
+	exportedBlockCount,
+	isPracticeBlock,
+	optionOutcomesApply
+} from './derive';
 import { dimensionCount, ELO_MAX, ELO_MIN, type SkillConfig } from './skill-config';
 import { cardLabel, capitalize, lessonLabel, optionLabel, stepLabel, stepPosition } from './naming';
 
@@ -165,12 +171,18 @@ function checkBindings(doc: CourseV2, index: DocIndex, add: Add) {
 			);
 		}
 
-		if (lesson.blocks.length > 12) {
+		// The app counts the blocks it receives, and a question card is one block per
+		// question (`course_model.dart` reads `blocks.length` of the lesson's list).
+		const exported = exportedBlockCount(lesson, index);
+		if (exported > 12) {
+			const cards = lesson.blocks.length;
 			add(
 				'warning',
 				'W_LESSON_TOO_LONG',
 				{ lessonId: lesson.lesson_id },
-				`Lekce „${lessonName}“ má ${lesson.blocks.length} bloků. Žák ji pravděpodobně nedokončí na jeden zátah — zvaž rozdělení.`
+				exported === cards
+					? `Lekce „${lessonName}“ má ${exported} bloků. Žák ji pravděpodobně nedokončí na jeden zátah — zvaž rozdělení.`
+					: `Lekce „${lessonName}“ má ${cards} karet, které se žákovi ukážou jako ${exported} bloků. Žák ji pravděpodobně nedokončí na jeden zátah — zvaž rozdělení.`
 			);
 		}
 
@@ -214,12 +226,15 @@ function checkBlocks(
 		checkStructuralCompleteness(doc, block, add);
 		checkVectors(doc, block, skillConfig, add);
 
-		if (block.steps.length > 10) {
+		// Per exported block: a card that is several blocks in the app is only too
+		// long when one of them is.
+		const longest = Math.max(...exportedBlocksOf(block).map((steps) => steps.length));
+		if (longest > 10) {
 			add(
 				'warning',
 				'W_BLOCK_TOO_MANY_STEPS',
 				blockRef,
-				`Blok „${cardName}“ má ${block.steps.length} kroků. Žák ztrácí přehled, kde v něm je — zvaž rozdělení na dva bloky.`
+				`Blok „${cardName}“ má ${longest} kroků. Žák ztrácí přehled, kde v něm je — zvaž rozdělení na dva bloky.`
 			);
 		}
 

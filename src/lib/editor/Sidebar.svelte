@@ -349,7 +349,7 @@
 					>
 						<span class="name">{lessonLabel(doc, lesson)}</span>
 						<span class="meta">
-							{cardsCount(totals.blockCount)} · {totals.durationMinutes}
+							{cardsCount(totals.cardCount)} · {totals.durationMinutes}
 							min · {totals.xp} XP
 						</span>
 					</button>

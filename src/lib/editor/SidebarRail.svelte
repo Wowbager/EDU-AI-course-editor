@@ -319,7 +319,7 @@
 						</div>
 						<p class="peek-title">{name}</p>
 						<p class="peek-meta">
-							{cardsCount(totals.blockCount)} · {totals.durationMinutes} min · {totals.xp} XP
+							{cardsCount(totals.cardCount)} · {totals.durationMinutes} min · {totals.xp} XP
 						</p>
 						<hr class="peek-rule" />
 						<button

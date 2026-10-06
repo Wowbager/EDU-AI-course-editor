@@ -256,6 +256,19 @@ export function segmentSteps(card: BlockV2): BlockStep[][] {
 	return segments;
 }
 
+/**
+ * The blocks a card of the view is exported as, each as its steps. A card the view
+ * merged (it carries the ids of its members) is written back as the blocks
+ * `segmentSteps` cuts it into, which is what the app receives; any other block is one.
+ * Counts the app makes per block (a lesson's block count, the steps of a block) read
+ * this, not the card, or they differ between Učitel and Pokročilý for one course.
+ */
+export function exportedBlocksOf(card: BlockV2): BlockStep[][] {
+	if (membersOf(card) === undefined || keepsQuestionsTogether(card)) return [card.steps];
+	const segments = segmentSteps(card);
+	return segments.length > 0 ? segments : [card.steps];
+}
+
 /** Whether writing this card back splits it: it has two questions and is not kept whole. */
 const splits = (card: BlockV2) => !keepsQuestionsTogether(card) && questionCount(card) > 1;
 

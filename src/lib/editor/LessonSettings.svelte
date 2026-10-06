@@ -133,7 +133,7 @@
 						? 'U některých karet délka chybí, součet je proto nižší.'
 						: undefined}
 				>
-					{cardsCount(totals.blockCount)} · {totals.durationMinutes} min{totals.durationEstimated
+					{cardsCount(totals.cardCount)} · {totals.durationMinutes} min{totals.durationEstimated
 						? ' (odhad)'
 						: ''}
 				</p>
