@@ -1,0 +1,91 @@
+[
+  {
+    "id": "gen-3",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "role": "assistant",
+          "content": null
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-3",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "tool_calls": [
+            {
+              "index": 0,
+              "type": "function",
+              "id": "call_x",
+              "function": {
+                "name": "edit_step",
+                "arguments": "{\"stepId\": \"s1\", \"text\": \"Ahoj"
+              }
+            }
+          ]
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-3",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "tool_calls": [
+            {
+              "index": 0,
+              "type": "function",
+              "function": {
+                "arguments": " světe"
+              }
+            }
+          ]
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-3",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {},
+        "finish_reason": "tool_calls"
+      }
+    ]
+  },
+  {
+    "id": "gen-3",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [],
+    "usage": {
+      "prompt_tokens": 700,
+      "completion_tokens": 30,
+      "total_tokens": 730
+    }
+  }
+]

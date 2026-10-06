@@ -1,0 +1,134 @@
+[
+  {
+    "id": "9f3c1d7e-5b2a-4c1e-8a77-0d2f6a1b9e33",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "role": "assistant",
+          "content": null,
+          "reasoning_content": ""
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "9f3c1d7e-5b2a-4c1e-8a77-0d2f6a1b9e33",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": null,
+          "reasoning_content": "Učitel chce "
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "9f3c1d7e-5b2a-4c1e-8a77-0d2f6a1b9e33",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": null,
+          "reasoning_content": "přečíst lekci."
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "9f3c1d7e-5b2a-4c1e-8a77-0d2f6a1b9e33",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": null,
+          "reasoning_content": null,
+          "tool_calls": [
+            {
+              "index": 0,
+              "type": "function",
+              "id": "call_0_read",
+              "function": {
+                "name": "read_lesson",
+                "arguments": ""
+              }
+            }
+          ]
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "9f3c1d7e-5b2a-4c1e-8a77-0d2f6a1b9e33",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": null,
+          "tool_calls": [
+            {
+              "index": 0,
+              "type": "function",
+              "function": {
+                "arguments": "{\"lessonId\":\"l2\"}"
+              }
+            }
+          ]
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "9f3c1d7e-5b2a-4c1e-8a77-0d2f6a1b9e33",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": ""
+        },
+        "finish_reason": "tool_calls"
+      }
+    ]
+  },
+  {
+    "id": "9f3c1d7e-5b2a-4c1e-8a77-0d2f6a1b9e33",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek-flash",
+    "choices": [],
+    "usage": {
+      "prompt_tokens": 650,
+      "completion_tokens": 52,
+      "total_tokens": 702,
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 138,
+      "completion_tokens_details": {
+        "reasoning_tokens": 20
+      }
+    }
+  }
+]
