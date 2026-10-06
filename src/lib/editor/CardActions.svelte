@@ -20,8 +20,10 @@
 	interface Props {
 		/** The card's 1-based place in its lesson: the number every name here carries. */
 		position: number;
-		/** How many cards the lesson has. With `caption`, the line's resting text. */
-		total?: number;
+		/** With `caption`, the line's resting text: the model's `actions_caption`. */
+		rest?: string;
+		/** Where the screen model says that resting text, for `data-screen`. */
+		screen?: string;
 		size?: 'm' | 's';
 		/**
 		 * A line under the row that names the button under the pointer or focus. It is
@@ -38,7 +40,8 @@
 	}
 	let {
 		position,
-		total,
+		rest,
+		screen,
 		size = 'm',
 		caption = false,
 		onsettings,
@@ -65,11 +68,9 @@
 	const deleteName = $derived(
 		armed ? `Opravdu smazat ${position}. kartu? Klikni znovu` : names.delete
 	);
-	const captionText = $derived(
-		armed
-			? 'Klikni znovu pro smazání'
-			: (hint ?? (total === undefined ? `${position}. karta` : `${position}. karta z ${total}`))
-	);
+	const captionText = $derived(armed ? 'Klikni znovu pro smazání' : (hint ?? rest ?? ''));
+	/** Only the resting text is the model's; a hint or the armed line is the button's own. */
+	const resting = $derived(!armed && hint === null);
 
 	$effect(() => {
 		if (!armed) return;
@@ -203,7 +204,9 @@
 	</div>
 	{#if caption}
 		<!-- Polite: arming is announced here, as the button's name changes under focus. -->
-		<p class="caption" class:armed aria-live="polite">{captionText}</p>
+		<p class="caption" class:armed aria-live="polite" data-screen={resting ? screen : undefined}>
+			{captionText}
+		</p>
 	{/if}
 </div>
 

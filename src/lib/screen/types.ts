@@ -227,6 +227,8 @@ export interface TreeCard {
 	peek_overline: string;
 	/** What the rail's panel is called. */
 	peek_label: string;
+	/** The resting line under the rail panel's actions: "1. karta z 3". */
+	actions_caption: string;
 }
 
 export interface TreeLesson {

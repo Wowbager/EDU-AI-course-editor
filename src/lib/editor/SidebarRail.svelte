@@ -405,8 +405,9 @@
 										<hr class="peek-rule" />
 										<CardActions
 											position={card.position}
-											total={cards.length}
 											caption
+											rest={card.actions_caption}
+											screen="tree.lessons[{L}].cards[{P}].actions_caption"
 											onsettings={() =>
 												run(key, () => actions.settings(lesson.lesson_id, card.block_id))}
 											onduplicate={() =>

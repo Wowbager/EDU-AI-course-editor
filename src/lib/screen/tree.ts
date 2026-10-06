@@ -85,7 +85,8 @@ export function buildTree(input: ScreenInput): TreeRegion {
 					selected: false,
 					rail_label: 'Chybějící karta',
 					peek_overline: '',
-					peek_label: positionName(n)
+					peek_label: positionName(n),
+					actions_caption: `${n}. karta z ${lesson.blocks.length}`
 				};
 			}
 			const errors = errorsOnCard(block.block_id);
@@ -110,7 +111,8 @@ export function buildTree(input: ScreenInput): TreeRegion {
 				selected: lessonOpen && block.block_id === open.card?.block_id,
 				rail_label: `${n}. ${typeLabel}: ${label(60)}${errors > 0 ? `, ${errorsCount(errors)}` : ''}`,
 				peek_overline: `${n} · ${typeLabel}`,
-				peek_label: positionName(n)
+				peek_label: positionName(n),
+				actions_caption: `${n}. karta z ${lesson.blocks.length}`
 			};
 		});
 	};
