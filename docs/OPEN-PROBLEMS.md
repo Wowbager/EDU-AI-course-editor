@@ -397,6 +397,21 @@ says so. The rest below stands.)
 Entries not reproduced, or reproduced only from the code. They stay until someone sees
 them, or until enough rounds pass that the behaviour would have surfaced.
 
+### 57. The simulator parity spec's AGAIN path is flaky against the real player
+**Reproduced, not fixed.** `e2e/preview-simulator-parity.spec.ts` (player project, needs the
+Flutter build) fails its `AGAIN` path about half the time, also on code where neither the
+simulator nor the preview changed, and passes when rerun. The cause has not been found: it
+may be the scripted clicks on a folded accessibility node after a retry, or the player's
+retry state. Until it is, a red run of that one path is not evidence of drift (#48); rerun
+it alone before reading it as a regression.
+
+### 58. The assistant writes plain text; the drawer does not render Markdown
+**Worked around, not fixed.** The model's habit is Markdown (`**…**`, lists), and the drawer
+showed the asterisks literally. The system prompt now asks for plain text. A model that
+ignores it still shows raw asterisks; rendering a safe subset of Markdown in the drawer (the
+same renderer the editor uses for step text, once it exists — #45 notes answer feedback is
+raw Markdown too) would remove the dependence on the model obeying.
+
 ### 7. A possible transition artifact in "Vyzkoušet" — likely fixed (Round 5)
 **Verified: no.** One scripted author flagged it and was explicit about not being sure
 what they saw. Round 5 found three real transition bugs, and any of them would look

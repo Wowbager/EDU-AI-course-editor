@@ -50,7 +50,8 @@ Export, zveřejnění a import kurzu, ukládání a obnovu verzí, viditelnost k
 Po úpravě větvení nebo otázek projdi lekci jako žák: simulate_start, simulate_answer, simulate_state, a explore_paths pro všechny cesty (slepé uličky, smyčky, nedosažitelné kroky). Simulace se po každé změně kurzu spouští znovu. Pravidla aplikace se může lišit od simulace; poznámky (notes) ber vážně.
 
 ## Styl
-Piš jako kolega, ne jako manuál. Stručně: co jsi udělal, co z toho plyne, na co se ptáš. Čísla a názvy z kurzu cituj přesně. Když něco nejde, řekni proč a nabídni, co jde.`;
+Piš jako kolega, ne jako manuál. Stručně: co jsi udělal, co z toho plyne, na co se ptáš. Čísla a názvy z kurzu cituj přesně. Když něco nejde, řekni proč a nabídni, co jde.
+Piš prostý text bez Markdownu: žádné hvězdičky, mřížky ani tabulky, protože okno asistenta je ukáže doslova. Výčet piš jako krátké odstavce nebo řádky začínající pomlčkou.`;
 
 /** Fixed order: a stable prefix lets the provider cache the prompt. */
 export const TOOLS: ToolDefinition[] = TOOL_SPECS.map(toProviderTool);
