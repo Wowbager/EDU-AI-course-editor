@@ -19,6 +19,8 @@
 	 */
 	interface Props {
 		title: string;
+		/** Where the model says the title, when it has words of the course in it (`data-screen`). */
+		screen?: string;
 		onclose: () => void;
 		/** `l` for the settings panels, which are two columns of fields. */
 		size?: 'm' | 'l';
@@ -26,7 +28,7 @@
 		/** Gets the notice's slot as its argument and must render it (`{@render notice()}`). */
 		footer?: import('svelte').Snippet<[import('svelte').Snippet]>;
 	}
-	let { title, onclose, size = 'm', children, footer }: Props = $props();
+	let { title, screen, onclose, size = 'm', children, footer }: Props = $props();
 
 	let dialog = $state<HTMLDialogElement | null>(null);
 
@@ -67,7 +69,7 @@
 >
 	<div class="panel">
 		<header>
-			<h2>{title}</h2>
+			<h2 data-screen={screen}>{title}</h2>
 			<button type="button" class="close" onclick={onclose} aria-label="Zavřít">
 				<XCircle></XCircle>
 			</button>

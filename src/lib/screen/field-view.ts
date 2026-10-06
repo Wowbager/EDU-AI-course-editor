@@ -98,8 +98,13 @@ export function fieldView(spec: FieldSpec, context: FieldContext): FieldView {
 	const raw = stored !== undefined ? stored : readPath(context.root, spec.path);
 	const ref = refOfField(spec.level, context.scope, spec.path);
 	const draft = spec.kind === 'number' ? context.drafts[refKey(ref)] : undefined;
+	// A timestamp is read in Czech form, and "—" stands where there is none.
 	const text =
-		spec.display === 'datetime' && asText(raw) !== '' ? formatDateTimeCs(asText(raw)) : asText(raw);
+		spec.display === 'datetime'
+			? asText(raw) !== ''
+				? formatDateTimeCs(asText(raw))
+				: '—'
+			: asText(raw);
 	return {
 		key: `${spec.level}.${spec.path}`,
 		level: spec.level,

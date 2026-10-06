@@ -87,6 +87,11 @@ export class UiState {
 	armed = $state<string | null>(null);
 	/** The answers whose detail line is open, by `blockId/stepKey/answerKey`. */
 	openDetails = $state.raw<ReadonlySet<string>>(new Set());
+	/** An imported course with things left to finish (`screen.notices.unfinished`). */
+	inherited = $state(false);
+	/** The messages of what the last import converted, in the words they are said in. */
+	importNotes = $state.raw<readonly string[]>([]);
+	importError = $state<string | null>(null);
 	competency = $state<CompetencyForm>(noCompetencyForm());
 	concepts = $state<ConceptsForm>(noConceptsForm());
 	prerequisite = $state<{ editing: number | null; problem: string }>({

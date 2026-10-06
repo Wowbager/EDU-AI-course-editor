@@ -9,8 +9,10 @@
 		 */
 		hint?: string;
 		onchange: (checked: boolean) => void;
+		/** Where the model says this switch's state, for the parity test (`data-screen`). */
+		screen?: string;
 	}
-	let { checked, label, hint, onchange }: Props = $props();
+	let { checked, label, hint, onchange, screen }: Props = $props();
 	const hintId = $props.id();
 </script>
 
@@ -18,6 +20,7 @@
 	<input
 		type="checkbox"
 		{checked}
+		data-screen={screen}
 		aria-describedby={hint ? hintId : undefined}
 		onchange={(e) => onchange(e.currentTarget.checked)}
 	/>

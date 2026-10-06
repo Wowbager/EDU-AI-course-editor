@@ -9,8 +9,8 @@
 	import FocusField from './FocusField.svelte';
 	import { useStore } from './context';
 	import type { Ref } from '$lib/domain/ref';
-	import { parseNumberDraft, parseNumberInput } from '$lib/domain/number-input';
-	import { clampTo, type FieldSpec } from './fields';
+	import { parseNumberDraft, parseNumberInput, type NumberBounds } from '$lib/domain/number-input';
+	import { clampTo } from './fields';
 
 	interface Props {
 		/** The number in the document (a stray string from an import is shown as it is). */
@@ -23,7 +23,9 @@
 		describedby?: string;
 		invalid?: boolean;
 		/** The field's spec, for its range: a number outside it is written as the nearest end. */
-		bounds?: Pick<FieldSpec, 'min' | 'max'>;
+		bounds?: NumberBounds;
+		/** Where the model says this field's text, for the parity test (`data-screen`). */
+		screen?: string;
 		/** Called with a number, or undefined when the box was emptied. */
 		onwrite: (value: number | undefined) => void;
 	}
@@ -37,6 +39,7 @@
 		describedby,
 		invalid,
 		bounds,
+		screen,
 		onwrite
 	}: Props = $props();
 
@@ -49,12 +52,21 @@
 		draft ??
 			(value === undefined
 				? undefined
-				: typed !== undefined && parseNumberInput(typed) === value
+				: typed !== undefined &&
+					  parseNumberInput(typed) !== undefined &&
+					  parseNumberInput(typed) === parseNumberInput(value)
 					? typed
 					: String(value))
 	);
 
+	/** Bumped to draw the box afresh from the course's number. */
+	let revision = $state(0);
+
+	/** Something was typed since the box was last drawn from the course. */
+	let touched = false;
+
 	function change(text: string | undefined) {
+		touched = true;
 		typed = text;
 		if (ref === undefined) {
 			// No key to keep the text under: parse, and write only what is a number.
@@ -76,15 +88,26 @@
 	}
 </script>
 
-<FocusField
-	{label}
-	value={shown}
-	{emptyText}
-	{monospace}
-	{ref}
-	{describedby}
-	{invalid}
-	error={ref === undefined ? undefined : store.draftErrorAt(ref)}
-	onchange={change}
-	onrevert={() => ref !== undefined && store.discardDraft(ref)}
-/>
+{#key revision}
+	<FocusField
+		{label}
+		value={shown}
+		{emptyText}
+		{monospace}
+		{ref}
+		{describedby}
+		{invalid}
+		{screen}
+		error={ref === undefined ? undefined : store.draftErrorAt(ref)}
+		onchange={change}
+		onrevert={() => ref !== undefined && store.discardDraft(ref)}
+		onblur={() => {
+			// What was typed is not what the box should read now: an emptied number that
+			// cannot be unset, one clamped to its range. Draw it from the course again.
+			if (!touched || draft !== undefined || (typed ?? '') === (shown ?? '')) return;
+			touched = false;
+			typed = undefined;
+			revision++;
+		}}
+	/>
+{/key}

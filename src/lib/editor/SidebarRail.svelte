@@ -404,6 +404,7 @@
 										</p>
 										<hr class="peek-rule" />
 										<CardActions
+											armKey="card:{card.block_id}"
 											position={card.position}
 											caption
 											rest={card.actions_caption}

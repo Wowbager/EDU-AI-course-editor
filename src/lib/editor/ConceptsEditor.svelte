@@ -10,51 +10,36 @@
 	 * Spelling stays the same across the course: while typing, terms other cards already
 	 * use are suggested in a small list under the field (arrows and Enter reach it, and
 	 * so does a click), and picking one adds it with the course's spelling. A term typed
-	 * out that matches one of them apart from case is written the way the course has it.
+	 * out that matches one of them apart from case is written the way the course has it
+	 * (`domain/concepts.ts`).
+	 *
+	 * The chips, the suggestions and whether the list is open are the model's
+	 * (`screen/settings.ts`); the text being typed and what was refused are
+	 * `store.ui.concepts`.
 	 */
 	import { withUndoNotice } from './undo-notice';
 	import type { BlockV2 } from '$lib/domain/schema';
+	import type { ConceptsView } from '$lib/screen/types';
 	import { X } from '@lucide/svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import { useStore } from '$lib/ui/context';
 	import { setField } from '$lib/domain/commands';
+	import { addTerms, courseTerms, isTermList, refusalText } from '$lib/domain/concepts';
 
 	interface Props {
 		block: BlockV2;
+		view: ConceptsView;
+		/** Where `view` is in the model, for `data-screen`. */
+		screen: string;
 	}
-	let { block }: Props = $props();
+	let { block, view, screen }: Props = $props();
 
 	const store = useStore();
+	const form = $derived(store.ui.concepts);
 	const concepts = $derived(block.learning?.concepts ?? []);
 
 	const uid = $props.id();
 	const listId = `concept-suggestions-${uid}`;
-
-	/** Every term used in the course, first spelling wins, in document order. */
-	const courseTerms = $derived.by(() => {
-		const seen = new Map<string, string>();
-		for (const b of store.source.blocks)
-			for (const term of b.learning?.concepts ?? [])
-				if (!seen.has(term.toLowerCase())) seen.set(term.toLowerCase(), term);
-		return seen;
-	});
-	/** What the course has that this card has not, and that contains what is being typed. */
-	const suggestions = $derived.by(() => {
-		const typed = draft.trim().toLowerCase();
-		if (typed === '' || /[,;\n]/.test(typed)) return [];
-		const mine = new Set(concepts.map((c) => c.toLowerCase()));
-		return [...courseTerms]
-			.filter(([key]) => !mine.has(key) && key.includes(typed) && key !== typed)
-			.map(([, term]) => term)
-			.slice(0, 6);
-	});
-	let focused = $state(false);
-	let active = $state(-1);
-	const listing = $derived(focused && suggestions.length > 0);
-
-	let draft = $state('');
-	/** What the last action refused, in words, shown under the list. */
-	let problem = $state('');
 
 	const write = (next: string[]) =>
 		store.apply((d) =>
@@ -65,36 +50,17 @@
 			)
 		);
 
-	/** "a, b,, c" → ["a", "b", "c"]; commas, semicolons and line breaks all separate. */
-	const split = (raw: string) =>
-		raw
-			.split(/[,;\n]/)
-			.map((part) => part.trim())
-			.filter((part) => part !== '');
-
 	function add(raw: string) {
-		active = -1;
-		const next = [...concepts];
-		const refused: string[] = [];
-		for (const typed of split(raw)) {
-			// The course's own spelling, when it has one.
-			const term = courseTerms.get(typed.toLowerCase()) ?? typed;
-			if (next.some((c) => c.toLowerCase() === term.toLowerCase())) refused.push(term);
-			else next.push(term);
-		}
-		problem =
-			refused.length === 0
-				? ''
-				: refused.length === 1
-					? `Pojem „${refused[0]}“ už karta má.`
-					: 'Některé z těch pojmů už karta má.';
+		form.active = -1;
+		const { next, refused } = addTerms(concepts, raw, courseTerms(store.source.blocks));
+		form.problem = refusalText(refused);
 		if (next.length !== concepts.length) write(next);
 		// A refused term stays in the field, to be corrected rather than retyped.
-		if (refused.length === 0 || next.length !== concepts.length) draft = refused.join(', ');
+		if (refused.length === 0 || next.length !== concepts.length) form.draft = refused.join(', ');
 	}
 
 	function remove(term: string) {
-		problem = '';
+		form.problem = '';
 		withUndoNotice(store, 'Pojem odebrán.', () => write(concepts.filter((c) => c !== term)), {
 			lessonId: store.open.lesson?.lesson_id,
 			blockId: block.block_id
@@ -108,17 +74,17 @@
 		<span class="note">Klíčové pojmy, o kterých karta je.</span>
 	</header>
 
-	{#if concepts.length > 0}
+	{#if view.terms.length > 0}
 		<ul>
-			{#each concepts as term (term)}
+			{#each view.terms as item, i (item.term)}
 				<li>
-					<span class="term">{term}</span>
+					<span class="term" data-screen="{screen}.terms[{i}].term">{item.term}</span>
 					<button
 						type="button"
 						class="remove"
 						title="Odebrat pojem"
-						aria-label={`Odebrat pojem ${term}`}
-						onclick={() => remove(term)}><X size={13} aria-hidden="true"></X></button
+						aria-label={item.remove_label}
+						onclick={() => remove(item.term)}><X size={13} aria-hidden="true"></X></button
 					>
 				</li>
 			{/each}
@@ -133,47 +99,54 @@
 				autocomplete="off"
 				placeholder="např. čitatel"
 				aria-label="Nový pojem"
-				aria-expanded={listing}
+				aria-expanded={view.listing}
 				aria-controls={listId}
 				aria-autocomplete="list"
-				aria-activedescendant={listing && active >= 0 ? `${listId}-${active}` : undefined}
-				bind:value={draft}
-				oninput={() => (active = -1)}
-				onfocus={() => (focused = true)}
-				onblur={() => (focused = false)}
+				aria-activedescendant={view.listing && view.active >= 0
+					? `${listId}-${view.active}`
+					: undefined}
+				value={view.draft}
+				data-screen="{screen}.draft"
+				oninput={(e) => {
+					form.draft = e.currentTarget.value;
+					form.active = -1;
+				}}
+				onfocus={() => (form.focused = true)}
+				onblur={() => (form.focused = false)}
 				onkeydown={(e) => {
-					if (e.key === 'ArrowDown' && listing) {
+					if (e.key === 'ArrowDown' && view.listing) {
 						e.preventDefault();
-						active = (active + 1) % suggestions.length;
-					} else if (e.key === 'ArrowUp' && listing) {
+						form.active = (form.active + 1) % view.suggestions.length;
+					} else if (e.key === 'ArrowUp' && view.listing) {
 						e.preventDefault();
-						active = active <= 0 ? suggestions.length - 1 : active - 1;
-					} else if (e.key === 'Escape' && listing) {
+						form.active = form.active <= 0 ? view.suggestions.length - 1 : form.active - 1;
+					} else if (e.key === 'Escape' && view.listing) {
 						// Closes the list, not the dialog around it.
 						e.preventDefault();
 						e.stopPropagation();
-						focused = false;
+						form.focused = false;
 					} else if (e.key === 'Enter') {
 						e.preventDefault();
-						add(listing && active >= 0 ? suggestions[active] : draft);
+						add(view.listing && view.active >= 0 ? view.suggestions[view.active] : view.draft);
 					}
 				}}
 				onpaste={(e) => {
 					const text = e.clipboardData?.getData('text') ?? '';
-					if (!/[,;\n]/.test(text)) return;
+					if (!isTermList(text)) return;
 					e.preventDefault();
 					add(text);
 				}}
 			/>
-			{#if listing}
+			{#if view.listing}
 				<ul class="suggestions" id={listId} role="listbox" aria-label="Pojmy z jiných karet">
-					{#each suggestions as term, i (term)}
+					{#each view.suggestions as term, i (term)}
 						<!-- A press, not a click: the field would lose focus and close the list first. -->
 						<li
 							id={`${listId}-${i}`}
 							role="option"
-							aria-selected={i === active}
-							class:active={i === active}
+							aria-selected={i === view.active}
+							class:active={i === view.active}
+							data-screen="{screen}.suggestions[{i}]"
 							onpointerdown={(e) => {
 								e.preventDefault();
 								add(term);
@@ -185,12 +158,12 @@
 				</ul>
 			{/if}
 		</div>
-		<Button variant="secondary" size="s" ariaLabel="Přidat pojem" onclick={() => add(draft)}
+		<Button variant="secondary" size="s" ariaLabel="Přidat pojem" onclick={() => add(view.draft)}
 			>Přidat</Button
 		>
 	</div>
-	{#if problem !== ''}
-		<p class="problem" role="alert">{problem}</p>
+	{#if view.problem !== ''}
+		<p class="problem" role="alert" data-screen="{screen}.problem">{view.problem}</p>
 	{/if}
 </section>
 

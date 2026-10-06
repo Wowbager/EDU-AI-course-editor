@@ -6,34 +6,35 @@
 	 * serves each. The plan's RVP → GPF mapping table does not exist yet (§9.3), so
 	 * codes are typed rather than picked; when the table arrives this becomes its
 	 * front end and nothing else has to move.
+	 *
+	 * The entries, their total and the add row are the model's (`screen/settings.ts`);
+	 * what is being typed in the add row, which code is being renamed and what was
+	 * refused are `store.ui.competency`. A weight is a bounded number like any other
+	 * (`clampNumber`, its spec in `ui/fields.ts`), with a draft and a line under it
+	 * when what was typed is no number.
 	 */
 	import { withUndoNotice } from './undo-notice';
-	import { parseNumberInput } from '$lib/domain/number-input';
 	import type { BlockV2 } from '$lib/domain/schema';
+	import type { CompetenciesView } from '$lib/screen/types';
 	import { Plus, Trash2 } from '@lucide/svelte';
 	import { tick } from 'svelte';
 	import Chip from '$lib/ui/Chip.svelte';
 	import Button from '$lib/ui/Button.svelte';
+	import NumberField from '$lib/ui/NumberField.svelte';
 	import { useStore } from '$lib/ui/context';
 	import { setField } from '$lib/domain/commands';
 
 	interface Props {
 		block: BlockV2;
+		view: CompetenciesView;
+		/** Where `view` is in the model, for `data-screen`. */
+		screen: string;
 	}
-	let { block }: Props = $props();
+	let { block, view, screen }: Props = $props();
 
 	const store = useStore();
-	const entries = $derived(Object.entries(block.learning?.competencies ?? {}));
-	const total = $derived(entries.reduce((sum, [, weight]) => sum + weight, 0));
-
-	/** The add row is closed until asked for, so it never looks like a saved one. */
-	let adding = $state(false);
-	let code = $state('');
-	let weight = $state('50');
-	/** What the last action refused, in words, shown under the list. */
-	let problem = $state('');
-	let editing = $state<string | null>(null);
-	let draft = $state('');
+	const form = $derived(store.ui.competency);
+	const current = () => block.learning?.competencies ?? {};
 
 	const DUPLICATE = 'Tenhle výstup už karta má.';
 
@@ -47,39 +48,37 @@
 		);
 	}
 
-	/** A weight is a percentage; empty or unreadable is `undefined`, never 0. */
-	function readWeight(raw: string): number | undefined {
-		const value = parseNumberInput(raw);
-		return value === undefined ? undefined : Math.min(100, Math.max(0, value));
-	}
-
 	function add() {
-		const trimmed = code.trim();
-		if (trimmed === '') return;
-		if (trimmed in (block.learning?.competencies ?? {})) {
-			problem = DUPLICATE;
+		const code = form.code.trim();
+		if (code === '') return;
+		if (code in current()) {
+			form.problem = DUPLICATE;
 			return;
 		}
-		const value = readWeight(weight);
-		if (value === undefined) {
-			problem = 'Doplň váhu výstupu v procentech.';
+		if (form.weight === undefined) {
+			form.problem = 'Doplň váhu výstupu v procentech.';
 			return;
 		}
-		problem = '';
-		write({ ...(block.learning?.competencies ?? {}), [trimmed]: value });
+		form.problem = '';
+		write({ ...current(), [code]: form.weight });
 		cancel();
 	}
 
 	function cancel() {
-		adding = false;
-		code = '';
-		weight = '50';
-		problem = '';
+		store.discardDraft(view.add_weight.ref);
+		store.ui.competency = {
+			adding: false,
+			code: '',
+			weight: 50,
+			problem: '',
+			editing: null,
+			rename: ''
+		};
 	}
 
 	function remove(key: string) {
-		problem = '';
-		const next = { ...(block.learning?.competencies ?? {}) };
+		form.problem = '';
+		const next = { ...current() };
 		delete next[key];
 		withUndoNotice(store, 'Výstup odebrán.', () => write(next), {
 			lessonId: store.open.lesson?.lesson_id,
@@ -87,21 +86,19 @@
 		});
 	}
 
-	function reweight(key: string, input: HTMLInputElement) {
-		const value = readWeight(input.value);
+	function reweight(key: string, value: number | undefined) {
 		if (value === undefined) {
 			// Emptying the field must not mean "0 %": the previous weight stays.
-			problem = 'Váha musí být číslo od 0 do 100, zůstala původní.';
-			input.value = String(block.learning?.competencies?.[key] ?? '');
+			form.problem = 'Váha musí být číslo od 0 do 100, zůstala původní.';
 			return;
 		}
-		problem = '';
-		write({ ...(block.learning?.competencies ?? {}), [key]: value });
+		form.problem = '';
+		write({ ...current(), [key]: value });
 	}
 
 	async function startRename(key: string) {
-		editing = key;
-		draft = key;
+		form.editing = key;
+		form.rename = key;
 		await tick();
 		const field = document.querySelector<HTMLInputElement>('input.rename');
 		field?.focus();
@@ -109,18 +106,18 @@
 	}
 
 	function finishRename(key: string) {
-		if (editing !== key) return;
-		editing = null;
-		const next = draft.trim();
+		if (form.editing !== key) return;
+		form.editing = null;
+		const next = form.rename.trim();
 		if (next === '' || next === key) return;
-		const current = block.learning?.competencies ?? {};
-		if (next in current) {
-			problem = DUPLICATE;
+		const entries = current();
+		if (next in entries) {
+			form.problem = DUPLICATE;
 			return;
 		}
-		problem = '';
+		form.problem = '';
 		// Rebuilt in place so the row keeps its position.
-		write(Object.fromEntries(Object.entries(current).map(([k, v]) => [k === key ? next : k, v])));
+		write(Object.fromEntries(Object.entries(entries).map(([k, v]) => [k === key ? next : k, v])));
 	}
 </script>
 
@@ -129,29 +126,32 @@
 		<span class="title">Výstupy RVP</span>
 		<!-- ⚪ in COURSE-EDITOR-SPEC §6.4: stored and exported, read by nothing yet. -->
 		<span class="note">Aplikace je zatím nečte — slouží jako dokumentace, co karta rozvíjí.</span>
-		{#if entries.length > 0}
-			<Chip tone={total > 100 ? 'warning' : 'neutral'} title="Součet vah">{total} %</Chip>
+		{#if view.total}
+			<Chip tone={view.total.tone} title="Součet vah">
+				<span data-screen="{screen}.total.text">{view.total.text}</span>
+			</Chip>
 		{/if}
 	</header>
 
-	{#if entries.length > 0}
+	{#if view.entries.length > 0}
 		<ul>
-			{#each entries as [key, value] (key)}
+			{#each view.entries as entry, i (entry.code)}
 				<li>
-					{#if editing === key}
+					{#if entry.renaming}
 						<input
 							type="text"
 							class="rename"
-							aria-label={`Kód výstupu ${key}`}
-							bind:value={draft}
-							onblur={() => finishRename(key)}
+							aria-label={entry.rename_label}
+							value={form.rename}
+							oninput={(e) => (form.rename = e.currentTarget.value)}
+							onblur={() => finishRename(entry.code)}
 							onkeydown={(e) => {
 								if (e.key === 'Enter') {
 									e.preventDefault();
 									e.currentTarget.blur();
 								} else if (e.key === 'Escape') {
 									e.preventDefault();
-									editing = null;
+									form.editing = null;
 								}
 							}}
 						/>
@@ -160,33 +160,36 @@
 							type="button"
 							class="code"
 							title="Změnit kód"
-							aria-label={`Změnit kód ${key}`}
-							onclick={() => startRename(key)}>{key}</button
+							aria-label={entry.change_label}
+							onclick={() => startRename(entry.code)}
+							><span data-screen="{screen}.entries[{i}].code">{entry.code}</span></button
 						>
 					{/if}
-					<input
-						type="number"
-						min="0"
-						max="100"
-						step="5"
-						aria-label={`Váha výstupu ${key}`}
-						{value}
-						onchange={(e) => reweight(key, e.currentTarget)}
-					/>
+					<span class="weight">
+						<NumberField
+							label={entry.weight.label}
+							value={entry.weight.value}
+							ref={entry.weight.ref}
+							bounds={entry.weight}
+							screen="{screen}.entries[{i}].weight.value"
+							onwrite={(v) => reweight(entry.code, v)}
+						/>
+					</span>
 					<span class="unit">%</span>
 					<button
 						type="button"
 						class="remove"
 						title="Odebrat výstup"
-						aria-label={`Odebrat ${key}`}
-						onclick={() => remove(key)}><Trash2 size={15} aria-hidden="true"></Trash2></button
+						aria-label={entry.remove_label}
+						onclick={() => remove(entry.code)}
+						><Trash2 size={15} aria-hidden="true"></Trash2></button
 					>
 				</li>
 			{/each}
 		</ul>
 	{/if}
 
-	{#if adding}
+	{#if view.adding}
 		<div class="add" role="group" aria-label="Nový výstup">
 			<!-- svelte-ignore a11y_autofocus -->
 			<input
@@ -194,7 +197,8 @@
 				placeholder="M-5-1-02"
 				aria-label="Kód výstupu RVP"
 				autofocus
-				bind:value={code}
+				value={view.add_code}
+				oninput={(e) => (form.code = e.currentTarget.value)}
 				onkeydown={(e) => {
 					if (e.key === 'Enter') {
 						e.preventDefault();
@@ -205,27 +209,29 @@
 					}
 				}}
 			/>
-			<input
-				type="number"
-				min="0"
-				max="100"
-				step="5"
-				placeholder="50"
-				aria-label="Váha výstupu"
-				bind:value={weight}
-			/>
+			<span class="weight">
+				<NumberField
+					label={view.add_weight.label}
+					value={view.add_weight.value}
+					emptyText={view.add_weight.empty_text}
+					ref={view.add_weight.ref}
+					bounds={view.add_weight}
+					screen="{screen}.add_weight.value"
+					onwrite={(v) => (form.weight = v)}
+				/>
+			</span>
 			<span class="unit">%</span>
 			<Button variant="secondary" size="s" onclick={add}>Přidat</Button>
 			<Button variant="ghost" size="s" onclick={cancel}>Zrušit</Button>
 		</div>
 	{:else}
-		<Button variant="secondary" size="s" onclick={() => (adding = true)}>
+		<Button variant="secondary" size="s" onclick={() => (form.adding = true)}>
 			<Plus size={14} aria-hidden="true"></Plus>
 			Přidat výstup
 		</Button>
 	{/if}
-	{#if problem !== ''}
-		<p class="problem" role="alert">{problem}</p>
+	{#if view.problem !== ''}
+		<p class="problem" role="alert" data-screen="{screen}.problem">{view.problem}</p>
 	{/if}
 </section>
 
@@ -296,8 +302,10 @@
 		width: 140px;
 	}
 
-	input[type='number'] {
-		width: 68px;
+	.weight {
+		display: inline-block;
+		width: 84px;
+		font-size: var(--text-s);
 	}
 
 	input {

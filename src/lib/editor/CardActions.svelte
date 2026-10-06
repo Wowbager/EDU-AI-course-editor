@@ -16,8 +16,11 @@
 	 * card is the one tab stop, → goes into the actions, ← and Escape come back.
 	 */
 	import { Copy, ListX, Settings, Trash } from '@lucide/svelte';
+	import { useStore } from '$lib/ui/context';
 
 	interface Props {
+		/** What the armed delete is keyed by (`card:<id>`), in `store.ui.armed`. */
+		armKey: string;
 		/** The card's 1-based place in its lesson: the number every name here carries. */
 		position: number;
 		/** With `caption`, the line's resting text: the model's `actions_caption`. */
@@ -39,6 +42,7 @@
 		onexit?: () => void;
 	}
 	let {
+		armKey,
 		position,
 		rest,
 		screen,
@@ -54,8 +58,10 @@
 	/** How long an armed Smazat waits for its second click. */
 	const ARMED_MS = 4000;
 
+	const store = useStore();
 	let row = $state<HTMLElement | null>(null);
-	let armed = $state(false);
+	/** The first click of Smazat has been made: `store.ui.armed`, so the screen model says it. */
+	const armed = $derived(store.ui.armed === armKey);
 	/** The short name of the button that has the pointer or focus, for the caption. */
 	let hint = $state<string | null>(null);
 
@@ -74,16 +80,13 @@
 
 	$effect(() => {
 		if (!armed) return;
-		const timer = setTimeout(() => (armed = false), ARMED_MS);
+		const key = armKey;
+		const timer = setTimeout(() => store.ui.disarm(key), ARMED_MS);
 		return () => clearTimeout(timer);
 	});
 
 	function clickDelete() {
-		if (!armed) {
-			armed = true;
-			return;
-		}
-		armed = false;
+		if (!store.ui.arm(armKey)) return;
 		onremove();
 	}
 
@@ -94,7 +97,7 @@
 		if (event.key === 'Escape') {
 			event.preventDefault();
 			event.stopPropagation();
-			armed = false;
+			store.ui.disarm(armKey);
 			onexit?.();
 			return;
 		}
@@ -119,7 +122,7 @@
 
 	function onfocusout(event: FocusEvent) {
 		if (!(event.relatedTarget instanceof Node && row?.contains(event.relatedTarget))) {
-			armed = false;
+			store.ui.disarm(armKey);
 			hint = null;
 		}
 	}
@@ -161,7 +164,7 @@
 		use:noDrag
 		{onkeydown}
 		{onfocusout}
-		onpointerleave={() => (armed = false)}
+		onpointerleave={() => store.ui.disarm(armKey)}
 	>
 		<button
 			type="button"

@@ -159,6 +159,11 @@ export interface UiInput {
 	/** Whether this browser has been shown the Pokročilý parts note; null until it is read. */
 	partsNoteSeen: boolean | null;
 	dialog: Dialog | null;
+	/** A course was imported and has things left to finish: the calm line about them. */
+	inherited: boolean;
+	/** What the import converted, by message; and why a file was refused. */
+	importNotes: readonly string[];
+	importError: string | null;
 	picker: PickerState | null;
 	/** The two-click delete that has had its first click: `lesson:<id>` or `card:<id>`. */
 	armed: string | null;
@@ -416,6 +421,12 @@ export interface PreviewRegion {
 export interface NoticesRegion {
 	/** "Krok 3 teď nikam nevede — žák ho neuvidí", while that change is the last edit. */
 	cut_off: { text: string; option_id: string } | null;
+	/** The file could not be read. */
+	import_error: { heading: string; message: string } | null;
+	/** "V kurzu je ještě 23 věcí k dokončení": shown for an imported course until dealt with. */
+	unfinished: { text: string } | null;
+	/** What was converted on the way in, said once. */
+	import_notes: { heading: string; items: string[]; more: string | null } | null;
 }
 
 export interface UiRegion {
@@ -424,6 +435,21 @@ export interface UiRegion {
 	sidebar_collapsed: boolean;
 	/** The Pokročilý note about cards split into parts: whether it is on screen now. */
 	parts_note: { eligible: boolean; shown: boolean };
+	/** The dialog open over the editor, if any (`dialogs` says what it holds). */
+	dialog: Dialog['kind'] | null;
+	/** The `ChoicePicker` that is open (`pickers.open` says what it lists). */
+	picker: { id: string; path: string[]; query: string } | null;
+	/** The two-click delete waiting for its second click: `lesson:<id>` or `card:<id>`. */
+	armed: string | null;
+	/** The answers whose detail line is open, by `blockId/stepKey/answerKey`. */
+	open_answer_lines: string[];
+	/** What is half done in the card's settings. */
+	forms: {
+		competency_adding: boolean;
+		concepts_draft: string;
+		prerequisite_editing: number | null;
+		skill_flow: { open: boolean; step: TopicStepName; editing: number | null };
+	};
 }
 
 // ─────────────────────────── the card: the editor column ───────────────────────────

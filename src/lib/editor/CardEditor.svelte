@@ -11,6 +11,10 @@
 	 * card-wide hint and help are there too: they are only the fallback for steps
 	 * that have none of their own, so the steps' ladders stay here and the card's
 	 * sits with the rest of its settings.
+	 *
+	 * What is drawn — the chips, the XP, the names, whether a menu item is offered — is
+	 * the model's (`store.screen.card`, `screen/card.ts`). This writes what the teacher
+	 * does and keeps the drag.
 	 */
 	import {
 		dragHandleZone,
@@ -19,13 +23,8 @@
 		type DndEvent
 	} from 'svelte-dnd-action';
 	import { tick } from 'svelte';
-	import type {
-		BlockStep,
-		BlockV2,
-		CourseV2,
-		LessonBlockBinding,
-		StepType
-	} from '$lib/domain/schema';
+	import type { BlockStep, BlockV2, StepType } from '$lib/domain/schema';
+	import type { CardView } from '$lib/screen/types';
 	import Card from '$lib/ui/Card.svelte';
 	import Chip from '$lib/ui/Chip.svelte';
 	import Button from '$lib/ui/Button.svelte';
@@ -35,28 +34,17 @@
 	import MenuSeparator from '$lib/ui/MenuSeparator.svelte';
 	import { notices } from '$lib/state/notice.svelte';
 	import type { Ref } from '$lib/domain/ref';
-	import FocusField from '$lib/ui/FocusField.svelte';
 	import StepEditor from './StepEditor.svelte';
 	import { useStepView, useStore } from '$lib/ui/context';
 	import { uniqueKeys } from '$lib/ui/keys';
-	import { counted } from '$lib/ui/plural';
-	import { cardSettingsSummary } from '$lib/ui/fields';
 	import {
 		addStep,
 		bindBlock,
 		moveBlockInLesson,
 		reorderSteps,
-		setField
+		setQuestionType
 	} from '$lib/domain/commands';
-	import { lessonLabel } from '$lib/domain/naming';
 	import { cardActions } from './card-actions';
-	import {
-		blockDurationMinutes,
-		derivedBlockXp,
-		bindingFlagsPractice,
-		effectiveBlockXp,
-		isPracticeBlock
-	} from '$lib/domain/derive';
 	import {
 		ArrowDown,
 		ArrowUp,
@@ -69,92 +57,36 @@
 		Trash
 	} from '@lucide/svelte';
 	import { STEP_TYPES } from '$lib/lang';
-	import { cardTypeIcon, cardTypeLabel } from '$lib/ui/card-types';
+	import { cardTypeIcon } from '$lib/ui/card-types';
 
 	interface Props {
-		doc: CourseV2;
 		block: BlockV2;
+		/** The model's card: `store.screen.card.card`. */
+		view: CardView;
 		/** Absent for a card bound to no lesson — it is editable, just unreachable. */
-		binding?: LessonBlockBinding;
 		lessonId?: string;
 		onsettings: () => void;
 		onrepairBlock: (blockId: string) => void;
 		onrepairStep: (blockId: string, stepId: string) => void;
 	}
-	let { doc, block, binding, lessonId, onsettings, onrepairBlock, onrepairStep }: Props = $props();
+	let { block, view, lessonId, onsettings, onrepairBlock, onrepairStep }: Props = $props();
 
 	const store = useStore();
+	const screen = 'card.card';
 	// The same actions the rail and the tree call (`card-actions.ts`).
 	const actions = cardActions(store, {
 		onsettings: () => onsettings(),
 		onrepair: (blockId) => onrepairBlock(blockId)
 	});
-	const boundLessons = $derived(
-		doc.lessons.filter((lesson) =>
-			lesson.blocks.some((binding) => binding.block_id === block.block_id)
-		)
-	);
-	const sharedWith = $derived(boundLessons.length);
-	const availableLessons = $derived(
-		doc.lessons.filter(
-			(lesson) => !lesson.blocks.some((binding) => binding.block_id === block.block_id)
-		)
-	);
-	let showLessonPicker = $state(false);
-	let targetLessonId = $state('');
-	const xp = $derived(effectiveBlockXp(block));
-	const xpIsDerived = $derived(typeof block.xp !== 'number');
-	const minutes = $derived(blockDurationMinutes(block));
-
-	const set = (field: string, value: unknown) =>
-		store.apply((d) => setField(d, { blockId: block.block_id, field }, value));
-
-	/** What this card's type does to the student — see `stepTitle` below for why. */
-	const TYPE_TITLE = {
-		display: 'Typ karty: Výklad. Žák prochází kroky po jednom a mezi nimi kliká Pokračovat.',
-		question:
-			'Typ karty: Otázka. Kroky jsou v jedné bublině a žák je rovnou u otázky; další otázka se objeví, až odpoví na předchozí. Podle odpovědi ho lze poslat jinam.',
-		exercise:
-			'Typ karty: Cvičení — jedna karta uvnitř lekce. Jako Otázka, ale bez větvení. Nezaměňuj s typem celého kurzu „Cvičení“ v Nastavení kurzu ani se zařazením karty do denního opakování.'
-	} as const;
+	const dialogs = $derived(store.screen.dialogs);
 
 	/**
-	 * What a step does to the student depends on the card it is in, and that is the
-	 * one thing the two "Otázka" affordances never said. From
-	 * `block_step_engine.dart`: a `display` card draws one step per bubble and only
-	 * as far as `_currentStepIndex`, so a step is a stop the student taps through;
-	 * a `question` or `exercise` card draws `_buildExerciseCard()` — one bubble that
-	 * grows as the student reaches each question (fork fix; it used to draw every
-	 * step at once) — and runs `_skipToNextQuestion()` on mount and after every
-	 * answer, so content steps are passive context and the student starts at the
-	 * question. Branching (`go_to`) is honoured for `question` and ignored for
-	 * `exercise` (`step_navigation.dart`).
-	 *
-	 * So the same question is a pause inside a reading in one case and the whole
-	 * point of the card in the other — which is the choice a teacher is making here
-	 * without being told.
-	 */
-	const CONTENT_STEP_TITLE = $derived(
-		block.type === 'display'
-			? 'Samostatná zastávka: žák uvidí tenhle krok, klikne Pokračovat a teprve pak se objeví další.'
-			: 'V téhle kartě není obsahový krok zastávka — zobrazí se v jedné bublině spolu s otázkou jako její zadání a žák jde rovnou odpovídat. Když se má žák zastavit a číst, patří text do karty typu Výklad.'
-	);
-	const stepTitle = (type: StepType) =>
-		type !== 'question'
-			? CONTENT_STEP_TITLE
-			: block.type === 'display'
-				? 'Otázka uvnitř výkladu: žák si přečte kroky nad ní, odpoví, a teprve pak se mu ukáže další krok. Slouží ke kontrole čtení. Má-li odpověď rozhodnout, co bude dál, udělej z otázky vlastní kartu typu Otázka — celou ji pak žák vidí jako jednu otázku a podle odpovědi ho lze poslat jinam.'
-				: block.type === 'exercise'
-					? 'Další úloha v téže bublině. Po odpovědi žák pokračuje rovnou na ni; větvení se v kartě typu Cvičení ignoruje, pořadí je vždy stejné.'
-					: 'Další otázka v téže bublině. Po odpovědi žák pokračuje rovnou na ni, nebo tam, kam ho pošle větvení u zvolené možnosti.';
-
-	/**
-	 * Open the card's settings when something outside the editor points at the
-	 * card's own hint or help — the question mark in the preview, or a validation
-	 * jump. Those two fields live in `CardSettings` now, and a card-level ref has no
-	 * `stepId`, so `StepEditor`'s reveal never matches it; without this the "?"
-	 * would report the right field and the screen would do nothing. The dialog opens
-	 * the fold that holds the field by itself (`sectionTargeted`).
+	 * Open the card's settings when something outside the editor points at the card's
+	 * own hint or help — the question mark in the preview, or a validation jump. Those
+	 * two fields live in `CardSettings` now, and a card-level ref has no `stepId`, so
+	 * `StepEditor`'s reveal never matches it; without this the "?" would report the
+	 * right field and the screen would do nothing. The dialog opens the fold that holds
+	 * the field by itself (`sectionTargeted`).
 	 */
 	const revealedField = $derived(
 		store.selection?.blockId === block?.block_id && store.selection?.stepId === undefined
@@ -191,6 +123,12 @@
 		carried !== null
 			? carried
 			: item.id;
+	/** The model's step for an item of the list, and where it is in the model. */
+	const viewOf = (item: StepItem) => {
+		const key = keyOf(item);
+		const index = view.steps.findIndex((s) => s.key === key);
+		return index < 0 ? null : { step: view.steps[index], index };
+	};
 
 	/**
 	 * A press on a step's handle, before the library has measured anything: fold
@@ -274,18 +212,6 @@
 		);
 	}
 
-	/** The card's place among its lesson's cards; -1 when it is opened outside a lesson. */
-	const place = $derived(
-		lessonId === undefined
-			? -1
-			: (doc.lessons
-					.find((l) => l.lesson_id === lessonId)
-					?.blocks.findIndex((b) => b.block_id === block.block_id) ?? -1)
-	);
-	const lessonCards = $derived(
-		doc.lessons.find((l) => l.lesson_id === lessonId)?.blocks.length ?? 0
-	);
-
 	function moveCard(delta: -1 | 1) {
 		if (lessonId === undefined) return;
 		const id = lessonId;
@@ -297,54 +223,61 @@
 		if (entry !== undefined) notices.show({ text: message, entry, ref });
 	}
 
+	/** „Zařadit do lekce“: the dialog's choice is `ui.dialog`, its list the model's. */
 	function assignToLesson() {
-		if (!availableLessons.some((lesson) => lesson.lesson_id === targetLessonId)) return;
+		const dialog = store.ui.dialog;
+		const assign = dialogs.assign_lesson;
+		if (dialog?.kind !== 'assign_lesson' || assign === null || !assign.can_assign) return;
 		const blockId = block.block_id;
-		const name = lessonLabel(
-			doc,
-			availableLessons.find((lesson) => lesson.lesson_id === targetLessonId)!
-		);
-		store.apply((d) => bindBlock(d, targetLessonId, blockId));
-		showLessonPicker = false;
+		const lessonId = dialog.lessonId;
+		const name = assign.lessons.find((l) => l.value === lessonId)!.label;
+		store.apply((d) => bindBlock(d, lessonId, blockId));
+		store.ui.dialog = null;
 		showNotice(`Karta zařazena do lekce „${name}“.`, { blockId });
+	}
+
+	function confirmTypeChange() {
+		const dialog = store.ui.dialog;
+		if (dialog?.kind !== 'type_change') return;
+		store.apply((d) => setQuestionType(d, dialog.blockId, dialog.stepId, dialog.type));
+		store.ui.dialog = null;
 	}
 </script>
 
 {#snippet stepItems(at: number | undefined)}
-	{#each STEP_TYPES as option (option.type)}
+	{#each view.add_step as option (option.type)}
+		{@const info = STEP_TYPES.find((t) => t.type === option.type)}
 		<MenuItem
-			icon={option.icon}
-			title={stepTitle(option.type)}
-			onclick={() => store.apply((d, r) => addStep(d, block.block_id, option.type, at, r))}
+			icon={info?.icon}
+			title={option.title}
+			onclick={() =>
+				store.apply((d, r) => addStep(d, block.block_id, option.type as StepType, at, r))}
 		>
 			{option.label}
 		</MenuItem>
 	{/each}
 {/snippet}
 
-<Card tone={binding?.bg_color}>
+<Card tone={store.open.binding?.bg_color}>
 	<header>
-		<Chip tone="accent" title={TYPE_TITLE[block.type]}>
-			{@const Icon = cardTypeIcon(block.type)}
+		<Chip tone="accent" title={view.type_title}>
+			{@const Icon = cardTypeIcon(view.type)}
 			<Icon size={16}></Icon>
-			{cardTypeLabel(block.type)}
+			<span data-screen="{screen}.type_label">{view.type_label}</span>
 		</Chip>
 
-		{#if isPracticeBlock(block, bindingFlagsPractice(doc, block.block_id))}
+		{#if view.chips.practice}
 			<!--
 				This chip is the practice queue, not the card's type — and on a card of
 				type Cvičení the two chips sat next to each other reading the same word.
 			-->
-			<Chip
-				tone="quiet"
-				title="Karta je zařazená do denního opakování (Cvičení) — žák ji dostane znovu podle plánu opakování. S typem karty to nesouvisí; zapíná se v Nastavení karty."
-			>
-				Opakování
+			<Chip tone="quiet" title={view.chips.practice.title}>
+				<span data-screen="{screen}.chips.practice.text">{view.chips.practice.text}</span>
 			</Chip>
 		{/if}
-		{#if sharedWith > 1}
-			<Chip tone="warning" title="Blok je i v jiné lekci — úprava se projeví všude">
-				Sdílený: {counted(sharedWith, 'lekce', 'lekce', 'lekcí')}
+		{#if view.chips.shared}
+			<Chip tone="warning" title={view.chips.shared.title}>
+				<span data-screen="{screen}.chips.shared.text">{view.chips.shared.text}</span>
 			</Chip>
 		{/if}
 		<!--
@@ -355,21 +288,16 @@
             student — some cards of a lesson with a length and some without — is
             W_PARTIAL_DURATION, and it is said where the rest of the review is.
         -->
-		{#if minutes !== undefined}
-			<Chip tone="quiet" title="Očekávaný čas na kartu">
-				{minutes} min
+		{#if view.chips.minutes}
+			<Chip tone="quiet" title={view.chips.minutes.title}>
+				<span data-screen="{screen}.chips.minutes.text">{view.chips.minutes.text}</span>
 			</Chip>
 		{/if}
 
 		<div class="spacer"></div>
 
-		<Chip
-			tone="quiet"
-			title={xpIsDerived
-				? `Dopočteno z kroků: 8 XP za každý krok s otázkou, 1 XP za obsahový krok (${derivedBlockXp(block)} XP). Platí hned, i když je karta ještě rozepsaná. Vlastní hodnotu nastavíš v Nastavení karty.`
-				: 'Zadaná odměna'}
-		>
-			{xp} XP{xpIsDerived ? '' : ' · vlastní hodnota'}
+		<Chip tone="quiet" title={view.chips.xp.title}>
+			<span data-screen="{screen}.chips.xp.text">{view.chips.xp.text}</span>
 		</Chip>
 
 		<!--
@@ -383,7 +311,7 @@
 			size="s"
 			onclick={onsettings}
 			ariaLabel="Nastavení karty"
-			title={cardSettingsSummary(store.mode, store.showFeedback)}
+			title={view.settings_title}
 		>
 			<Settings size={16}></Settings>
 		</Button>
@@ -391,21 +319,18 @@
 			<MenuItem icon={Copy} onclick={() => actions.duplicate(block.block_id, lessonId)}>
 				Duplikovat kartu
 			</MenuItem>
-			{#if sharedWith === 0}
+			{#if view.menu.assign}
 				<MenuItem
 					icon={ListPlus}
 					onclick={() => {
-						targetLessonId = '';
-						showLessonPicker = true;
+						store.ui.dialog = { kind: 'assign_lesson', blockId: block.block_id, lessonId: '' };
 					}}
-					disabled={availableLessons.length === 0}
-					title={availableLessons.length === 0
-						? 'Nejprve vytvoř lekci'
-						: 'Zařadit existující kartu do lekce bez kopírování obsahu'}
+					disabled={view.menu.assign.disabled}
+					title={view.menu.assign.title}
 				>
 					Zařadit do lekce
 				</MenuItem>
-			{:else if binding !== undefined && lessonId !== undefined}
+			{:else if view.menu.remove_from_lesson && lessonId !== undefined}
 				<!-- Neutral, not red: it is undoable, and the content stays. -->
 				<MenuItem
 					icon={ListX}
@@ -413,18 +338,20 @@
 						actions.removeFromLesson(lessonId, block.block_id, {
 							follow: true
 						})}
-					title={sharedWith > 1
-						? 'Odebere kartu jen z této lekce — ostatní lekce a všechen obsah zůstanou'
-						: 'Odebere kartu z této lekce. Obsah zůstává v části Karty mimo lekci; smazat jde přes Smazat kartu.'}
+					title={view.menu.remove_from_lesson.title}
 				>
 					Odebrat z lekce
 				</MenuItem>
 			{/if}
-			{#if place >= 0}
-				<MenuItem icon={ArrowUp} onclick={() => moveCard(-1)} disabled={place === 0}>
+			{#if view.menu.move}
+				<MenuItem icon={ArrowUp} onclick={() => moveCard(-1)} disabled={view.menu.move.up_disabled}>
 					Posunout nahoru
 				</MenuItem>
-				<MenuItem icon={ArrowDown} onclick={() => moveCard(1)} disabled={place >= lessonCards - 1}>
+				<MenuItem
+					icon={ArrowDown}
+					onclick={() => moveCard(1)}
+					disabled={view.menu.move.down_disabled}
+				>
 					Posunout dolů
 				</MenuItem>
 			{/if}
@@ -451,29 +378,26 @@
 		{onfinalize}
 	>
 		{#each items as item, i (item.id)}
+			{@const found = viewOf(item)}
 			<div class="step-wrap">
-				<StepEditor
-					{doc}
-					{block}
-					step={item.step}
-					stepKey={keyOf(item)}
-					{lessonId}
-					position={i + 1}
-					ongrab={grab}
-					onrepair={onrepairStep}
-				/>
+				{#if found}
+					<StepEditor
+						{block}
+						step={item.step}
+						view={found.step}
+						screen="{screen}.steps[{found.index}]"
+						{lessonId}
+						ongrab={grab}
+						onrepair={onrepairStep}
+					/>
+				{/if}
 				<!--
                     Inside the dnd item, never beside it: every direct child of the zone
                     is a drag item. It stays a tab stop — the menu at the foot only adds
                     at the end, and without this a keyboard has no way to insert between.
                 -->
-				{#if i < items.length - 1 && !stepView.dragging}
-					<Menu
-						label="Vložit krok za krok {i + 1}"
-						icon={Plus}
-						class="insert"
-						title="Vložit krok sem"
-					>
+				{#if found && i < items.length - 1 && !stepView.dragging}
+					<Menu label={found.step.insert_label} icon={Plus} class="insert" title="Vložit krok sem">
 						{@render stepItems(i + 1)}
 					</Menu>
 				{/if}
@@ -493,24 +417,41 @@
 	</div>
 </Card>
 
-{#if showLessonPicker}
-	<Modal title="Zařadit do lekce" onclose={() => (showLessonPicker = false)}>
+{#if dialogs.assign_lesson}
+	{@const assign = dialogs.assign_lesson}
+	<Modal title="Zařadit do lekce" onclose={() => (store.ui.dialog = null)}>
 		<p>Vyber lekci pro tuto kartu. Její obsah se nebude kopírovat.</p>
 		<label class="lesson-picker">
 			Lekce
-			<select bind:value={targetLessonId}>
+			<select
+				value={assign.chosen}
+				onchange={(e) => {
+					const dialog = store.ui.dialog;
+					if (dialog?.kind === 'assign_lesson')
+						store.ui.dialog = { ...dialog, lessonId: e.currentTarget.value };
+				}}
+			>
 				<option value="" disabled>Vyber lekci…</option>
-				{#each availableLessons as lesson (lesson.lesson_id)}
-					<option value={lesson.lesson_id}>{lessonLabel(doc, lesson)}</option>
+				{#each assign.lessons as lesson, i (lesson.value)}
+					<option value={lesson.value} data-screen="dialogs.assign_lesson.lessons[{i}].label"
+						>{lesson.label}</option
+					>
 				{/each}
 			</select>
 		</label>
 		{#snippet footer()}
-			<Button variant="ghost" onclick={() => (showLessonPicker = false)}>Zpět</Button>
-			<Button
-				disabled={!availableLessons.some((lesson) => lesson.lesson_id === targetLessonId)}
-				onclick={assignToLesson}>Zařadit</Button
-			>
+			<Button variant="ghost" onclick={() => (store.ui.dialog = null)}>Zpět</Button>
+			<Button disabled={!assign.can_assign} onclick={assignToLesson}>Zařadit</Button>
+		{/snippet}
+	</Modal>
+{/if}
+
+{#if dialogs.type_change}
+	<Modal title={dialogs.type_change.title} onclose={() => (store.ui.dialog = null)}>
+		<p data-screen="dialogs.type_change.message">{dialogs.type_change.message}</p>
+		{#snippet footer()}
+			<Button variant="ghost" onclick={() => (store.ui.dialog = null)}>Zrušit</Button>
+			<Button variant="danger-solid" onclick={confirmTypeChange}>Přesto změnit</Button>
 		{/snippet}
 	</Modal>
 {/if}

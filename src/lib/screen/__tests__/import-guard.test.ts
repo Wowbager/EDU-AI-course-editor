@@ -22,27 +22,12 @@ const root = fileURLToPath(new URL('../../../..', import.meta.url));
 const SCANNED = ['src/lib/editor', 'src/lib/ui', 'src/routes'];
 
 /**
- * Part 3 removes these ("part 3 removes these"): the card region (the card editor, its settings and pickers) and
- * the page's own card heading and empty-state sentence. Each still computes something
- * it shows, or reads a domain rule to do it.
+ * Files the model does not reach yet. Part 3 of Round 14 emptied it; it stays so that a
+ * file which cannot be migrated at once is listed on purpose, with its reason, instead of
+ * being quietly let through — and `the list is empty` below fails the build while it is
+ * not.
  */
-const PENDING = new Set<string>([
-	// The card region.
-	'src/lib/editor/AnswerTable.svelte',
-	'src/lib/editor/CardEditor.svelte',
-	'src/lib/editor/CardSettings.svelte',
-	'src/lib/editor/GoToPicker.svelte',
-	'src/lib/editor/LessonSettings.svelte',
-	'src/lib/editor/PrerequisiteEditor.svelte',
-	'src/lib/editor/RepairDialog.svelte',
-	'src/lib/editor/StepEditor.svelte',
-	'src/lib/editor/TopicPicker.svelte',
-	// The export review and the versions dialog: their own regions.
-	'src/lib/editor/ExportDialog.svelte',
-	'src/lib/editor/VersionsDialog.svelte',
-	// The card heading's placeholder and the empty-state sentence.
-	'src/routes/+page.svelte'
-]);
+const PENDING = new Set<string>([]);
 
 const READ_MODULES = ['derive', 'naming', 'validate', 'index-doc', 'groups', 'issue-groups'];
 
@@ -78,7 +63,12 @@ export function violations(source: string): string[] {
 			.filter((part) => part !== '' && !part.startsWith('type '));
 		if (values.length > 0) found.push(`imports ${values.join(', ')} from $lib/domain/${module}`);
 	}
-	if (/store\.mode\s*[!=]==?/.test(code)) found.push('compares store.mode');
+	if (
+		/store\.mode\s*[!=]==?/.test(code) ||
+		/\bmode\s*[!=]==?\s*['"](teacher|metodik|advanced)['"]/.test(code)
+	) {
+		found.push('compares store.mode');
+	}
 	if (/\bNumber\(/.test(code)) found.push('calls Number(');
 	if (/\bparseFloat\(/.test(code)) found.push('calls parseFloat(');
 	for (const module of code.matchAll(/<script\b[^>]*\bmodule\b[^>]*>([\s\S]*?)<\/script>/g)) {
@@ -110,6 +100,7 @@ describe('the guard itself', () => {
 		expect(violations("if (store.mode === 'advanced') {}")).toEqual(['compares store.mode']);
 		expect(violations('if (store.mode !== x) {}')).toEqual(['compares store.mode']);
 		expect(violations("allows('step', 'id', store.mode)")).toEqual([]);
+		expect(violations("if (mode === 'advanced') {}")).toEqual(['compares store.mode']);
 		expect(violations('const n = Number(raw);')).toEqual(['calls Number(']);
 		expect(violations('const n = parseFloat(raw);')).toEqual(['calls parseFloat(']);
 		expect(violations('// Number(x) and store.mode === y are fine in a comment')).toEqual([]);
@@ -142,6 +133,10 @@ describe('the components that draw the screen', () => {
 	it('keep the pending list honest: a file that is clean comes off it', () => {
 		const clean = [...PENDING].filter((path) => !bad.has(path));
 		expect(clean).toEqual([]);
+	});
+
+	it('has nothing pending: every component draws from the model', () => {
+		expect([...PENDING]).toEqual([]);
 	});
 
 	it('names only files that exist', () => {

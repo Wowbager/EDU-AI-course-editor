@@ -202,8 +202,9 @@
 	</Button>
 </header>
 
-{#if versions.dialogOpen}
+{#if store.screen.dialogs.versions}
 	<VersionsDialog
+		view={store.screen.dialogs.versions}
 		onclose={() => (versions.dialogOpen = false)}
 		onreview={() => {
 			versions.dialogOpen = false;
@@ -212,8 +213,12 @@
 	/>
 {/if}
 
-{#if store.ui.reviewOpen}
-	<ExportDialog ondownload={download} onclose={() => (store.ui.reviewOpen = false)} />
+{#if store.screen.dialogs.export_review}
+	<ExportDialog
+		view={store.screen.dialogs.export_review}
+		ondownload={download}
+		onclose={() => (store.ui.reviewOpen = false)}
+	/>
 {/if}
 
 {#if explainStorage}

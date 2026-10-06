@@ -10,16 +10,16 @@
 	 * card-wide hint and help: the app only falls back to them when a step has none,
 	 * and at the bottom of the column they read as a stray extra step.
 	 *
-	 * Which settings exist is still decided by the mode, from `$lib/ui/fields.ts`, and
-	 * so is where each one sits: in sections named by what they do (`SECTIONS`), which
-	 * `SettingsNav` lists down the left from Metodik up. It renders those tables rather
-	 * than keeping a second opinion about either.
+	 * Which settings exist is decided by the mode, from `$lib/ui/fields.ts`, and so is
+	 * where each one sits: in sections named by what they do (`SECTIONS`), which
+	 * `SettingsNav` lists down the left from Metodik up. The model
+	 * (`store.screen.dialogs.card_settings`, `screen/settings.ts`) says both; this draws
+	 * it and writes what the teacher does.
 	 */
 	import type { Snippet } from 'svelte';
-	import type { BlockV2, CourseV2, LessonBlockBinding } from '$lib/domain/schema';
+	import type { CardSettingsView } from '$lib/screen/types';
 	import Modal from '$lib/ui/Modal.svelte';
 	import Button from '$lib/ui/Button.svelte';
-	import { counted } from '$lib/ui/plural';
 	import Toggle from '$lib/ui/Toggle.svelte';
 	import FieldGroup from '$lib/ui/FieldGroup.svelte';
 	import SettingsNav from '$lib/ui/SettingsNav.svelte';
@@ -28,82 +28,30 @@
 	import ConceptsEditor from './ConceptsEditor.svelte';
 	import PrerequisiteEditor from './PrerequisiteEditor.svelte';
 	import { useStore } from '$lib/ui/context';
-	import { fieldsFor, listsSections, sectionsFor, type FieldLevel } from '$lib/ui/fields';
-	import { sectionHasIssue, sectionTargeted } from '$lib/ui/settings-target';
 	import { SettingsSearch, setSettingsSearch } from '$lib/ui/settings-search.svelte';
-	import { setField, setPractice } from '$lib/domain/commands';
-	import { bindingFlagsPractice, isPracticeBlock } from '$lib/domain/derive';
-	import {
-		groupOf,
-		keepsQuestionsTogether,
-		mergeQuestionCard,
-		questionCount,
-		splitQuestionCard
-	} from '$lib/domain/groups';
+	import { setField, setPractice, setQuestionsTogether } from '$lib/domain/commands';
+	import type { BlockV2 } from '$lib/domain/schema';
 
 	interface Props {
-		doc: CourseV2;
+		view: CardSettingsView;
 		block: BlockV2;
 		/** Absent for a card that is in no lesson — it then has no binding to edit. */
-		binding?: LessonBlockBinding;
 		lessonId?: string;
 		onclose: () => void;
 	}
-	let { doc, block, binding, lessonId, onclose }: Props = $props();
+	let { view, block, lessonId, onclose }: Props = $props();
 
 	const store = useStore();
-	const mode = $derived(store.mode);
-
-	const blockFields = $derived(fieldsFor('block', mode, store.showFeedback));
-	const inSection = (id: string) => blockFields.filter((f) => f.section === id);
-	const bindingFields = $derived(
-		binding === undefined ? [] : fieldsFor('binding', mode, store.showFeedback)
-	);
-	/**
-	 * The card's sections, and the lesson's binding as one more just before the card's
-	 * details: it is about this card, but only where this lesson shows it.
-	 */
-	const sections = $derived.by(() => {
-		const own = sectionsFor('block', mode, store.showFeedback);
-		const lesson = bindingFields.length > 0 ? sectionsFor('binding', mode, store.showFeedback) : [];
-		const at = own.findIndex((s) => s.id === 'meta');
-		return at === -1 ? [...own, ...lesson] : [...own.slice(0, at), ...lesson, ...own.slice(at)];
-	});
-	/**
-	 * The two groups of the review section. How often the card comes back is what an
-	 * author is sent here to change, so it comes first, the gaps leading; the memory
-	 * model's starting values are for someone who knows them, and come after.
-	 */
-	const reviewStart = $derived(
-		inSection('review').filter((f) => f.path.startsWith('fsrs.initial_'))
-	);
-	const GAPS_FIRST = ['fsrs.min_interval', 'fsrs.max_interval'];
-	const reviewPlan = $derived(
-		inSection('review')
-			.filter((f) => !f.path.startsWith('fsrs.initial_'))
-			.sort((a, b) => Number(GAPS_FIRST.includes(b.path)) - Number(GAPS_FIRST.includes(a.path)))
-	);
-
-	const levelOf = (id: string): FieldLevel => (id === 'lesson' ? 'binding' : 'block');
-	const scope = $derived({ blockId: block.block_id });
-	const targeted = (id: string) => sectionTargeted(store, [levelOf(id)], id, scope);
-	const alert = (id: string) => sectionHasIssue(store, [levelOf(id)], id, scope);
+	const screen = 'dialogs.card_settings';
 
 	const search = new SettingsSearch(
-		() => (binding === undefined ? ['block'] : ['block', 'binding']),
+		() => (store.open.binding === undefined ? ['block'] : ['block', 'binding']),
 		() => ({
 			mode: store.mode,
 			feedback: store.showFeedback
 		})
 	);
 	setSettingsSearch(search);
-
-	/**
-	 * Whether the card is in practice, however it got there: the block, a step or a
-	 * lesson's binding (`isPracticeBlock`). The switch shows this, not the block's
-	 * own flag, so it never disagrees with the „Opakování“ chip on the card.
-	 */
-	const practice = $derived(isPracticeBlock(block, bindingFlagsPractice(doc, block.block_id)));
 
 	const set = (field: string, value: unknown) =>
 		store.apply((d) =>
@@ -114,122 +62,77 @@
 	const setBinding = (field: string, value: unknown) =>
 		store.apply((d) => setField(d, { lessonId, blockId: block.block_id, field }, value));
 
-	function read(path: string): unknown {
-		if (path === 'default_practice') return practice;
-		return path
-			.split('.')
-			.reduce<unknown>(
-				(node, key) =>
-					node === undefined || node === null ? undefined : (node as Record<string, unknown>)[key],
-				block as unknown
-			);
-	}
-	const readBinding = (path: string): unknown =>
-		(binding as Record<string, unknown> | undefined)?.[path];
-
-	/**
-	 * Whether this card's questions are graded as one item (`domain/groups.ts`). Every
-	 * question is its own card by default; the advanced author may keep a card whole,
-	 * for a retry that branches between its own questions. Offered only where there
-	 * is more than one question to keep together.
-	 */
-	const together = $derived(keepsQuestionsTogether(block));
-	const card = $derived(groupOf(block));
-	const canKeepTogether = $derived(
-		mode === 'advanced' &&
-			block.type !== 'display' &&
-			(together ||
-				(card !== undefined && store.source.blocks.filter((b) => groupOf(b) === card).length > 1))
-	);
-
-	/** What flipping the toggle would do, said before it is flipped. */
-	const togetherConsequence = $derived.by(() => {
-		if (together) {
-			const n = questionCount(block);
-			return `Rozdělí kartu na ${counted(n, 'samostatnou kartu', 'samostatné karty', 'samostatných karet')}.`;
-		}
-		if (card === undefined) return '';
-		const n = store.source.blocks
-			.filter((b) => groupOf(b) === card)
-			.reduce((sum, b) => sum + Math.max(1, questionCount(b)), 0);
-		return `Spojí ${counted(n, 'otázku', 'otázky', 'otázek')} této karty do jedné.`;
-	});
-
 	function keepTogether(on: boolean) {
-		if (on && card !== undefined) {
-			store.applySource((d) => ({
-				doc: mergeQuestionCard(d, card),
-				description: 'Otázky karty spojeny do jedné',
-				ref: { lessonId, blockId: card }
-			}));
-		} else if (!on && together) {
-			store.applySource((d, reserved) => ({
-				doc: splitQuestionCard(d, block.block_id, reserved),
-				description: 'Otázky karty rozděleny do samostatných karet',
-				ref: { lessonId, blockId: block.block_id }
-			}));
-		}
+		store.applySource((d, reserved) =>
+			setQuestionsTogether(d, reserved, {
+				on,
+				blockId: block.block_id,
+				group: view.together?.group ?? undefined,
+				lessonId
+			})
+		);
 	}
 </script>
 
 {#snippet pane(id: string)}
 	{#if id === 'main'}
 		<div class="main">
-			<FieldGroup fields={inSection('main')} {read} write={set} />
-			{#if together && questionCount(block) > 1 && mode !== 'advanced'}
-				<p class="note">
-					Otázky této karty se žákovi hodnotí jako jedna (nastaveno v pokročilém režimu).
-				</p>
+			<FieldGroup rows={view.fields.main ?? []} write={set} screen="{screen}.fields.main" />
+			{#if view.together_note}
+				<p class="note" data-screen="{screen}.together_note">{view.together_note}</p>
 			{/if}
 		</div>
 	{:else if id === 'ladder'}
 		<p class="note">Použije se u kroků, které nemají nápovědu vlastní.</p>
-		<FieldGroup fields={inSection('ladder')} {read} write={set} />
+		<FieldGroup rows={view.fields.ladder ?? []} write={set} screen="{screen}.fields.ladder" />
 	{:else if id === 'topics'}
 		<h4>Dovednosti</h4>
-		<TopicPicker {block} />
+		<TopicPicker {block} view={view.topics} screen="{screen}.topics" />
 		<h4 class="apart">Zařazení karty</h4>
-		<ConceptsEditor {block} />
-		<CompetencyEditor {block} />
-		<FieldGroup fields={inSection('topics')} {read} write={set} />
+		<ConceptsEditor {block} view={view.concepts} screen="{screen}.concepts" />
+		<CompetencyEditor {block} view={view.competencies} screen="{screen}.competencies" />
+		<FieldGroup rows={view.fields.topics ?? []} write={set} screen="{screen}.fields.topics" />
 	{:else if id === 'review'}
 		<h4>Kdy se karta vrací</h4>
-		<FieldGroup fields={reviewPlan} {read} write={set} />
+		<FieldGroup rows={view.review.plan} write={set} screen="{screen}.review.plan" />
 		<h4 class="apart">Výchozí odhad paměti</h4>
-		<FieldGroup fields={reviewStart} {read} write={set} />
+		<FieldGroup rows={view.review.start} write={set} screen="{screen}.review.start" />
 	{:else if id === 'followup'}
-		<PrerequisiteEditor {doc} {block} />
-		<FieldGroup fields={inSection('followup')} {read} write={set} />
+		<PrerequisiteEditor {block} view={view.prerequisites} screen="{screen}.prerequisites" />
+		<FieldGroup rows={view.fields.followup ?? []} write={set} screen="{screen}.fields.followup" />
 	{:else if id === 'lesson'}
-		<FieldGroup fields={bindingFields} read={readBinding} write={setBinding} />
+		<FieldGroup
+			rows={view.fields.lesson ?? []}
+			write={setBinding}
+			screen="{screen}.fields.lesson"
+		/>
 	{:else if id === 'meta'}
 		<div class="row">
 			<span class="label">Identifikátor</span>
-			<code>{block.block_id}</code>
+			<code data-screen="{screen}.block_id">{view.block_id}</code>
 		</div>
-		<FieldGroup fields={inSection('meta')} {read} write={set} />
-		{#if canKeepTogether}
+		<FieldGroup rows={view.fields.meta ?? []} write={set} screen="{screen}.fields.meta" />
+		{#if view.together}
 			<Toggle
-				checked={together}
-				label="Více otázek v jedné kartě"
-				hint="Žák dostane otázky v jedné kartě a aplikace je hodnotí jako jednu: nejlepší skóre, poslední známka, jedna karta k procvičování. Vypnuto: každá otázka je vlastní karta."
+				checked={view.together.checked}
+				label={view.together.label}
+				hint={view.together.hint ?? undefined}
+				screen="{screen}.together.checked"
 				onchange={keepTogether}
 			/>
-			<p class="note" data-testid="together-consequence">{togetherConsequence}</p>
+			<p
+				class="note"
+				data-testid="together-consequence"
+				data-screen="{screen}.together.consequence"
+			>
+				{view.together.consequence}
+			</p>
 		{/if}
 	{/if}
 {/snippet}
 
 {#snippet body()}
-	<SettingsNav
-		{sections}
-		list={listsSections(mode)}
-		{targeted}
-		{alert}
-		levels={binding === undefined ? ['block'] : ['block', 'binding']}
-		{search}
-		{pane}
-	/>
+	<SettingsNav dialog={view} {screen} {search} {pane} />
 {/snippet}
 
 {#snippet actions(notice: Snippet)}
