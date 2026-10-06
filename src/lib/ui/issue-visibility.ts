@@ -30,7 +30,7 @@
  */
 import type { Ref } from '$lib/domain/ref';
 import type { CourseV2 } from '$lib/domain/schema';
-import { validate, type Issue } from '$lib/domain/validate';
+import { validate, type Issue, type ValidationResult } from '$lib/domain/validate';
 import { isFeedbackRef } from '$lib/ui/fields';
 
 export type Timing = 'immediate' | 'onLeave' | 'review';
@@ -168,6 +168,48 @@ export const UNREACHABLE_CODES: ReadonlySet<string> = new Set([
 	'W_ORPHAN_BLOCK'
 ]);
 
+/** What a change did to the validator's findings: each issue by `issueKey`. */
+export interface ValidationDelta {
+	newErrors: Issue[];
+	resolvedErrors: Issue[];
+	newWarnings: Issue[];
+	resolvedWarnings: Issue[];
+}
+
+/** The items of `now` that `was` has fewer of, by `issueKey`: a key seen again is not new. */
+function without(now: Issue[], was: Issue[]): Issue[] {
+	const left = new Map<string, number>();
+	for (const issue of was) left.set(issueKey(issue), (left.get(issueKey(issue)) ?? 0) + 1);
+	const rest: Issue[] = [];
+	for (const issue of now) {
+		const key = issueKey(issue);
+		const n = left.get(key) ?? 0;
+		if (n > 0) left.set(key, n - 1);
+		else rest.push(issue);
+	}
+	return rest;
+}
+
+/**
+ * The findings of `after` that `before` did not have, and the ones it had that are gone,
+ * errors and warnings apart, in document order. Two findings are the same when their
+ * `issueKey` is (a count in a message changing is not a new problem); a key that occurs
+ * more often than before counts the extra ones as new. The one rule for "what did this
+ * change do to the validation": `madeUnreachable` is it narrowed to two codes, and an AI
+ * write reports it whole.
+ */
+export function validationDelta(
+	before: ValidationResult,
+	after: ValidationResult
+): ValidationDelta {
+	return {
+		newErrors: without(after.errors, before.errors),
+		resolvedErrors: without(before.errors, after.errors),
+		newWarnings: without(after.warnings, before.warnings),
+		resolvedWarnings: without(before.warnings, after.warnings)
+	};
+}
+
 /**
  * What the change from `before` to `after` made unreachable: the "nothing leads here"
  * warnings of `after` that `before` did not have, in document order. Something that
@@ -175,12 +217,7 @@ export const UNREACHABLE_CODES: ReadonlySet<string> = new Set([
  * listed. Both are `validate()`'s own findings, so the rule is the review's.
  */
 export function madeUnreachable(before: CourseV2, after: CourseV2): Issue[] {
-	const was = new Set(
-		validate(before)
-			.warnings.filter((i) => UNREACHABLE_CODES.has(i.code))
-			.map(issueKey)
-	);
-	return validate(after).warnings.filter(
-		(i) => UNREACHABLE_CODES.has(i.code) && !was.has(issueKey(i))
+	return validationDelta(validate(before), validate(after)).newWarnings.filter((i) =>
+		UNREACHABLE_CODES.has(i.code)
 	);
 }

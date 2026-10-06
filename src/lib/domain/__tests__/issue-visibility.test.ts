@@ -8,6 +8,7 @@ import {
 	isVisible,
 	issueKey,
 	madeUnreachable,
+	validationDelta,
 	TIMING,
 	timingOf,
 	type Touched
@@ -283,5 +284,50 @@ describe('what a change just made unreachable', () => {
 		const before = parseCourse(base);
 		const after = change(before, 'c', 'END');
 		expect(madeUnreachable(before, after).map((i) => i.code)).toContain('W_ORPHAN_BLOCK');
+	});
+});
+
+describe('validationDelta', () => {
+	const e = (code: string, blockId: string, message = code): Issue => ({
+		code,
+		severity: 'error',
+		ref: { blockId },
+		message
+	});
+	const w = (code: string, blockId: string): Issue => ({
+		code,
+		severity: 'warning',
+		ref: { blockId },
+		message: code
+	});
+
+	it('lists what is new and what is gone, errors and warnings apart', () => {
+		const delta = validationDelta(
+			{ errors: [e('E_A', 'b1'), e('E_B', 'b2')], warnings: [w('W_A', 'b1')] },
+			{ errors: [e('E_B', 'b2'), e('E_C', 'b3')], warnings: [w('W_B', 'b1')] }
+		);
+		expect(delta.newErrors.map((i) => i.code)).toEqual(['E_C']);
+		expect(delta.resolvedErrors.map((i) => i.code)).toEqual(['E_A']);
+		expect(delta.newWarnings.map((i) => i.code)).toEqual(['W_B']);
+		expect(delta.resolvedWarnings.map((i) => i.code)).toEqual(['W_A']);
+	});
+
+	it('does not call a changed message a new problem, but counts an extra occurrence', () => {
+		const delta = validationDelta(
+			{ errors: [e('E_A', 'b1', '2 chyby')], warnings: [] },
+			{ errors: [e('E_A', 'b1', '3 chyby'), e('E_A', 'b1', '3 chyby')], warnings: [] }
+		);
+		expect(delta.newErrors.length).toBe(1);
+		expect(delta.resolvedErrors).toEqual([]);
+	});
+
+	it('is empty when nothing changed', () => {
+		const same = { errors: [e('E_A', 'b1')], warnings: [w('W_A', 'b1')] };
+		expect(validationDelta(same, same)).toEqual({
+			newErrors: [],
+			resolvedErrors: [],
+			newWarnings: [],
+			resolvedWarnings: []
+		});
 	});
 });
