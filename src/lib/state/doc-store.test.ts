@@ -330,3 +330,52 @@ describe('the export review', () => {
 		expect(store.reviewing).toBe(false);
 	});
 });
+
+describe('what is open (store.open)', () => {
+	it('falls back to the first lesson and its first card with no selection', () => {
+		const store = loaded();
+		store.selection = null;
+		const first = store.doc.lessons[0];
+		expect(store.open.lesson?.lesson_id).toBe(first.lesson_id);
+		expect(store.open.card?.block_id).toBe(first.blocks[0].block_id);
+		expect(store.open.position).toBe(1);
+		expect(store.open.orphaned).toBe(false);
+		expect(store.open.binding).toBe(first.blocks[0]);
+	});
+
+	it('falls back to the lesson first card when the selected card is gone', () => {
+		const store = loaded();
+		const first = store.doc.lessons[0];
+		store.selection = { lessonId: first.lesson_id, blockId: 'deleted-card' };
+		expect(store.open.card?.block_id).toBe(first.blocks[0].block_id);
+	});
+
+	it('resolves the lesson of a ref that only names a card', () => {
+		const store = loaded();
+		const lesson = store.doc.lessons[store.doc.lessons.length - 1];
+		const block = lesson.blocks[lesson.blocks.length - 1];
+		store.selection = { blockId: block.block_id };
+		expect(store.open.lesson?.lesson_id).toBe(lesson.lesson_id);
+		expect(store.open.card?.block_id).toBe(block.block_id);
+		expect(store.open.position).toBe(lesson.blocks.length);
+	});
+
+	it('opens a card in no lesson as an orphan with no lesson and no position', () => {
+		const store = loaded();
+		const lesson = store.doc.lessons[0];
+		const id = lesson.blocks[0].block_id;
+		store.apply((d) => unbindBlock(d, lesson.lesson_id, id));
+		expect(store.index.lessonsByBlock.get(id) ?? []).toEqual([]);
+		store.selection = { blockId: id };
+		expect(store.open.orphaned).toBe(true);
+		expect(store.open.lesson).toBeUndefined();
+		expect(store.open.position).toBeUndefined();
+		expect(store.open.card?.block_id).toBe(id);
+	});
+
+	it('is empty for a course with nothing in it', () => {
+		const store = new DocStore();
+		expect(store.open.card).toBeUndefined();
+		expect(store.open.orphaned).toBe(false);
+	});
+});

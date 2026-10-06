@@ -143,59 +143,11 @@
 	>(null);
 
 	const doc = $derived(store.doc);
-	/**
-	 * Which lesson is being worked on.
-	 *
-	 * A ref does not always carry a `lessonId` — `setField` returns one addressed at
-	 * the block, and a click in the preview reports what it can see. So the lesson is
-	 * resolved from the selected card when the ref is silent about it, and only then
-	 * from the first lesson in the course. Everything else on the screen reads this
-	 * one value, including the tree, which is what keeps the highlight on the left
-	 * and the card in the middle from ever disagreeing.
-	 */
-	const lesson = $derived.by(() => {
-		const selection = store.selection;
-		if (selection?.lessonId !== undefined) {
-			return doc.lessons.find((l) => l.lesson_id === selection.lessonId);
-		}
-		if (selection?.blockId !== undefined) {
-			const owner = (store.index.lessonsByBlock.get(selection.blockId) ?? [])[0];
-			if (owner !== undefined) return doc.lessons.find((l) => l.lesson_id === owner);
-			// A card in no lesson at all. Belonging to the first lesson would be a lie.
-			if (doc.blocks.some((b) => b.block_id === selection.blockId)) return undefined;
-		}
-		return doc.lessons[0];
-	});
-	const selectedBlock = $derived(
-		store.selection?.blockId !== undefined
-			? doc.blocks.find((b) => b.block_id === store.selection?.blockId)
-			: undefined
-	);
-	/** The card in the editor column, and the card the preview shows. */
-	const card = $derived(
-		selectedBlock ??
-			(lesson !== undefined
-				? doc.blocks.find((b) => b.block_id === lesson.blocks[0]?.block_id)
-				: undefined)
-	);
-	const binding = $derived(
-		card === undefined ? undefined : lesson?.blocks.find((b) => b.block_id === card.block_id)
-	);
-	/** A card in no lesson at all: editable, but the student never reaches it. */
-	const orphaned = $derived(
-		card !== undefined && (store.index.lessonsByBlock.get(card.block_id) ?? []).length === 0
-	);
-
-	/**
-	 * The card's place in its lesson, used only to name a card that has no text yet.
-	 * It has to be the same number the tree shows, or the placeholder in the heading
-	 * and the line in the sidebar would name one card two ways.
-	 */
-	const cardPosition = $derived.by(() => {
-		if (card === undefined || lesson === undefined) return undefined;
-		const i = lesson.blocks.findIndex((b) => b.block_id === card.block_id);
-		return i < 0 ? undefined : i + 1;
-	});
+	const lesson = $derived(store.open.lesson);
+	const card = $derived(store.open.card);
+	const binding = $derived(store.open.binding);
+	const orphaned = $derived(store.open.orphaned);
+	const cardPosition = $derived(store.open.position);
 	const nameSpec = fieldSpec('block', 'name');
 
 	async function onimport(file: File) {
@@ -277,27 +229,15 @@
 		if (config !== null && store.doc.course_id === courseId) store.skillConfig = config;
 	}
 
-	// A card is always open — the editor column has nothing else to show. Without
-	// this, entering a lesson would land on an empty column with nothing to type into.
+	// Other parts of the editor read `store.selection.lessonId` (new cards, jumps), so
+	// the resolved card is written back when the selection does not name it. What is
+	// open is decided by `store.open`; this only keeps the ref in step with it. An
+	// orphan was selected on purpose, from the tree's list, and keeps its selection.
 	$effect(() => {
-		const current = lesson;
-		if (current === undefined || current.blocks.length === 0) return;
-		const selected = store.selection?.blockId;
-		if (selected !== undefined && current.blocks.some((b) => b.block_id === selected)) return;
-		// A card that belongs to no lesson was selected on purpose, from the tree's
-		// orphan list. Taking the selection away from it is how that list used to be
-		// unusable: the click registered and the editor immediately jumped back.
-		if (
-			selected !== undefined &&
-			doc.blocks.some((b) => b.block_id === selected) &&
-			(store.index.lessonsByBlock.get(selected) ?? []).length === 0
-		) {
-			return;
-		}
-		store.selection = {
-			lessonId: current.lesson_id,
-			blockId: current.blocks[0].block_id
-		};
+		const { lesson: current, card: open, orphaned: orphan } = store.open;
+		if (current === undefined || open === undefined || orphan) return;
+		if (store.selection?.blockId === open.block_id) return;
+		store.selection = { lessonId: current.lesson_id, blockId: open.block_id };
 	});
 
 	onMount(() => {
