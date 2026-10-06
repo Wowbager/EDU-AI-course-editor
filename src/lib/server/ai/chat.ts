@@ -147,7 +147,8 @@ export async function handleChat(request: Request, deps: ChatDeps): Promise<Resp
 				if (event.type === 'done') deps.limits.record(owner.id, event.usage.totalTokens);
 				controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
 				if (event.type === 'done' || event.type === 'error') controller.close();
-			} catch {
+			} catch (e) {
+				console.error('[ai] chat stream failed:', e instanceof Error ? e.message : e);
 				const failed: StreamEvent = {
 					type: 'error',
 					message: 'AI selhala, zkus to znovu.',

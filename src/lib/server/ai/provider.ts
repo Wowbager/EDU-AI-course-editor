@@ -63,7 +63,7 @@ export function createClient(config: AiConfig): OpenAI {
 		timeout: 120_000,
 		defaultHeaders:
 			config.provider === 'openrouter'
-				? { 'HTTP-Referer': 'https://edu-ai.eu', 'X-Title': 'EDU-AI editor kurzů' }
+				? { 'HTTP-Referer': 'https://edu-ai.eu', 'X-Title': 'EDU-AI course editor' }
 				: undefined
 	});
 }
@@ -355,6 +355,8 @@ export async function* streamChat(
 		yield* assembleStream(config.provider, chunks);
 	} catch (e) {
 		if (params.signal?.aborted) return;
+		// The teacher sees a Czech sentence; the server log keeps what actually failed.
+		console.error('[ai] provider call failed:', e instanceof Error ? e.message : e);
 		const described = describeError(e);
 		if (described) yield { type: 'error', ...described };
 	}
