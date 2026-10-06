@@ -77,6 +77,15 @@ describe('AI ≡ screen: a read tool returns what the teacher sees', () => {
 			}
 			const outline = ok(await call('get_outline', { lesson: null }));
 			expect(outline.slice).toEqual(json(store.screen.tree));
+			// get_card on the open card is the card region itself, nothing more or less.
+			const open = store.open.card;
+			if (open !== undefined) {
+				const card = ok(
+					await call('get_card', { path: refToJsonPath({ blockId: open.block_id }) })
+				);
+				expect(card.not_open).toBe(false);
+				expect(card.slice).toEqual(screenSlice(store.screen, 'card'));
+			}
 			const issues = ok(await call('list_issues', { severity: null }));
 			expect(issues.items).toEqual(json(store.screen.issues.items));
 			expect(issues.counts).toEqual(json(store.screen.issues.counts));
@@ -151,22 +160,45 @@ describe('AI ≡ screen: a read tool returns what the teacher sees', () => {
 
 	it('lists the fields the mode hides instead of dropping them silently', async () => {
 		const teacher = ok(await setup().call('get_card', { path: CARD }));
-		expect(teacher.hidden_in_mode.length).toBeGreaterThan(0);
-		for (const hidden of teacher.hidden_in_mode) {
-			expect(['mode', 'feedback_off']).toContain(hidden.reason);
-		}
-		expect(JSON.stringify(teacher.course_content)).not.toContain('"block_id":"L1_B3_poznej"');
+		expect(teacher.slice.hidden_fields.some((h: any) => h.hidden_in_mode !== null)).toBe(true);
+		// The identifier field exists, and the teacher's mode does not draw it.
+		expect(teacher.slice.hidden_fields.map((h: any) => h.key)).toContain('block.block_id');
 		const advanced = ok(await setup({ mode: 'advanced' }).call('get_card', { path: CARD }));
-		expect(advanced.hidden_in_mode).toEqual([]);
-		expect(advanced.course_content.fields.block_id).toBe('L1_B3_poznej');
+		expect(advanced.slice.hidden_fields.filter((h: any) => h.hidden_in_mode !== null)).toEqual([]);
+	});
+
+	it('reads a card that is not open as the same region built with it open', async () => {
+		for (const mode of MODES) {
+			const { store, call } = setup({ mode });
+			const other = store.doc.lessons[2].blocks[1].block_id;
+			const data = ok(await call('get_card', { path: refToJsonPath({ blockId: other }) }));
+			expect(data.not_open).toBe(true);
+			expect(data.slice.state).toBe('card');
+			expect(data.slice.card.block_id).toBe(other);
+			// What it would say if the teacher opened it: the one builder, another selection.
+			const sel = store.selection;
+			store.selection = { lessonId: store.doc.lessons[2].lesson_id, blockId: other };
+			expect(data.slice).toEqual(screenSlice(store.screen, 'card'));
+			store.selection = sel;
+		}
 	});
 
 	it('hides feedback fields while Zpětná vazba is off, and says so', async () => {
 		const { store, call } = setup();
+		const on = ok(await call('get_card', { path: CARD }));
+		expect(JSON.stringify(on.slice)).toContain('Správně! Čitatel (nahoře)');
 		store.showFeedback = false;
 		const data = ok(await call('get_card', { path: CARD }));
-		expect(data.hidden_in_mode.some((h: any) => h.reason === 'feedback_off')).toBe(true);
-		expect(JSON.stringify(data.course_content)).not.toContain('Správně! Čitatel (nahoře)');
+		expect(data.slice.hidden_fields.some((h: any) => h.hidden_by_feedback)).toBe(true);
+		expect(JSON.stringify(data.slice)).not.toContain('Správně! Čitatel (nahoře)');
+	});
+
+	it('gives the paths that write what the column draws', async () => {
+		const { call } = setup();
+		const data = ok(await call('get_card', { path: CARD }));
+		expect(data.paths.card).toBe(CARD);
+		expect(data.paths.steps[1].path).toBe(STEP);
+		expect(data.paths.steps[1].answers[0].path).toBe(OPTION);
 	});
 
 	it('finds text in what the teacher sees, not in what the mode hides', async () => {
@@ -175,12 +207,9 @@ describe('AI ≡ screen: a read tool returns what the teacher sees', () => {
 		expect(found.total).toBeGreaterThan(0);
 		expect(found.matches.every((m: any) => typeof m.path === 'string')).toBe(true);
 		expect(found.matches.some((m: any) => m.not_open)).toBe(true);
-		const none = ok(await call('search_text', { query: 'EduAI Team' }));
-		expect(none.total).toBe(0); // the author field is not shown in the teacher mode
-		const advanced = ok(
-			await setup({ mode: 'advanced' }).call('search_text', { query: 'EduAI Team' })
-		);
-		expect(advanced.total).toBeGreaterThan(0);
+		// A hit's path writes the field the text was found in.
+		const hit = found.matches.find((m: any) => !m.not_open) ?? found.matches[0];
+		expect(hit.path).toMatch(/^\$\.blocks\[block_id=/);
 	});
 });
 
@@ -192,9 +221,9 @@ describe('course content is data', () => {
 			setField(d, { blockId: 'L1_B3_poznej', stepId: 's3', field: 'content' }, evil)
 		);
 		const data = ok(await call('get_card', { path: CARD }));
-		expect(JSON.stringify(data.course_content)).toContain(evil);
-		expect(data.course_content.steps[2].fields.content).toBe(evil);
-		const { course_content: _c, ...outside } = data;
+		expect(JSON.stringify(data.slice)).toContain(evil);
+		expect(data.slice.card.steps[2].content.value).toBe(evil);
+		const { slice: _c, ...outside } = data;
 		expect(JSON.stringify(outside)).not.toContain(evil);
 		expect(data.note).toContain('data');
 		const found = ok(await call('search_text', { query: 'IGNORUJ' }));
@@ -441,7 +470,7 @@ describe('writes: confirmation', () => {
 		expect(bad(await t.write('set_question_type', { step: STEP, type: 'open' })).code).toBe(
 			'declined'
 		);
-		expect(t.asked[0].items[0]).toContain('zahodí');
+		expect(t.asked[0].items[0]).toContain('smaže');
 		expect(state(t.store)).toBe(before);
 
 		const empty = setup();

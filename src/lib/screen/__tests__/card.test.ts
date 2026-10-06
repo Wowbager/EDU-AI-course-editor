@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { derivedBlockXp } from '$lib/domain/derive';
 import { cardLabel } from '$lib/domain/naming';
 import { fieldsFor } from '$lib/ui/fields';
-import { screenSlice } from '$lib/screen';
+import { buildCard, resolveOpen, screenSlice } from '$lib/screen';
 import { FIXTURES, MODES, storeFor } from './fixtures';
 
 describe.each(FIXTURES)('%s: the open card', (name) => {
@@ -41,6 +41,21 @@ describe.each(FIXTURES)('%s: the open card', (name) => {
 			expect(JSON.parse(JSON.stringify(screenSlice(store.screen, 'card')))).toEqual(
 				JSON.parse(JSON.stringify(column))
 			);
+		});
+
+		it('is the same builder for a card that is not open: opening it later changes nothing', () => {
+			// An AI reads a card the teacher has not opened as the region it would get on opening.
+			for (const block of store.doc.blocks) {
+				const ref = { blockId: block.block_id };
+				const built = buildCard({
+					...store.screen.input,
+					open: resolveOpen(store.doc, store.index, ref)
+				});
+				const seen = store.selection;
+				store.selection = ref;
+				expect(built).toEqual(store.screen.card);
+				store.selection = seen;
+			}
 		});
 
 		it('lists only the fields of the mode, and names the rest as hidden', () => {

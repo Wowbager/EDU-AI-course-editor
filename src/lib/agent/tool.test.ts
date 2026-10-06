@@ -94,7 +94,7 @@ describe('the server side', () => {
 			);
 			for (const from of imports) {
 				expect(from, `${file} imports ${from}`).not.toMatch(
-					/state\/|handlers|context|simulation|card-content|\.svelte/
+					/state\/|handlers|context|simulation|\.svelte/
 				);
 			}
 		}
@@ -115,10 +115,11 @@ describe('the server side', () => {
 	it('tells the model the rules the code enforces', () => {
 		for (const word of [
 			'expected_revision',
+			'hidden_fields',
 			'hidden_in_mode',
 			'not_open',
 			'simulace',
-			'course_content',
+			'course_text',
 			'declined',
 			'revert_ai_session'
 		]) {

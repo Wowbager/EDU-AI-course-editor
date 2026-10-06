@@ -22,6 +22,7 @@ import {
 } from '$lib/domain/naming';
 import { allows } from '$lib/ui/fields';
 import type { PickerStep } from '$lib/ui/choice-picker';
+import type { CourseV2 } from '$lib/domain/schema';
 import type { RepairRowView, RepairView, ScreenInput } from './types';
 
 /** Identifies a pointer in the dialog's choices. */
@@ -29,8 +30,12 @@ export const pointerKey = (reference: Reference): string => JSON.stringify(refer
 
 const CLEAR = 'Zrušit odkaz';
 
-function describe(input: ScreenInput, reference: Reference): string {
-	const { doc } = input;
+/**
+ * The sentence for one pointer at a card or step, as the repair dialog reads it. The AI's
+ * `plan_delete` and its confirmation use this function too, so the agent and the teacher
+ * are told the same words.
+ */
+export function describeReference(doc: CourseV2, reference: Reference): string {
 	const { lessonId, blockId, stepId, optionId } = reference.from;
 	switch (reference.kind) {
 		case 'binding': {
@@ -99,7 +104,7 @@ export function buildRepair(input: ScreenInput): RepairView | null {
 		const card = names.get(choice);
 		return {
 			key,
-			what: describe(input, reference),
+			what: describeReference(input.doc, reference),
 			choice,
 			chosen_label: choice === '' ? CLEAR : `Přesměrovat na kartu „${card?.label ?? choice}“`,
 			options: dialog.stepId === undefined ? null : stepTargets,

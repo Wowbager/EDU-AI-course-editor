@@ -31,7 +31,7 @@
 	import { placeMenu } from '$lib/ui/placement';
 	import { useStore } from '$lib/ui/context';
 	import { blockTopics, setTopics, type BlockTopic } from '$lib/domain/commands';
-	import { dimensionCount, ELO_BASELINE } from '$lib/domain/skill-config';
+	import { dimensionCount, ELO_BASELINE, topicNaming } from '$lib/domain/skill-config';
 	import { ChevronLeft, Pencil, Plus, Trash2 } from '@lucide/svelte';
 
 	interface Props {
@@ -59,19 +59,6 @@
 		{ value: '1', label: 'Využívá', title: 'Karta ji potřebuje mimochodem' }
 	];
 
-	/** The classification the strongest topic implies. */
-	function naming(index: number) {
-		const dimension = store.skillConfig?.vector?.dimensions?.find(
-			(d) => d.dimension_index === index
-		);
-		if (dimension === undefined) return {};
-		return {
-			domain: dimension.domain_name,
-			construct: dimension.construct_name,
-			subconstruct: `${dimension.code} ${dimension.name}`
-		};
-	}
-
 	/**
 	 * The row just added or changed: it may sit anywhere in taxonomy order, so it is
 	 * scrolled into view and marked for a moment. The mark is a background that fades
@@ -94,7 +81,9 @@
 
 	function commit(next: BlockTopic[]) {
 		if (count === null) return;
-		store.apply((d) => setTopics(d, block.block_id, next, count, naming));
+		store.apply((d) =>
+			setTopics(d, block.block_id, next, count, (i) => topicNaming(store.skillConfig, i))
+		);
 	}
 
 	/** Like a removed step or answer, a removed skill says so and offers its undo. */

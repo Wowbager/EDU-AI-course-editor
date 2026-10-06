@@ -18,7 +18,7 @@ import type { Ref } from '$lib/domain/ref';
 import type { SimState } from '$lib/domain/simulate';
 import type { SkillConfig } from '$lib/domain/skill-config';
 import type { ValidationResult } from '$lib/domain/validate';
-import { buildScreen, resolveOpen, type Screen } from '$lib/screen';
+import { buildCard, buildScreen, resolveOpen, type CardRegion, type Screen } from '$lib/screen';
 import type { Mode } from '$lib/ui/fields';
 import type { AiAction, DocStore } from '$lib/state/doc-store.svelte';
 import type { ConfirmRequest } from './tool';
@@ -90,6 +90,12 @@ export interface AgentContext {
 	 * selection. For a lesson or card that is not the one open; the tool says so.
 	 */
 	screenAt(ref: Ref): Screen;
+	/**
+	 * Only the card region, with `ref` open: the one builder the editor column is drawn
+	 * from, on the same input, so a card that is not open reads exactly as it would
+	 * if the teacher opened it. For the open card it is `screen().card` itself.
+	 */
+	cardAt(ref: Ref): CardRegion;
 	/** A ref into the source, for one into the view. */
 	toSource(ref: Ref): Ref;
 
@@ -183,6 +189,8 @@ export function createHeadlessContext(store: DocStore, options: HeadlessOptions)
 				...store.screen.input,
 				open: resolveOpen(store.doc, store.index, ref)
 			}),
+		cardAt: (ref) =>
+			buildCard({ ...store.screen.input, open: resolveOpen(store.doc, store.index, ref) }),
 		toSource: (ref) => store.toSource(ref),
 		transact: (meta, fn) =>
 			store.transaction(() => fn(writer), { origin: 'ai', description: meta.description }),

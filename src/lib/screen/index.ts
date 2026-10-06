@@ -30,6 +30,8 @@ export {
 export { issueSets, panelKey } from './issues';
 export { cutOffText } from './notices';
 export { resolveOpen } from './open';
+export { typeChangeMessage } from './dialogs';
+export { describeReference } from './repair';
 export { screenSlice } from './serialise';
 export type * from './types';
 
