@@ -15,6 +15,12 @@ export type AiConfig = {
 	model: string;
 	baseURL: string;
 	reasoningEffort: ReasoningEffort;
+	/**
+	 * OpenRouter hosts to try first, in order (`AI_OPENROUTER_PROVIDERS`). Empty: OpenRouter
+	 * chooses per request, which can send consecutive turns to different hosts, and a host's
+	 * prompt cache is only hit by the same host.
+	 */
+	openrouterProviders: string[];
 	dailyTokenBudget: number;
 	maxRequestsPerMinute: number;
 	/** What is wrong with the settings, if anything. Czech, for the operator's log. */
@@ -54,6 +60,10 @@ export function readAiConfig(env: Env): AiConfig {
 		model: text(env.AI_MODEL) || DEFAULTS[provider].model,
 		baseURL: (text(env.AI_BASE_URL) || DEFAULTS[provider].baseURL).replace(/\/+$/, ''),
 		reasoningEffort: EFFORTS.includes(effort) ? (effort as ReasoningEffort) : 'high',
+		openrouterProviders: text(env.AI_OPENROUTER_PROVIDERS)
+			.split(',')
+			.map((name) => name.trim())
+			.filter((name) => name !== ''),
 		dailyTokenBudget: positiveInt(env.AI_DAILY_TOKEN_BUDGET, DEFAULT_DAILY_TOKEN_BUDGET),
 		maxRequestsPerMinute: positiveInt(
 			env.AI_MAX_REQUESTS_PER_MINUTE,

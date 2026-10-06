@@ -12,9 +12,13 @@ describe('readAiConfig', () => {
 			reasoningEffort: 'high',
 			dailyTokenBudget: 2_000_000,
 			maxRequestsPerMinute: 20,
+			openrouterProviders: [],
 			problem: null
 		});
 		expect(isConfigured(c)).toBe(false);
+		expect(
+			readAiConfig({ AI_OPENROUTER_PROVIDERS: ' DeepInfra, ,Together ' }).openrouterProviders
+		).toEqual(['DeepInfra', 'Together']);
 	});
 
 	it('takes DeepSeek defaults and overrides', () => {

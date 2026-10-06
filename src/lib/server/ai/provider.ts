@@ -155,7 +155,14 @@ export function buildRequest(
 	} else {
 		body.reasoning = { effort: config.reasoningEffort };
 		// Only hosts that support tools and the parameters above, and none that train on it.
-		body.provider = { require_parameters: true, data_collection: 'deny' };
+		body.provider = {
+			require_parameters: true,
+			data_collection: 'deny',
+			// Same host every turn, so its prompt cache is hit; the others stay a fallback.
+			...(config.openrouterProviders.length > 0
+				? { order: config.openrouterProviders, allow_fallbacks: true }
+				: {})
+		};
 	}
 	return body as unknown as ChatCompletionCreateParamsStreaming;
 }

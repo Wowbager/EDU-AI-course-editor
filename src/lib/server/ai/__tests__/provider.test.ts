@@ -228,6 +228,17 @@ describe('message mapping', () => {
 });
 
 describe('request', () => {
+	it('OpenRouter: pinned hosts go first, so the same host answers every turn', () => {
+		const pinned = { ...openrouter, openrouterProviders: ['DeepInfra', 'Together'] };
+		const body = buildRequest(pinned, params()) as unknown as Record<string, any>;
+		expect(body.provider).toEqual({
+			require_parameters: true,
+			data_collection: 'deny',
+			order: ['DeepInfra', 'Together'],
+			allow_fallbacks: true
+		});
+	});
+
 	const tools = [
 		{ name: 'b_tool', description: 'B', parameters: { type: 'object' }, strict: true },
 		{ name: 'a_tool', description: 'A', parameters: { type: 'object' } }
