@@ -29,7 +29,11 @@ export function buildAi(input: ScreenInput): AiRegion {
 		status_text: configured === false ? AI_UNCONFIGURED : null,
 		running: ai.running,
 		thinking_text: ai.thinking ? 'Přemýšlí…' : null,
-		messages: ai.lines.map((line) => ({ key: `m${line.id}`, role: line.role, text: line.text })),
+		messages: ai.lines.map((line) => ({
+			key: `m${line.id}`,
+			role: line.role,
+			text: line.text.trim()
+		})),
 		messages_count: ai.lines.length,
 		empty_text:
 			ai.lines.length === 0

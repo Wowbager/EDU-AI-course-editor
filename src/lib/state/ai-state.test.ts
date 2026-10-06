@@ -59,6 +59,15 @@ describe('the ai region', () => {
 	});
 });
 
+describe('the bubbles', () => {
+	it('say the text without the blank lines the model leaves around it', () => {
+		// A reply that goes on to call a tool ends in "\n\n"; pre-wrap would draw them as space.
+		const store = storeFor('corpus/zlomky-5-trida.json');
+		store.ai.addLine('assistant', '\nPodívám se na to.\n\n');
+		expect(store.screen.ai.messages[0].text).toBe('Podívám se na to.');
+	});
+});
+
 describe('the browser context', () => {
 	it('confirm is the dialog, and show_in_preview moves the preview', async () => {
 		const store = storeFor('corpus/zlomky-5-trida.json');
