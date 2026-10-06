@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { nearestSurviving, PreviewBridge } from './bridge';
+import { nearestSurviving, PreviewBridge, type PlayerMessage } from './bridge';
 import type { BlockV2, CourseV2 } from '$lib/domain/schema';
 
 /**
@@ -158,6 +158,86 @@ describe('following a played run', () => {
 	});
 });
 
+describe('what the player says about what the editor sent', () => {
+	/** A bridge on a fake frame: what it posts, and the page's origin. */
+	function connected(handlers: ConstructorParameters<typeof PreviewBridge>[0]) {
+		vi.useFakeTimers();
+		const posted: { type: string; id?: number }[] = [];
+		const frame = {
+			contentWindow: { postMessage: (data: string) => posted.push(JSON.parse(data)) }
+		} as unknown as HTMLIFrameElement;
+		const original = (globalThis as { window?: unknown }).window;
+		(globalThis as { window?: unknown }).window = {
+			addEventListener: () => {},
+			removeEventListener: () => {},
+			location: { origin: 'http://localhost' }
+		};
+		const bridge = new PreviewBridge(handlers);
+		bridge.attach(frame);
+		bridge.receive({ type: 'ready' });
+		return {
+			bridge,
+			posted,
+			done: () => {
+				(globalThis as { window?: unknown }).window = original;
+				vi.useRealTimers();
+			}
+		};
+	}
+	const reply = (id: number | undefined, content: 'block' | 'error', error?: string) =>
+		({
+			type: 'inspected',
+			id,
+			view: 'expanded',
+			content,
+			error,
+			shownStepIds: [],
+			canGoBack: false
+		}) satisfies PlayerMessage;
+
+	it('asks after every card it sends, and passes the answer on', () => {
+		const answers: string[] = [];
+		const syncing = vi.fn();
+		const { bridge, posted, done } = connected({
+			onsyncing: syncing,
+			oninspected: (state) => answers.push(`${state.content}:${state.error ?? ''}`)
+		});
+		try {
+			bridge.showBlock(card('s1'), 'course_v2', asIs);
+			// Queued: the preview is behind the editor until the player has answered.
+			expect(syncing).toHaveBeenCalled();
+			vi.advanceTimersByTime(300);
+			expect(posted.map((m) => m.type)).toEqual(['setBlock', 'inspect']);
+			const id = posted[1].id;
+			bridge.receive(reply(id, 'error', 'Neplatný blok'));
+			expect(answers).toEqual(['error:Neplatný blok']);
+		} finally {
+			done();
+		}
+	});
+
+	it('ignores an answer to somebody else’s question', () => {
+		const answers: string[] = [];
+		const { bridge, posted, done } = connected({ oninspected: (s) => answers.push(s.content) });
+		try {
+			bridge.showBlock(card('s1'), 'course_v2', asIs);
+			vi.advanceTimersByTime(300);
+			bridge.receive(reply(987654321, 'block'));
+			bridge.receive(reply(undefined, 'block'));
+			expect(answers).toEqual([]);
+			// And an answer to an older question of the editor's own is stale.
+			bridge.showBlock(card('s1', 's2'), 'course_v2', asIs);
+			vi.advanceTimersByTime(300);
+			bridge.receive(reply(posted[1].id, 'block'));
+			expect(answers).toEqual([]);
+			bridge.receive(reply(posted[3].id, 'block'));
+			expect(answers).toEqual(['block']);
+		} finally {
+			done();
+		}
+	});
+});
+
 describe("the tests' own question", () => {
 	it('is answered to them and moves nothing in the editor', () => {
 		// `inspected` is the reply to the e2e suite's `inspect`. A position in it is
@@ -204,12 +284,13 @@ describe('a player that announces itself again', () => {
 			bridge.receive({ type: 'ready' });
 			bridge.showBlock(card('s1'), 'course_v2', asIs);
 			vi.advanceTimersByTime(300);
-			expect(posted).toHaveLength(1);
+			const content = () => posted.map((p) => JSON.parse(p)).filter((m) => m.type !== 'inspect');
+			expect(content()).toHaveLength(1);
 
 			// The frame reloaded: it comes up empty and says so.
 			bridge.receive({ type: 'ready' });
-			expect(posted).toHaveLength(2);
-			expect(JSON.parse(posted[1])).toMatchObject({ type: 'setBlock', remount: true });
+			expect(content()).toHaveLength(2);
+			expect(content()[1]).toMatchObject({ type: 'setBlock', remount: true });
 		} finally {
 			(globalThis as { window?: unknown }).window = original;
 			vi.useRealTimers();

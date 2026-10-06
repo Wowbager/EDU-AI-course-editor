@@ -4,9 +4,11 @@
  *   editor → player: setBlock, setLesson, highlight, back, restart, reset, inspect
  *   player → editor: ready, stepChanged, clicked, completed, navState, inspected
  *
- * `inspect` / `inspected` belong to the browser tests (`e2e/player.ts`): the reply
- * says what the player shows, once it is painted. The editor itself never sends
- * `inspect`, and ignores the reply.
+ * `inspect` / `inspected` say what the player shows, once it is painted. The browser
+ * tests ask it at will (`e2e/player.ts`); the editor asks once after each card or
+ * lesson it has sent, with an id of its own, and reads the reply as the preview's
+ * status (`oninspected`): confirmed on screen, or a draft the player could not parse.
+ * A reply to anyone else's `inspect` is not the editor's business.
  *
  * Two rules matter more than the message shapes. Updates are debounced, and the
  * iframe is **never reloaded to refresh content** — a reload costs seconds of Flutter
@@ -97,6 +99,10 @@ export interface BridgeHandlers {
 	onclicked?: (ref: Ref) => void;
 	oncompleted?: (result: { xp: number; scoreKoef: number; mark?: string }) => void;
 	onnavState?: (canGoBack: boolean) => void;
+	/** A card or lesson was queued or sent, and the player has not yet confirmed it. */
+	onsyncing?: () => void;
+	/** The player's answer to the `inspect` that followed the content last sent. */
+	oninspected?: (state: PlayerState) => void;
 }
 
 const DEBOUNCE_MS = 250;
@@ -129,6 +135,8 @@ export class PreviewBridge {
 	 * instead of sitting on its placeholder until the next keystroke.
 	 */
 	#lastContent: EditorMessage | null = null;
+	/** The id of the `inspect` sent after the content last posted; its reply is the editor's. */
+	#inspectId = 0;
 
 	constructor(handlers: BridgeHandlers = {}) {
 		this.#handlers = handlers;
@@ -205,7 +213,11 @@ export class PreviewBridge {
 				this.#handlers.oncompleted?.(message);
 				break;
 			case 'inspected':
-				// The tests' question, answered to them; nothing for the editor.
+				// Only the answer to the editor's own question; the tests ask theirs by
+				// another id.
+				if (message.id !== undefined && message.id === this.#inspectId) {
+					this.#handlers.oninspected?.(message);
+				}
 				break;
 			default: {
 				// Every player message has a case. A new one fails to compile here
@@ -331,6 +343,7 @@ export class PreviewBridge {
 
 	#queue(message: EditorMessage) {
 		this.#pending = message;
+		this.#handlers.onsyncing?.();
 		if (this.#timer !== null) clearTimeout(this.#timer);
 		this.#timer = setTimeout(() => {
 			this.#timer = null;
@@ -353,6 +366,16 @@ export class PreviewBridge {
 		// editor → player leg, but Dart hands a cloned object back as an opaque JS
 		// value, so one encoding for both sides is the thing that stays debuggable.
 		this.#frame.contentWindow.postMessage(JSON.stringify(message), window.location.origin);
+		if (message.type === 'setBlock' || message.type === 'setLesson') {
+			// Ask what the player makes of it. The reply comes after the frame that draws
+			// it, so "in sync" means painted, and a draft it could not parse says so.
+			this.#inspectId++;
+			this.#handlers.onsyncing?.();
+			this.#frame.contentWindow.postMessage(
+				JSON.stringify({ type: 'inspect', id: this.#inspectId } satisfies EditorMessage),
+				window.location.origin
+			);
+		}
 	}
 }
 
