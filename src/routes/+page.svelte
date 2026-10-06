@@ -17,6 +17,7 @@
 	import { DRAFT_KEY } from '$lib/state/draft';
 	import { readLayout, writeLayout } from '$lib/state/layout-prefs';
 	import { DocStore } from '$lib/state/doc-store.svelte';
+	import { exposeScreen } from '$lib/state/screen-hook';
 	import { setStepView, setStore, setVersions } from '$lib/ui/context';
 	import { StepView } from '$lib/state/step-view.svelte';
 	import { VersionStore } from '$lib/state/versions/version-store.svelte';
@@ -94,7 +95,6 @@
 		return () => clearTimeout(timer);
 	});
 
-	let sidebarCollapsed = $state(false);
 	/**
 	 * `null` until the remembered layout has been read on mount; the preview shows
 	 * as expanded meanwhile. Nothing is written back while it is `null`, so the
@@ -106,7 +106,7 @@
 
 	$effect(() => {
 		const preview = previewCollapsed;
-		const sidebar = sidebarCollapsed;
+		const sidebar = store.ui.sidebarCollapsed;
 		if (preview === null) return;
 		writeLayout(localStorage, {
 			sidebarCollapsed: sidebar,
@@ -114,10 +114,8 @@
 		});
 	});
 
-	let showValidation = $state(false);
 	let repairTarget = $state<{ blockId: string; stepId?: string } | null>(null);
 	let importNotes = $state<ImportNote[]>([]);
-	let reviewOpen = $state(false);
 
 	/**
 	 * Set when a file was imported. Nothing in it has been "touched", so its
@@ -241,6 +239,7 @@
 	});
 
 	onMount(() => {
+		exposeScreen(store);
 		const session = new DraftSession(store);
 		recovery = session;
 		// Typing that landed before hydration finished already made the document
@@ -270,7 +269,7 @@
 		}
 		void loadConfig();
 		const layout = readLayout(localStorage);
-		sidebarCollapsed = layout.sidebarCollapsed;
+		store.ui.sidebarCollapsed = layout.sidebarCollapsed;
 		previewCollapsed = layout.previewCollapsed;
 		const flush = () => session.flush();
 		const hidden = () => {
@@ -331,7 +330,7 @@
 			if (!event.shiftKey && typing(event.target)) return;
 			event.preventDefault();
 			if (event.shiftKey) togglePreview();
-			else sidebarCollapsed = !sidebarCollapsed;
+			else store.ui.sidebarCollapsed = !store.ui.sidebarCollapsed;
 		}
 	}
 
@@ -346,10 +345,8 @@
 <div class="shell">
 	<Topbar
 		{doc}
-		{recovery}
-		onvalidation={() => (showValidation = !showValidation)}
+		onvalidation={() => (store.ui.validationOpen = !store.ui.validationOpen)}
 		{onimport}
-		bind:reviewOpen
 	/>
 	{#if recovery?.message}
 		<div class="recovery" class:stuck={recoveryStuck} role="status">
@@ -378,17 +375,14 @@
 		</div>
 	{/if}
 
-	{#if showValidation}
-		<ValidationPanel onclose={() => (showValidation = false)} />
+	{#if store.ui.validationOpen}
+		<ValidationPanel onclose={() => (store.ui.validationOpen = false)} />
 	{/if}
 
 	<div class="columns" class:settled>
 		<Sidebar
-			{doc}
-			activeLessonId={lesson?.lesson_id}
-			activeBlockId={card?.block_id}
-			collapsed={sidebarCollapsed}
-			ontoggle={() => (sidebarCollapsed = !sidebarCollapsed)}
+			collapsed={store.ui.sidebarCollapsed}
+			ontoggle={() => (store.ui.sidebarCollapsed = !store.ui.sidebarCollapsed)}
 			oncourseSettings={() => (modal = { kind: 'course' })}
 			onlessonSettings={(lessonId, options) =>
 				(modal = { kind: 'lesson', lessonId, focusName: options?.focusName })}
@@ -407,7 +401,7 @@
 				</div>
 			{/if}
 
-			{#if inherited && !showValidation && !store.reviewing && store.listed.errors.length > 0}
+			{#if inherited && !store.ui.validationOpen && !store.reviewing && store.listed.errors.length > 0}
 				<div class="banner unfinished" role="status">
 					V kurzu je ještě {counted(store.listed.errors.length, 'věc', 'věci', 'věcí')} k dokončení.
 					<button
@@ -415,7 +409,7 @@
 						class="show"
 						onclick={() => {
 							// The same list the top bar's count opens.
-							showValidation = true;
+							store.ui.validationOpen = true;
 							inherited = false;
 						}}>Zobrazit</button
 					>
@@ -516,7 +510,7 @@
 		/>
 
 		<!-- Over the editor column, bottom left: where the eye is after clicking a card. -->
-		<div class="toast-slot" class:folded={sidebarCollapsed}>
+		<div class="toast-slot" class:folded={store.ui.sidebarCollapsed}>
 			<Toast />
 		</div>
 	</div>

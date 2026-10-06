@@ -9,14 +9,16 @@
 	interface Props {
 		parts: readonly string[];
 		class?: string;
+		/** Where the screen model says these parts: each is `data-screen="<screen>[i]"`. */
+		screen?: string;
 	}
-	let { parts, class: className = '' }: Props = $props();
+	let { parts, class: className = '', screen }: Props = $props();
 </script>
 
 <span class="crumbs {className}">
 	{#each parts as part, i (i)}
 		{#if i > 0}<ChevronRight size={12} aria-hidden="true"></ChevronRight>{/if}
-		<span>{part}</span>
+		<span data-screen={screen === undefined ? undefined : `${screen}[${i}]`}>{part}</span>
 	{/each}
 </span>
 

@@ -139,6 +139,8 @@ export interface IssueItem {
 	 */
 	visibility: IssueVisibility;
 	ref: Ref;
+	/** Where a jump lands: the ref, with the lesson that shows it filled in. */
+	target: Ref;
 }
 
 export interface IssuesRegion {
@@ -187,6 +189,8 @@ export interface TopbarRegion {
 	};
 	mode: Mode;
 	show_feedback: boolean;
+	/** The Zpětná vazba toggle's tooltip, which says what the current state is. */
+	feedback_title: string;
 	can_undo: boolean;
 	can_redo: boolean;
 	/** What the Stáhnout button says about itself. */

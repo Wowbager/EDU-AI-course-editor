@@ -21,16 +21,13 @@
 	import type { BlockStep, BlockV2, CourseV2 } from '$lib/domain/schema';
 	import FocusField from '$lib/ui/FocusField.svelte';
 	import NumberField from '$lib/ui/NumberField.svelte';
-	import { stepName } from '$lib/domain/naming';
 	import Button from '$lib/ui/Button.svelte';
 	import Segmented from '$lib/ui/Segmented.svelte';
-	import GoToPicker, { blockLabelOf, goToSummary } from './GoToPicker.svelte';
+	import GoToPicker, { goToSummary } from './GoToPicker.svelte';
 	import { sectionTargeted } from '$lib/ui/settings-target';
 	import { useStore } from '$lib/ui/context';
 	import { uniqueKeys } from '$lib/ui/keys';
 	import { allows } from '$lib/ui/fields';
-	import { madeUnreachable } from '$lib/ui/issue-visibility';
-	import type { UndoEntry } from '$lib/state/doc-store.svelte';
 	import { addOption, deleteOption, reorderOptions, setField } from '$lib/domain/commands';
 	import { optionOutcomesApply } from '$lib/domain/derive';
 	import { MIN_CHOICE_OPTIONS } from '$lib/domain/validate';
@@ -172,47 +169,12 @@
 	}
 
 	/**
-	 * What the last change cut off: the step or card nothing leads to any more, said
-	 * under the answer that was changed. It lives as long as that change is the last
-	 * edit, so the next one of any kind clears it, and "Vrátit zpět" can only ever undo
-	 * this change. `optionId` is empty for a removed answer, which has no row left.
+	 * What the last change cut off, said under the answer that was changed: the model's
+	 * `notices.cut_off`, which the store keeps while that change is the last edit
+	 * (`store.trackReach`). `option_id` is empty for a removed answer, which has no row
+	 * left.
 	 */
-	let cutOff = $state<{ entry: UndoEntry; optionId: string; text: string } | null>(null);
-	const cutOffNow = $derived(
-		cutOff !== null && store.undoStack.at(-1) === cutOff.entry ? cutOff : null
-	);
-
-	/** "Krok 3", the card's name: the words the summary line and the picker use. */
-	function lostName(issue: ReturnType<typeof madeUnreachable>[number]): string {
-		const target = doc.blocks.find((b) => b.block_id === issue.ref.blockId);
-		if (target === undefined) return '';
-		if (issue.ref.stepId === undefined) return `karta „${blockLabelOf(doc, target, showIds)}“`;
-		const step = target.steps.find((s) => s.id === issue.ref.stepId);
-		return step === undefined ? issue.ref.stepId : stepName(target, step, { showIds });
-	}
-
-	/** Runs `change`; if it left something unreachable that was reachable, remembers it. */
-	function withReachNotice(optionId: string, change: () => void) {
-		const before = store.doc;
-		const top = store.undoStack.at(-1);
-		change();
-		const entry = store.undoStack.at(-1);
-		cutOff = null;
-		if (entry === undefined || entry === top) return;
-		const lost = madeUnreachable(before, store.doc);
-		if (lost.length === 0) return;
-		const names = lost.map(lostName).filter((n) => n !== '');
-		if (names.length === 0) return;
-		const shown = names.length > 3 ? [...names.slice(0, 3), 'další'] : names;
-		const list =
-			shown.length === 1 ? shown[0] : `${shown.slice(0, -1).join(', ')} a ${shown.at(-1)}`;
-		const many = lost.length > 1;
-		// A step is "ho", a card "ji", several "je".
-		const pronoun = many ? 'je' : lost[0].ref.stepId === undefined ? 'ji' : 'ho';
-		const head = showIds ? list : `${list.charAt(0).toUpperCase()}${list.slice(1)}`;
-		const text = `${head} teď ${many ? 'nikam nevedou' : 'nikam nevede'} — žák ${pronoun} neuvidí`;
-		cutOff = { entry, optionId, text };
-	}
+	const cutOffNow = $derived(store.screen.notices.cut_off);
 
 	const MARKS = [
 		{ value: '', label: 'Bez známky' },
@@ -254,7 +216,7 @@
 
 {#snippet cutOffLine(text: string)}
 	<p class="cut-off" role="status">
-		{text}
+		<span data-screen="notices.cut_off.text">{text}</span>
 		<span aria-hidden="true"> · </span>
 		<button type="button" class="undo" onclick={() => store.undo()}>Vrátit zpět</button>
 	</p>
@@ -322,7 +284,7 @@
 						</button>
 					{/if}
 				{/if}
-				{#if cutOffNow !== null && cutOffNow.optionId === option.id}
+				{#if cutOffNow !== null && cutOffNow.option_id === option.id}
 					{@render cutOffLine(cutOffNow.text)}
 				{/if}
 			</div>
@@ -368,7 +330,7 @@
 								: 'Smazat odpověď'}
 							ariaLabel={`Smazat odpověď ${option.text || 'bez textu'}`}
 							onclick={() =>
-								withReachNotice('', () =>
+								store.trackReach('', () =>
 									withUndoNotice(
 										store,
 										'Odpověď smazána.',
@@ -397,7 +359,7 @@
 								{block}
 								stepId={step.id}
 								value={option.go_to}
-								onchange={(v) => withReachNotice(option.id, () => set(option.id, 'go_to', v))}
+								onchange={(v) => store.trackReach(option.id, () => set(option.id, 'go_to', v))}
 							/>
 						</div>
 					{/if}
@@ -456,7 +418,7 @@
 		</div>
 	{/each}
 
-	{#if cutOffNow !== null && cutOffNow.optionId === ''}
+	{#if cutOffNow !== null && cutOffNow.option_id === ''}
 		{@render cutOffLine(cutOffNow.text)}
 	{/if}
 

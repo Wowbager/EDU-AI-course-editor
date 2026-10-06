@@ -17,7 +17,7 @@
 	 */
 	import { tick } from 'svelte';
 	import { dndzone, type DndEvent } from 'svelte-dnd-action';
-	import type { BlockV2, CourseV2, LessonBlockBinding, LessonV2 } from '$lib/domain/schema';
+	import type { TreeCard, TreeLesson } from '$lib/screen';
 	import Chip from '$lib/ui/Chip.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import { useStore } from '$lib/ui/context';
@@ -28,12 +28,6 @@
 		reorderBindings,
 		reorderLessons
 	} from '$lib/domain/commands';
-	import { lessonTotals } from '$lib/domain/derive';
-	import { cardLabel, partLabel } from '$lib/domain/naming';
-	import { cardsCount, stepsCount } from '$lib/ui/plural';
-	import { uniqueKeys } from '$lib/ui/keys';
-	import { groupOf, groupsOf } from '$lib/domain/groups';
-	import { lessonLabel } from '$lib/domain/naming';
 	import { CARD_TYPES, cardTypeIcon } from '$lib/ui/card-types';
 	import SidebarRail from './SidebarRail.svelte';
 	import CardActions from './CardActions.svelte';
@@ -41,14 +35,6 @@
 	import { PanelLeftOpen, PanelLeftClose, Settings, Plus } from '@lucide/svelte';
 
 	interface Props {
-		doc: CourseV2;
-		/**
-		 * What the editor column is showing. Passed in rather than read off the
-		 * selection, because a ref does not always name its lesson and the tree must
-		 * never highlight something other than what is open.
-		 */
-		activeLessonId: string | undefined;
-		activeBlockId: string | undefined;
 		collapsed: boolean;
 		ontoggle: () => void;
 		oncourseSettings: () => void;
@@ -58,9 +44,6 @@
 		onrepairBlock: (blockId: string) => void;
 	}
 	let {
-		doc,
-		activeLessonId,
-		activeBlockId,
 		collapsed,
 		ontoggle,
 		oncourseSettings,
@@ -70,6 +53,18 @@
 	}: Props = $props();
 
 	const store = useStore();
+	/**
+	 * Every word and number in the tree is `store.screen.tree`: names by the one naming
+	 * rule, parts and joins, counts, durations and XP, the error markers (from what may
+	 * be shown inline, not from everything found), the cards no lesson holds. This file
+	 * keeps the drag zones, the keys and the selection, which are the pointer's.
+	 *
+	 * What is open (the highlighted lesson and card) is `store.open`, resolved in the
+	 * model; a ref does not always name its lesson, and the tree must never highlight
+	 * something other than what is open.
+	 */
+	const tree = $derived(store.screen.tree);
+	const note = $derived(store.screen.ui.parts_note);
 	// The rows' four actions; the rail has its own copy of these calls (`card-actions.ts`).
 	const actions = cardActions(store, {
 		onsettings: (blockId) => oncardSettings(blockId),
@@ -77,84 +72,22 @@
 	});
 
 	/**
-	 * In Pokročilý the tree shows the blocks the course is exported as, where one
-	 * teacher's card may be several (`domain/groups.ts`). Each says which part of
-	 * its card it is; in the other modes a card is one entry and says nothing.
-	 */
-	const groups = $derived(groupsOf(doc));
-	function partOf(block: BlockV2): string | undefined {
-		const key = groupOf(block);
-		const members = key === undefined ? undefined : groups.get(key);
-		if (members === undefined || members.length < 2) return undefined;
-		return partLabel(members.indexOf(block), members.length);
-	}
-	/**
-	 * Where a card sits in a run of parts of one card: the thin line that joins them is
-	 * drawn from the first part's middle to the last part's middle. Only neighbours in
-	 * the same lesson are joined, so a line never jumps over a card that is not a part.
-	 */
-	function joinOf(position: number): 'first' | 'middle' | 'last' | undefined {
-		const keyAt = (i: number) => {
-			const id = cards[i]?.binding.block_id;
-			const block = id === undefined ? undefined : doc.blocks.find((b) => b.block_id === id);
-			return block === undefined ? undefined : groupOf(block);
-		};
-		const key = keyAt(position);
-		if (key === undefined) return undefined;
-		const before = keyAt(position - 1) === key;
-		const after = keyAt(position + 1) === key;
-		if (before && after) return 'middle';
-		if (after) return 'first';
-		if (before) return 'last';
-		return undefined;
-	}
-
-	/**
 	 * The one-time note, the first time the tree shows split cards in Pokročilý. It is
 	 * not a toast: it has to stay until read, and a toast goes by itself after a few
-	 * seconds. Dismissed once, it is remembered per browser.
+	 * seconds. Dismissed once, it is remembered per browser (`store.ui`).
 	 */
-	const PARTS_NOTE_KEY = 'edu-editor:parts-note-seen';
-	let partsNote = $state(false);
-	const hasSplitCards = $derived(groupsOf(store.source).size > 0);
 	$effect(() => {
-		if (collapsed || store.mode !== 'advanced' || !hasSplitCards) {
-			partsNote = false;
-			return;
-		}
-		try {
-			if (localStorage.getItem(PARTS_NOTE_KEY) === null) partsNote = true;
-		} catch {
-			// No storage: the note shows each time the mode is switched, which is harmless.
-			partsNote = true;
-		}
+		if (note.eligible) store.ui.readPartsNote();
+		else store.ui.forgetPartsNote();
 	});
-	function dismissPartsNote() {
-		partsNote = false;
-		try {
-			localStorage.setItem(PARTS_NOTE_KEY, '1');
-		} catch {
-			// Nothing to remember it in.
-		}
-	}
-	const selectedLesson = $derived(activeLessonId);
-	const selectedBlock = $derived(activeBlockId);
 
-	// svelte-dnd-action keys items by an `id` property; a lesson is keyed by
-	// `lesson_id`, so the zone is driven by a thin wrapper rather than by renaming
-	// a field the format owns.
-	type LessonItem = { id: string; lesson: LessonV2 };
+	// svelte-dnd-action keys items by an `id` property; a lesson is keyed by the model's
+	// key (its id, made unique for a document that repeats one), so the zone is driven
+	// by a thin wrapper rather than by renaming a field the format owns.
+	type LessonItem = { id: string; lesson: TreeLesson };
 	let draggingLessons = $state<LessonItem[] | null>(null);
-	// The key carries the position as well as the id. A document with two lessons
-	// sharing an id is exactly the document the validator exists to complain about,
-	// and a keyed `{#each}` on the id alone throws before the author can read the
-	// complaint — the tool would break on the error it is meant to report.
 	const items = $derived(
-		draggingLessons ??
-			doc.lessons.map((lesson, i) => ({
-				id: `${lesson.lesson_id}#${i}`,
-				lesson
-			}))
+		draggingLessons ?? tree.lessons.map((lesson) => ({ id: lesson.key, lesson }))
 	);
 
 	function onconsider(event: CustomEvent<DndEvent<LessonItem>>) {
@@ -171,18 +104,14 @@
 	}
 
 	// The card zone, for the open lesson only — which is what keeps the two nested
-	// drag zones from ever having to coexist.
-	type CardItem = { id: string; binding: LessonBlockBinding };
+	// drag zones from ever having to coexist. Keyed by the card's own id (made unique),
+	// so a card keeps its DOM (and its focus) when it moves.
+	type CardItem = { id: string; card: TreeCard };
 	let draggingCards = $state<CardItem[] | null>(null);
-	const openLesson = $derived(doc.lessons.find((l) => l.lesson_id === selectedLesson));
-	// Keyed by the card's own id, so a card keeps its DOM (and its focus) when it
-	// moves; a duplicated id in a broken course still gets a distinct key.
-	const cards = $derived.by(() => {
-		if (draggingCards !== null) return draggingCards;
-		const bindings = openLesson?.blocks ?? [];
-		const keys = uniqueKeys(bindings.map((b) => b.block_id));
-		return bindings.map((binding, i) => ({ id: keys[i], binding }));
-	});
+	const openLesson = $derived(tree.lessons.find((l) => l.open));
+	const cards = $derived<CardItem[]>(
+		draggingCards ?? (openLesson?.cards ?? []).map((card) => ({ id: card.key, card }))
+	);
 
 	function oncardConsider(event: CustomEvent<DndEvent<CardItem>>) {
 		draggingCards = event.detail.items;
@@ -194,7 +123,7 @@
 			reorderBindings(
 				d,
 				openLesson.lesson_id,
-				event.detail.items.map((item) => item.binding.block_id)
+				event.detail.items.map((item) => item.card.block_id)
 			)
 		);
 	}
@@ -268,24 +197,6 @@
 			?.focus();
 	}
 
-	// Counted from what may be shown, like every inline marker — a card nobody has
-	// left yet is being written, not broken. The top bar and export review count all.
-	const errorsIn = (lessonId: string) =>
-		store.shown.errors.filter(
-			(issue) =>
-				issue.ref.lessonId === lessonId ||
-				(issue.ref.blockId !== undefined &&
-					(store.index.lessonsByBlock.get(issue.ref.blockId) ?? []).includes(lessonId))
-		).length;
-
-	const errorsOn = (blockId: string) =>
-		store.shown.errors.filter((issue) => issue.ref.blockId === blockId).length;
-
-	const orphans = $derived(
-		doc.blocks.filter((b) => (store.index.lessonsByBlock.get(b.block_id) ?? []).length === 0)
-	);
-	const orphanKeys = $derived(uniqueKeys(orphans.map((b) => b.block_id)));
-
 	function select(lessonId: string, blockId: string) {
 		store.selection = { lessonId, blockId };
 	}
@@ -318,17 +229,17 @@
 	{#if !collapsed}
 		<button type="button" class="course" onclick={oncourseSettings}>
 			<span class="gear" aria-hidden="true"><Settings></Settings></span>
-			<span class="name">{doc.name || 'Nový kurz'}</span>
+			<span class="name" data-screen="tree.course.name">{tree.course.name}</span>
 			<span class="meta">Nastavení kurzu</span>
 		</button>
 
-		{#if partsNote}
+		{#if note.shown}
 			<div class="parts-note" role="note">
 				<p>
 					V Pokročilém vidíš karty tak, jak je dostane aplikace: karta s více otázkami je rozdělená
 					na části.
 				</p>
-				<button type="button" onclick={dismissPartsNote}>Rozumím</button>
+				<button type="button" onclick={() => store.ui.dismissPartsNote()}>Rozumím</button>
 			</div>
 		{/if}
 
@@ -337,28 +248,25 @@
 		<ul use:dndzone={{ items, flipDurationMs: 150, dropTargetStyle: {} }} {onconsider} {onfinalize}>
 			{#each items as item (item.id)}
 				{@const lesson = item.lesson}
-				{@const totals = lessonTotals(lesson, store.index)}
-				{@const errors = errorsIn(lesson.lesson_id)}
-				{@const open = lesson.lesson_id === selectedLesson}
-				<li class="tree-lesson" class:open>
+				{@const L = lesson.index - 1}
+				<li class="tree-lesson" class:open={lesson.open}>
 					<button
 						type="button"
 						class="lesson"
-						class:selected={open}
+						class:selected={lesson.open}
 						onclick={() => selectLesson(lesson.lesson_id)}
 					>
-						<span class="name">{lessonLabel(doc, lesson)}</span>
-						<span class="meta">
-							{cardsCount(totals.cardCount)} · {totals.durationMinutes}
-							min · {totals.xp} XP
-						</span>
+						<span class="name" data-screen="tree.lessons[{L}].name">{lesson.name}</span>
+						<span class="meta" data-screen="tree.lessons[{L}].summary">{lesson.summary}</span>
 					</button>
-					<div class="row-actions" class:pinned={open}>
-						{#if errors > 0}<Chip tone="error">{errors}</Chip>{/if}
+					<div class="row-actions" class:pinned={lesson.open}>
+						{#if lesson.errors > 0}
+							<Chip tone="error" screen="tree.lessons[{L}].errors">{lesson.errors}</Chip>
+						{/if}
 						<button
 							type="button"
 							title="Nastavení lekce"
-							aria-label={`Nastavení lekce ${lessonLabel(doc, lesson)}`}
+							aria-label={`Nastavení lekce ${lesson.name}`}
 							onclick={() => onlessonSettings(lesson.lesson_id)}
 							class="icon-button"
 						>
@@ -366,7 +274,7 @@
 						</button>
 					</div>
 
-					{#if open}
+					{#if lesson.open}
 						<ul
 							class="cards"
 							use:dndzone={{
@@ -381,18 +289,18 @@
 							onconsider={oncardConsider}
 							onfinalize={oncardFinalize}
 						>
-							{#each cards as card, position (card.id)}
-								{@const block = doc.blocks.find((b) => b.block_id === card.binding.block_id)}
+							{#each cards as item, position (item.id)}
+								{@const card = item.card}
+								{@const P = card.position - 1}
 								<li
 									class="tree-row"
-									class:selected={block?.block_id === selectedBlock}
-									data-join={joinOf(position)}
+									class:selected={card.selected}
+									data-join={card.join ?? undefined}
 								>
-									{#if block === undefined}
-										<span class="missing" title={card.binding.block_id}>Chybějící karta</span>
+									{#if card.missing}
+										<span class="missing" title={card.block_id}>{card.name}</span>
 									{:else}
-										{@const cardErrors = errorsOn(block.block_id)}
-										{@const Icon = cardTypeIcon(block.type)}
+										{@const Icon = cardTypeIcon(card.type!)}
 										<!--
 											A div, not a button: svelte-dnd-action refuses to start a
 											drag from an element that has a `value` (every button does)
@@ -404,11 +312,11 @@
 											role="button"
 											tabindex="0"
 											class="tree-card"
-											class:selected={block.block_id === selectedBlock}
-											onclick={() => select(lesson.lesson_id, block.block_id)}
+											class:selected={card.selected}
+											onclick={() => select(lesson.lesson_id, card.block_id)}
 											title="Alt+šipka nahoru nebo dolů přesune kartu"
 											onkeydowncapture={(event) =>
-												rowKey(event, lesson.lesson_id, block.block_id, position)}
+												rowKey(event, lesson.lesson_id, card.block_id, position)}
 										>
 											<span class="type">
 												<Icon size={16}></Icon>
@@ -418,12 +326,16 @@
 												yet, not a number printed next to every card: three cards
 												added in a row were otherwise all "Karta bez textu" here.
 											-->
-											<span class="snippet">
-												{cardLabel(doc, block, { lessonId: lesson.lesson_id, max: 44 })}
+											<span class="snippet" data-screen="tree.lessons[{L}].cards[{P}].name">
+												{card.name}
 											</span>
-											<span class="steps">{partOf(block) ?? stepsCount(block.steps.length)}</span>
-											{#if cardErrors > 0}
-												<Chip tone="error">{cardErrors}</Chip>
+											<span class="steps" data-screen="tree.lessons[{L}].cards[{P}].steps_text"
+												>{card.steps_text}</span
+											>
+											{#if card.errors > 0}
+												<Chip tone="error" screen="tree.lessons[{L}].cards[{P}].errors"
+													>{card.errors}</Chip
+												>
 											{/if}
 										</div>
 										<!--
@@ -435,13 +347,13 @@
 											<CardActions
 												size="s"
 												position={position + 1}
-												onsettings={() => actions.settings(lesson.lesson_id, block.block_id)}
-												onduplicate={() => actions.duplicate(block.block_id, lesson.lesson_id)}
+												onsettings={() => actions.settings(lesson.lesson_id, card.block_id)}
+												onduplicate={() => actions.duplicate(card.block_id, lesson.lesson_id)}
 												onremoveFromLesson={() =>
-													actions.removeFromLesson(lesson.lesson_id, block.block_id, {
+													actions.removeFromLesson(lesson.lesson_id, card.block_id, {
 														follow: false
 													})}
-												onremove={() => actions.remove(block.block_id, lesson.lesson_id)}
+												onremove={() => actions.remove(card.block_id, lesson.lesson_id)}
 												onexit={backToRow}
 											/>
 										</div>
@@ -482,23 +394,23 @@
 			</Button>
 		</div>
 
-		{#if orphans.length > 0}
-			<h2 class="secondary">Karty mimo lekce</h2>
+		{#if tree.orphans.length > 0}
+			<h2 class="secondary">{tree.orphans_heading}</h2>
 			<ul class="orphans">
-				{#each orphans as block, i (orphanKeys[i])}
-					{@const Icon = cardTypeIcon(block.type)}
+				{#each tree.orphans as orphan, i (orphan.key)}
+					{@const Icon = cardTypeIcon(orphan.type)}
 					<li>
 						<button
 							type="button"
 							class="tree-card"
-							class:selected={block.block_id === selectedBlock}
-							onclick={() => selectOrphan(block.block_id)}
+							class:selected={orphan.selected}
+							onclick={() => selectOrphan(orphan.block_id)}
 						>
 							<span class="type">
 								<Icon size={16}></Icon>
 							</span>
-							<span class="snippet">{cardLabel(doc, block, { max: 44 })}</span>
-							<span class="steps">žák se k ní nedostane</span>
+							<span class="snippet" data-screen="tree.orphans[{i}].name">{orphan.name}</span>
+							<span class="steps">{orphan.note}</span>
 						</button>
 					</li>
 				{/each}
@@ -506,15 +418,10 @@
 		{/if}
 	{:else}
 		<SidebarRail
-			{doc}
-			activeLessonId={selectedLesson}
-			activeBlockId={selectedBlock}
 			{cards}
 			{oncardConsider}
 			{oncardFinalize}
 			{oncardkey}
-			{errorsIn}
-			{errorsOn}
 			{onlessonSettings}
 			{oncardSettings}
 			{onrepairBlock}
@@ -523,10 +430,11 @@
 
 	{#if !collapsed}
 		<footer>
-			<Chip tone="quiet" title="Součet přes celý kurz">{store.totals.durationMinutes} min</Chip>
-			<Chip tone="quiet" title={doc.max_xp ? `Strop kurzu je ${doc.max_xp} XP` : 'Bez stropu'}>
-				{store.totals.cappedXp} XP
-			</Chip>
+			<Chip tone="quiet" title={tree.footer.duration_title} screen="tree.footer.duration"
+				>{tree.footer.duration}</Chip
+			>
+			<Chip tone="quiet" title={tree.footer.xp_title} screen="tree.footer.xp">{tree.footer.xp}</Chip
+			>
 		</footer>
 	{/if}
 </nav>

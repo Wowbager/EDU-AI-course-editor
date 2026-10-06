@@ -13,7 +13,9 @@ import type { PlayerKind } from './e2e/fixtures';
  *    different test on each run, so this project is held to two workers.
  *
  * The server is the built editor (`vite build` + `vite preview`), not the dev
- * server. A cold dev server compiles every module on the first page load, which
+ * server. It is built with `--mode e2e`, which is what makes the editor expose
+ * `window.__screen` (`state/screen-hook.ts`) to the screen-parity suite; a production
+ * build has no such hook. A cold dev server compiles every module on the first page load, which
  * left a long window for a dropped connection to kill the load.
  * `E2E_DEV=1` uses the dev server instead, for a quick loop while editing a spec.
  *
@@ -51,7 +53,7 @@ export default defineConfig<{ player: PlayerKind }>({
 	webServer: {
 		command: dev
 			? 'npm run dev -- --port 5178 --strictPort'
-			: 'npm run build && npm run preview -- --port 5178 --strictPort',
+			: 'npx vite build --mode e2e && npm run preview -- --port 5178 --strictPort',
 		url: 'http://localhost:5178',
 		reuseExistingServer: !process.env.CI,
 		timeout: dev ? 60_000 : 180_000

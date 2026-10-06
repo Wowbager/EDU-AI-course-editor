@@ -5,14 +5,11 @@
 	 * fixes.
 	 */
 	import { fixModeOf, MODE_RANK } from '$lib/ui/fields';
-	import type { Issue } from '$lib/domain/validate';
-	import { issueLessonId, issuePlace } from '$lib/domain/issue-groups';
+	import type { IssueItem } from '$lib/screen';
 	import { useStore } from '$lib/ui/context';
-	import { heldBack } from '$lib/ui/issue-visibility';
 	import Button from '$lib/ui/Button.svelte';
 	import { CircleX, X } from '@lucide/svelte';
 	import Crumbs from '$lib/ui/Crumbs.svelte';
-	import { plural } from '$lib/ui/plural';
 
 	interface Props {
 		onclose: () => void;
@@ -20,35 +17,23 @@
 	let { onclose }: Props = $props();
 
 	const store = useStore();
-	let dismissed = $state<Set<string>>(new Set());
+	/**
+	 * Everything on this panel — the lists, their headings, the place of each issue and
+	 * the note about skipped checks — is `store.screen.issues`; nothing is worked out
+	 * here. A warning about a field the Zpětná vazba toggle has hidden is said once,
+	 * quietly, with the way to see it — not dropped, and not counted.
+	 */
+	const issues = $derived(store.screen.issues);
+	const panel = $derived(issues.panel);
 
-	const key = (issue: Issue) => `${issue.code}|${JSON.stringify(issue.ref)}`;
-	const warnings = $derived(store.listed.warnings.filter((w) => !dismissed.has(key(w))));
-	// Advice about a field the Zpětná vazba toggle has hidden: said once, quietly,
-	// with the way to see it — not dropped, and not counted.
-	const held = $derived(
-		store.validation.warnings.filter(
-			(w) => heldBack(w, store.showFeedback) && !dismissed.has(key(w))
-		).length
-	);
-
-	function jump(issue: Issue) {
+	function jump(issue: IssueItem) {
 		// Fixed in a mode above this one: switch first, or the jump lands on nothing.
 		const need = fixModeOf(issue.ref) ?? 'advanced';
-		const lessonId = issueLessonId(store.index, issue.ref);
 		const ref =
 			MODE_RANK[need] > MODE_RANK[store.mode] ? store.switchMode(need, issue.ref) : issue.ref;
-		store.revealAt({ ...ref, lessonId });
+		store.revealAt({ ...ref, lessonId: issue.target.lessonId });
 		onclose();
 	}
-
-	function dismiss(issue: Issue) {
-		dismissed = new Set([...dismissed, key(issue)]);
-	}
-
-	// A teacher is never shown an id (§8); `issuePlace` names everything the way the
-	// rest of the editor does, and prints an id only for a reference nothing resolves.
-	const where = (issue: Issue): string[] => issuePlace(store.doc, issue.ref);
 </script>
 
 <aside class="panel" aria-label="Kontrola kurzu">
@@ -59,37 +44,49 @@
 		</button>
 	</header>
 
-	{#if store.listed.errors.length === 0 && warnings.length === 0}
-		<p class="clean">Kurz je v pořádku. Můžeš publikovat.</p>
+	{#if panel.clean}
+		<p class="clean" data-screen="issues.panel.clean_text">{panel.clean_text}</p>
 	{/if}
 
-	{#if store.listed.errors.length > 0}
-		<h3 class="error">Chyby — brání publikaci ({store.listed.errors.length})</h3>
+	{#if panel.errors.length > 0}
+		<h3 class="error" data-screen="issues.panel.errors_heading">{panel.errors_heading}</h3>
 		<ul>
-			{#each store.listed.errors as issue (key(issue))}
+			{#each panel.errors as issue, i (issue.key)}
 				<li>
 					<button type="button" class="issue" onclick={() => jump(issue)}>
-						<span class="message">{issue.message}</span>
-						<Crumbs class="issue-where" parts={where(issue)} />
+						<span class="message" data-screen="issues.panel.errors[{i}].message"
+							>{issue.message}</span
+						>
+						<Crumbs
+							class="issue-where"
+							parts={issue.where}
+							screen="issues.panel.errors[{i}].where"
+						/>
 					</button>
 				</li>
 			{/each}
 		</ul>
 	{/if}
 
-	{#if warnings.length > 0}
-		<h3 class="warning">Upozornění — publikaci nebrání ({warnings.length})</h3>
+	{#if panel.warnings.length > 0}
+		<h3 class="warning" data-screen="issues.panel.warnings_heading">{panel.warnings_heading}</h3>
 		<ul>
-			{#each warnings as issue (key(issue))}
+			{#each panel.warnings as issue, i (issue.key)}
 				<li>
 					<button type="button" class="issue" onclick={() => jump(issue)}>
-						<span class="message">{issue.message}</span>
-						<Crumbs class="issue-where" parts={where(issue)} />
+						<span class="message" data-screen="issues.panel.warnings[{i}].message"
+							>{issue.message}</span
+						>
+						<Crumbs
+							class="issue-where"
+							parts={issue.where}
+							screen="issues.panel.warnings[{i}].where"
+						/>
 					</button>
 					<button
 						type="button"
 						class="dismiss"
-						onclick={() => dismiss(issue)}
+						onclick={() => store.ui.dismissIssue(issue.key)}
 						title="Skrýt upozornění"
 					>
 						<X size={14}></X>
@@ -99,12 +96,15 @@
 		</ul>
 	{/if}
 
-	{#if held > 0}
+	{#if panel.held_text !== null}
 		<p class="held">
-			{plural(held, 'Skryto', 'Skryta', 'Skryto')}
-			{held} doporučení ke zpětné vazbě.
+			<span data-screen="issues.panel.held_text">{panel.held_text}</span>
 			<Button variant="ghost" size="s" onclick={() => (store.showFeedback = true)}>Ukázat</Button>
 		</p>
+	{/if}
+
+	{#if issues.skipped_checks !== null}
+		<p class="skipped" data-screen="issues.skipped_checks">{issues.skipped_checks}</p>
 	{/if}
 </aside>
 
@@ -213,6 +213,12 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
+		margin: 16px 0 0;
+		color: var(--e-text-faint);
+		font: var(--type-body-small);
+	}
+
+	.skipped {
 		margin: 16px 0 0;
 		color: var(--e-text-faint);
 		font: var(--type-body-small);

@@ -53,8 +53,9 @@ jobs:
       - run: npm ci
       # The distro's Chromium dependencies, then the browser.
       - run: npx playwright install --with-deps chromium
-      # playwright.config.ts builds the editor itself (`npm run build && npm run
-      # preview` on 5178) unless E2E_DEV is set, so there is nothing to start here.
+      # playwright.config.ts builds the editor itself (`vite build --mode e2e` and
+      # `npm run preview` on 5178, the mode being what exposes the screen-parity
+      # hook) unless E2E_DEV is set, so there is nothing to start here.
       - run: npx playwright test --project=editor
       - if: failure()
         uses: actions/upload-artifact@v4

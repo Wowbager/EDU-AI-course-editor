@@ -8,7 +8,7 @@
  * `DocStore.shown` are this, and so is every `visibility` the model reports.
  */
 import type { Issue, ValidationResult } from '$lib/domain/validate';
-import { issuePlace } from '$lib/domain/issue-groups';
+import { issueLessonId, issuePlace } from '$lib/domain/issue-groups';
 import { heldBack, isVisible, type Touched } from '$lib/ui/issue-visibility';
 import { plural } from '$lib/ui/plural';
 import { uniqueKeys } from '$lib/ui/keys';
@@ -66,7 +66,8 @@ export function buildIssues(input: ScreenInput): IssuesRegion {
 			message: issue.message,
 			where: issuePlace(input.doc, issue.ref),
 			visibility: shown.has(issue) ? 'shown' : listed.has(issue) ? 'pending_timing' : 'held_back',
-			ref: issue.ref
+			ref: issue.ref,
+			target: { ...issue.ref, lessonId: issueLessonId(input.index, issue.ref) }
 		});
 	});
 	const item = (issue: Issue) => items.get(issue)!;

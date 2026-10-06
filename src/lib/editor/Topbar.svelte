@@ -11,20 +11,15 @@
 	import Modal from '$lib/ui/Modal.svelte';
 	import ExportDialog from './ExportDialog.svelte';
 	import VersionsDialog from './VersionsDialog.svelte';
-	import { errorsCount, warningsCount } from '$lib/ui/plural';
 
-	import type { DraftSession } from '$lib/state/draft-session.svelte';
 	import { CircleCheck, Download, Eye, EyeOff, History, Redo, Undo, Upload } from '@lucide/svelte';
 	import { courseFileName } from '$lib/domain/filename';
 	interface Props {
 		doc: CourseV2;
-		recovery: DraftSession | null;
 		onvalidation: () => void;
 		onimport: (file: File) => void;
-		/** The export review; bindable so the page can open it from its own banner. */
-		reviewOpen?: boolean;
 	}
-	let { doc, recovery, onvalidation, onimport, reviewOpen = $bindable(false) }: Props = $props();
+	let { doc, onvalidation, onimport }: Props = $props();
 
 	const store = useStore();
 	const versions = useVersions();
@@ -32,39 +27,22 @@
 	let explainStorage = $state(false);
 
 	/**
-	 * The version button says where the working copy stands. The words and the number
-	 * a download carries come from one place, `store.versionState`, so the label can
-	 * never say v3 while the file says v2.
+	 * Everything the bar says comes from `store.screen.topbar`: the version button's
+	 * words and the number a download carries from one place (`store.versionState`),
+	 * the save line and the check chip from the model, so the label can never say v3
+	 * while the file says v2, and an AI is told the same line the teacher reads.
 	 */
-	const version = $derived(store.versionState);
-	const versionLabel = $derived(version.label);
-	const versionTitle = $derived(version.title);
-	const versionName = $derived(version.name);
-
-	/**
-	 * The exact JSON handed to the browser by the last „Stáhnout JSON“.
-	 *
-	 * The draft lives in `localStorage` and nowhere else — no server holds a copy, so
-	 * clearing site data, a private window closing, or moving to another machine loses
-	 * everything that was never exported. The top bar said „Uloženo v tomto
-	 * prohlížeči“, which reads to a teacher like „saved“ and buries the
-	 * „in this browser“ half. So the bar now also says whether the work on screen has
-	 * ever left the browser, which is the part that can actually be lost.
-	 *
-	 * Comparing the serialised text rather than counting edits is what makes it
-	 * honest: type a sentence and undo it, and the file on disk is current again.
-	 */
-	let exportedJson = $state<string | null>(null);
-	// The working copy goes out under the number it will be saved as, so a file
-	// downloaded after version 3 was saved is never "version 1" to the platform.
-	const currentJson = $derived(store.exportJson());
-	const backedUp = $derived(exportedJson !== null && exportedJson === currentJson);
+	const bar = $derived(store.screen.topbar);
+	/** Whether the file on disk is what is on screen (`store.backedUp`). */
+	const backedUp = $derived(store.backedUp);
 
 	function download() {
 		// The dialog only offers a download without errors; this is the backstop.
 		// Before the history has loaded the file's version number would be a guess.
-		if (!store.canPublish || !version.loaded) return;
-		const json = currentJson;
+		if (!bar.download.can_publish || !bar.version.loaded) return;
+		// The working copy goes out under the number it will be saved as, so a file
+		// downloaded after version 3 was saved is never "version 1" to the platform.
+		const json = store.exportJson();
 		const blob = new Blob([json], { type: 'application/json' });
 		const url = URL.createObjectURL(blob);
 		const link = document.createElement('a');
@@ -72,7 +50,7 @@
 		link.download = courseFileName(doc.name, doc.course_id || 'kurz');
 		link.click();
 		URL.revokeObjectURL(url);
-		exportedJson = json;
+		store.markExported(json);
 		store.endReview();
 	}
 
@@ -85,56 +63,15 @@
 	function requestDownload() {
 		const { errors, warnings } = store.validation;
 		if (errors.length === 0 && warnings.length === 0) download();
-		else reviewOpen = true;
+		else store.ui.reviewOpen = true;
 	}
 
 	// Having seen the review, the author is fixing rather than writing: what it
 	// listed may now show where it is (`ui/issue-visibility.ts`). Untracked, or every
 	// edit would take a new snapshot and the review would list whatever is new too.
 	$effect(() => {
-		if (reviewOpen) untrack(() => store.beginReview());
+		if (store.ui.reviewOpen) untrack(() => store.beginReview());
 	});
-
-	/** Whether saving works, and whether the work has left the browser. */
-	const saveLine = $derived.by((): { text: string; tone: 'error' | 'warning' | 'faint' } => {
-		const status = recovery?.status;
-		if (status === 'error') return { text: 'Koncept se nepodařilo uložit', tone: 'error' };
-		if (status === 'blocked') return { text: 'Ukládání pozastaveno', tone: 'warning' };
-		if (backedUp) return { text: 'Staženo do souboru', tone: 'faint' };
-		// "Bez zálohy" only helps a teacher who can act on it. While the course
-		// cannot be downloaded (Stáhnout shows what is left instead), the line says
-		// what is true and calm.
-		if (!store.canPublish) return { text: 'Uloženo v tomto prohlížeči', tone: 'faint' };
-		// Nothing to lose yet on a course nobody has touched.
-		return {
-			text: 'Bez zálohy v souboru',
-			tone: store.dirty ? 'warning' : 'faint'
-		};
-	});
-
-	/** The button's name carries all of it, the saving state too. */
-	const saveLabel = $derived.by(() => {
-		const backup = backedUp ? 'Staženo do souboru.' : 'Bez zálohy v souboru.';
-		switch (recovery?.status) {
-			case 'saved':
-				return `Koncept uložen v tomto prohlížeči. ${backup}`;
-			case 'error':
-				return `Koncept se nepodařilo uložit. ${backup}`;
-			case 'blocked':
-				return `Ukládání pozastaveno. ${backup}`;
-			default:
-				return `Koncept se ukládá do tohoto prohlížeče. ${backup}`;
-		}
-	});
-
-	/** The chip shows a bare number; the accessible name has to say what it counts. */
-	const checkLabel = $derived(
-		store.listed.errors.length > 0
-			? `Kontrola kurzu: ${errorsCount(store.listed.errors.length)}`
-			: store.listed.warnings.length > 0
-				? `Kontrola kurzu: ${warningsCount(store.listed.warnings.length)}`
-				: 'Kontrola kurzu: v pořádku'
-	);
 </script>
 
 <header class="topbar">
@@ -142,6 +79,7 @@
 		<FocusField
 			label="Název kurzu"
 			value={doc.name}
+			screen="topbar.course_name"
 			density="compact"
 			emptyText="Název kurzu"
 			onchange={(v) => store.apply((d) => setField(d, { field: 'name' }, v))}
@@ -152,11 +90,11 @@
 		type="button"
 		class="version"
 		onclick={() => (versions.dialogOpen = true)}
-		aria-label={versionName}
-		title={versionTitle}
+		aria-label={bar.version.name ?? undefined}
+		title={bar.version.title}
 	>
 		<History size={14}></History>
-		{versionLabel}
+		<span data-screen="topbar.version.label">{bar.version.label}</span>
 	</button>
 	<!--
         One line, chosen by what is true now. It says what a teacher can act on —
@@ -165,16 +103,17 @@
     -->
 	<button
 		type="button"
-		class="save-status {saveLine.tone}"
+		class="save-status {bar.save.tone}"
 		onclick={() => (explainStorage = true)}
-		aria-label={saveLabel}
+		aria-label={bar.save.label}
 		title="Kurz je jen v tomto prohlížeči, ne na serveru. Klikni pro vysvětlení."
 	>
-		{saveLine.text}
+		<span data-screen="topbar.save.text">{bar.save.text}</span>
 	</button>
 	<!-- A live region has to be outside the button, whose children are not announced. -->
-	<span class="sr-only" role={recovery?.status === 'error' ? 'alert' : 'status'}>
-		{#if recovery?.status === 'error' || recovery?.status === 'blocked'}{saveLine.text}{/if}
+	<span class="sr-only" role={bar.save.draft_status === 'error' ? 'alert' : 'status'}>
+		{#if bar.save.draft_status === 'error' || bar.save.draft_status === 'blocked'}{bar.save
+				.text}{/if}
 	</span>
 
 	<div class="spacer"></div>
@@ -183,30 +122,22 @@
 		type="button"
 		class="chip-button"
 		onclick={onvalidation}
-		aria-label={checkLabel}
-		title={checkLabel}
+		aria-label={bar.check.label}
+		title={bar.check.label}
 	>
-		<!--
-            Quiet while the course is being written: an unfinished draft is not an
-            emergency. It turns red once the author has asked to export and seen
-            what is left, which is when the count starts to mean "still to fix".
-        -->
-		{#if store.listed.errors.length > 0 && !store.reviewing}
-			<Chip tone="quiet">{store.listed.errors.length} k dokončení</Chip>
-		{:else if store.listed.errors.length > 0}
-			<Chip tone="error">{store.listed.errors.length}</Chip>
-		{:else if store.listed.warnings.length > 0 && !store.reviewing}
-			<Chip tone="quiet">{store.listed.warnings.length} doporučení</Chip>
-		{:else if store.listed.warnings.length > 0}
-			<Chip tone="warning">{store.listed.warnings.length}</Chip>
+		{#if bar.check.chip.tone === 'ok'}
+			<Chip tone="ok"
+				><CircleCheck size={16}></CircleCheck>
+				<span data-screen="topbar.check.chip.text">{bar.check.chip.text}</span></Chip
+			>
 		{:else}
-			<Chip tone="ok"><CircleCheck size={16}></CircleCheck> 0</Chip>
+			<Chip tone={bar.check.chip.tone} screen="topbar.check.chip.text">{bar.check.chip.text}</Chip>
 		{/if}
 	</button>
 
 	<Segmented
 		label="Režim editoru"
-		value={store.mode}
+		value={bar.mode}
 		options={MODES.map((mode) => ({ value: mode, ...MODE_LABELS[mode] }))}
 		onchange={(mode) => (store.mode = mode)}
 	/>
@@ -218,14 +149,12 @@
 	<Button
 		variant="ghost"
 		size="s"
-		pressed={store.showFeedback}
+		pressed={bar.show_feedback}
 		ariaLabel="Zpětná vazba"
-		title={store.showFeedback
-			? 'Zapnuto: zpětná vazba, nápovědy a řešení jsou vidět. Vypni a soustřeď se jen na průběh kurzu.'
-			: 'Vypnuto: zpětná vazba, nápovědy a řešení jsou skryté. Zapni, až budeš psát zpětnou vazbu.'}
+		title={bar.feedback_title}
 		onclick={() => (store.showFeedback = !store.showFeedback)}
 	>
-		{#if store.showFeedback}
+		{#if bar.show_feedback}
 			<Eye size={16}></Eye>
 		{:else}
 			<EyeOff size={16}></EyeOff>
@@ -237,7 +166,7 @@
 	<Button
 		variant="ghost"
 		onclick={() => store.undo()}
-		disabled={!store.canUndo}
+		disabled={!bar.can_undo}
 		title="Zpět"
 		ariaLabel="Zpět"
 	>
@@ -246,7 +175,7 @@
 	<Button
 		variant="ghost"
 		onclick={() => store.redo()}
-		disabled={!store.canRedo}
+		disabled={!bar.can_redo}
 		title="Vpřed"
 		ariaLabel="Vpřed"
 	>
@@ -268,13 +197,7 @@
 		}}
 	/>
 
-	<Button
-		variant="primary"
-		onclick={requestDownload}
-		title={store.canPublish
-			? 'Stáhnout kurz jako soubor JSON'
-			: 'Ukáže, co je v kurzu ještě potřeba dokončit'}
-	>
+	<Button variant="primary" onclick={requestDownload} title={bar.download.title}>
 		<Download size={16}></Download> Stáhnout
 	</Button>
 </header>
@@ -284,13 +207,13 @@
 		onclose={() => (versions.dialogOpen = false)}
 		onreview={() => {
 			versions.dialogOpen = false;
-			reviewOpen = true;
+			store.ui.reviewOpen = true;
 		}}
 	/>
 {/if}
 
-{#if reviewOpen}
-	<ExportDialog ondownload={download} onclose={() => (reviewOpen = false)} />
+{#if store.ui.reviewOpen}
+	<ExportDialog ondownload={download} onclose={() => (store.ui.reviewOpen = false)} />
 {/if}
 
 {#if explainStorage}
@@ -311,13 +234,13 @@
 			<p class:at-risk={!backedUp}>
 				{#if backedUp}
 					Stažený soubor odpovídá tomu, co je teď na obrazovce.
-				{:else if exportedJson === null}
+				{:else if store.exportedJson === null}
 					Tento kurz jsi ještě ani jednou nestáhl/a. Udělej to teď — stojí to jedno kliknutí.
 				{:else}
 					Od posledního stažení jsi kurz změnil/a. Ty změny nejsou v žádném souboru.
 				{/if}
 			</p>
-			{#if !store.canPublish}
+			{#if !bar.download.can_publish}
 				<p>
 					Stáhnout teď nejde — v kurzu je ještě potřeba něco dokončit, jinak by žákovi lekce
 					nefungovala. Tlačítko Stáhnout ukáže co a kde; zálohu si stáhni hned poté.

@@ -70,7 +70,11 @@ preview itself, because the runner has no player.
   `src/lib/preview/`, `vite-plugin-player.ts`, `scripts/inject-player-shim.mjs` or
   `routes/preview-image`, run with `REQUIRE_PLAYER=1` so a missing build fails.
 - The suite reuses a server already on 5178, so a stale one tests old code.
-  `E2E_DEV=1` uses the dev server instead of the build.
+  `E2E_DEV=1` uses the dev server instead of the build. The build is made with
+  `vite build --mode e2e`: that mode (and the dev server) exposes `window.__screen`, the
+  hook `e2e/screen-parity.spec.ts` reads the screen model through. A server you start
+  yourself for the suite has to be built the same way, or that suite finds no hook; a
+  production build has none.
 - Open the page with `openEditor(page)`; it waits for hydration and retries one aborted
   load. Find elements by their Czech accessible names. When you change a label, grep
   `e2e/` for the old text in the same commit (the player's labels too).

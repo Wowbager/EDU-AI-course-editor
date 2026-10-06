@@ -18,55 +18,41 @@
 	import { tick } from 'svelte';
 	import { dndzone, type DndEvent } from 'svelte-dnd-action';
 	import { Plus, Settings } from '@lucide/svelte';
-	import type { CourseV2, LessonBlockBinding } from '$lib/domain/schema';
+	import type { TreeCard } from '$lib/screen';
 	import { addBlock, addLesson } from '$lib/domain/commands';
-	import { lessonTotals, positionName } from '$lib/domain/derive';
-	import { cardLabel } from '$lib/domain/naming';
-	import { lessonLabel } from '$lib/domain/naming';
-	import { CARD_TYPES, cardTypeIcon, cardTypeLabel } from '$lib/ui/card-types';
+	import { CARD_TYPES, cardTypeIcon } from '$lib/ui/card-types';
 	import { useStore } from '$lib/ui/context';
-	import { uniqueKeys } from '$lib/ui/keys';
-	import { cardsCount, errorsCount } from '$lib/ui/plural';
 	import Menu from '$lib/ui/Menu.svelte';
 	import MenuItem from '$lib/ui/MenuItem.svelte';
 	import CardActions from './CardActions.svelte';
 	import RailPeek from './RailPeek.svelte';
 	import { cardActions } from './card-actions';
 
-	type CardItem = { id: string; binding: LessonBlockBinding };
+	type CardItem = { id: string; card: TreeCard };
 
 	interface Props {
-		doc: CourseV2;
-		activeLessonId: string | undefined;
-		activeBlockId: string | undefined;
 		/** The open lesson's cards, as the drag zone keeps them. */
 		cards: CardItem[];
 		oncardConsider: (event: CustomEvent<DndEvent<CardItem>>) => void;
 		oncardFinalize: (event: CustomEvent<DndEvent<CardItem>>) => void;
 		oncardkey: (event: KeyboardEvent, lessonId: string, blockId: string, position: number) => void;
-		errorsIn: (lessonId: string) => number;
-		errorsOn: (blockId: string) => number;
 		onlessonSettings: (lessonId: string, options?: { focusName?: boolean }) => void;
 		oncardSettings: (blockId: string) => void;
 		onrepairBlock: (blockId: string) => void;
 	}
 	let {
-		doc,
-		activeLessonId,
-		activeBlockId,
 		cards,
 		oncardConsider,
 		oncardFinalize,
 		oncardkey,
-		errorsIn,
-		errorsOn,
 		onlessonSettings,
 		oncardSettings,
 		onrepairBlock
 	}: Props = $props();
 
 	const store = useStore();
-	const lessonKeys = $derived(uniqueKeys(doc.lessons.map((l) => l.lesson_id)));
+	/** What the rail says is `store.screen.tree`, like the tree it folds. */
+	const tree = $derived(store.screen.tree);
 	const actions = cardActions(store, {
 		onsettings: (blockId) => oncardSettings(blockId),
 		onrepair: (blockId) => onrepairBlock(blockId)
@@ -279,13 +265,10 @@
 </script>
 
 <ul class="rail">
-	{#each doc.lessons as lesson, i (lessonKeys[i])}
-		{@const open = lesson.lesson_id === activeLessonId}
-		{@const totals = lessonTotals(lesson, store.index)}
-		{@const errors = errorsIn(lesson.lesson_id)}
-		{@const name = lessonLabel(doc, lesson)}
-		{@const lKey = lessonKey(lessonKeys[i])}
-		<li class="lesson" class:open>
+	{#each tree.lessons as lesson (lesson.key)}
+		{@const L = lesson.index - 1}
+		{@const lKey = lessonKey(lesson.key)}
+		<li class="lesson" class:open={lesson.open}>
 			<!-- The row is only a hover and focus boundary for the circle and its panel. -->
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
@@ -300,33 +283,36 @@
 				<button
 					type="button"
 					class="rail-item"
-					class:selected={open}
+					class:selected={lesson.open}
 					class:peeked={peek?.key === lKey}
-					aria-current={open ? 'true' : undefined}
-					aria-label={`${i + 1}. lekce: ${name}`}
+					aria-current={lesson.open ? 'true' : undefined}
+					aria-label={lesson.rail_label}
 					{@attach track(lKey)}
 					onclick={() => selectLesson(lesson.lesson_id)}
 					onkeydown={(event) => peekKey(event, lKey)}
 				>
-					{i + 1}
+					<span data-screen="tree.lessons[{L}].index">{lesson.index}</span>
 				</button>
-				{#if errors > 0}<span class="dot" aria-hidden="true"></span>{/if}
+				{#if lesson.errors > 0}<span class="dot" aria-hidden="true"></span>{/if}
 				{#if peek?.key === lKey && anchors[lKey] !== undefined}
-					<RailPeek anchor={anchors[lKey]} label={`Lekce ${i + 1}`} onclose={closePeek}>
+					<RailPeek anchor={anchors[lKey]} label={lesson.peek_label} onclose={closePeek}>
 						<div class="peek-head">
-							<span class="overline">{i + 1}. lekce</span>
-							{#if errors > 0}<span class="peek-errors">{errorsCount(errors)}</span>{/if}
+							<span class="overline" data-screen="tree.lessons[{L}].peek_overline"
+								>{lesson.peek_overline}</span
+							>
+							{#if lesson.errors_text !== null}<span
+									class="peek-errors"
+									data-screen="tree.lessons[{L}].errors_text">{lesson.errors_text}</span
+								>{/if}
 						</div>
-						<p class="peek-title">{name}</p>
-						<p class="peek-meta">
-							{cardsCount(totals.cardCount)} · {totals.durationMinutes} min · {totals.xp} XP
-						</p>
+						<p class="peek-title" data-screen="tree.lessons[{L}].name">{lesson.name}</p>
+						<p class="peek-meta" data-screen="tree.lessons[{L}].summary">{lesson.summary}</p>
 						<hr class="peek-rule" />
 						<button
 							type="button"
 							class="peek-wide"
 							tabindex="-1"
-							aria-label={`Nastavení lekce ${name}`}
+							aria-label={`Nastavení lekce ${lesson.name}`}
 							onclick={() => run(lKey, () => onlessonSettings(lesson.lesson_id))}
 							onkeydown={(event) => {
 								if (event.key === 'Escape' || event.key === 'ArrowLeft') {
@@ -343,7 +329,7 @@
 				{/if}
 			</div>
 
-			{#if open}
+			{#if lesson.open}
 				<ul
 					class="tiles"
 					use:dndzone={{
@@ -357,9 +343,10 @@
 					onconsider={considerCards}
 					onfinalize={finalizeCards}
 				>
-					{#each cards as card, position (card.id)}
-						{@const block = doc.blocks.find((b) => b.block_id === card.binding.block_id)}
-						{@const key = cardKey(card.id)}
+					{#each cards as item, position (item.id)}
+						{@const card = item.card}
+						{@const P = card.position - 1}
+						{@const key = cardKey(card.key)}
 						<!-- svelte-ignore a11y_no_noninteractive_element_interactions (the hover and focus boundary of the tile and its panel) -->
 						<li
 							class="tile-item"
@@ -370,15 +357,12 @@
 							onfocusout={(event) => focusOut(key, event)}
 							oncontextmenu={(event) => contextMenu(event, key)}
 						>
-							{#if block === undefined}
+							{#if card.missing}
 								<span class="rail-tile missing" title="Chybějící karta" aria-label="Chybějící karta"
 									>!</span
 								>
 							{:else}
-								{@const cardErrors = errorsOn(block.block_id)}
-								{@const selected = block.block_id === activeBlockId}
-								{@const Icon = cardTypeIcon(block.type)}
-								{@const n = position + 1}
+								{@const Icon = cardTypeIcon(card.type!)}
 								<!--
 									A div for the same reason as the tree's rows: a button would
 									refuse a press on its own padding to the drag library. What
@@ -389,47 +373,52 @@
 									role="button"
 									tabindex="0"
 									class="rail-tile"
-									class:selected
+									class:selected={card.selected}
 									class:peeked={peek?.key === key}
-									aria-current={selected ? 'true' : undefined}
-									aria-label={`${n}. ${cardTypeLabel(block.type)}: ${cardLabel(doc, block, { lessonId: lesson.lesson_id, max: 60 })}${
-										cardErrors > 0 ? `, ${errorsCount(cardErrors)}` : ''
-									}`}
+									aria-current={card.selected ? 'true' : undefined}
+									aria-label={card.rail_label}
 									{@attach track(key)}
-									onclick={(event) => select(event, lesson.lesson_id, block.block_id, key)}
+									onclick={(event) => select(event, lesson.lesson_id, card.block_id, key)}
 									onkeydowncapture={(event) =>
-										tileKey(event, key, lesson.lesson_id, block.block_id, position)}
+										tileKey(event, key, lesson.lesson_id, card.block_id, position)}
 								>
 									<Icon size={18} aria-hidden="true" />
 								</div>
-								{#if cardErrors > 0}<span class="dot" aria-hidden="true"></span>{/if}
+								{#if card.errors > 0}<span class="dot" aria-hidden="true"></span>{/if}
 								{#if peek?.key === key && anchors[key] !== undefined}
-									<RailPeek anchor={anchors[key]} label={positionName(n)} onclose={closePeek}>
+									<RailPeek anchor={anchors[key]} label={card.peek_label} onclose={closePeek}>
 										<div class="peek-head">
-											<span class="overline">{n} · {cardTypeLabel(block.type)}</span>
-											{#if cardErrors > 0}<span class="peek-errors">{errorsCount(cardErrors)}</span
+											<span
+												class="overline"
+												data-screen="tree.lessons[{L}].cards[{P}].peek_overline"
+												>{card.peek_overline}</span
+											>
+											{#if card.errors_text !== null}<span
+													class="peek-errors"
+													data-screen="tree.lessons[{L}].cards[{P}].errors_text"
+													>{card.errors_text}</span
 												>{/if}
 										</div>
-										<p class="peek-text">
-											{cardLabel(doc, block, { lessonId: lesson.lesson_id, max: 120 })}
+										<p class="peek-text" data-screen="tree.lessons[{L}].cards[{P}].name_peek">
+											{card.name_peek}
 										</p>
 										<hr class="peek-rule" />
 										<CardActions
-											position={n}
+											position={card.position}
 											total={cards.length}
 											caption
 											onsettings={() =>
-												run(key, () => actions.settings(lesson.lesson_id, block.block_id))}
+												run(key, () => actions.settings(lesson.lesson_id, card.block_id))}
 											onduplicate={() =>
-												run(key, () => actions.duplicate(block.block_id, lesson.lesson_id))}
+												run(key, () => actions.duplicate(card.block_id, lesson.lesson_id))}
 											onremoveFromLesson={() =>
 												run(key, () =>
-													actions.removeFromLesson(lesson.lesson_id, block.block_id, {
+													actions.removeFromLesson(lesson.lesson_id, card.block_id, {
 														follow: false
 													})
 												)}
 											onremove={() =>
-												run(key, () => actions.remove(block.block_id, lesson.lesson_id))}
+												run(key, () => actions.remove(card.block_id, lesson.lesson_id))}
 											onexit={backToAnchor}
 										/>
 									</RailPeek>

@@ -13,9 +13,11 @@
 		tone?: 'neutral' | 'quiet' | 'error' | 'warning' | 'ok' | 'accent';
 		title?: string;
 		onclick?: () => void;
+		/** Where the screen model says this chip's text: `data-screen`, for the parity test. */
+		screen?: string;
 		children: import('svelte').Snippet;
 	}
-	let { tone = 'neutral', title, onclick, children }: Props = $props();
+	let { tone = 'neutral', title, onclick, screen, children }: Props = $props();
 </script>
 
 {#snippet icon()}
@@ -27,12 +29,12 @@
 {/snippet}
 
 {#if onclick}
-	<button type="button" class="chip {tone}" {title} {onclick}>
+	<button type="button" class="chip {tone}" {title} {onclick} data-screen={screen}>
 		{@render icon()}
 		{@render children()}
 	</button>
 {:else}
-	<span class="chip {tone}" {title}>
+	<span class="chip {tone}" {title} data-screen={screen}>
 		{@render icon()}
 		{@render children()}
 	</span>

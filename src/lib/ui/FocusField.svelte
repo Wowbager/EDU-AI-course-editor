@@ -42,6 +42,8 @@
 		ref?: Ref;
 		/** Id of the line that describes this field, drawn by the caller. */
 		describedby?: string;
+		/** Where the screen model says this field's value: `data-screen`, for the parity test. */
+		screen?: string;
 	}
 
 	let {
@@ -60,10 +62,12 @@
 		onchange,
 		onblur,
 		ref,
-		describedby
+		describedby,
+		screen
 	}: Props = $props();
 
 	import { untrack } from 'svelte';
+	import { fitToText, sizesItself } from './autosize';
 	import { useStore } from './context';
 	import type { Ref } from '$lib/domain/ref';
 
@@ -74,17 +78,12 @@
 	let editing = false;
 	let element = $state<HTMLInputElement | HTMLTextAreaElement | null>(null);
 
-	// A multiline field grows with its wrapped text, from three rows up to fourteen.
-	// Browsers with `field-sizing: content` do it in CSS; the rest are measured here.
-	const sizesItself = typeof CSS !== 'undefined' && CSS.supports('field-sizing', 'content');
+	// A multiline field grows with its wrapped text (`autosize.ts`).
 	$effect(() => {
 		draft;
 		const area = element;
 		if (!multiline || sizesItself || !(area instanceof HTMLTextAreaElement)) return;
-		area.style.height = 'auto';
-		const line = parseFloat(getComputedStyle(area).lineHeight) || 20;
-		const pad = area.offsetHeight - area.clientHeight + 12;
-		area.style.height = `${Math.min(Math.max(area.scrollHeight + 2, 3 * line + pad), 14 * line + pad)}px`;
+		fitToText(area);
 	});
 
 	let mounted = false;
@@ -174,6 +173,7 @@
 			bind:this={element}
 			value={draft}
 			aria-label={label}
+			data-screen={screen}
 			aria-describedby={describedby}
 			aria-invalid={flagged || undefined}
 			placeholder={emptyText ?? (placeholder || label)}
@@ -190,6 +190,7 @@
 		<input
 			value={draft}
 			aria-label={label}
+			data-screen={screen}
 			aria-describedby={describedby}
 			aria-invalid={flagged || undefined}
 			placeholder={emptyText ?? (placeholder || label)}

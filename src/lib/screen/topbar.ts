@@ -89,6 +89,9 @@ export function buildTopbar(input: ScreenInput): TopbarRegion {
 		},
 		mode: input.mode,
 		show_feedback: input.showFeedback,
+		feedback_title: input.showFeedback
+			? 'Zapnuto: zpětná vazba, nápovědy a řešení jsou vidět. Vypni a soustřeď se jen na průběh kurzu.'
+			: 'Vypnuto: zpětná vazba, nápovědy a řešení jsou skryté. Zapni, až budeš psát zpětnou vazbu.',
 		can_undo: input.canUndo,
 		can_redo: input.canRedo,
 		download: {
