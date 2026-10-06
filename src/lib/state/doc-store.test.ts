@@ -581,6 +581,23 @@ describe('transaction', () => {
 		expect(again.ref?.lessonId).toBeDefined();
 	});
 
+	it('leaves the revision, the session and the version hook alone when it nets out to nothing', () => {
+		const store = loaded();
+		const saved: string[] = [];
+		store.onBeforeAiSession = (_s, label) => void saved.push(label);
+		store.dirty = true;
+		const revision = store.revision;
+		const source = store.source;
+		store.transaction(
+			() => store.apply((d) => setField(d, { blockId: 'L1_B1_uvod', field: 'name' }, undefined)),
+			{ origin: 'ai' }
+		);
+		expect(store.revision).toBe(revision);
+		expect(store.source).toBe(source);
+		expect(store.hasAiSession).toBe(false);
+		expect(saved).toEqual([]);
+	});
+
 	it('leaves no entry when the change nets out to nothing', () => {
 		const store = loaded();
 		const depth = store.undoStack.length;

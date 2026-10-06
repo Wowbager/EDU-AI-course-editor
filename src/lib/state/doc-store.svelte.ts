@@ -520,7 +520,6 @@ export class DocStore {
 	#record(result: CommandResult, next: CourseV2): CommandResult {
 		const before = this.source;
 		if (next === before) return result;
-		if (this.#tx?.meta.origin === 'ai') this.beginAiSession();
 		this.source = next;
 		this.#revision++;
 		this.#reserve(next);
@@ -705,8 +704,16 @@ export class DocStore {
 		const entry = edit?.entry;
 		if (entry === undefined || this.#undo.at(-1) !== entry) return result;
 		if (JSON.stringify(edit?.before) === JSON.stringify(this.source)) {
-			this.#undo = this.#undo.slice(0, -1);
+			// Nets out to nothing: as if it had not run, the revision included.
+			this.source = saved.source;
+			this.#undo = saved.undo;
+			this.#redo = saved.redo;
+			this.dirty = saved.dirty;
+			this.#revision = saved.revision;
 			return result;
+		}
+		if (meta.origin === 'ai') {
+			this.#startSession(saved.source, saved.reserved, saved.revision, saved.dirty);
 		}
 		const named = { ...entry, description: meta.description ?? entry.description };
 		this.#undo = [...this.#undo.slice(0, -1), named];
@@ -727,27 +734,49 @@ export class DocStore {
 	}
 
 	/**
-	 * Remember the course and the ids handed out, once, at the first AI change of a
-	 * session (`transaction` does it). `revertAiSession` restores it. Saves the unsaved
-	 * work as a durable version first (`onBeforeAiSession`). Returns whether it began one.
+	 * Remember the course and the ids handed out, now, if no session has begun
+	 * (`transaction` does it for the first AI change, from the course as it was before
+	 * that change). `revertAiSession` restores it. Returns whether it began one.
 	 */
 	beginAiSession(): boolean {
+		return this.#startSession(
+			this.source,
+			{
+				blocks: this.#reservedBlocks,
+				lessons: this.#reservedLessons,
+				steps: this.#reservedSteps
+			},
+			this.#revision,
+			this.dirty
+		);
+	}
+
+	/**
+	 * Saves the course as it was first, as one durable version (`onBeforeAiSession`),
+	 * only when it has unsaved work; a version that cannot be saved never stops the change.
+	 */
+	#startSession(
+		source: CourseV2,
+		reserved: { blocks: Set<string>; lessons: Set<string>; steps: Set<string> },
+		revision: number,
+		dirty: boolean
+	): boolean {
 		if (this.#aiSession !== null) return false;
 		this.#aiSession = {
-			source: this.source,
+			source,
 			reservations: {
-				blocks: [...this.#reservedBlocks],
-				lessons: [...this.#reservedLessons],
-				steps: [...this.#reservedSteps]
+				blocks: [...reserved.blocks],
+				lessons: [...reserved.lessons],
+				steps: [...reserved.steps]
 			},
-			revision: this.#revision
+			revision
 		};
 		const hook = this.onBeforeAiSession;
-		if (hook !== null && this.dirty) {
+		if (hook !== null && dirty) {
 			try {
-				Promise.resolve(hook(this.source, AI_CHECKPOINT_LABEL)).catch(() => {});
+				Promise.resolve(hook(source, AI_CHECKPOINT_LABEL)).catch(() => {});
 			} catch {
-				// A version that could not be saved must not stop the change.
+				// Not saved; the change goes on.
 			}
 		}
 		return true;
