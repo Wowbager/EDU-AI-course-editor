@@ -28,7 +28,8 @@
 		reorderBindings,
 		reorderLessons
 	} from '$lib/domain/commands';
-	import { blockPreview, lessonTotals } from '$lib/domain/derive';
+	import { lessonTotals } from '$lib/domain/derive';
+	import { cardLabel, partLabel } from '$lib/domain/naming';
 	import { cardsCount, stepsCount } from '$lib/ui/plural';
 	import { uniqueKeys } from '$lib/ui/keys';
 	import { groupOf, groupsOf } from '$lib/domain/groups';
@@ -85,7 +86,7 @@
 		const key = groupOf(block);
 		const members = key === undefined ? undefined : groups.get(key);
 		if (members === undefined || members.length < 2) return undefined;
-		return `část ${members.indexOf(block) + 1}/${members.length}`;
+		return partLabel(members.indexOf(block), members.length);
 	}
 	/**
 	 * Where a card sits in a run of parts of one card: the thin line that joins them is
@@ -418,7 +419,7 @@
 												added in a row were otherwise all "Karta bez textu" here.
 											-->
 											<span class="snippet">
-												{blockPreview(block, 44, position + 1)}
+												{cardLabel(doc, block, { lessonId: lesson.lesson_id, max: 44 })}
 											</span>
 											<span class="steps">{partOf(block) ?? stepsCount(block.steps.length)}</span>
 											{#if cardErrors > 0}
@@ -496,7 +497,7 @@
 							<span class="type">
 								<Icon size={16}></Icon>
 							</span>
-							<span class="snippet">{blockPreview(block, 44)}</span>
+							<span class="snippet">{cardLabel(doc, block, { max: 44 })}</span>
 							<span class="steps">žák se k ní nedostane</span>
 						</button>
 					</li>

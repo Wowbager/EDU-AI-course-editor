@@ -1,14 +1,13 @@
 <script module lang="ts">
 	import type { BlockStep, BlockV2, CourseV2 } from '$lib/domain/schema';
 	import type { DocIndex } from '$lib/domain/index-doc';
-	import { blockPreview, stepSummary } from '$lib/domain/derive';
-	import { cardNames } from '$lib/domain/card-names';
+	import { stepSummary } from '$lib/domain/derive';
+	import { cardGroups, cardLabel, cardNames, stepName } from '$lib/domain/naming';
 	import { STEP_TYPES } from '$lib/lang';
 
 	/** The names the picker and the answer table's summary share (§8: "Krok 3", not "s3"). */
-	export function stepLabel(block: BlockV2, step: BlockStep, showIds: boolean): string {
-		const position = block.steps.findIndex((s) => s.id === step.id) + 1;
-		const name = showIds ? step.id : `Krok ${position}`;
+	export function stepOptionLabel(block: BlockV2, step: BlockStep, showIds: boolean): string {
+		const name = stepName(block, step, { showIds });
 		const text = stepSummary(step);
 		const shortened = text.length > 40 ? `${text.slice(0, 40)}…` : text;
 		if (shortened !== '') return `${name}: ${shortened}`;
@@ -18,7 +17,7 @@
 
 	/** A card's name; when another card has the same, its place follows (card-names.ts). */
 	export function blockLabelOf(doc: CourseV2, b: BlockV2, showIds: boolean): string {
-		const name = cardNames(doc, 40).get(b.block_id)?.label ?? blockPreview(b, 40);
+		const name = cardNames(doc, 40).get(b.block_id)?.label ?? cardLabel(doc, b, { max: 40 });
 		return showIds ? `${b.block_id} — ${name}` : name;
 	}
 
@@ -39,8 +38,7 @@
 		if (value === 'CHAT') return 'chat s lektorem';
 		const step = block.steps.find((s) => s.id === value);
 		if (step !== undefined) {
-			const position = block.steps.indexOf(step) + 1;
-			return showIds ? step.id : `Krok ${position}`;
+			return stepName(block, step, { showIds });
 		}
 		const target = doc.blocks.find((b) => b.block_id === value) ?? index.blocksById.get(value);
 		return target === undefined
@@ -68,7 +66,6 @@
 	import { allows } from '$lib/ui/fields';
 	import ChoicePicker from '$lib/ui/ChoicePicker.svelte';
 	import type { PickerGroup } from '$lib/ui/choice-picker';
-	import { cardGroups } from '$lib/domain/card-names';
 	import { ChevronDown } from '@lucide/svelte';
 
 	interface Props {
@@ -100,7 +97,7 @@
 	// picks "Krok 3", not "s3" (§8). The names are the ones the rest of the editor
 	// uses — `stepSummary` for a step, `blockPreview` for a card — so a card is not
 	// "Části zlomku" in the tree and "Části zlomku | Pozice | Název" here.
-	const label = (step: BlockStep) => stepLabel(block, step, showIds);
+	const label = (step: BlockStep) => stepOptionLabel(block, step, showIds);
 	const blockLabel = (b: BlockV2) => blockLabelOf(doc, b, showIds);
 
 	// `NEXT_STEP` and an absent value mean the same thing; the picker shows one option

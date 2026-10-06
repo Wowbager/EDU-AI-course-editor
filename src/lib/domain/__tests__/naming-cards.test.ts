@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BlockV2, CourseV2 } from '../schema';
-import { cardGroups, cardNames } from '../card-names';
-import { cardsWaitingFor } from '../validate';
+import { cardGroups, cardLabel, cardNames, partLabel, stepName } from '../naming';
+import { cardsWaitingFor, validate } from '../validate';
 
 const card = (id: string, name?: string, prerequisites?: string[]): BlockV2 => ({
 	block_id: id,
@@ -100,5 +100,55 @@ describe('which cards would make a cycle', () => {
 	it('ignores a prerequisite that is a skill or points nowhere', () => {
 		const d = course([card('a', 'A', ['gone'])], [['a']]);
 		expect(cardsWaitingFor(d, 'a').size).toBe(0);
+	});
+});
+
+describe('one name for a card on every surface (M1)', () => {
+	// `shared` is in two lessons (2nd in L1, 1st in L2); `empty` has no text; `loose` is in none.
+	const doc = course(
+		[card('loose'), card('first'), card('shared'), card('empty')],
+		[
+			['first', 'shared'],
+			['shared', 'empty']
+		]
+	);
+
+	it('names an empty card in two lessons the same in the tree, the picker and Kontrola kurzu', () => {
+		// Tree, under the lesson that is listed first; picker and validation have no lesson to ask.
+		const tree = cardLabel(doc, 'shared', { lessonId: 'L1', max: 50 });
+		const picker = cardNames(doc, 50).get('shared')!.name;
+		const message = validate(doc).errors.find(
+			(i) => i.code === 'E_DISPLAY_NO_TEXT' && i.ref.blockId === 'shared'
+		)!.message;
+		expect(tree).toBe('Karta 2');
+		expect(picker).toBe(tree);
+		expect(message).toContain(`„${tree}“`);
+	});
+
+	it('counts in the lesson it is asked about, and in the first lesson when it is not asked', () => {
+		expect(cardLabel(doc, 'shared', { lessonId: 'L2' })).toBe('Karta 1');
+		expect(cardLabel(doc, 'shared')).toBe('Karta 2');
+		// A lesson that does not hold the card is no reason to count in it.
+		expect(cardLabel(doc, 'first', { lessonId: 'L2' })).toBe('Karta 1');
+	});
+
+	it('names a card in no lesson by its place among all cards, and says it is outside', () => {
+		expect(cardLabel(doc, 'loose')).toBe('Karta 1');
+		expect(cardNames(doc).get('loose')).toMatchObject({ name: 'Karta 1', place: 'mimo lekce' });
+	});
+
+	it('is never an id, even for a card that is not there', () => {
+		expect(cardLabel(doc, 'nowhere')).not.toContain('nowhere');
+	});
+
+	it('words the parts of a split card and the steps of a card once', () => {
+		expect(partLabel(0, 2)).toBe('část 1/2');
+		const block = {
+			block_id: 'b',
+			type: 'display',
+			steps: [{ id: 's7' }, { id: 's8' }]
+		} as BlockV2;
+		expect(stepName(block, block.steps[1])).toBe('Krok 2');
+		expect(stepName(block, block.steps[1], { showIds: true })).toBe('s8');
 	});
 });

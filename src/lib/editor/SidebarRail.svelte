@@ -20,7 +20,8 @@
 	import { Plus, Settings } from '@lucide/svelte';
 	import type { CourseV2, LessonBlockBinding } from '$lib/domain/schema';
 	import { addBlock, addLesson } from '$lib/domain/commands';
-	import { blockPreview, lessonTotals } from '$lib/domain/derive';
+	import { lessonTotals, positionName } from '$lib/domain/derive';
+	import { cardLabel } from '$lib/domain/naming';
 	import { lessonLabel } from '$lib/domain/naming';
 	import { CARD_TYPES, cardTypeIcon, cardTypeLabel } from '$lib/ui/card-types';
 	import { useStore } from '$lib/ui/context';
@@ -391,7 +392,7 @@
 									class:selected
 									class:peeked={peek?.key === key}
 									aria-current={selected ? 'true' : undefined}
-									aria-label={`${n}. ${cardTypeLabel(block.type)}: ${blockPreview(block, 60, n)}${
+									aria-label={`${n}. ${cardTypeLabel(block.type)}: ${cardLabel(doc, block, { lessonId: lesson.lesson_id, max: 60 })}${
 										cardErrors > 0 ? `, ${errorsCount(cardErrors)}` : ''
 									}`}
 									{@attach track(key)}
@@ -403,13 +404,15 @@
 								</div>
 								{#if cardErrors > 0}<span class="dot" aria-hidden="true"></span>{/if}
 								{#if peek?.key === key && anchors[key] !== undefined}
-									<RailPeek anchor={anchors[key]} label={`Karta ${n}`} onclose={closePeek}>
+									<RailPeek anchor={anchors[key]} label={positionName(n)} onclose={closePeek}>
 										<div class="peek-head">
 											<span class="overline">{n} · {cardTypeLabel(block.type)}</span>
 											{#if cardErrors > 0}<span class="peek-errors">{errorsCount(cardErrors)}</span
 												>{/if}
 										</div>
-										<p class="peek-text">{blockPreview(block, 120, n)}</p>
+										<p class="peek-text">
+											{cardLabel(doc, block, { lessonId: lesson.lesson_id, max: 120 })}
+										</p>
 										<hr class="peek-rule" />
 										<CardActions
 											position={n}

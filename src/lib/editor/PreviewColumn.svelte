@@ -34,7 +34,7 @@
 	import { serialise } from '$lib/domain/document';
 	import { useStepView, useStore } from '$lib/ui/context';
 	import { allows } from '$lib/ui/fields';
-	import { blockPreview } from '$lib/domain/derive';
+	import { cardLabel, partLabel } from '$lib/domain/naming';
 	import { groupOf, groupsOf } from '$lib/domain/groups';
 
 	interface Props {
@@ -160,8 +160,15 @@
 			const members = key !== undefined ? (groups.get(key) ?? []) : [];
 			const position = members.indexOf(candidate);
 			const card = members[0] ?? candidate;
+			const name = cardLabel(
+				store.doc,
+				store.toView({ blockId: card.block_id }).blockId ?? card.block_id,
+				{
+					max: 30
+				}
+			);
 			labels[candidate.block_id] =
-				position > 0 ? `${blockPreview(card, 30)}, ${position + 1}. část` : blockPreview(card, 30);
+				position > 0 ? `${name}, ${partLabel(position, members.length)}` : name;
 		}
 		return labels;
 	});

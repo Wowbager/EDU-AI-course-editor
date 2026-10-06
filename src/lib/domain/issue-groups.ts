@@ -14,7 +14,7 @@ import type { CourseV2 } from './schema';
 import type { DocIndex } from './index-doc';
 import type { Ref } from './ref';
 import type { Issue } from './validate';
-import { blockLabel, capitalize, lessonLabelById, optionLabelById, stepLabel } from './naming';
+import { cardLabel, capitalize, lessonLabelById, optionLabelById, stepLabel } from './naming';
 
 export interface IssueRow {
 	issue: Issue;
@@ -77,7 +77,7 @@ export function issuePlace(doc: CourseV2, ref: Ref): string[] {
 	const parts: string[] = [];
 	if (lessonId !== undefined) parts.push(lessonLabelById(doc, lessonId) ?? lessonId);
 	if (blockId !== undefined) {
-		parts.push(block !== undefined ? blockLabel(doc, block, { lessonId, max: 30 }) : blockId);
+		parts.push(block !== undefined ? cardLabel(doc, block, { lessonId, max: 30 }) : blockId);
 	}
 	parts.push(...detailOf(doc, ref));
 	return parts.length === 0 ? ['kurz'] : parts;
@@ -103,7 +103,7 @@ export function groupIssues(
 			make = () => ({
 				key,
 				kind: 'card',
-				title: block !== undefined ? blockLabel(doc, block, { lessonId, max: 50 }) : ref.blockId!,
+				title: block !== undefined ? cardLabel(doc, block, { lessonId, max: 50 }) : ref.blockId!,
 				context:
 					lessonId !== undefined
 						? (lessonLabelById(doc, lessonId) ?? lessonId)

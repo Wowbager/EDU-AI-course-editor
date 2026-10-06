@@ -22,14 +22,7 @@ import type { Ref } from './ref';
 import { buildIndex, isGoToKeyword, reachableSteps, type DocIndex } from './index-doc';
 import { blockDurationMinutes, isPracticeBlock, optionOutcomesApply } from './derive';
 import { dimensionCount, ELO_MAX, ELO_MIN, type SkillConfig } from './skill-config';
-import {
-	blockLabel,
-	capitalize,
-	lessonLabel,
-	optionLabel,
-	stepLabel,
-	stepPosition
-} from './naming';
+import { cardLabel, capitalize, lessonLabel, optionLabel, stepLabel, stepPosition } from './naming';
 
 export type Severity = 'error' | 'warning';
 
@@ -109,7 +102,7 @@ function checkUniqueIds(doc: CourseV2, add: Add) {
 				'error',
 				'E_DUPLICATE_BLOCK_ID',
 				{ blockId: block.block_id, field: 'block_id' },
-				`Dva bloky — „${blockLabel(doc, first)}“ a „${blockLabel(doc, block)}“ — mají stejné id „${block.block_id}“. Žákovi by se zobrazil jen jeden z nich a odkazy na ten druhý by nikam nevedly.`
+				`Dva bloky — „${cardLabel(doc, first)}“ a „${cardLabel(doc, block)}“ — mají stejné id „${block.block_id}“. Žákovi by se zobrazil jen jeden z nich a odkazy na ten druhý by nikam nevedly.`
 			);
 		}
 		seenBlocks.add(block.block_id);
@@ -122,7 +115,7 @@ function checkUniqueIds(doc: CourseV2, add: Add) {
 					'error',
 					'E_DUPLICATE_STEP_ID',
 					{ blockId: block.block_id, stepId: step.id, field: 'id' },
-					`Blok „${blockLabel(doc, block)}“ má dva kroky se stejným id „${step.id}“ — ${stepLabel(block, first)} a ${stepLabel(block, step)}. Odpověď žáka se uloží k jednomu z nich a větvení skočí na nesprávný krok.`
+					`Blok „${cardLabel(doc, block)}“ má dva kroky se stejným id „${step.id}“ — ${stepLabel(block, first)} a ${stepLabel(block, step)}. Odpověď žáka se uloží k jednomu z nich a větvení skočí na nesprávný krok.`
 				);
 			}
 			seenSteps.add(step.id);
@@ -135,7 +128,7 @@ function checkUniqueIds(doc: CourseV2, add: Add) {
 						'warning',
 						'W_DUPLICATE_OPTION_ID',
 						{ blockId: block.block_id, stepId: step.id, optionId: option.id, field: 'id' },
-						`V bloku „${blockLabel(doc, block)}“ (${stepLabel(block, step)}) mají dvě odpovědi stejné id „${option.id}“ — ${optionLabel(step.question, first)} a ${optionLabel(step.question, option)}. Žákova volba se může uložit k té druhé a vyhodnotit se jinak, než čekáš.`
+						`V bloku „${cardLabel(doc, block)}“ (${stepLabel(block, step)}) mají dvě odpovědi stejné id „${option.id}“ — ${optionLabel(step.question, first)} a ${optionLabel(step.question, option)}. Žákova volba se může uložit k té druhé a vyhodnotit se jinak, než čekáš.`
 					);
 				}
 				seenOptions.add(option.id);
@@ -216,7 +209,7 @@ function checkBlocks(
 
 	for (const block of doc.blocks) {
 		const blockRef: Ref = { blockId: block.block_id };
-		const cardName = blockLabel(doc, block);
+		const cardName = cardLabel(doc, block);
 
 		checkStructuralCompleteness(doc, block, add);
 		checkVectors(doc, block, skillConfig, add);
@@ -283,7 +276,7 @@ function checkBlocks(
  */
 function checkHintReach(doc: CourseV2, block: BlockV2, add: Add) {
 	const filled = (text: string | undefined) => (text ?? '').trim() !== '';
-	const cardName = blockLabel(doc, block);
+	const cardName = cardLabel(doc, block);
 	const oneBubble = block.type !== 'display';
 	const offered = block.steps.filter((step) => !oneBubble || step.type === 'question');
 
@@ -346,7 +339,7 @@ function checkHintReach(doc: CourseV2, block: BlockV2, add: Add) {
 
 function checkStructuralCompleteness(doc: CourseV2, block: BlockV2, add: Add) {
 	const blockRef: Ref = { blockId: block.block_id };
-	const cardName = blockLabel(doc, block);
+	const cardName = cardLabel(doc, block);
 
 	if (block.type === 'display') {
 		const hasText = block.steps.some(
@@ -720,7 +713,7 @@ function checkVectors(
 	const gpf = block.gpf;
 	if (gpf === undefined) return;
 	const expected = dimensionCount(skillConfig);
-	const cardName = blockLabel(doc, block);
+	const cardName = cardLabel(doc, block);
 
 	for (const name of ['relation_vector', 'elo_vector'] as const) {
 		const vector = gpf[name];
@@ -820,7 +813,7 @@ function checkEloOutlier(doc: CourseV2, block: BlockV2, courseMean: number | nul
 			'warning',
 			'W_ELO_OUTLIER',
 			{ blockId: block.block_id, field: 'gpf.elo_vector' },
-			`Blok „${blockLabel(doc, block)}“ je nastavený jako výrazně ${mean > courseMean ? 'těžší' : 'lehčí'} než zbytek kurzu (${mean.toFixed(1)} proti průměru ${courseMean.toFixed(1)}), ale nemá vyplněnou vlastní obtížnost. Než se obtížnost dopočítá z dat, může se žákovi nabídnout ve špatnou chvíli.`
+			`Blok „${cardLabel(doc, block)}“ je nastavený jako výrazně ${mean > courseMean ? 'těžší' : 'lehčí'} než zbytek kurzu (${mean.toFixed(1)} proti průměru ${courseMean.toFixed(1)}), ale nemá vyplněnou vlastní obtížnost. Než se obtížnost dopočítá z dat, může se žákovi nabídnout ve špatnou chvíli.`
 		);
 	}
 }
@@ -829,7 +822,7 @@ function checkEloOutlier(doc: CourseV2, block: BlockV2, courseMean: number | nul
 
 function checkPrerequisiteGraph(doc: CourseV2, index: DocIndex, add: Add) {
 	for (const block of doc.blocks) {
-		const cardName = blockLabel(doc, block);
+		const cardName = cardLabel(doc, block);
 		for (const [i, rule] of (block.learning?.prerequisites ?? []).entries()) {
 			const ref: Ref = { blockId: block.block_id, field: `learning.prerequisites.${i}` };
 
@@ -863,7 +856,7 @@ function checkPrerequisiteGraph(doc: CourseV2, index: DocIndex, add: Add) {
 		// always a name to give it and no reason to fall back to the id.
 		const names = cycle.map((id) => {
 			const block = doc.blocks.find((b) => b.block_id === id)!;
-			return `„${blockLabel(doc, block)}“`;
+			return `„${cardLabel(doc, block)}“`;
 		});
 		add('error', 'E_PREREQ_CYCLE', { blockId: cycle[0] }, cycleMessage(names.slice(0, -1)));
 	}

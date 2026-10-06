@@ -11,7 +11,7 @@
 	import Button from '$lib/ui/Button.svelte';
 	import ChoicePicker from '$lib/ui/ChoicePicker.svelte';
 	import type { PickerGroup } from '$lib/ui/choice-picker';
-	import { cardGroups, cardNames } from '$lib/domain/card-names';
+	import { cardGroups, cardNames } from '$lib/domain/naming';
 	import { ChevronDown } from '@lucide/svelte';
 	import {
 		deleteBlock,
@@ -22,8 +22,7 @@
 	} from '$lib/domain/commands';
 	import { allows } from '$lib/ui/fields';
 	import {
-		blockLabel,
-		blockLabelById,
+		cardLabel,
 		capitalize,
 		lessonLabelById,
 		optionLabelById,
@@ -54,7 +53,7 @@
 		target.stepId === undefined ? undefined : targetBlock?.steps.find((s) => s.id === target.stepId)
 	);
 	const targetName = $derived(
-		targetBlock === undefined ? target.blockId : blockLabel(doc, targetBlock, { max: 46 })
+		targetBlock === undefined ? target.blockId : cardLabel(doc, targetBlock, { max: 46 })
 	);
 	const references = $derived(
 		target.stepId === undefined
@@ -128,13 +127,13 @@
 					step === undefined || optionId === undefined
 						? undefined
 						: optionLabelById(step.question, optionId, { max: 32 });
-				const where = from === undefined ? '' : ` v kartě „${blockLabel(doc, from, { max: 32 })}“`;
+				const where = from === undefined ? '' : ` v kartě „${cardLabel(doc, from, { max: 32 })}“`;
 				const which = step === undefined ? '' : `, ${stepLabelById(from!, step.id)}`;
 				return `${capitalize(option ?? `odpověď „${optionId}“`)}${where}${which} sem větví`;
 			}
 			case 'prerequisite': {
-				const name = blockId === undefined ? undefined : blockLabelById(doc, blockId, { max: 46 });
-				return `Karta „${name ?? blockId}“ ji má jako předpoklad`;
+				const name = blockId === undefined ? undefined : cardLabel(doc, blockId, { max: 46 });
+				return `Karta „${name}“ ji má jako předpoklad`;
 			}
 		}
 	};

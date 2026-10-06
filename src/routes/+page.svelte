@@ -38,7 +38,7 @@
 	import { importCourseJson, emptyCourse } from '$lib/domain/document';
 	import { newCourseId } from '$lib/domain/ids';
 	import { looksLikeGpfTaxonomy, skillConfigFromGpfTaxonomy } from '$lib/domain/skill-config';
-	import { derivedBlockName } from '$lib/domain/derive';
+	import { cardLabel } from '$lib/domain/naming';
 	import { lessonLabel } from '$lib/domain/naming';
 	import { fieldSpec } from '$lib/ui/fields';
 	import { loadSkillConfig } from '$lib/api/client';
@@ -148,7 +148,6 @@
 	const card = $derived(store.open.card);
 	const binding = $derived(store.open.binding);
 	const orphaned = $derived(store.open.orphaned);
-	const cardPosition = $derived(store.open.position);
 	const nameSpec = fieldSpec('block', 'name');
 
 	async function onimport(file: File) {
@@ -476,7 +475,7 @@
 							label={nameSpec?.label ?? 'Název karty'}
 							value={card.name}
 							ref={{ blockId: card.block_id, field: 'name' }}
-							placeholder={derivedBlockName(card, 70, cardPosition)}
+							placeholder={cardLabel(doc, card, { lessonId: lesson?.lesson_id, max: 70 })}
 							placeholderKind="stand-in"
 							density="compact"
 							onchange={(v) =>

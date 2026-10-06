@@ -21,6 +21,7 @@
 	import type { BlockStep, BlockV2, CourseV2 } from '$lib/domain/schema';
 	import FocusField from '$lib/ui/FocusField.svelte';
 	import NumberField from '$lib/ui/NumberField.svelte';
+	import { stepName } from '$lib/domain/naming';
 	import Button from '$lib/ui/Button.svelte';
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import GoToPicker, { blockLabelOf, goToSummary } from './GoToPicker.svelte';
@@ -186,8 +187,8 @@
 		const target = doc.blocks.find((b) => b.block_id === issue.ref.blockId);
 		if (target === undefined) return '';
 		if (issue.ref.stepId === undefined) return `karta „${blockLabelOf(doc, target, showIds)}“`;
-		const position = target.steps.findIndex((s) => s.id === issue.ref.stepId) + 1;
-		return showIds ? issue.ref.stepId : `Krok ${position}`;
+		const step = target.steps.find((s) => s.id === issue.ref.stepId);
+		return step === undefined ? issue.ref.stepId : stepName(target, step, { showIds });
 	}
 
 	/** Runs `change`; if it left something unreachable that was reachable, remembers it. */

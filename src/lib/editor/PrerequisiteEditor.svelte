@@ -26,7 +26,7 @@
 	import ChoicePicker from '$lib/ui/ChoicePicker.svelte';
 	import type { PickerStep } from '$lib/ui/choice-picker';
 	import { setField } from '$lib/domain/commands';
-	import { cardGroups, cardNames } from '$lib/domain/card-names';
+	import { cardGroups, cardNames } from '$lib/domain/naming';
 	import { cardsWaitingFor } from '$lib/domain/validate';
 	import { skillTree } from '$lib/domain/skill-config';
 	import { Plus, Trash2 } from '@lucide/svelte';

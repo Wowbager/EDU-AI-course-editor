@@ -38,6 +38,7 @@ import {
 	splitQuestionCards,
 	toView
 } from '$lib/domain/groups';
+import { cardPlace } from '$lib/domain/naming';
 import type { SkillConfig } from '$lib/domain/skill-config';
 import type { CommandResult } from '$lib/domain/commands';
 import type { Mode } from '$lib/ui/fields';
@@ -108,8 +109,12 @@ export function resolveOpen(doc: CourseV2, index: DocIndex, selection: Ref | nul
 		card === undefined ? undefined : lesson?.blocks.find((b) => b.block_id === card.block_id);
 	const orphaned =
 		card !== undefined && (index.lessonsByBlock.get(card.block_id) ?? []).length === 0;
-	const i = binding === undefined || lesson === undefined ? -1 : lesson.blocks.indexOf(binding);
-	return { lesson, card, binding, orphaned, position: i < 0 ? undefined : i + 1 };
+	// The position is the card's place in the open lesson, by the one naming rule.
+	const position =
+		card === undefined || binding === undefined || lesson === undefined
+			? undefined
+			: cardPlace(doc, card, { lessonId: lesson.lesson_id }).position;
+	return { lesson, card, binding, orphaned, position };
 }
 
 export class DocStore {

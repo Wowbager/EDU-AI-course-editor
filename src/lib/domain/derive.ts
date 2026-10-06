@@ -211,10 +211,13 @@ const truncate = (text: string, max: number) =>
  * is written to the document to produce it — an empty card stays empty, so the
  * name follows the card when it is reordered instead of going stale.
  */
+/** What a card with no text is called, by its place: "Karta 3". */
+export const positionName = (position: number): string => `Karta ${position}`;
+
 export function derivedBlockName(block: BlockV2, max = 70, position?: number): string {
 	const source = block.steps.find((step) => (step.content ?? '').trim() !== '');
 	const text = firstSentence(plainFirstLine(source?.content ?? ''));
-	if (text === '') return position === undefined ? 'Karta bez textu' : `Karta ${position}`;
+	if (text === '') return position === undefined ? 'Karta bez textu' : positionName(position);
 	return truncate(text, max);
 }
 

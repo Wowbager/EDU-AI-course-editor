@@ -13,6 +13,7 @@
 	} from '$lib/domain/schema';
 	import FocusField from '$lib/ui/FocusField.svelte';
 	import NumberField from '$lib/ui/NumberField.svelte';
+	import { stepName } from '$lib/domain/naming';
 	import Chip from '$lib/ui/Chip.svelte';
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import Toggle from '$lib/ui/Toggle.svelte';
@@ -530,7 +531,7 @@
 				{@const Icon = typeInfo.icon}
 				<Icon size={14}></Icon>
 			{/if}
-			<span>{showIds ? step.id : `Krok ${position}`}</span>
+			<span>{stepName(block, step, { showIds })}</span>
 			{#if typeInfo}<span> · {typeInfo.label}</span>{/if}
 		</Chip>
 		{#if inboundBranches > 0}
