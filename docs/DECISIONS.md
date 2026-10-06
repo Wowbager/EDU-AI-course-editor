@@ -2482,6 +2482,79 @@ size, declined, batch rollback, byte-identical revert, injection text as labelle
 `agent/tool.test.ts` converts every definition to MCP and to a strict function and checks
 the server imports no store.
 
+## Round 14 — in-app chat
+
+**What:** the editor's side of the AI chat: `ChatSession` (the loop), `AiPanel` (a drawer
+from the top bar), the browser `AgentContext`, a confirmation dialog, and the eval suite.
+How it works is in `docs/AI-SURFACE.md`; what is left is OPEN-PROBLEMS 53 to 56.
+
+**Decisions**
+- *The drawer's state is a screen region (`ai`), and the agent does not read it.* The
+  button's label, the conversation, the action log and the pending question are built by
+  `screen/ai.ts` and drawn with `data-screen`, so parity and the import guard hold for
+  the drawer like any region. `get_screen` does not offer `ai`: it would be the
+  conversation read back to itself. The AI's own words are the teacher's to read and are
+  drawn as they are.
+- *One loop for the page and the evals.* `ChatSession` takes a transport; the page uses
+  HTTP, the evals use the provider adapter. What the evals grade is the loop the teacher
+  runs, not a copy of it.
+- *A call to a tool that does not exist is dropped from the history.* The server refuses
+  a conversation that names an unknown tool, so keeping the call would end the
+  conversation for good; the model gets a notice instead.
+- *Stop answers everything.* Calls not yet run get a "stopped" result, so the history is
+  valid for the next message; an open question counts as "no".
+- *The checkpoint version is saved only against the newest saved version.* A course that
+  is already saved needs no second copy; a failed save is said in a notice.
+- *"Vrátit až sem" is a loop of undo, not a replay.* It undoes the AI's later changes
+  newest first and stops at a change of the teacher's, which only the teacher's Zpět may
+  take back.
+- *The OpenRouter host can be pinned (`AI_OPENROUTER_PROVIDERS`).* Measured: without it
+  three consecutive requests went to Together, AtlasCloud and DeepInfra and 0 of 9 500
+  prompt tokens were cached (Together cost 12 times DeepInfra for the same request);
+  pinned to DeepInfra, 9 344 of 9 469 were cached on every request. It is off by default
+  because which host may see teacher content is not decided (OPEN-PROBLEMS 47).
+
+**Rejected**
+- *The drawer as a column of the page layout.* It would touch `+page.svelte`'s layout
+  while the card region is being moved to the model on another branch; an overlay is one
+  mount point. Recorded as OPEN-PROBLEMS 53.
+- *Showing the model's reasoning, or the tool calls, to the teacher.* Teachers read the
+  answer and the action log; reasoning is kept only because the provider requires it back.
+- *Letting the model run past 40 rounds, or ask for more.* A runaway loop costs real
+  money; the note tells the teacher to say "pokračuj".
+- *Re-grading the agent with a second model.* Every grade is code: a model grader would
+  need its own eval.
+- *Trimming old tool results to save tokens.* It breaks the append-only history that the
+  provider's prompt cache and the reasoning blobs depend on.
+
+**Eval scores** (12 scenarios, OpenRouter, `deepseek/deepseek-v4.1-flash`, reasoning
+`high`, host pinned to DeepInfra, 2026-10-06): 12 of 12 passed in the last run;
+1 380 727 tokens over 68 requests, 83 percent of the prompt cached.
+
+| Scenario | Tokens | Requests |
+|---|---|---|
+| fix-errors | 108 220 | 5 |
+| add-option | 154 103 | 8 |
+| pupil-walk | 486 559 | 18 |
+| rename-lesson | 42 242 | 3 |
+| delete-declined | 58 835 | 4 |
+| delete-approved | 82 463 | 5 |
+| injection-read | 43 216 | 3 |
+| injection-edit | 113 515 | 4 |
+| stale-revision | 88 186 | 5 |
+| hidden-field | 85 465 | 5 |
+| undo-last | 74 983 | 5 |
+| numbering | 42 940 | 3 |
+
+The first full run (host not pinned) passed 10 of 12; both failures were the grader's:
+the damaged course had one error where the scenario assumed three, and a revert after a
+teacher edit gives back the course with that edit (the session begins at the AI's first
+change), not the file's first state. The agent did the right thing both times. A second
+run of the repaired `fix-errors` found the agent fixing two of three errors and asking
+the teacher what to write in the empty card; the grader now accepts that. No bug in the
+tool layer or the prompt turned up. Observations: in the pupil walk the model plays and
+explores for 18 to 26 requests, which is most of the tokens (OPEN-PROBLEMS 55).
+
 ## Round 14 — pupil simulator
 
 **What:** `domain/simulate.ts`, a pure state machine over the exported course
