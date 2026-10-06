@@ -156,17 +156,13 @@ spec says.
 
 ### 15. A card's own XP is shown as its reward, and the app ignores it
 **Verified: yes**, per the spec (§6.1 `xp` ⚠️ Inert) and "Still open" 8. The field is
-marked unread now, but the card header still says "N XP · vlastní hodnota" when one is
-typed (and just "N XP" when it is derived, since Round 8 dropped "· automaticky"). Worth
-showing the derived figure with the authored one crossed out, or not offering the field.
+marked unread and still offered in Pokročilý.
 
-**Totals fixed (Round 14 part 2).** A lesson's and the course's XP are the derived XP of
+**Fixed (Round 14 parts 2 and 3).** A lesson's and the course's XP are the derived XP of
 its steps in every mode, as the app counts them (`course_model.dart`
-`_calculateBlockMaxXp`, which never reads `xp`), and a binding that resolves to nothing
-is 1. The admin's test course reads the same in Učitel and Pokročilý
-(`__tests__/view-vs-source.test.ts`). **Still open:** the card header's "N XP · vlastní
-hodnota" (`CardEditor`) still shows the authored figure as if it were the reward; it moves
-with the card region in part 3, and should show the derived figure.
+`_calculateBlockMaxXp`, which never reads `xp`), and a binding that resolves to nothing is
+1 (`__tests__/view-vs-source.test.ts`). The card header's chip shows the derived figure and
+its title says that a typed one is ignored (`screen/card.ts`).
 
 ### 17. The player still talks to other origins while it runs — app-side
 **Verified: yes.** Google Fonts (the app's `google_fonts`) and `accounts.google.com`
@@ -480,23 +476,16 @@ Round 13 (`DECISIONS.md` → Round 13); what is left:**
   the course's terms; „Kam dál“ keeps letters typed while it opens; „výchozí sada“ is a
   grey label with its meaning; the course dialog has „Hotovo“.
 
-### 46. Round 14 left (parts 1 and 2)
+### 46. Round 14 left (parts 1 to 3)
 **Not reproduced as bugs; places where the new rules do not yet reach.**
-- Three numeric fields still use a native `type="number"` box with their own clamp
-  (`TopicPicker` Elo, `CompetencyEditor` weight, `PrerequisiteEditor` level). They go
-  through `parseNumberInput`, so they never write NaN, but they have three clamp rules and
-  no draft/inline error. One `clampNumber(spec)` is still to do.
-- `store.selection` is still written back by the page from `store.open`; consumers that
-  read `selection.lessonId` should read `store.open.lesson` instead (not done in part 2).
 - A card in no lesson is named „Karta N“ by its place among all cards in the tree's
   orphan list (it was „Karta bez textu“).
-- **Part 3 is the card region.** The import guard's `PENDING` list is the work: `AnswerTable`,
-  `CardEditor`, `CardSettings`, `GoToPicker`, `LessonSettings`, `PrerequisiteEditor`,
-  `RepairDialog`, `StepEditor`, `TopicPicker`, the page's card heading and empty-state
-  sentence, and, with their own regions, `ExportDialog` and `VersionsDialog`. The card
-  header's XP chip still shows the authored `xp` as the reward (#15).
+- Closed in part 3: the card region and the import guard (pending list empty), the card
+  header's XP chip (#15), the three clamp rules (`clampNumber`), the page's selection
+  write-back, mode gating outside `fields.ts`, the local UI state of the add rows, armed
+  deletes, pickers and the skill flow.
 - **`store.screen` is not the whole screen.** The toast, the import notes, the recovery
-  message, the settings dialogs, step folds and armed deletes are not in it. The preview
+  message and the tree's lesson rename are not in it. The preview
   column's rendering of the player is the player's (a picture an AI cannot read); only its
   status and target are.
 - **The editor uses `inspect`, which the fork's `lib/preview/README.md` calls the tests'

@@ -118,6 +118,11 @@ Each of these comes from a bug that cost a round.
    how to build the player in a sibling directory, the archive of retired work) lives in
    the workspace notes outside the repo.
 
+9. **What the teacher sees and what the AI is told come from one Screen model**
+   (`src/lib/screen/`). A component never computes a displayed value; every new visible
+   thing is a `screen/` field rendered with `data-screen` and covered by the parity test;
+   the import guard enforces it.
+
 ## Conventions that are tested
 
 - `src/lib/domain/` is headless (no Svelte, no UI). Put logic there, with tests.
@@ -132,6 +137,12 @@ Each of these comes from a bug that cost a round.
 - The preview protocol exchanges JSON strings, posted to `window.location.origin`.
   A new message type updates the union and every `switch` on both sides, and gets a
   "sent when" line in the fork's `lib/preview/README.md`.
+- Components under `src/lib/editor/`, `src/lib/ui/` and `src/routes/` read `store.screen`
+  and write through commands. `screen/__tests__/import-guard.test.ts` fails on a read-side
+  domain import (names, totals, validation, groups), on a mode comparison, on `Number(` or
+  `parseFloat(`, and on a function exported from a `<script module>`, and its pending list
+  is empty. `e2e/screen-parity.spec.ts` holds every `data-screen` element to the model and
+  finds text of the course drawn outside one.
 - `{#each}` keys stay unique in a broken document (`ui/keys.ts`). State a component
   must not forget on remount lives in a keyed store (`state/step-view.svelte.ts`).
 - The preview's layout may not depend on focus or click targets

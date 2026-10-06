@@ -2360,6 +2360,79 @@ plan "Phase 0"). Part 1 removes the divergences that are plain rules in componen
   the toast (`Notices`), the import notes and the draft-recovery message are still page
   state.
 
+### Round 14 part 3 — the card, the pickers and the dialogs come from the model
+
+The editor column and every dialog now draw from `store.screen` (`card`, `pickers`,
+`dialogs`, and more of `ui`). The import guard's pending list is empty, and
+`e2e/screen-parity.spec.ts` holds the column, the settings dialogs and the version history
+to the model.
+
+- **`card` (the editor column).** `screen/card.ts` builds the heading (value and the derived
+  placeholder), the chips, the menu, and per step: its name („Krok 2“, the id in Pokročilý),
+  fold state, which fields the mode shows (`fieldsFor`, custom specs included) with the text
+  the box holds, what it says when empty, its hint and the text typed that is no number; the
+  answer table (columns, summary line, which detail lines are open, the „Kam dál“ button
+  text), the hint ladder and the extras. `hidden_fields` lists what exists but the mode (or
+  Zpětná vazba) keeps off the screen, with the mode that shows it, so an AI does not take it
+  for missing. A field is a `FieldView` (`screen/field-view.ts`); `FieldGroup` draws a list of
+  them and writes. Rejected: a model of only the values (the empty line, the hint and the
+  draft are what the teacher reads); building it inside the components (that is the
+  divergence this round removes).
+- **Pickers.** `ChoicePicker` is told only `id`; the path and the search are
+  `store.ui.picker`, the step as drawn is `screen.pickers.open` (`screen/pickers.ts`, with
+  the three sources: „Kam dál“ in `goto.ts`, prerequisites, the repair dialog). The
+  „Přidat dovednost“ box keeps its own markup (its e2e suite reads it) but its flow
+  (`step`, `skill`, `dimension`, `editing`, `flashed`) is `store.ui.topic` and its steps are
+  `topics.panel`. Rejected: moving it onto `ChoicePicker` (different back labels and a
+  disabled level that says why; a rewrite of a tested surface for no new guarantee).
+- **Dialogs.** `store.ui.dialog` replaces the page's `modal`, `repairTarget`, the card's
+  `showLessonPicker` and each step's `pendingTypeChange`; opening or closing one ends what
+  its predecessor had half done. `dialogs.*` is built only while its dialog is open.
+  Armed two-click deletes (`lesson:<id>`, `card:<id>`, also the rail's) are `ui.armed`; the
+  add rows, the rename of an RVP code, the Pojem draft and its suggestion list, which
+  prerequisite is changed and what was refused are `ui.competency`, `ui.concepts`,
+  `ui.prerequisite`. No DOM `.value =` writes are left to fight the store.
+- **XP chip.** It shows what the steps are worth, which is what the app awards; a card's own
+  `xp` is read by nothing there (#15), so the title says that a typed figure is ignored.
+- **One rule per value, moved to the domain.** `convertQuestion` is what `setQuestionType`
+  does, and `planQuestionTypeChange` reads what would be lost from its result, so the
+  warning and the change cannot disagree. `isVideoPageLink` is the rule of
+  `E_MEDIA_NOT_DIRECT`, also said at the field. The course spelling of a Pojem moved to
+  `domain/concepts.ts`; the card's questions kept together or split to
+  `setQuestionsTogether`; the check before publishing a version to `publishCheck`.
+- **Mode gating only through `fields.ts`.** The elements that were gated by a comparison
+  with the mode have specs: the skill difficulty (`gpf.elo_vector.elo`), „Více otázek v jedné
+  kartě“ (`grouping.together`), and the editorial states and the comparison in the version
+  history (`versions.*`); a skill's code follows `gpf.vector`. The guard now also fails on
+  `mode === 'advanced'`.
+- **`clampNumber(bounds, n)`.** A number field's spec declares `min` / `max`; the skill
+  difficulty, the RVP weight and the required mastery are `NumberField`s with it, so they
+  keep text that is no number, say so under the box and write only what is a number. An
+  emptied weight or mastery keeps the old value and the box goes back to it; an emptied
+  difficulty gives back the default.
+- **The page no longer writes the selection back.** Readers of `selection.lessonId` read
+  `store.open`; leaving a card counts the card that was open even when the selection never
+  named it.
+- **Reachability follows the player.** `GoToResolver.resolve` ignores `go_to` only in an
+  `exercise` card (`step_navigation.dart:208`), and an answer's target is read only for a
+  single pick (`block_step_engine.dart:620-633`), so a `display` card branches, an
+  `exercise` card never does, and a multi-select or a typed answer leads to the next step.
+  `stepSuccessors`, `W_UNREACHABLE_STEP` and `W_ORPHAN_BLOCK` (a branch the player ignores
+  does not make a card reachable) use `goToIsFollowed`. A course that relied on the old
+  rule may now report a different set of unreachable steps.
+- **Changed without being asked.** The XP chip shows the derived figure (and no longer „N
+  XP · vlastní hodnota“). Fields in the settings dialogs show their issues and keep an
+  invalid number as a draft with a line under it (they had no ref before, so neither
+  worked). The three bounded numbers are text boxes with the draft line, not native number
+  boxes. The skill difficulty is offered in Pokročilý only, where it was drawn, and
+  „najdeš v režimu“ now says so. A type change warns about a stray `correct_number` on
+  any question that holds one, where it counted only numeric ones.
+- **Left.** The toast, the import notes, the draft-recovery message and the tree's own
+  dialogs (the lesson rename, Nová lekce) are still page state. The Markdown editor's text
+  is a model field (`content.value`) but is not tagged for the parity test (it draws line
+  by line). The version history reads its async result (the loaded version, the publish
+  call) in the component.
+
 ## Formatting — one formatter, and the two places it is not allowed
 
 The repo had a house style and no formatter: `useTabs` nearly everywhere (129 files to
