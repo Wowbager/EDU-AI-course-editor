@@ -281,7 +281,9 @@
 
 <section class="topics">
 	<header>
-		{#if count === null}
+		{#if store.skillConfigStatus === 'loading'}
+			<Chip tone="neutral">Dovednosti se načítají</Chip>
+		{:else if count === null}
 			<Chip tone="warning">Nastavení dovedností se nenačetlo</Chip>
 		{:else if topics.length === 0}
 			<Chip tone="warning" title="Bez vazby na dovednost se profil žáka po této kartě nepohne">
@@ -292,7 +294,7 @@
 				{strongCount} silných vazeb
 			</Chip>
 		{/if}
-		{#if store.skillConfig?.is_default}
+		{#if store.skillConfigStatus === 'default'}
 			<!-- Not a problem, so not amber: the course simply has no skill list of its own. -->
 			<Chip tone="neutral">výchozí sada</Chip>
 			<span class="default-note">

@@ -456,3 +456,29 @@ describe('one version for the label and the file (H5)', () => {
 		expect(store.export().version).toBe(7);
 	});
 });
+
+describe('the skill list status (M5)', () => {
+	const config = (isDefault?: boolean) =>
+		({
+			vector: { id: 'v', name: 'V', dimension_count: 1, dimensions: [] },
+			...(isDefault ? { is_default: true } : {})
+		}) as never;
+
+	it('is loading until the list is set, and load() starts it over', () => {
+		const store = new DocStore();
+		expect(store.skillConfigStatus).toBe('loading');
+		store.skillConfig = config();
+		expect(store.skillConfigStatus).toBe('loaded');
+		store.load(emptyCourse('C2', 'Jiný'));
+		expect(store.skillConfig).toBeNull();
+		expect(store.skillConfigStatus).toBe('loading');
+	});
+
+	it('tells the neutral default set from a course list, and a failure from loading', () => {
+		const store = new DocStore();
+		store.skillConfig = config(true);
+		expect(store.skillConfigStatus).toBe('default');
+		store.skillConfig = null;
+		expect(store.skillConfigStatus).toBe('failed');
+	});
+});

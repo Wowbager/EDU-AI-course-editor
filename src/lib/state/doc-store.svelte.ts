@@ -57,6 +57,13 @@ export type { Mode } from '$lib/ui/fields';
 
 const MAX_UNDO = 200;
 
+/**
+ * `loading` until the list has been asked for, `loaded` when the course's own (or the
+ * platform's) list arrived, `default` when it is the neutral set shipped with the
+ * editor, `failed` when nothing could be read.
+ */
+export type SkillConfigStatus = 'loading' | 'loaded' | 'default' | 'failed';
+
 /** What `DocStore.open` resolves the selection to. */
 export interface OpenState {
 	lesson: CourseV2['lessons'][number] | undefined;
@@ -108,7 +115,24 @@ export function resolveOpen(doc: CourseV2, index: DocIndex, selection: Ref | nul
 export class DocStore {
 	/** The course as exported: one block per question. */
 	source = $state<CourseV2>(emptyCourse('NEW', 'Nový kurz'));
-	skillConfig = $state<SkillConfig | null>(null);
+	#skillConfig = $state.raw<SkillConfig | null>(null);
+	#skillStatus = $state<SkillConfigStatus>('loading');
+	/**
+	 * The course's skill list, and what is known about it. `null` only while it is
+	 * `loading` or after it `failed`: a check that needs the list is not run silently
+	 * in those states, and the screen says which one it is.
+	 */
+	get skillConfig(): SkillConfig | null {
+		return this.#skillConfig;
+	}
+	set skillConfig(config: SkillConfig | null) {
+		this.#skillConfig = config;
+		this.#skillStatus = config === null ? 'failed' : config.is_default ? 'default' : 'loaded';
+	}
+	get skillConfigStatus(): SkillConfigStatus {
+		return this.#skillStatus;
+	}
+
 	#mode = $state<Mode>('teacher');
 	#selection = $state<Ref | null>(null);
 	#showFeedback = $state(true);
@@ -344,6 +368,9 @@ export class DocStore {
 		this.touchedFields = new Set();
 		this.#reviewed = null;
 		this.drafts = {};
+		// The list belongs to the course that was open; the page asks for the new one's.
+		this.#skillConfig = null;
+		this.#skillStatus = 'loading';
 	}
 
 	touchCard(blockId: string) {

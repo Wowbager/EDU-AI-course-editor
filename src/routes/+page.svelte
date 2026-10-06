@@ -226,8 +226,8 @@
 		// requests can be in flight at once. Without the recheck the slower answer
 		// wins, and the course is measured against another course's dimensions.
 		const courseId = store.doc.course_id;
-		const config = await loadSkillConfig(courseId);
-		if (config !== null && store.doc.course_id === courseId) store.skillConfig = config;
+		const config = await loadSkillConfig(courseId).catch(() => null);
+		if (store.doc.course_id === courseId) store.skillConfig = config;
 	}
 
 	// Other parts of the editor read `store.selection.lessonId` (new cards, jumps), so
