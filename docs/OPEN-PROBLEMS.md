@@ -320,28 +320,6 @@ which of those files is canonical. That is why it was not merged as part of the
   there is a login, set a spending cap on the provider key itself.
 - Limits live in memory, and reset when the server restarts.
 
-### 50. What the AI tool layer reads and cannot yet read (Round 14, tool layer)
-**Not bugs; places where "the AI is told what the teacher sees" is not yet complete.**
-- **A card's content is read from the document, not from the screen model.** The card
-  region (Round 14 part 3) does not exist yet, so `get_card` and `search_text` read
-  `src/lib/agent/card-content.ts`, which keeps only the fields the mode and the Zpětná
-  vazba toggle show (`fields.ts`) and lists the rest as `hidden_in_mode`. When
-  `store.screen.card` lands, those two tools must read it and `card-content.ts` goes. The
-  parity test (`handlers.test.ts`, "AI ≡ screen") then covers the card too.
-- **The tree draws cards only in the open lesson**, so an agent needs one `get_outline`
-  call per other lesson. That answer is the same tree built with that lesson open
-  (`not_open: true`, nothing `selected`), not something the teacher currently sees.
-- **Two copies of two rules remain until part 3.** `RepairDialog` words what points at a
-  card in its own function, and `plan_delete` words it again (`describeReference` in
-  `agent/handlers.ts`); `TopicPicker` builds the classification from the strongest topic
-  and `topicNaming` (`domain/skill-config.ts`) does the same for the AI. Both should
-  become one function in `screen/` or `domain/`, called by the component and the tool.
-- **A type change that drops answers is judged by the tool alone.** `StepEditor` has its
-  own planner for the same warning; the tool asks when any answer with text would go.
-- **Simulator ids are the exported course's.** In Učitel and Metodik one question card
-  can be two exported blocks, so a simulator result may name a block the teacher's tree
-  has no row for. The result says so (`note`); the agent addresses places by tree paths.
-
 ### 51. The AI panel, the chat loop and the wiring — built (Round 14, in-app chat)
 **Closed.** `ChatSession`, the drawer, the browser `AgentContext` with the confirmation
 dialog, the checkpoint version and the per-message round limit exist
@@ -395,6 +373,12 @@ says so. The rest below stands.)
   47's decision. Until it is made, the daily token budget counts cached and uncached
   tokens alike, and an open-ended request ("projdi lekci jako žák") used 26 requests and
   700 000 tokens in the eval.
+- The card region is read verbatim, so one `get_card` answer is about 20 000 characters
+  (the open question card of the fractions fixture; 6 000 of them are `hidden_fields`, 1 000
+  the add-step menu). The eval `fix-errors` used 108 000 tokens before the switch and
+  265 000 to 1 050 000 in two runs after it. Trimming the region's descriptive text for the
+  AI would be a second derivation, so it was not done; if cost matters, the region itself has
+  to get smaller (a hidden-fields list by level, not repeated per field).
 - `maxToolRounds` is 40 per message; no limit on tokens per message.
 
 ### 56. What the evals do not show
@@ -667,6 +651,26 @@ Headings kept so that a citation from `docs/DECISIONS.md`,
 **Nothing here is open**, and the entries no longer sit in the live list above. The round
 that closed it is named, and the reasoning is in that round's section of
 `docs/DECISIONS.md`.
+
+### 50. What the AI tool layer reads and cannot yet read — closed (Round 14, final integration)
+- **A card is read from the card region.** `get_card` returns `store.screen.card` verbatim
+  for the open card; for another card it is the same `buildCard` on the same input with
+  that card resolved as open (`AgentContext.cardAt`), marked `not_open`. What the mode
+  hides is the region's own `hidden_fields` (`hidden_in_mode` names the mode), so there is
+  one list for the teacher-facing model and the AI. `search_text` walks the same region.
+  `agent/card-content.ts` is deleted. Consequence: both tools see the editor column, not
+  the settings dialogs (block-level fields such as the author or the skills live in
+  `dialogs.card_settings`, readable with `get_screen('dialogs')` while it is open).
+- **Two copies of two rules** are gone: `plan_delete` and its confirmation word a pointer
+  with `describeReference` (`screen/repair.ts`, the repair dialog's), a type change that
+  loses answers with `planQuestionTypeChange` and `typeChangeMessage` (the dialog's), and
+  `TopicPicker` calls `topicNaming`.
+- **The tree draws cards only in the open lesson**, so an agent needs one `get_outline`
+  call per other lesson. That answer is the same tree built with that lesson open
+  (`not_open: true`, nothing `selected`), not something the teacher currently sees.
+- **Simulator ids are the exported course's.** In Učitel and Metodik one question card
+  can be two exported blocks, so a simulator result may name a block the teacher's tree
+  has no row for. The result says so (`note`); the agent addresses places by tree paths.
 
 ### 1. An empty lesson is invisible to validation — fixed (Round 4)
 `W_EMPTY_LESSON` reports it in the review. The tree still says "5 min" for it, on

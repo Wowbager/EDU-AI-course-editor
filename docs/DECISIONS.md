@@ -2469,8 +2469,8 @@ the command's result and not what was written to `source`. Fixed with a test.
 - *Un-reserving ids on revert.* It would hand a new card the id of one that the AI
   made and deleted, and with it any student answers recorded against it (§3).
 - *Giving the model a separate "AI view" of the card.* It would drift from the screen,
-  which is the whole reason for Round 14. The interim card reader lives in one file and
-  is deleted when the card region exists.
+  which is the whole reason for Round 14. The interim card reader lived in one file
+  and was deleted when the card region existed (see "Round 14 — final integration").
 - *Tools that return text for the model to read about the screen.* A description is a
   second derivation; the slice is the screen.
 - *The system prompt as a Markdown file read at run time.* It is a constant in
@@ -2792,3 +2792,26 @@ round's section above.
 - **`PreviewLessonPlayer` keys its history by block index** — keyed by `blockId`
   (Round 4).
 
+## Round 14 — final integration: the AI reads the card region
+
+- **`get_card` is the card region.** The open card is `store.screen.card` verbatim; another
+  card is `buildCard` on the same `ScreenInput` with that card resolved as open
+  (`AgentContext.cardAt`, pure, nothing selected or touched), marked `not_open`. The tool
+  adds only the tree row, the card's issues and `paths` (addresses for the write tools).
+  `search_text` reads the texts of the same region. Rejected: keeping `card-content.ts`
+  beside the region (a second derivation of what the mode shows), and a `hidden_in_mode`
+  list built by the tool: the region already says it (`hidden_fields`), so the teacher-facing
+  model and the AI share it.
+- **What the AI no longer reads from a card:** block-level fields that the editor column does
+  not draw (author, skills, prerequisites, FSRS). They are in `dialogs.card_settings` when the
+  dialog is open, which is what the teacher sees; the tools do not open it for the agent.
+- **Rules said once.** `describeReference` (repair dialog) and `typeChangeMessage` (type-change
+  dialog) are exported from `screen/` and used by `plan_delete` and the type-change
+  confirmation; `topicNaming` serves `TopicPicker` and `set_topics`. The confirmation of a type
+  change now says what the teacher's own dialog says, so its wording changed ("smaže N odpovědí
+  …", not "zahodí").
+- **Drawer.** The empty space at the bottom of a bubble had two causes: the markup's own line
+  break and indent inside a `white-space: pre-wrap` box (pre-wrap now sits on the text element
+  alone), and the blank lines a reply carries when it goes on to call a tool. The second is fixed
+  in the model, not the component: `ai.messages[].text` is trimmed in `screen/ai.ts`, so the
+  teacher and the agent read the same text and the parity test still holds.

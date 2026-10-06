@@ -2,7 +2,7 @@
 
 How an AI helper reads, tests and edits a course in the editor, and what stops it doing
 harm. The reasoning and the rejected alternatives are in `DECISIONS.md`, "Round 14 — AI
-tool layer"; what is not built is `OPEN-PROBLEMS.md` 50, 52 and 53 to 56.
+tool layer"; what is not built is `OPEN-PROBLEMS.md` 52 and 53 to 56.
 
 ```
 src/lib/screen/        the screen model: what the teacher sees, as data
@@ -14,7 +14,6 @@ src/lib/agent/
   handlers.ts          the code of every tool, over an AgentContext
   simulation.ts        the simulator tools
   context.ts           AgentContext, and createHeadlessContext(store, {confirm})
-  card-content.ts      interim: a card's fields as the mode shows them
   server-prompt.ts     the system prompt (Czech) and the catalogue the server offers
 src/lib/state/ai-state.svelte.ts          what the drawer shows (store.ai)
 src/lib/state/agent-context.svelte.ts     the browser AgentContext, "Vrátit až sem"
@@ -28,9 +27,8 @@ src/lib/server/ai/     the provider adapter
 
 1. **What the AI is told is what the teacher sees.** A read tool returns the screen
    model's regions copied as JSON (`screenSlice`), not a description of them. What it must
-   add is named: `not_open` (a lesson or card that is not open), `hidden_in_mode` (a field
-   the mode does not show), `visibility` on an issue (`shown`, `pending_timing`,
-   `held_back`), `simulace: true`, and addresses (`paths`, `address`) that are not content.
+   add is named: `not_open` (a lesson or card that is not open), `hidden_fields` of the card region (the fields the mode does not show, with the mode that does), `visibility` on an issue (`shown`, `pending_timing`,
+   `held_back`), `simulace: true`, and addresses (`paths`) that are not content.
    There is never a silent superset.
 2. **One door for writes.** Every write is `store.apply` inside `store.transaction(fn,
    {origin: 'ai'})`: the same validation, view-to-source sync and id reservations as the
@@ -79,7 +77,7 @@ never throws. `message` is Czech. Codes: `bad_arguments`, `stale`, `declined`, `
 | Checkpoint | `beginAiSession`, `revertAiSession` | The first real AI change snapshots the course and the reserved ids, and saves one durable version "Před úpravami AI" if the course has unsaved work (`onBeforeAiSession`). The revert is one ordinary undoable entry; ids stay reserved. |
 | Report | `runWrite` | Every write returns its Czech description, the path, the new revision, `operations`, and the `validationDelta` (new and resolved errors and warnings; a new one as the screen lists it). New errors are reported, not blocked. |
 | Size | `limits` in `context.ts` | Text at most 20 000 characters, a batch at most 50 operations, lists cut with `truncated`. |
-| Content as data | result field names, `SYSTEM_PROMPT` | `course_content` and `course_text`, and a note saying so. |
+| Content as data | result field names, `SYSTEM_PROMPT` | The texts inside the slice (`value`, `content`) and `course_text`, and a note saying so. |
 
 ## How to add a tool
 
