@@ -316,8 +316,8 @@ which of those files is canonical. That is why it was not merged as part of the
   a GDPR question (a data-processing agreement, a privacy notice, whether pupils' data
   can appear in a course). With OpenRouter the editor sends `data_collection: 'deny'`
   and `require_parameters`, but the host that serves the model is still chosen by
-  OpenRouter; its provider list can be restricted (`provider.only` / `ignore`), which
-  the adapter does not yet expose. Nobody has decided which of these is acceptable.
+  OpenRouter; the adapter can now put hosts first (`AI_OPENROUTER_PROVIDERS`, with the others as a
+  fallback, see 55), but not forbid the rest (`provider.only` / `ignore`). Nobody has decided which of these is acceptable.
 - **Cost exposure.** The only identity is the workspace key a browser makes for itself
   (`resolveOwner`), so anyone can mint new owners and each one gets a fresh rate limit
   and daily budget. The limits stop a runaway loop, not a determined abuser. Until
@@ -346,20 +346,15 @@ which of those files is canonical. That is why it was not merged as part of the
   can be two exported blocks, so a simulator result may name a block the teacher's tree
   has no row for. The result says so (`note`); the agent addresses places by tree paths.
 
-### 51. The AI panel, the chat loop and the wiring are not built (Round 14, tool layer)
-**Open work, not a defect.** The tools run against `createHeadlessContext`; nothing in the
-editor calls them yet.
-- No `AgentContext` over the browser: the confirmation dialog behind `confirm`, the
-  preview column behind `showPreview` (the headless one only sets `store.preview.view`;
-  Vyzkoušet also needs the column to pin its run), and `store.onBeforeAiSession` is not
-  connected to the `VersionStore`, so the "Před úpravami AI" version is not saved yet.
-- No client tool loop (`chat.svelte.ts`), no panel with the action log and "Vrátit změny AI",
-  no system notice when the teacher edits between turns, no per-message round limit
-  (`limits.maxToolRounds` is declared and unused).
-- The `declined` and `stale` answers are written for the model; how the panel shows them
-  to the teacher is undecided.
+### 51. The AI panel, the chat loop and the wiring — built (Round 14, in-app chat)
+**Closed.** `ChatSession`, the drawer, the browser `AgentContext` with the confirmation
+dialog, the checkpoint version and the per-message round limit exist
+(`docs/AI-SURFACE.md`). What is left is in 53 to 56. `declined` and `stale` reach the
+teacher only through the AI's own words; the drawer shows no extra line for them.
 
 ### 52. Limits of the AI session and its log
+(Update: "Vrátit až sem" is built; it stops at a change the teacher made in between and
+says so. The rest below stands.)
 - **A revert ends the session and empties the log.** Undoing the revert (Ctrl+Z) brings
   the AI's changes back but not their entries in the log, and the session does not
   resume: the next AI change starts a new checkpoint from the course as it then is.
@@ -372,6 +367,50 @@ editor calls them yet.
 - **Reserved ids stay reserved after a revert.** A lesson or card the AI created and the
   revert removed keeps its id taken, on purpose (§3 invariants 1 and 2), so the next new
   one gets a later number.
+
+### 53. The AI drawer: layout and preview
+- **It overlays the preview column** (fixed, 420 px, right edge) instead of taking a
+  column of the layout, so while it is open the preview is covered. "Ukázat" and
+  `show_in_preview` select the card in the editor column, which stays visible.
+  A real layout column belongs with the part 3 page rework.
+- **`show_in_preview` with `play` only sets `store.preview.view`**; it does not pin a run
+  in the column the way "Vyzkoušet" from a card does.
+- **Below 1360 px the top bar shows only the icon** (the label has no room at 1280);
+  its name and tooltip remain.
+- DESIGN.md (PR #1) is not on `main`: the drawer follows the existing tokens and
+  components, nothing from the proposal.
+
+### 54. The conversation has no "new conversation" and no memory across reloads
+- History lives in the page: a reload or a second tab starts empty, while the course
+  itself is restored from the draft. `ChatSession.reset()` exists and is used when another
+  course is opened, but no button calls it.
+- The server refuses a conversation over 400 000 characters or 200 messages
+  ("Konverzace je příliš dlouhá. Začni novou."), and there is no way to start a new one
+  without reloading. Long tool results are cut only at 90 000 characters; nothing
+  summarises old turns.
+- The AI session (checkpoint, action log) belongs to the store, the conversation to the
+  panel. After a reload the log is empty even though the AI's edits are in the draft.
+
+### 55. What the AI costs, and a host that is not pinned
+- Every request carries about 9 500 tokens of system prompt and tools, plus the whole
+  history. With the host pinned (`AI_OPENROUTER_PROVIDERS`) 99 percent of that is cached
+  and cheap; unpinned (the default) it was not cached at all and one host charged twelve
+  times another. The default is unpinned because which host may see teacher content is
+  47's decision. Until it is made, the daily token budget counts cached and uncached
+  tokens alike, and an open-ended request ("projdi lekci jako žák") used 26 requests and
+  700 000 tokens in the eval.
+- `maxToolRounds` is 40 per message; no limit on tokens per message.
+
+### 56. What the evals do not show
+- One sample per scenario per run, from a model that is not deterministic: a pass is
+  evidence, not a guarantee, and two runs can differ (a first grade of `fix-errors` was
+  wrong in the grader, not the agent, and was fixed).
+- Twelve scenarios on the corpus fixtures, Czech, one or two messages each. Not covered:
+  a long conversation, several lessons edited in one go, a teacher who answers the
+  confirmation differently halfway, image or video steps, Metodik and Pokročilý mode
+  beyond the hidden-field case, and a model other than the default.
+- The harness runs the loop and tools headlessly: the drawer, the dialog and the HTTP hop
+  are covered by the e2e suite against a scripted server, not against a real model.
 
 ## Unconfirmed
 

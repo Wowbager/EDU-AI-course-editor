@@ -153,10 +153,14 @@ export async function runScenario(
 		}
 	});
 	let edited = false;
+	// A revert gives back the course as the AI session began: after a teacher's edit that
+	// landed before the AI's first change, that includes the edit.
+	let revertTarget = start;
 	const run: ToolRunner = async (name, args, c) => {
 		if (!edited && scenario.teacherEdit && WRITE_TOOLS.has(name)) {
 			edited = true;
 			scenario.teacherEdit(store);
+			revertTarget = JSON.stringify(serialise(store.source));
 		}
 		return runTool(name, args, c);
 	};
@@ -208,8 +212,9 @@ export async function runScenario(
 		const back = JSON.stringify(serialise(store.source));
 		checks.push({
 			name: 'revert_ai_session restores the start',
-			pass: back === start,
-			detail: back === start ? undefined : 'the course differs from the start after the revert'
+			pass: back === revertTarget,
+			detail:
+				back === revertTarget ? undefined : 'the course differs from the start after the revert'
 		});
 	}
 

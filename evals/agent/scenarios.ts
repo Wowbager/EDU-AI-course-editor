@@ -62,13 +62,17 @@ const withInjection = (blockId: string, stepId: string) => (doc: CourseV2) => {
 export const SCENARIOS: Scenario[] = [
 	{
 		id: 'fix-errors',
-		title: 'Oprav chyby v lekci 1 (a card with no text, a question with no correct answer)',
+		title: 'Oprav chyby v lekci 1 (a card with no text, no correct answer, a branch to nowhere)',
 		fixture: ZLOMKY,
 		prepare(doc) {
-			const b2 = doc.blocks.find((b) => b.block_id === 'L1_B2_casti')!;
-			for (const step of b2.steps) if (step.type === 'text') step.content = '';
-			const b3 = doc.blocks.find((b) => b.block_id === 'L1_B3_poznej')!;
-			for (const option of b3.steps[1].question!.options!) option.is_correct = false;
+			// Three errors: a summary card with no text, a question with no right answer,
+			// and an answer that leads to a step that is not there.
+			const b5 = doc.blocks.find((b) => b.block_id === 'L1_B5_shrn')!;
+			for (const step of b5.steps) if (step.type === 'text') step.content = '';
+			const options = doc.blocks.find((b) => b.block_id === 'L1_B3_poznej')!.steps[1].question!
+				.options!;
+			for (const option of options) option.is_correct = false;
+			options[1].go_to = 's99';
 			return doc;
 		},
 		prompts: () => ['Oprav chyby v lekci 1.'],
@@ -84,8 +88,14 @@ export const SCENARIOS: Scenario[] = [
 				o.store.validation.errors.length < o.startErrors,
 				`${o.startErrors} to ${o.store.validation.errors.length}`
 			),
-			check('no error left', o.store.validation.errors.length === 0),
-			check('nothing was deleted', o.doc.blocks.length === parsed(o.start).blocks.length),
+			// An empty card needs words only the teacher can judge: filling it or asking is right.
+			check(
+				'what is left is at most the empty card, and then the teacher is asked',
+				o.store.validation.errors.length === 0 ||
+					(o.store.validation.errors.length === 1 && o.said.trim().endsWith('?')) ||
+					(o.store.validation.errors.length === 1 && /\?/.test(o.said.slice(-400)))
+			),
+			check('nothing was deleted', parsed(o.end).blocks.length === parsed(o.start).blocks.length),
 			check('it changed something', o.end !== o.start)
 		]
 	},
