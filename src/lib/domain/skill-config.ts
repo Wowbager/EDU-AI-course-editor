@@ -212,3 +212,20 @@ export function skillConfigFromDimensions(dimensions: SkillDimension[]): SkillCo
 export const ELO_BASELINE = 6.0;
 export const ELO_MIN = 1.0;
 export const ELO_MAX = 10.0;
+
+/**
+ * The classification a card takes from its strongest topic: domain, construct and
+ * "code name". One rule for the topic picker and for an AI tool that sets topics.
+ */
+export function topicNaming(
+	config: SkillConfig | null | undefined,
+	index: number
+): { domain?: string; construct?: string; subconstruct?: string } {
+	const dimension = config?.vector?.dimensions?.find((d) => d.dimension_index === index);
+	if (dimension === undefined) return {};
+	return {
+		domain: dimension.domain_name,
+		construct: dimension.construct_name,
+		subconstruct: `${dimension.code} ${dimension.name}`
+	};
+}
