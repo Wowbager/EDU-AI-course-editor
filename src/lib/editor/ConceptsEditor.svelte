@@ -96,7 +96,7 @@
 	function remove(term: string) {
 		problem = '';
 		withUndoNotice(store, 'Pojem odebrán.', () => write(concepts.filter((c) => c !== term)), {
-			lessonId: store.selection?.lessonId,
+			lessonId: store.open.lesson?.lesson_id,
 			blockId: block.block_id
 		});
 	}

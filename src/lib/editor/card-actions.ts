@@ -47,7 +47,7 @@ export function cardActions(store: DocStore, handlers: CardActionHandlers) {
 			const lesson = doc.lessons.find((l) => l.lesson_id === lessonId);
 			if (lesson === undefined) return;
 			const name = lessonLabel(doc, lesson);
-			const follow = options.follow || store.selection?.blockId === blockId;
+			const follow = options.follow || store.open.card?.block_id === blockId;
 			const entry = recorded(store, () => {
 				store.apply((d) => {
 					const result = unbindBlock(d, lessonId, blockId);
@@ -81,7 +81,7 @@ export function cardActions(store: DocStore, handlers: CardActionHandlers) {
 				handlers.onrepair(blockId);
 				return;
 			}
-			const wasSelected = store.selection?.blockId === blockId;
+			const wasSelected = store.open.card?.block_id === blockId;
 			const entry = recorded(store, () => {
 				store.apply((d) => {
 					const result = deleteBlock(d, blockId, plan.repairs);

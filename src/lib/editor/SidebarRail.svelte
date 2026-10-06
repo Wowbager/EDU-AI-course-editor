@@ -217,7 +217,7 @@
 	}
 
 	function select(event: MouseEvent, lessonId: string, blockId: string, key: string) {
-		const wasSelected = store.selection?.blockId === blockId;
+		const wasSelected = store.open.card?.block_id === blockId;
 		store.selection = { lessonId, blockId };
 		// The drag library takes the mouse-down, so nothing else would focus the tile.
 		(event.currentTarget as HTMLElement).focus();

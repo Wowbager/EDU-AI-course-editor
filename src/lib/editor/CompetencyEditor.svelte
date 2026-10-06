@@ -82,7 +82,7 @@
 		const next = { ...(block.learning?.competencies ?? {}) };
 		delete next[key];
 		withUndoNotice(store, 'Výstup odebrán.', () => write(next), {
-			lessonId: store.selection?.lessonId,
+			lessonId: store.open.lesson?.lesson_id,
 			blockId: block.block_id
 		});
 	}

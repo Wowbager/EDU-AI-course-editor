@@ -178,7 +178,9 @@ export class DocStore {
 		return this.#selection;
 	}
 	set selection(ref: Ref | null) {
-		const left = this.#selection?.blockId;
+		// The card that was open, which is not always the one the ref names: a selection
+		// of only a lesson opens its first card.
+		const left = this.#selection?.blockId ?? this.open.card?.block_id;
 		if (left !== undefined && left !== ref?.blockId) this.touchCard(left);
 		this.#selection = ref;
 	}
@@ -501,7 +503,7 @@ export class DocStore {
 	 * being worked in while it still holds the card.
 	 */
 	#inSameLesson(ref: Ref): Ref {
-		const lessonId = this.#selection?.lessonId;
+		const lessonId = this.open.lesson?.lesson_id;
 		if (ref.lessonId !== undefined || ref.blockId === undefined || lessonId === undefined) {
 			return ref;
 		}

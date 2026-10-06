@@ -389,7 +389,7 @@
 				store,
 				'Krok smazán.',
 				() => store.apply((d) => deleteStep(d, block.block_id, step.id)),
-				{ lessonId: store.selection?.lessonId, blockId: block.block_id, stepId: step.id }
+				{ lessonId: store.open.lesson?.lesson_id, blockId: block.block_id, stepId: step.id }
 			);
 		} catch (error) {
 			if (error instanceof CommandError) onrepair(block.block_id, step.id);

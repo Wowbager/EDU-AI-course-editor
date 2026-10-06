@@ -91,7 +91,7 @@
 
 	const remove = (index: number) =>
 		withUndoNotice(store, 'Předpoklad odebrán.', () => write(rules.filter((_, i) => i !== index)), {
-			lessonId: store.selection?.lessonId,
+			lessonId: store.open.lesson?.lesson_id,
 			blockId: block.block_id
 		});
 

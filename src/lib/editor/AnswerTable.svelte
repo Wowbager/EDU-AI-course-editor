@@ -336,7 +336,7 @@
 										'Odpověď smazána.',
 										() => store.apply((d) => deleteOption(d, block.block_id, step.id, option.id)),
 										{
-											lessonId: store.selection?.lessonId,
+											lessonId: store.open.lesson?.lesson_id,
 											blockId: block.block_id,
 											stepId: step.id
 										}

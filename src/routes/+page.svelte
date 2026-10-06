@@ -227,17 +227,6 @@
 		if (store.doc.course_id === courseId) store.skillConfig = config;
 	}
 
-	// Other parts of the editor read `store.selection.lessonId` (new cards, jumps), so
-	// the resolved card is written back when the selection does not name it. What is
-	// open is decided by `store.open`; this only keeps the ref in step with it. An
-	// orphan was selected on purpose, from the tree's list, and keeps its selection.
-	$effect(() => {
-		const { lesson: current, card: open, orphaned: orphan } = store.open;
-		if (current === undefined || open === undefined || orphan) return;
-		if (store.selection?.blockId === open.block_id) return;
-		store.selection = { lessonId: current.lesson_id, blockId: open.block_id };
-	});
-
 	onMount(() => {
 		exposeScreen(store);
 		const session = new DraftSession(store);

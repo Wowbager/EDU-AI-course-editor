@@ -119,7 +119,7 @@
 			store,
 			'Dovednost odebrána.',
 			() => commit(topics.filter((t) => t.dimensionIndex !== index)),
-			{ lessonId: store.selection?.lessonId, blockId: block.block_id }
+			{ lessonId: store.open.lesson?.lesson_id, blockId: block.block_id }
 		);
 
 	const setRelation = (index: number, relation: 1 | 2) =>
