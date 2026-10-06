@@ -92,8 +92,9 @@ export const SCENARIOS: Scenario[] = [
 			check(
 				'what is left is at most the empty card, and then the teacher is asked',
 				o.store.validation.errors.length === 0 ||
-					(o.store.validation.errors.length === 1 && o.said.trim().endsWith('?')) ||
-					(o.store.validation.errors.length === 1 && /\?/.test(o.said.slice(-400)))
+					// The question can sit anywhere in the closing message, not only at its end:
+					// the model often adds a remark after it ("Ještě dvě drobnosti…").
+					(o.store.validation.errors.length === 1 && /\?/.test(o.closing))
 			),
 			check('nothing was deleted', parsed(o.end).blocks.length === parsed(o.start).blocks.length),
 			check('it changed something', o.end !== o.start)

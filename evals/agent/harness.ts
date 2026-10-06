@@ -57,6 +57,8 @@ export interface Outcome {
 	asked: ConfirmRequest[];
 	/** The assistant's words to the teacher, joined. */
 	said: string;
+	/** The assistant's last message of the run. */
+	closing: string;
 	/** Tools called, in order, with how each ended. */
 	calls: ChatSession['toolCalls'];
 	doc: CourseV2;
@@ -173,6 +175,7 @@ export async function runScenario(
 		.filter((l) => l.role === 'assistant')
 		.map((l) => l.text)
 		.join('\n');
+	const closing = lines.filter((l) => l.role === 'assistant').at(-1)?.text ?? '';
 	const outcome: Outcome = {
 		store,
 		session,
@@ -182,6 +185,7 @@ export async function runScenario(
 		end: JSON.stringify(serialise(store.source)),
 		asked,
 		said,
+		closing,
 		calls: session.toolCalls,
 		doc: store.doc,
 		edited
