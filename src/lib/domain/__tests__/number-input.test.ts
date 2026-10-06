@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseNumberInput } from '../number-input';
+import { notANumberMessage, parseNumberDraft, parseNumberInput } from '../number-input';
 import { formatDateTimeCs } from '../format-date';
 
 describe('parseNumberInput', () => {
@@ -41,5 +41,26 @@ describe('formatDateTimeCs', () => {
 	it('shows what is not a date as it is', () => {
 		expect(formatDateTimeCs('včera')).toBe('včera');
 		expect(formatDateTimeCs('')).toBe('');
+	});
+});
+
+describe('numbers as Czech teachers type them', () => {
+	it('strips every kind of space, so "1 000,5" is one thousand and a half', () => {
+		expect(parseNumberInput('1 000,5')).toBe(1000.5);
+		expect(parseNumberInput('1\u00a0000,5')).toBe(1000.5);
+		expect(parseNumberInput('1\u202f000')).toBe(1000);
+	});
+	it('reads the typographic minus', () => {
+		expect(parseNumberInput('\u22122,5')).toBe(-2.5);
+	});
+	it('does not read hexadecimal or words as numbers', () => {
+		expect(parseNumberInput('0x10')).toBeUndefined();
+		expect(parseNumberInput('1,2,3')).toBeUndefined();
+	});
+	it('tells empty from unreadable, which a field needs to keep the typed text', () => {
+		expect(parseNumberDraft('  ')).toEqual({ status: 'empty' });
+		expect(parseNumberDraft('abc')).toEqual({ status: 'invalid', text: 'abc' });
+		expect(parseNumberDraft('2,5')).toEqual({ status: 'ok', value: 2.5 });
+		expect(notANumberMessage('abc')).toContain('„abc“');
 	});
 });

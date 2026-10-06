@@ -48,6 +48,8 @@ export const TIMING: Record<string, Timing> = {
 	E_PREREQ_CYCLE: 'immediate',
 	// A value that is present and wrong.
 	E_MEDIA_NOT_DIRECT: 'immediate',
+	// A value that is present and is not a number: only a damaged import has one.
+	E_NOT_A_NUMBER: 'immediate',
 	// Text the author is typing into a field no student will ever read — said while
 	// it is typed, like a YouTube link in the video field, not at export.
 	W_HINT_UNREACHABLE: 'immediate',

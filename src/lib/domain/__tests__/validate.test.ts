@@ -401,3 +401,37 @@ describe('answers that lead somewhere or carry a grade, on a question with sever
 		expect(ignored(question(true, [{}, { go_to: '' }]))).toEqual([]);
 	});
 });
+
+describe('a number that is not one (H4)', () => {
+	function withQuestion(question: Record<string, unknown>) {
+		const doc = structuredClone(parseCourse(fixture('spec-16-course.json')));
+		const step = doc.blocks.flatMap((b) => b.steps).find((s) => s.question !== undefined)!;
+		step.question = { ...step.question, ...question } as typeof step.question;
+		return doc;
+	}
+
+	it('flags a NaN correct number and tolerance instead of passing them', () => {
+		const result = validate(withQuestion({ type: 'numeric', correct_number: NaN, tolerance: NaN }));
+		const found = result.errors.filter((i) => i.code === 'E_NOT_A_NUMBER');
+		expect(found.map((i) => i.ref.field).sort()).toEqual([
+			'question.correct_number',
+			'question.tolerance'
+		]);
+		expect(found[0].message).toMatch(/není číslo/);
+	});
+
+	it('flags a non-finite Podíl bodů on an option', () => {
+		const doc = withQuestion({ type: 'multiple_choice' });
+		const step = doc.blocks.flatMap((b) => b.steps).find((s) => s.question !== undefined)!;
+		step.question!.options = [
+			{ id: 'a', text: 'A', is_correct: true, score_koef: Infinity },
+			{ id: 'b', text: 'B', is_correct: false }
+		] as never;
+		expect(validate(doc).errors.some((i) => i.code === 'E_NOT_A_NUMBER')).toBe(true);
+	});
+
+	it('is quiet for a real number', () => {
+		const result = validate(withQuestion({ type: 'numeric', correct_number: 2.5, tolerance: 0 }));
+		expect(result.errors.some((i) => i.code === 'E_NOT_A_NUMBER')).toBe(false);
+	});
+});

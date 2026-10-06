@@ -12,6 +12,7 @@
 		QuestionType
 	} from '$lib/domain/schema';
 	import FocusField from '$lib/ui/FocusField.svelte';
+	import NumberField from '$lib/ui/NumberField.svelte';
 	import Chip from '$lib/ui/Chip.svelte';
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import Toggle from '$lib/ui/Toggle.svelte';
@@ -735,44 +736,30 @@
 					{:else if step.question?.type === 'numeric'}
 						<div class="field-row">
 							<span class="field-label">Správný výsledek</span>
-							<FocusField
+							<NumberField
 								label="Správný výsledek"
-								value={step.question.correct_number === undefined
-									? undefined
-									: String(step.question.correct_number)}
+								value={step.question.correct_number}
 								emptyText="Číslo"
-								monospace
 								ref={{
 									blockId: block.block_id,
 									stepId: step.id,
 									field: 'question.correct_number'
 								}}
-								onchange={(v) =>
-									set(
-										'question.correct_number',
-										v === undefined ? undefined : Number(v.replaceAll(',', '.'))
-									)}
+								onwrite={(v) => set('question.correct_number', v)}
 							/>
 						</div>
 						<div class="field-row">
 							<span class="field-label">Tolerance ±</span>
-							<FocusField
+							<NumberField
 								label="Tolerance"
-								value={step.question.tolerance === undefined
-									? undefined
-									: String(step.question.tolerance)}
+								value={step.question.tolerance}
 								emptyText="0 — vyžaduje přesnou shodu"
-								monospace
 								ref={{
 									blockId: block.block_id,
 									stepId: step.id,
 									field: 'question.tolerance'
 								}}
-								onchange={(v) =>
-									set(
-										'question.tolerance',
-										v === undefined ? undefined : Number(v.replaceAll(',', '.'))
-									)}
+								onwrite={(v) => set('question.tolerance', v)}
 							/>
 						</div>
 					{:else}

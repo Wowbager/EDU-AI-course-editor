@@ -16,7 +16,8 @@
  * answers (§3 invariants 1 and 2).
  */
 import type { CourseV2 } from '$lib/domain/schema';
-import type { Ref } from '$lib/domain/ref';
+import { refKey, type Ref } from '$lib/domain/ref';
+import { notANumberMessage, parseNumberDraft, type NumberDraft } from '$lib/domain/number-input';
 import { buildIndex, type DocIndex } from '$lib/domain/index-doc';
 import { stepReservation, type Reservations } from '$lib/domain/ids';
 import { validate, type ValidationResult } from '$lib/domain/validate';
@@ -185,6 +186,45 @@ export class DocStore {
 		this.#selection = ref;
 	}
 
+	/**
+	 * Text typed into a number field that is not a number, by `refKey` of the field.
+	 * It never reaches the document (NaN would export as `null`); the field shows it
+	 * with an error under it, and it is dropped when a valid number is typed, on
+	 * Escape, on undo/redo and on `load`.
+	 */
+	drafts = $state<Readonly<Record<string, string>>>({});
+
+	/** What the number field at `ref` has been typed, if that is not a number. */
+	draftAt(ref: Ref): string | undefined {
+		return this.drafts[refKey(ref)];
+	}
+
+	/** The Czech line under a number field whose text is not a number. */
+	draftErrorAt(ref: Ref): string | undefined {
+		const text = this.draftAt(ref);
+		return text === undefined ? undefined : notANumberMessage(text);
+	}
+
+	/**
+	 * A number field was typed into. Returns what the text means; the caller writes
+	 * the value only for `ok` and `empty`. Unreadable text is kept as a draft instead.
+	 */
+	enterNumber(ref: Ref, raw: string | undefined): NumberDraft {
+		const parsed = parseNumberDraft(raw);
+		const key = refKey(ref);
+		if (parsed.status === 'invalid') {
+			this.drafts = { ...this.drafts, [key]: parsed.text };
+		} else this.discardDraft(ref);
+		return parsed;
+	}
+
+	discardDraft(ref: Ref) {
+		const key = refKey(ref);
+		if (!(key in this.drafts)) return;
+		const { [key]: _gone, ...rest } = this.drafts;
+		this.drafts = rest;
+	}
+
 	/** Cards the author has left and fields they have blurred, this session. */
 	touchedCards = $state<ReadonlySet<string>>(new Set());
 	/** A card and its blocks count as one: leaving it in either mode leaves both. */
@@ -298,6 +338,7 @@ export class DocStore {
 		this.touchedCards = new Set();
 		this.touchedFields = new Set();
 		this.#reviewed = null;
+		this.drafts = {};
 	}
 
 	touchCard(blockId: string) {
@@ -437,6 +478,7 @@ export class DocStore {
 		if (entry === undefined) return;
 		this.#undo = this.#undo.slice(0, -1);
 		this.#redo = [...this.#redo, entry];
+		this.drafts = {};
 		this.source = entry.before;
 		this.dirty = true;
 		if (entry.ref !== undefined) this.selection = this.#inSameLesson(entry.ref);
@@ -448,6 +490,7 @@ export class DocStore {
 		if (entry === undefined) return;
 		this.#redo = this.#redo.slice(0, -1);
 		this.#undo = [...this.#undo, entry];
+		this.drafts = {};
 		this.source = entry.after;
 		this.#reserve(entry.after);
 		this.dirty = true;

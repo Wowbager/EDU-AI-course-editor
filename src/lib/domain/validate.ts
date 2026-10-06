@@ -399,6 +399,37 @@ function checkQuestionShape(block: BlockV2, step: BlockStep, question: QuestionC
 	const options = question.options ?? [];
 	const correct = options.filter((o) => o.is_correct === true);
 
+	// A NaN in the document serialises as `null`: the export would carry a hole where
+	// a number was meant. The editor never writes one (`parseNumberInput`), so this
+	// catches a document that arrived with one.
+	const notNumber = (value: unknown) => typeof value === 'number' && !Number.isFinite(value);
+	if (notNumber(question.correct_number)) {
+		add(
+			'error',
+			'E_NOT_A_NUMBER',
+			{ ...ref, field: 'question.correct_number' },
+			`Správný výsledek v kroku ${position} není číslo, takže v kurzu zůstane prázdný. Žákovi se každá odpověď vyhodnotí jako chybná.`
+		);
+	}
+	if (notNumber(question.tolerance)) {
+		add(
+			'error',
+			'E_NOT_A_NUMBER',
+			{ ...ref, field: 'question.tolerance' },
+			`Tolerance v kroku ${position} není číslo, takže v kurzu zůstane prázdná. Žákovy odpovědi se mohou vyhodnotit jinak, než jsi chtěl.`
+		);
+	}
+	for (const option of options) {
+		if (notNumber(option.score_koef)) {
+			add(
+				'error',
+				'E_NOT_A_NUMBER',
+				{ ...ref, optionId: option.id, field: 'score_koef' },
+				`Podíl bodů u ${optionLabel(question, option)} v kroku ${position} není číslo, takže v kurzu zůstane prázdný. Žák za tu odpověď dostane jiný počet bodů, než jsi chtěl.`
+			);
+		}
+	}
+
 	switch (question.type) {
 		case 'open': {
 			const answer = question.correct_answer;

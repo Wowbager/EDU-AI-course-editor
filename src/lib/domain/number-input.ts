@@ -3,18 +3,41 @@
  *
  * An emptied field is "not set", never 0: 0 is a value (a difficulty of 0, a limit of
  * 0 s) and writing it for an empty box silently changes the course. Czech teachers type
- * a decimal comma, which `Number()` reads as NaN. Anything that is not a finite number
- * is "not set" too, so the caller never has to write NaN into the document.
+ * a decimal comma and group thousands with a space ("1 000,5", often a non-breaking
+ * one), which `Number()` reads as NaN. Anything that is not a finite number never
+ * reaches the document: callers that keep the typed text (`parseNumberDraft`) say so
+ * to the teacher, callers that cannot treat it as "not set".
  *
  * `undefined` means "leave it unset" — the caller deletes the key (or, where the field
  * has a baseline such as `ELO_BASELINE`, writes that).
  */
-export function parseNumberInput(raw: string | number | undefined | null): number | undefined {
-	if (raw === undefined || raw === null) return undefined;
+export type NumberDraft =
+	{ status: 'empty' } | { status: 'ok'; value: number } | { status: 'invalid'; text: string };
+
+export function parseNumberDraft(raw: string | number | undefined | null): NumberDraft {
+	if (raw === undefined || raw === null) return { status: 'empty' };
 	// A `type="number"` input bound with `bind:value` hands over a number, not text.
-	if (typeof raw === 'number') return Number.isFinite(raw) ? raw : undefined;
-	const text = raw.replace(/\s/g, '').replace(',', '.');
-	if (text === '') return undefined;
-	const value = Number(text);
-	return Number.isFinite(value) ? value : undefined;
+	if (typeof raw === 'number') {
+		return Number.isFinite(raw) ? { status: 'ok', value: raw } : { status: 'invalid', text: '' };
+	}
+	// Every kind of space (NBSP and the narrow one included), the typographic minus,
+	// and the comma as the decimal separator.
+	const text = raw
+		.replace(/[\s\u00a0\u202f]/g, '')
+		.replace(/\u2212/g, '-')
+		.replaceAll(',', '.');
+	if (text === '') return { status: 'empty' };
+	// Not `Number(text)` alone: it also reads "0x10" and "" as numbers.
+	const value = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i.test(text) ? Number(text) : Number.NaN;
+	return Number.isFinite(value) ? { status: 'ok', value } : { status: 'invalid', text: raw.trim() };
+}
+
+export function parseNumberInput(raw: string | number | undefined | null): number | undefined {
+	const parsed = parseNumberDraft(raw);
+	return parsed.status === 'ok' ? parsed.value : undefined;
+}
+
+/** What the teacher is told under a field whose text is not a number. */
+export function notANumberMessage(text: string): string {
+	return `„${text}“ není číslo, proto se neuložilo a v kurzu zůstala původní hodnota. Napiš ho číslicemi, třeba 2,5.`;
 }

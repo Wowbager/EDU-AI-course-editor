@@ -27,6 +27,10 @@
 		density?: 'normal' | 'compact';
 		disabled?: boolean;
 		invalid?: boolean;
+		/** A line under the field that is not from the document, e.g. text that is no number. */
+		error?: string;
+		/** Fires on Escape, after the field went back to the text it started with. */
+		onrevert?: () => void;
 		onchange: (value: string | undefined) => void;
 		/**
 		 * Fires when an editing session ends (blur, Enter, Escape, or the ctrl+z/y
@@ -51,6 +55,8 @@
 		density = 'normal',
 		disabled = false,
 		invalid = false,
+		error,
+		onrevert,
 		onchange,
 		onblur,
 		ref,
@@ -149,6 +155,7 @@
 				draft = baseline;
 				lastEmitted = baseline.trim() === '' ? undefined : baseline;
 				if (lastEmitted !== value) onchange(lastEmitted);
+				onrevert?.();
 				commit();
 			}
 		} else if (event.key === 'Enter' && !multiline) {
@@ -158,7 +165,7 @@
 	}
 
 	let issues = $derived(ref ? store.issuesAt(ref) : { errors: [], warnings: [] });
-	const flagged = $derived(invalid || issues.errors.length > 0);
+	const flagged = $derived(invalid || error !== undefined || issues.errors.length > 0);
 </script>
 
 <div>
@@ -200,8 +207,11 @@
 	{/if}
 
 	<!-- A line under the field, not a badge: it explains the outline, it is not an alarm. -->
-	{#each issues.errors as error, i (i)}
-		<p class="note error">{error.message}</p>
+	{#if error !== undefined}
+		<p class="note error">{error}</p>
+	{/if}
+	{#each issues.errors as issue, i (i)}
+		<p class="note error">{issue.message}</p>
 	{/each}
 	{#each issues.warnings as warning, i (i)}
 		<p class="note warning">{warning.message}</p>

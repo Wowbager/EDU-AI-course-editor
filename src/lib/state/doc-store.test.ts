@@ -379,3 +379,35 @@ describe('what is open (store.open)', () => {
 		expect(store.open.orphaned).toBe(false);
 	});
 });
+
+describe('number drafts (H4)', () => {
+	const ref = { blockId: 'B', stepId: 's', field: 'question.correct_number' };
+
+	it('keeps text that is no number out of the document and says so', () => {
+		const store = new DocStore();
+		expect(store.enterNumber(ref, 'abc')).toEqual({ status: 'invalid', text: 'abc' });
+		expect(store.draftAt(ref)).toBe('abc');
+		expect(store.draftErrorAt(ref)).toContain('„abc“ není číslo');
+	});
+
+	it('drops the draft when a number is typed, the box is emptied, or on undo and load', () => {
+		const store = new DocStore();
+		store.enterNumber(ref, 'abc');
+		expect(store.enterNumber(ref, '1 000,5')).toEqual({ status: 'ok', value: 1000.5 });
+		expect(store.draftAt(ref)).toBeUndefined();
+		store.enterNumber(ref, 'x');
+		expect(store.enterNumber(ref, '  ').status).toBe('empty');
+		expect(store.draftAt(ref)).toBeUndefined();
+		store.enterNumber(ref, 'x');
+		store.load(emptyCourse('NEW', 'Nový kurz'));
+		expect(store.draftAt(ref)).toBeUndefined();
+	});
+
+	it('is dropped by undo', () => {
+		const store = new DocStore();
+		store.apply((d, r) => addLesson(d, 'První', r));
+		store.enterNumber(ref, 'x');
+		store.undo();
+		expect(store.draftAt(ref)).toBeUndefined();
+	});
+});

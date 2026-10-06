@@ -23,6 +23,7 @@
 	import Toggle from './Toggle.svelte';
 	import Segmented from './Segmented.svelte';
 	import { parseNumberInput } from '$lib/domain/number-input';
+	import NumberField from './NumberField.svelte';
 	import { formatDateTimeCs } from '$lib/domain/format-date';
 	import { hintFor, type FieldSpec } from './fields';
 	import { useSettingsSearch } from './settings-search.svelte';
@@ -46,13 +47,11 @@
 	const asText = (value: unknown): string | undefined =>
 		value === undefined || value === null ? undefined : String(value);
 
-	function writeNumber(path: string, raw: string | undefined) {
-		if (raw === undefined || raw.trim() === '') return write(path, undefined);
+	/** An option list's value as the number it stands for; text that is no number is not written. */
+	function writeChoice(path: string, spec: FieldSpec, raw: string) {
+		if (!spec.numeric) return write(path, raw);
 		const value = parseNumberInput(raw);
-		// Text that is not a number is not written: NaN would serialise as null and fail
-		// validation somewhere far from here. Empty above is "not set", never 0.
-		if (value === undefined) return;
-		write(path, value);
+		if (value !== undefined) write(path, value);
 	}
 </script>
 
@@ -93,7 +92,7 @@
 					describedby={hint ? hintId(spec) : undefined}
 					onchange={(v) => {
 						if (v === current) return write(spec.path, undefined);
-						write(spec.path, spec.numeric ? Number(v) : v);
+						writeChoice(spec.path, spec, v);
 					}}
 				/>
 			</div>
@@ -112,7 +111,7 @@
 					onchange={(e) => {
 						const raw = e.currentTarget.value;
 						if (raw === '') return write(spec.path, undefined);
-						write(spec.path, spec.numeric ? Number(raw) : raw);
+						writeChoice(spec.path, spec, raw);
 					}}
 				>
 					<option value="">— nenastaveno —</option>
@@ -143,18 +142,28 @@
 				{#if hint}<span class="hint" id={hintId(spec)}>{hint}</span>{/if}
 			</div>
 			<div class="control">
-				<FocusField
-					label={spec.label}
-					value={asText(value)}
-					multiline={spec.kind === 'multiline'}
-					monospace={spec.kind === 'number'}
-					emptyText={spec.default === undefined ? 'nevyplněno' : `výchozí ${spec.default}`}
-					ref={spec.ref}
-					describedby={hint ? hintId(spec) : undefined}
-					invalid={invalid?.(spec.path) === true}
-					onchange={(v) =>
-						spec.kind === 'number' ? writeNumber(spec.path, v) : write(spec.path, v)}
-				/>
+				{#if spec.kind === 'number'}
+					<NumberField
+						label={spec.label}
+						value={typeof value === 'number' || typeof value === 'string' ? value : undefined}
+						emptyText={spec.default === undefined ? 'nevyplněno' : `výchozí ${spec.default}`}
+						ref={spec.ref}
+						describedby={hint ? hintId(spec) : undefined}
+						invalid={invalid?.(spec.path) === true}
+						onwrite={(v) => write(spec.path, v)}
+					/>
+				{:else}
+					<FocusField
+						label={spec.label}
+						value={asText(value)}
+						multiline={spec.kind === 'multiline'}
+						emptyText={spec.default === undefined ? 'nevyplněno' : `výchozí ${spec.default}`}
+						ref={spec.ref}
+						describedby={hint ? hintId(spec) : undefined}
+						invalid={invalid?.(spec.path) === true}
+						onchange={(v) => write(spec.path, v)}
+					/>
+				{/if}
 			</div>
 		</div>
 	{/if}

@@ -410,3 +410,20 @@ test('a change that loses nothing says nothing', async ({ page }) => {
 	await goToBox(page).getByRole('button', { name: 'Pokračovat dál' }).click();
 	await expect(page.locator('.answers .cut-off')).toHaveCount(0);
 });
+
+test('Podíl bodů keeps text that is no number, says so, and writes nothing to the course', async ({
+	page
+}) => {
+	await addQuestionCard(page);
+	await page.getByRole('radio', { name: 'Pokročilý' }).click();
+	const first = page.locator('.answers .row').first();
+	const more = first.getByRole('button', { name: /^Podrobnosti odpovědi/ });
+	if ((await more.getAttribute('aria-expanded')) !== 'true') await more.click();
+	const field = first.getByRole('textbox', { name: 'Podíl bodů za tuto odpověď' });
+	await field.fill('abc');
+	await expect(first.getByText('„abc“ není číslo')).toBeVisible();
+	await expect(field).toHaveValue('abc');
+	await field.fill('0,5');
+	await expect(first.getByText('není číslo')).toHaveCount(0);
+	await expect(field).toHaveValue('0,5');
+});

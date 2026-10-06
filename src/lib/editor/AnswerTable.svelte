@@ -17,10 +17,10 @@
 	 * way to it says so once under that answer, with "Vrátit zpět" (`madeUnreachable`),
 	 * and says nothing after the next edit.
 	 */
-	import { parseNumberInput } from '$lib/domain/number-input';
 	import { tick, untrack } from 'svelte';
 	import type { BlockStep, BlockV2, CourseV2 } from '$lib/domain/schema';
 	import FocusField from '$lib/ui/FocusField.svelte';
+	import NumberField from '$lib/ui/NumberField.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import GoToPicker, { blockLabelOf, goToSummary } from './GoToPicker.svelte';
@@ -441,18 +441,12 @@
 					{#if advanced}
 						<div class="field score">
 							<span class="label">Podíl bodů</span>
-							<FocusField
+							<NumberField
 								label="Podíl bodů za tuto odpověď"
-								value={option.score_koef === undefined ? undefined : String(option.score_koef)}
+								value={option.score_koef}
 								emptyText="1.0"
-								monospace
 								ref={ref(option.id, 'score_koef')}
-								onchange={(v) => {
-									// Empty is unset; a comma is a decimal; text is not written.
-									const value = parseNumberInput(v);
-									if (v === undefined || v.trim() === '' || value !== undefined)
-										set(option.id, 'score_koef', value);
-								}}
+								onwrite={(v) => set(option.id, 'score_koef', v)}
 							/>
 						</div>
 					{/if}
