@@ -51,12 +51,49 @@ import { PreviewState } from './preview-state.svelte';
 import { ScreenModel } from './screen.svelte';
 import { UiState } from './ui-state.svelte';
 
+/** Who made a change: the teacher at the keyboard, or the AI agent through a tool. */
+export type Origin = 'teacher' | 'ai';
+
 export interface UndoEntry {
 	description: string;
 	before: CourseV2;
 	after: CourseV2;
 	ref?: Ref;
+	/** Who made the change; the undo list says "AI" for the agent's. */
+	origin: Origin;
+	/** The AI action this entry is, for `aiActions`; unset for the teacher's edits. */
+	actionId?: string;
 }
+
+/** What a `transaction` is recorded as. */
+export interface TransactionMeta {
+	origin: Origin;
+	actionId?: string;
+	/** Czech; replaces the description of the command(s) in the undo log. */
+	description?: string;
+}
+
+/** One change the AI made, as the action log and the AI panel list it. */
+export interface AiAction {
+	actionId: string;
+	/** Czech. */
+	description: string;
+	ref?: Ref;
+	revisionBefore: number;
+	revisionAfter: number;
+	/** Taken back by undo; redo puts it back. */
+	undone: boolean;
+}
+
+/** What the AI session restores: the course and the ids handed out when it started. */
+export interface AiCheckpoint {
+	source: CourseV2;
+	reservations: { blocks: string[]; lessons: string[]; steps: string[] };
+	revision: number;
+}
+
+/** The label of the durable version saved before the first AI change of a session. */
+export const AI_CHECKPOINT_LABEL = 'Před úpravami AI';
 
 /** The editing modes live with the field table that defines them. */
 export type { Mode } from '$lib/ui/fields';
@@ -119,6 +156,7 @@ export class DocStore {
 		return this.#mode;
 	}
 	set mode(next: Mode) {
+		if (next !== this.#mode) this.#revision++;
 		const ref = this.#selection;
 		// Through the source, in the mode being left, then into the new one's view.
 		const inSource = ref === null ? null : this.toSource(ref);
@@ -281,6 +319,17 @@ export class DocStore {
 	#reservedLessons = new Set<string>();
 	#reservedSteps = new Set<string>();
 
+	#revision = $state(0);
+	/**
+	 * Counts every change to what an agent could have read: the document (an edit, undo,
+	 * redo, a load) and the mode, which changes the view's cards. It only grows. An AI
+	 * write names the revision it read (`expected_revision`) and is refused when this has
+	 * moved, so it never overwrites what the teacher did in the meantime.
+	 */
+	get revision(): number {
+		return this.#revision;
+	}
+
 	index = $derived<DocIndex>(buildIndex(this.doc));
 
 	/**
@@ -328,6 +377,9 @@ export class DocStore {
 	load(doc: CourseV2, options: { published?: { version: number; doc: CourseV2 } } = {}) {
 		this.endEdit();
 		this.source = doc;
+		this.#revision++;
+		this.#aiSession = null;
+		this.aiActions = [];
 		this.#undo = [];
 		this.#redo = [];
 		this.#reservedBlocks = new Set();
@@ -468,11 +520,17 @@ export class DocStore {
 	#record(result: CommandResult, next: CourseV2): CommandResult {
 		const before = this.source;
 		if (next === before) return result;
+		if (this.#tx?.meta.origin === 'ai') this.beginAiSession();
 		this.source = next;
+		this.#revision++;
 		this.#reserve(next);
 		const last = this.#undo.at(-1);
 		if (this.#edit?.entry && last === this.#edit.entry) {
-			const entry = { ...last, after: result.doc };
+			const entry = {
+				...last,
+				after: next,
+				ref: this.#tx !== undefined ? (result.ref ?? last.ref) : last.ref
+			};
 			this.#undo = [...this.#undo.slice(0, -1), entry];
 			this.#edit.entry = this.#undo.at(-1);
 		} else {
@@ -481,15 +539,23 @@ export class DocStore {
 				{
 					description: result.description,
 					before,
-					after: result.doc,
-					ref: result.ref
+					after: next,
+					ref: result.ref,
+					origin: this.#tx?.meta.origin ?? 'teacher',
+					actionId: this.#tx?.actionId
 				}
 			].slice(-MAX_UNDO);
 			if (this.#edit) this.#edit.entry = this.#undo.at(-1);
 		}
 		this.#redo = [];
 		this.dirty = true;
-		if (result.ref !== undefined) this.selection = this.#inSameLesson(result.ref);
+		if (result.ref !== undefined) {
+			const ref = this.#inSameLesson(result.ref);
+			// The agent's edit brings its card into view without counting the card the
+			// teacher was on as left: that would paint their unfinished cards red.
+			if (this.#tx?.meta.origin === 'ai') this.follow(ref);
+			else this.selection = ref;
+		}
 		return result;
 	}
 
@@ -517,6 +583,8 @@ export class DocStore {
 		this.#redo = [...this.#redo, entry];
 		this.drafts = {};
 		this.source = entry.before;
+		this.#revision++;
+		this.#markUndone(entry, true);
 		this.dirty = true;
 		if (entry.ref !== undefined) this.selection = this.#inSameLesson(entry.ref);
 	}
@@ -529,6 +597,8 @@ export class DocStore {
 		this.#undo = [...this.#undo, entry];
 		this.drafts = {};
 		this.source = entry.after;
+		this.#revision++;
+		this.#markUndone(entry, false);
 		this.#reserve(entry.after);
 		this.dirty = true;
 		if (entry.ref !== undefined) this.selection = this.#inSameLesson(entry.ref);
@@ -556,6 +626,170 @@ export class DocStore {
 		if (JSON.stringify(edit.before) === JSON.stringify(this.source)) {
 			this.#undo = this.#undo.slice(0, -1);
 		}
+	}
+
+	// ───────────────────────────── transactions and the AI session ─────────────────────────────
+
+	#tx?: { meta: TransactionMeta; actionId: string | undefined };
+	#actionCounter = 0;
+	#aiSession: AiCheckpoint | null = null;
+
+	/** What the AI has done this session, oldest first; `load` and a revert empty it. */
+	aiActions = $state<readonly AiAction[]>([]);
+
+	/**
+	 * Saves the course as it was before the AI's first change of a session, as one
+	 * durable version named `AI_CHECKPOINT_LABEL`. Injected because the `VersionStore`
+	 * lives outside this class; called only when the course has unsaved work, and a
+	 * failure never stops the change.
+	 */
+	onBeforeAiSession: ((source: CourseV2, label: string) => void | Promise<void>) | null = null;
+
+	/** Whether an AI session has begun, so that `revertAiSession` has something to restore. */
+	get hasAiSession(): boolean {
+		return this.#aiSession !== null;
+	}
+
+	/**
+	 * Run `fn` — any number of `apply` calls — as one change: exactly one undo entry
+	 * (carrying `origin` and `actionId`), or none when it nets out to no change. If `fn`
+	 * throws, the document, the undo log, the reservations and the selection are put back
+	 * as they were and the error reaches the caller, so a batch is all or nothing. A
+	 * transaction inside another joins it. Synchronous on purpose: nothing else can edit
+	 * between its first and last command.
+	 */
+	transaction<T>(fn: () => T, meta: TransactionMeta): T {
+		if (this.#tx !== undefined) return fn();
+		this.endEdit();
+		const saved = {
+			source: this.source,
+			undo: this.#undo,
+			redo: this.#redo,
+			selection: this.#selection,
+			dirty: this.dirty,
+			revision: this.#revision,
+			drafts: this.drafts,
+			session: this.#aiSession,
+			reserved: {
+				blocks: new Set(this.#reservedBlocks),
+				lessons: new Set(this.#reservedLessons),
+				steps: new Set(this.#reservedSteps)
+			}
+		};
+		const actionId =
+			meta.actionId ?? (meta.origin === 'ai' ? `ai-${++this.#actionCounter}` : undefined);
+		this.#tx = { meta, actionId };
+		this.#edit = { before: this.source };
+		let result: T;
+		try {
+			result = fn();
+		} catch (error) {
+			this.source = saved.source;
+			this.#undo = saved.undo;
+			this.#redo = saved.redo;
+			this.#selection = saved.selection;
+			this.dirty = saved.dirty;
+			this.#revision = saved.revision;
+			this.drafts = saved.drafts;
+			this.#aiSession = saved.session;
+			this.#reservedBlocks = saved.reserved.blocks;
+			this.#reservedLessons = saved.reserved.lessons;
+			this.#reservedSteps = saved.reserved.steps;
+			this.#edit = undefined;
+			this.#tx = undefined;
+			throw error;
+		}
+		const edit = this.#edit;
+		this.#edit = undefined;
+		this.#tx = undefined;
+		const entry = edit?.entry;
+		if (entry === undefined || this.#undo.at(-1) !== entry) return result;
+		if (JSON.stringify(edit?.before) === JSON.stringify(this.source)) {
+			this.#undo = this.#undo.slice(0, -1);
+			return result;
+		}
+		const named = { ...entry, description: meta.description ?? entry.description };
+		this.#undo = [...this.#undo.slice(0, -1), named];
+		if (meta.origin === 'ai' && actionId !== undefined) {
+			this.aiActions = [
+				...this.aiActions,
+				{
+					actionId,
+					description: named.description,
+					ref: named.ref,
+					revisionBefore: saved.revision,
+					revisionAfter: this.#revision,
+					undone: false
+				}
+			];
+		}
+		return result;
+	}
+
+	/**
+	 * Remember the course and the ids handed out, once, at the first AI change of a
+	 * session (`transaction` does it). `revertAiSession` restores it. Saves the unsaved
+	 * work as a durable version first (`onBeforeAiSession`). Returns whether it began one.
+	 */
+	beginAiSession(): boolean {
+		if (this.#aiSession !== null) return false;
+		this.#aiSession = {
+			source: this.source,
+			reservations: {
+				blocks: [...this.#reservedBlocks],
+				lessons: [...this.#reservedLessons],
+				steps: [...this.#reservedSteps]
+			},
+			revision: this.#revision
+		};
+		const hook = this.onBeforeAiSession;
+		if (hook !== null && this.dirty) {
+			try {
+				Promise.resolve(hook(this.source, AI_CHECKPOINT_LABEL)).catch(() => {});
+			} catch {
+				// A version that could not be saved must not stop the change.
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Put the course back as it was when the AI session began, as one ordinary undoable
+	 * entry (like restoring a version): the teacher's own edits since then go too, and
+	 * "Zpět" brings everything back. The ids handed out since stay reserved, because an
+	 * id is never given twice (§3 invariants 1 and 2). The session and its log end.
+	 * Returns false when there is no session or nothing differs.
+	 */
+	revertAiSession(): boolean {
+		const session = this.#aiSession;
+		if (session === null) return false;
+		this.endEdit();
+		this.#aiSession = null;
+		this.aiActions = [];
+		if (session.source === this.source) return false;
+		this.applySource(() => ({ doc: session.source, description: 'Vráceny změny AI' }));
+		return true;
+	}
+
+	/** The session is over without a revert: the teacher keeps the changes. */
+	endAiSession() {
+		this.#aiSession = null;
+		this.aiActions = [];
+	}
+
+	/** Undo the last change if the AI made it. Returns that action, or undefined and nothing changed. */
+	undoLastAiAction(): AiAction | undefined {
+		const entry = this.#undo.at(-1);
+		if (entry?.origin !== 'ai') return undefined;
+		this.undo();
+		return this.aiActions.find((a) => a.actionId === entry.actionId);
+	}
+
+	#markUndone(entry: UndoEntry, undone: boolean) {
+		if (entry.actionId === undefined) return;
+		this.aiActions = this.aiActions.map((a) =>
+			a.actionId === entry.actionId ? { ...a, undone } : a
+		);
 	}
 
 	/** Restore identity reservations, including IDs deleted before a reload. */

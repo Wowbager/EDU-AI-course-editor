@@ -12,7 +12,7 @@ import {
 	setField,
 	unbindBlock
 } from '$lib/domain/commands';
-import { emptyCourse } from '$lib/domain/document';
+import { emptyCourse, serialise } from '$lib/domain/document';
 import { groupOf, questionCount } from '$lib/domain/groups';
 
 /**
@@ -480,5 +480,235 @@ describe('the skill list status (M5)', () => {
 		expect(store.skillConfigStatus).toBe('default');
 		store.skillConfig = null;
 		expect(store.skillConfigStatus).toBe('failed');
+	});
+});
+
+describe('the revision', () => {
+	it('grows on every change to the document: edit, undo, redo, load, and the mode', () => {
+		const store = loaded();
+		const seen = [store.revision];
+		const bump = (change: () => void) => {
+			change();
+			seen.push(store.revision);
+		};
+		bump(() =>
+			store.apply((d) => setField(d, { blockId: 'L1_B1_uvod', field: 'name' }, 'Nové jméno'))
+		);
+		bump(() => store.undo());
+		bump(() => store.redo());
+		bump(() => (store.mode = 'metodik'));
+		bump(() => store.load(emptyCourse('C2', 'Jiný')));
+		for (let i = 1; i < seen.length; i++) expect(seen[i]).toBeGreaterThan(seen[i - 1]);
+	});
+
+	it('does not move when nothing changed', () => {
+		const store = loaded();
+		const before = store.revision;
+		store.mode = 'teacher';
+		store.apply((d) => ({ doc: d, description: 'nic' }));
+		expect(store.revision).toBe(before);
+	});
+});
+
+describe('undo and redo of a question card', () => {
+	it('redo puts back the source, not the view the command ran on', () => {
+		const store = loaded();
+		const card = store.doc.blocks.find((b) => b.block_id === 'L1_B4_cviceni')!;
+		store.apply((d) =>
+			setField(d, { blockId: card.block_id, stepId: card.steps[0].id, field: 'content' }, 'X')
+		);
+		const edited = JSON.stringify(store.source);
+		store.undo();
+		store.redo();
+		expect(JSON.stringify(store.source)).toBe(edited);
+	});
+});
+
+describe('transaction', () => {
+	const rename = (store: DocStore, id: string, name: string) =>
+		store.apply((d) => setField(d, { blockId: id, field: 'name' }, name));
+
+	it('records several commands as one undo entry with its origin and action id', () => {
+		const store = loaded();
+		const before = store.source;
+		const depth = store.undoStack.length;
+		store.transaction(
+			() => {
+				rename(store, 'L1_B1_uvod', 'A');
+				rename(store, 'L1_B2_casti', 'B');
+				rename(store, 'L1_B1_uvod', 'C');
+			},
+			{ origin: 'ai', actionId: 'x1', description: 'Přejmenovány karty' }
+		);
+		expect(store.undoStack.length).toBe(depth + 1);
+		const entry = store.undoStack.at(-1)!;
+		expect(entry).toMatchObject({
+			origin: 'ai',
+			actionId: 'x1',
+			description: 'Přejmenovány karty'
+		});
+		expect(entry.before).toBe(before);
+		expect(entry.after).toBe(store.source);
+		store.undo();
+		expect(store.source).toBe(before);
+		store.redo();
+		expect(store.doc.blocks.find((b) => b.block_id === 'L1_B1_uvod')?.name).toBe('C');
+	});
+
+	it('rolls everything back when the function throws', () => {
+		const store = loaded();
+		const before = store.source;
+		const depth = store.undoStack.length;
+		const revision = store.revision;
+		const selection = store.selection;
+		expect(() =>
+			store.transaction(
+				() => {
+					store.apply((d) => addLesson(d, 'Nová'));
+					throw new Error('boom');
+				},
+				{ origin: 'ai' }
+			)
+		).toThrow('boom');
+		expect(store.source).toBe(before);
+		expect(store.undoStack.length).toBe(depth);
+		expect(store.revision).toBe(revision);
+		expect(store.selection).toBe(selection);
+		expect(store.hasAiSession).toBe(false);
+		expect(store.aiActions).toEqual([]);
+		// The ids handed out inside are free again: the aborted change never happened.
+		const again = store.apply((d, r) => addLesson(d, 'Nová', r));
+		expect(again.ref?.lessonId).toBeDefined();
+	});
+
+	it('leaves no entry when the change nets out to nothing', () => {
+		const store = loaded();
+		const depth = store.undoStack.length;
+		const name = store.doc.blocks.find((b) => b.block_id === 'L1_B1_uvod')?.name;
+		store.transaction(
+			() => {
+				rename(store, 'L1_B1_uvod', 'jiné');
+				rename(store, 'L1_B1_uvod', name as string);
+			},
+			{ origin: 'ai' }
+		);
+		expect(store.undoStack.length).toBe(depth);
+		expect(store.aiActions).toEqual([]);
+	});
+
+	it('marks teacher edits as the teacher’s and does not mark the card as left by an AI edit', () => {
+		const store = loaded();
+		rename(store, 'L1_B1_uvod', 'ručně');
+		expect(store.undoStack.at(-1)?.origin).toBe('teacher');
+		store.selection = { lessonId: 'L1_INTRO', blockId: 'L1_B1_uvod' };
+		store.transaction(() => rename(store, 'L1_B2_casti', 'AI'), { origin: 'ai' });
+		expect(store.selection?.blockId).toBe('L1_B2_casti');
+		expect(store.touchedCards.has('L1_B1_uvod')).toBe(false);
+	});
+
+	it('logs each AI action, and undo and redo mark it', () => {
+		const store = loaded();
+		const r0 = store.revision;
+		store.transaction(() => rename(store, 'L1_B1_uvod', 'A'), {
+			origin: 'ai',
+			description: 'Přejmenována karta'
+		});
+		const [action] = store.aiActions;
+		expect(action).toMatchObject({ description: 'Přejmenována karta', undone: false });
+		expect(action.revisionBefore).toBe(r0);
+		expect(action.revisionAfter).toBe(store.revision);
+		store.undo();
+		expect(store.aiActions[0].undone).toBe(true);
+		store.redo();
+		expect(store.aiActions[0].undone).toBe(false);
+	});
+
+	it('undoes the last AI action only when it is the last change', () => {
+		const store = loaded();
+		store.transaction(() => rename(store, 'L1_B1_uvod', 'A'), { origin: 'ai' });
+		rename(store, 'L1_B2_casti', 'ručně');
+		expect(store.undoLastAiAction()).toBeUndefined();
+		store.undo();
+		expect(store.undoLastAiAction()?.undone).toBe(true);
+		expect(store.doc.blocks.find((b) => b.block_id === 'L1_B1_uvod')?.name).not.toBe('A');
+	});
+});
+
+describe('the AI session', () => {
+	const aiRename = (store: DocStore, id: string, name: string) =>
+		store.transaction(() => store.apply((d) => setField(d, { blockId: id, field: 'name' }, name)), {
+			origin: 'ai'
+		});
+
+	it('begins at the first AI write, not at a read or a teacher edit', () => {
+		const store = loaded();
+		store.apply((d) => setField(d, { blockId: 'L1_B1_uvod', field: 'name' }, 'ručně'));
+		expect(store.hasAiSession).toBe(false);
+		aiRename(store, 'L1_B2_casti', 'AI');
+		expect(store.hasAiSession).toBe(true);
+	});
+
+	it('saves one durable version first, only when there is unsaved work', () => {
+		const calls: string[] = [];
+		const store = loaded();
+		store.dirty = false;
+		store.onBeforeAiSession = (_source, label) => void calls.push(label);
+		aiRename(store, 'L1_B2_casti', 'AI');
+		expect(calls).toEqual([]);
+		store.endAiSession();
+		store.dirty = true;
+		aiRename(store, 'L1_B1_uvod', 'AI');
+		aiRename(store, 'L1_B2_casti', 'AI 2');
+		expect(calls).toEqual(['Před úpravami AI']);
+	});
+
+	it('is not stopped by a version that could not be saved', () => {
+		const store = loaded();
+		store.dirty = true;
+		store.onBeforeAiSession = () => {
+			throw new Error('disk');
+		};
+		expect(() => aiRename(store, 'L1_B1_uvod', 'AI')).not.toThrow();
+	});
+
+	it('reverts to the checkpoint byte for byte, as one undoable entry', () => {
+		const store = loaded();
+		store.apply((d) => setField(d, { blockId: 'L1_B1_uvod', field: 'name' }, 'ručně'));
+		const original = JSON.stringify(serialise(store.source));
+		aiRename(store, 'L1_B1_uvod', 'AI 1');
+		store.transaction(() => store.apply((d, r) => addLesson(d, 'Od AI', r)), { origin: 'ai' });
+		aiRename(store, 'L1_B2_casti', 'AI 2');
+		const changed = JSON.stringify(serialise(store.source));
+		expect(changed).not.toBe(original);
+		const depth = store.undoStack.length;
+
+		expect(store.revertAiSession()).toBe(true);
+		expect(JSON.stringify(serialise(store.source))).toBe(original);
+		expect(store.undoStack.length).toBe(depth + 1);
+		expect(store.undoStack.at(-1)?.origin).toBe('teacher');
+		expect(store.hasAiSession).toBe(false);
+		expect(store.aiActions).toEqual([]);
+
+		store.undo();
+		expect(JSON.stringify(serialise(store.source))).toBe(changed);
+	});
+
+	it('keeps the ids it handed out reserved after a revert', () => {
+		const store = loaded();
+		let minted = '';
+		store.transaction(
+			() => {
+				minted = store.apply((d, r) => addLesson(d, 'Od AI', r)).ref!.lessonId!;
+			},
+			{ origin: 'ai' }
+		);
+		store.revertAiSession();
+		expect(store.reservations.lessons.has(minted)).toBe(true);
+		const next = store.apply((d, r) => addLesson(d, 'Jiná', r)).ref!.lessonId;
+		expect(next).not.toBe(minted);
+	});
+
+	it('has nothing to revert without a session', () => {
+		expect(loaded().revertAiSession()).toBe(false);
 	});
 });
