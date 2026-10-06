@@ -12,7 +12,17 @@
 	import ExportDialog from './ExportDialog.svelte';
 	import VersionsDialog from './VersionsDialog.svelte';
 
-	import { CircleCheck, Download, Eye, EyeOff, History, Redo, Undo, Upload } from '@lucide/svelte';
+	import {
+		CircleCheck,
+		Download,
+		Eye,
+		EyeOff,
+		History,
+		Redo,
+		Sparkles,
+		Undo,
+		Upload
+	} from '@lucide/svelte';
 	import { courseFileName } from '$lib/domain/filename';
 	interface Props {
 		doc: CourseV2;
@@ -33,6 +43,7 @@
 	 * while the file says v2, and an AI is told the same line the teacher reads.
 	 */
 	const bar = $derived(store.screen.topbar);
+	const aiBar = $derived(store.screen.ai);
 	/** Whether the file on disk is what is on screen (`store.backedUp`). */
 	const backedUp = $derived(store.backedUp);
 
@@ -180,6 +191,18 @@
 		ariaLabel="Vpřed"
 	>
 		<Redo size={16}></Redo>
+	</Button>
+
+	<Button
+		variant="ghost"
+		pressed={aiBar.button.pressed}
+		disabled={aiBar.button.disabled}
+		title={aiBar.button.title}
+		ariaLabel={aiBar.button.label}
+		onclick={() => (store.ai.panelOpen = !store.ai.panelOpen)}
+	>
+		<Sparkles size={16}></Sparkles>
+		<span data-screen="ai.button.label">{aiBar.button.label}</span>
 	</Button>
 
 	<Button variant="ghost" onclick={() => fileInput?.click()}>

@@ -31,6 +31,7 @@
 	import ValidationPanel from '$lib/editor/ValidationPanel.svelte';
 	import RepairDialog from '$lib/editor/RepairDialog.svelte';
 	import Toast from '$lib/editor/Toast.svelte';
+	import AiPanel from '$lib/editor/AiPanel.svelte';
 	import CourseSettings from '$lib/editor/CourseSettings.svelte';
 	import LessonSettings from '$lib/editor/LessonSettings.svelte';
 	import CardSettings from '$lib/editor/CardSettings.svelte';
@@ -240,6 +241,7 @@
 
 	onMount(() => {
 		exposeScreen(store);
+		void store.ai.checkStatus();
 		const session = new DraftSession(store);
 		recovery = session;
 		// Typing that landed before hydration finished already made the document
@@ -537,6 +539,8 @@
 	{#if repairTarget !== null}
 		<RepairDialog {doc} target={repairTarget} onclose={() => (repairTarget = null)} />
 	{/if}
+
+	<AiPanel />
 </div>
 
 <style>
