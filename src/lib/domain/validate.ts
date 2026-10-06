@@ -20,7 +20,13 @@
 import type { BlockStep, BlockV2, CourseV2, QuestionConfig } from './schema';
 import type { Ref } from './ref';
 import { exportedBlocksOf } from './groups';
-import { buildIndex, isGoToKeyword, reachableSteps, type DocIndex } from './index-doc';
+import {
+	buildIndex,
+	goToIsFollowed,
+	isGoToKeyword,
+	reachableSteps,
+	type DocIndex
+} from './index-doc';
 import {
 	blockDurationMinutes,
 	exportedBlockCount,
@@ -239,7 +245,18 @@ function checkBlocks(
 		}
 
 		// §14 warning 5 — a block nothing reaches is a block no student ever sees.
-		const referenced = (index.referencesToBlock.get(block.block_id) ?? []).length > 0;
+		// A branch the player never follows (from an exercise card, or an answer of a
+		// multi-select) leads nowhere (`goToIsFollowed`).
+		const referenced = (index.referencesToBlock.get(block.block_id) ?? []).some((reference) => {
+			if (reference.kind !== 'go_to') return true;
+			const from = reference.from;
+			const source = from.blockId === undefined ? undefined : index.blocksById.get(from.blockId);
+			const step =
+				from.blockId === undefined || from.stepId === undefined
+					? undefined
+					: index.stepsByBlock.get(from.blockId)?.get(from.stepId);
+			return source === undefined || step === undefined || goToIsFollowed(source, step);
+		});
 		if (!referenced && !isPracticeBlock(block)) {
 			add(
 				'warning',

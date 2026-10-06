@@ -4,7 +4,7 @@
  * The reverse index is what makes delete-safety (§3 invariant 3) and the validation
  * panel cheap — "what points at this step?" is a map lookup, not a document walk.
  */
-import type { BlockStep, BlockV2, CourseV2, LessonV2 } from './schema';
+import type { BlockStep, BlockV2, CourseV2, LessonV2, QuestionConfig } from './schema';
 import { GOTO_KEYWORDS } from './schema';
 import type { Ref } from './ref';
 
@@ -150,8 +150,49 @@ export function referencesToStep(index: DocIndex, blockId: string, stepId: strin
 }
 
 /**
+ * Whether an answer's own outcome — where it leads (`go_to`) and its grade (`mark`) —
+ * counts for this question. It does only when the pupil picks one answer.
+ *
+ * Mirrors the app: `BlockStepEngine._confirmAnswer` takes its `goToValue` and
+ * `markValue` from the chosen option only in the last branch, the single-select /
+ * true-false one (`block_step_engine.dart:620-633`). The `allowMultiple` branch above
+ * it (`:597-601`) judges the whole set and reads neither, and `numeric` and `open`
+ * questions never look at their options' outcomes (`:602-619`). `_continueAfterSolution`
+ * likewise follows only `selectedOptionId`, which a multi-select never sets
+ * (`:735-747`), and `QuizPage._checkAnswer` (`quiz_page.dart:499-525`) reads no
+ * outcome on an option either way. A multi-select question can still branch on the
+ * question as a whole (`next_actions`), which is not an option's value.
+ *
+ * (`score_koef` is skipped in the multi-select branch too, `:598-601`; that column is
+ * advanced-only and not part of this rule.)
+ */
+export function optionOutcomesApply(
+	question: Pick<QuestionConfig, 'type' | 'allow_multiple'> | undefined
+): boolean {
+	if (question === undefined) return true;
+	if (question.allow_multiple === true) return false;
+	return question.type === 'multiple_choice' || question.type === 'true_false';
+}
+
+/**
+ * Whether the player follows the `go_to` of this step's answers at all.
+ *
+ * `GoToResolver.resolve` (`lib/models/step_navigation.dart:208-211`) ignores a `go_to`
+ * in an `exercise` card and nowhere else, so a `display` card with a question branches
+ * too; and the answers' own targets are read only when the pupil picks one answer
+ * (`optionOutcomesApply`). The export mode does not matter: the player looks at the
+ * card's type, not at `exercise_v2`.
+ */
+export function goToIsFollowed(block: Pick<BlockV2, 'type'>, step: BlockStep): boolean {
+	return (
+		block.type !== 'exercise' && step.type === 'question' && optionOutcomesApply(step.question)
+	);
+}
+
+/**
  * Step-graph successors, as the player walks them (§9). A question step's successors
- * are its options' targets, plus the next step for any option without one.
+ * are its options' targets, plus the next step for any option without one, where the
+ * player follows them (`goToIsFollowed`).
  */
 export function stepSuccessors(
 	block: BlockV2,
@@ -165,11 +206,11 @@ export function stepSuccessors(
 		if (stepId !== undefined) out.push({ stepId, viaOption });
 	};
 
-	// §6.2 / §9: branching is ignored in exercise blocks — flow is always linear.
-	const branching = block.type === 'question';
-	const options = step.type === 'question' ? (step.question?.options ?? []) : [];
+	// `GoToResolver.resolve`: linear in an exercise card, and for an answer set the
+	// player does not read an option's target from (a multi-select, a typed answer).
+	const options = goToIsFollowed(block, step) ? (step.question?.options ?? []) : [];
 
-	if (!branching || options.length === 0) {
+	if (options.length === 0) {
 		push(next);
 		return out;
 	}
