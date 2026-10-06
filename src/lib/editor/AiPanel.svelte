@@ -289,8 +289,14 @@
 		border-radius: var(--radius-m);
 		font: var(--type-body);
 		line-height: 1.45;
-		white-space: pre-wrap;
 		overflow-wrap: anywhere;
+	}
+
+	/* pre-wrap belongs to the text alone: on the bubble it kept the markup's own line
+	   break and indent before and after the text as an empty line at the bottom. */
+	.message > span {
+		display: block;
+		white-space: pre-wrap;
 	}
 
 	.message.user {
