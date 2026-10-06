@@ -21,6 +21,11 @@ import { notANumberMessage, parseNumberDraft, type NumberDraft } from '$lib/doma
 import { buildIndex, type DocIndex } from '$lib/domain/index-doc';
 import { stepReservation, type Reservations } from '$lib/domain/ids';
 import { validate, type ValidationResult } from '$lib/domain/validate';
+import {
+	courseVersionState,
+	type CourseVersionState,
+	type VersionIndex
+} from '$lib/domain/versions';
 import { courseTotals, type CourseTotals } from '$lib/domain/derive';
 import { emptyCourse, serialise } from '$lib/domain/document';
 import {
@@ -571,9 +576,47 @@ export class DocStore {
 		};
 	}
 
-	/** The document as it would be published or downloaded. */
+	/**
+	 * The version history this store's course is read against. It is read, never
+	 * written, here: the `VersionStore` owns loading and saving.
+	 */
+	#history = $state.raw<{
+		index: VersionIndex;
+		courseId: string | null;
+		loading: boolean;
+	} | null>(null);
+
+	attachHistory(history: { index: VersionIndex; courseId: string | null; loading: boolean }) {
+		this.#history = history;
+	}
+
+	/**
+	 * Which version the working copy is and what the top bar says about it. Not
+	 * loaded until the history of *this* course has been read.
+	 */
+	versionState = $derived<CourseVersionState>(
+		courseVersionState(
+			this.#history?.index ?? { courseId: '', versions: [] },
+			$state.snapshot(this.source) as CourseV2,
+			this.#history !== null &&
+				this.#history.courseId === this.source.course_id &&
+				!this.#history.loading
+		)
+	);
+
+	/**
+	 * The document as it is downloaded: the course as exported, carrying the number it
+	 * will be saved as. While the history loads the number is not known, and the
+	 * document keeps the one it has; `versionState.loaded` says whether to trust it.
+	 */
 	export(): Record<string, unknown> {
-		return serialise(this.source);
+		const { next } = this.versionState;
+		return serialise(next === undefined ? this.source : { ...this.source, version: next });
+	}
+
+	/** `export()` as the text of the file. */
+	exportJson(): string {
+		return JSON.stringify(this.export(), null, 2);
 	}
 
 	#reserve(doc: CourseV2) {

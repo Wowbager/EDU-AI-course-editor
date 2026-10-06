@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { DocStore } from './doc-store.svelte';
+import { MemoryBackend } from './versions/backend';
+import { VersionStore } from './versions/version-store.svelte';
 import { importCourse } from '$lib/domain/document';
 import {
 	addBlock,
@@ -409,5 +411,48 @@ describe('number drafts (H4)', () => {
 		store.enterNumber(ref, 'x');
 		store.undo();
 		expect(store.draftAt(ref)).toBeUndefined();
+	});
+});
+
+describe('one version for the label and the file (H5)', () => {
+	async function opened() {
+		const store = new DocStore();
+		store.load({ ...emptyCourse('C1', 'Kurz'), version: 1 });
+		const versions = new VersionStore([new MemoryBackend()]);
+		store.attachHistory(versions);
+		return { store, versions };
+	}
+
+	it('says "načítá se" and has no number to hand out before the history is read', async () => {
+		const { store, versions } = await opened();
+		expect(store.versionState.loaded).toBe(false);
+		expect(store.versionState.label).toBe('načítá se');
+		expect(store.versionState.next).toBeUndefined();
+		const pending = versions.load('C1');
+		expect(store.versionState.loaded).toBe(false);
+		await pending;
+		expect(store.versionState.loaded).toBe(true);
+	});
+
+	it('exports under the number the label shows, after a version was saved', async () => {
+		const { store, versions } = await opened();
+		await versions.load('C1');
+		expect(store.versionState.label).toBe('v1');
+		expect(store.export().version).toBe(1);
+		await versions.save(JSON.parse(JSON.stringify(store.source)), '');
+		expect(store.versionState.label).toBe('v1');
+		store.apply((d) => setField(d, { field: 'name' }, 'Jiný'));
+		expect(store.versionState.label).toBe('v1 · upraveno');
+		expect(store.versionState.next).toBe(2);
+		expect(store.export().version).toBe(2);
+		expect(JSON.parse(store.exportJson()).version).toBe(2);
+	});
+
+	it('is not loaded for another course than the history belongs to', async () => {
+		const { store, versions } = await opened();
+		await versions.load('C1');
+		store.load({ ...emptyCourse('C2', 'Jiný kurz'), version: 7 });
+		expect(store.versionState.loaded).toBe(false);
+		expect(store.export().version).toBe(7);
 	});
 });

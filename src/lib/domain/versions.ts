@@ -155,6 +155,74 @@ export function nextVersion(index: VersionIndex, doc: Pick<CourseV2, 'version'>)
 	return Math.max(saved + 1, saved === 0 ? own : 0);
 }
 
+/**
+ * Where the working copy stands in its history, in one place: the number a download
+ * or a save would carry and the words the top bar shows. Until the history has been
+ * read nothing is known about the number (`loaded: false`), so the label says so
+ * instead of a guess, and there is no `next`.
+ */
+export interface CourseVersionState {
+	loaded: boolean;
+	/** The number the working copy goes out and is saved under; undefined while loading. */
+	next: number | undefined;
+	/** The newest saved version. */
+	saved: number | undefined;
+	/** Changed since the newest saved version (a course with nothing saved counts as changed). */
+	modified: boolean;
+	/** The text on the version button. */
+	label: string;
+	/** The button's tooltip. */
+	title: string;
+	/** The button's accessible name, when the visible text alone does not say enough. */
+	name: string | undefined;
+}
+
+const VERSION_TITLE =
+	'Verze kurzu: uložit, vrátit se k dřívější, zveřejnit a nastavit, kdo kurz uvidí';
+
+export function courseVersionState(
+	index: VersionIndex,
+	doc: CourseV2,
+	loaded: boolean
+): CourseVersionState {
+	if (!loaded) {
+		return {
+			loaded,
+			next: undefined,
+			saved: undefined,
+			modified: true,
+			label: 'načítá se',
+			title: `${VERSION_TITLE}. Historie verzí se právě načítá.`,
+			name: 'Verze kurzu se načítá'
+		};
+	}
+	const savedVersion = latest(index);
+	const next = nextVersion(index, doc);
+	const modified = savedVersion === undefined || savedVersion.hash !== contentHash(doc);
+	const label =
+		savedVersion === undefined
+			? `v${next}`
+			: modified
+				? `v${savedVersion.version} · upraveno`
+				: `v${savedVersion.version}`;
+	return {
+		loaded,
+		next,
+		saved: savedVersion?.version,
+		modified,
+		label,
+		title:
+			VERSION_TITLE +
+			(savedVersion === undefined
+				? '. Zatím není uložená žádná verze.'
+				: modified
+					? `. Kurz se od uložené verze ${savedVersion.version} změnil.`
+					: ''),
+		// The visible text is a bare number; without a saved version the name says so.
+		name: savedVersion === undefined ? `${label}, zatím neuloženo` : undefined
+	};
+}
+
 /** A frozen copy of the working document as version `number`. */
 export function snapshot(
 	doc: CourseV2,

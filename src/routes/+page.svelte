@@ -60,6 +60,7 @@
 		...(key !== null ? [new ServerBackend(key)] : [])
 	]);
 	setVersions(versions);
+	store.attachHistory(versions);
 	const courseId = $derived(store.doc.course_id);
 	$effect(() => {
 		const id = courseId;

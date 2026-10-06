@@ -50,8 +50,9 @@
 
 	// Versions are of the course as exported, not of the view the editor shows.
 	const doc = $derived(store.source);
-	const next = $derived(versions.next(doc));
-	const modified = $derived(versions.modified(doc));
+	const version = $derived(store.versionState);
+	const next = $derived(version.next);
+	const modified = $derived(version.modified);
 	const visibility = $derived(visibilityOf(doc));
 	const choices = $derived(store.mode === 'teacher' ? TEACHER_VISIBILITIES : ALL_VISIBILITIES);
 	const published = $derived(versions.published);
@@ -85,7 +86,7 @@
 
 	async function restore(version: ListedVersion) {
 		if (
-			versions.modified(doc) &&
+			modified &&
 			!window.confirm(
 				`Rozpracované změny se nahradí verzí ${version.version}. Vrátit to půjde tlačítkem Zpět.`
 			)
@@ -185,8 +186,10 @@
 <Modal title="Verze kurzu" {onclose} size="l">
 	<div class="versions">
 		<section class="working">
-			<h3>Rozpracovaná verze {next}</h3>
-			{#if versions.latest === undefined}
+			<h3>{next === undefined ? 'Rozpracovaná verze se načítá' : `Rozpracovaná verze ${next}`}</h3>
+			{#if !version.loaded}
+				<p class="muted">Historie verzí se načítá.</p>
+			{:else if versions.latest === undefined}
 				<p class="muted">Kurz zatím nemá uloženou žádnou verzi.</p>
 			{:else if modified}
 				<p class="muted">Od verze {versions.latest.version} je kurz upravený.</p>
@@ -200,9 +203,9 @@
 					placeholder="Poznámka k verzi (nepovinná)"
 					aria-label="Poznámka k verzi"
 				/>
-				<Button onclick={save} disabled={busy || !modified}>
+				<Button onclick={save} disabled={busy || !version.loaded || !modified}>
 					<History size={16}></History>
-					Uložit jako verzi {next}
+					{next === undefined ? 'Uložit jako verzi' : `Uložit jako verzi ${next}`}
 				</Button>
 			</div>
 		</section>

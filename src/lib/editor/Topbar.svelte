@@ -7,7 +7,6 @@
 	import Button from '$lib/ui/Button.svelte';
 	import { useStore, useVersions } from '$lib/ui/context';
 	import { setField } from '$lib/domain/commands';
-	import { serialiseToJson } from '$lib/domain/document';
 	import { MODES, MODE_LABELS } from '$lib/ui/fields';
 	import Modal from '$lib/ui/Modal.svelte';
 	import ExportDialog from './ExportDialog.svelte';
@@ -33,32 +32,14 @@
 	let explainStorage = $state(false);
 
 	/**
-	 * The version button says where the working copy stands: the newest saved
-	 * version, and whether it has been changed since. A course with nothing saved
-	 * yet shows the number it will get, and the title and name say nothing is saved:
-	 * "neuloženo" beside every new course read as a fault.
+	 * The version button says where the working copy stands. The words and the number
+	 * a download carries come from one place, `store.versionState`, so the label can
+	 * never say v3 while the file says v2.
 	 */
-	const savedVersion = $derived(versions.latest);
-	const workingChanged = $derived(versions.modified(store.source));
-	const versionLabel = $derived(
-		savedVersion === undefined
-			? `v${versions.next(store.source)}`
-			: workingChanged
-				? `v${savedVersion.version} · upraveno`
-				: `v${savedVersion.version}`
-	);
-	const versionTitle = $derived(
-		'Verze kurzu: uložit, vrátit se k dřívější, zveřejnit a nastavit, kdo kurz uvidí' +
-			(savedVersion === undefined
-				? '. Zatím není uložená žádná verze.'
-				: workingChanged
-					? `. Kurz se od uložené verze ${savedVersion.version} změnil.`
-					: '')
-	);
-	/** The visible text is a bare number; without a saved version the name says so. */
-	const versionName = $derived(
-		savedVersion === undefined ? `${versionLabel}, zatím neuloženo` : undefined
-	);
+	const version = $derived(store.versionState);
+	const versionLabel = $derived(version.label);
+	const versionTitle = $derived(version.title);
+	const versionName = $derived(version.name);
 
 	/**
 	 * The exact JSON handed to the browser by the last „Stáhnout JSON“.
@@ -76,17 +57,13 @@
 	let exportedJson = $state<string | null>(null);
 	// The working copy goes out under the number it will be saved as, so a file
 	// downloaded after version 3 was saved is never "version 1" to the platform.
-	const currentJson = $derived(
-		serialiseToJson({
-			...store.source,
-			version: versions.next(store.source)
-		})
-	);
+	const currentJson = $derived(store.exportJson());
 	const backedUp = $derived(exportedJson !== null && exportedJson === currentJson);
 
 	function download() {
 		// The dialog only offers a download without errors; this is the backstop.
-		if (!store.canPublish) return;
+		// Before the history has loaded the file's version number would be a guess.
+		if (!store.canPublish || !version.loaded) return;
 		const json = currentJson;
 		const blob = new Blob([json], { type: 'application/json' });
 		const url = URL.createObjectURL(blob);
