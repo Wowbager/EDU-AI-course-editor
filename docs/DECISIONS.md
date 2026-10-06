@@ -2223,6 +2223,46 @@ a search field always open in Učitel (visual load for a dialog of three fields)
   a problem on the card. "nenastaveno" (amber) shows only while the card has no skills; the
   chips live only in `TopicPicker.svelte`.
 
+## Round 14 — pupil simulator
+
+**What:** `domain/simulate.ts`, a pure state machine over the exported course
+(`store.source`) that plays a lesson as the student's app does. `startLesson`, `view`,
+`answer`, `advance`, `explore`. The state is JSON; a course the player cannot get through
+ends in an explicit `error` state, not an exception. It is there so the AI helper (and
+the teacher) can "walk the lesson as a pupil" and list every way through it.
+
+**What it mirrors, rule by rule, each with the Dart function in a comment:**
+`GoToResolver.resolve`, `_confirmAnswer` (grading, pause or move on, `AGAIN`),
+`_continueAfterSolution`, `_advanceDisplayStep`, `_skipToNextQuestion`, `_deriveState`,
+`_stepsOnScreen`, `_completeBlock` (XP), `LessonDetailPage._confirmBlock` and
+`_navigateToBlock` (card order, jumps, lesson end), `BlockLoader.loadBlocksForLesson`.
+It reuses `optionOutcomesApply` and `isGoToKeyword`. It does not reuse `stepSuccessors`
+or `reachableSteps`: they branch only in question cards and the player also branches in
+display cards (OPEN-PROBLEMS #46), so `explore` finds unreachable steps by playing.
+
+**What is not simulated:** the AI tutor (`CHAT` and `LECTURE` end the run with a label;
+the app would carry on with the next card), saved progress, XP caps and bookmarks,
+`next_actions` / `user_options` (migrated away on import), and the part of the player
+that is not logic (layout, animation). Open answers are graded locally by the player
+(`correct_answer`, or a right option's text), so they are simulated; numeric answers
+are graded wrong by the player at the pinned commit and the simulator says so (#47).
+
+**Rejected:**
+- *Driving the real player from the AI.* It needs the 11 MB Flutter build in a browser,
+  takes seconds per move, flakes with the network (see the e2e notes) and returns pixels
+  and accessibility names instead of states. The simulator is instant, serialisable and
+  testable; the player stays the authority through the parity spec.
+- *Simulating over `store.doc`* (the teacher's view). A card with two questions is two
+  cards for the player, so the simulator reads `source`.
+- *Hiding the player's quirks* (a right `AGAIN` answer retries, a jump back to an
+  answered question loops). The simulator reports what a pupil would meet; whether the
+  author meant it is `validate()`'s question.
+
+**How it is kept honest:** `simulate.test.ts` plays every lesson of the corpus and the
+spec fixtures, plus one document per rule; `e2e/preview-simulator-parity.spec.ts` plays
+three scripted paths in the real player and compares the `stepChanged` sequence with the
+simulator's. #46 is the drift risk.
+
 ## Formatting — one formatter, and the two places it is not allowed
 
 The repo had a house style and no formatter: `useTabs` nearly everywhere (129 files to
