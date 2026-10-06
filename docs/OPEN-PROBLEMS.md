@@ -480,18 +480,34 @@ Round 13 (`DECISIONS.md` → Round 13); what is left:**
   the course's terms; „Kam dál“ keeps letters typed while it opens; „výchozí sada“ is a
   grey label with its meaning; the course dialog has „Hotovo“.
 
-### 46. Round 14 part 1 left
+### 46. Round 14 left (parts 1 and 2)
 **Not reproduced as bugs; places where the new rules do not yet reach.**
 - Three numeric fields still use a native `type="number"` box with their own clamp
   (`TopicPicker` Elo, `CompetencyEditor` weight, `PrerequisiteEditor` level). They go
   through `parseNumberInput`, so they never write NaN, but they have three clamp rules and
   no draft/inline error. One `clampNumber(spec)` is still to do.
-- `validate()` skips the skill-vector checks while `store.skillConfigStatus` is `loading`
-  or `failed`, and says nothing about it; the Screen model's `issues` slice should.
 - `store.selection` is still written back by the page from `store.open`; consumers that
-  read `selection.lessonId` should read `store.open.lesson` instead (part 2).
-- A card in no lesson is now named „Karta N“ by its place among all cards in the tree's
+  read `selection.lessonId` should read `store.open.lesson` instead (not done in part 2).
+- A card in no lesson is named „Karta N“ by its place among all cards in the tree's
   orphan list (it was „Karta bez textu“).
+- **Part 3 is the card region.** The import guard's `PENDING` list is the work: `AnswerTable`,
+  `CardEditor`, `CardSettings`, `GoToPicker`, `LessonSettings`, `PrerequisiteEditor`,
+  `RepairDialog`, `StepEditor`, `TopicPicker`, the page's card heading and empty-state
+  sentence, and, with their own regions, `ExportDialog` and `VersionsDialog`. The card
+  header's XP chip still shows the authored `xp` as the reward (#15).
+- **`store.screen` is not the whole screen.** The toast, the import notes, the recovery
+  message, the settings dialogs, step folds and armed deletes are not in it. The preview
+  column's rendering of the player is the player's (a picture an AI cannot read); only its
+  status and target are.
+- **The editor uses `inspect`, which the fork's `lib/preview/README.md` calls the tests'
+  message** ("`inspect` is for the editor's tests"). It is in the contract and the player
+  answers it after the next painted frame, but the README should say the editor sends it
+  too. App-side wording only; no behaviour depends on it.
+- **`completed` is kept and not drawn.** `store.preview.completed` holds what the last
+  finished card of a played run reported; the model says `on_screen: false`.
+- **`W_BLOCK_TOO_MANY_STEPS` is one warning per card**, for its longest exported block,
+  where the exported course would have one per long block. No corpus course has a card with
+  two such blocks.
 
 ### 11. Folding is remembered for the session only
 **By design for now.** `StepView` lives as long as the page. A reload opens every step

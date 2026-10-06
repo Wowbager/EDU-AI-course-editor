@@ -2276,6 +2276,90 @@ plan "Phase 0"). Part 1 removes the divergences that are plain rules in componen
   „teď nikam nevede“ notice use it; sentences keep `stepLabel` („krok 2“). Rejected:
   „Krok 2“ in Pokročilý too, because that mode shows ids on purpose.
 
+### Round 14 part 2 — the screen model, and what the validator counts
+
+- **Warnings and totals count what the app counts (H3).** The app reads a lesson's block
+  count from the exported list (`course_model.dart` `parseLessons`: `questionCount:
+  blockCount`, "4 minutes per block" when no block has a duration) and a lesson's XP from
+  the steps (`_calculateBlockMaxXp`, which never reads a card's `xp`; a binding that
+  resolves to nothing is 1). `W_LESSON_TOO_LONG` (more than 12), `W_BLOCK_TOO_MANY_STEPS`
+  (more than 10 in one exported block), the estimated time and `blockCount` now count
+  exported blocks (`exportedBlocksOf` in `groups.ts` cuts a merged card the way
+  `fromView` writes it). `LessonTotals` carries both `blockCount` (the app's) and
+  `cardCount` (what the tree lists), and the tree says cards. XP is the derived XP in
+  every mode, which also closes the Učitel/Pokročilý difference of #15. The lesson-length
+  message says "má 8 karet, které se žákovi ukážou jako 14 bloků" when the two differ.
+  **`__tests__/view-vs-source.test.ts`** compares `validate(view)` with
+  `validate(source)` over the corpus and spec §16 (codes, counts and, with refs mapped
+  through `blockOfStep`, places), and totals. One difference is listed with its reason:
+  `W_PARTIAL_DURATION` counts cards, because a card keeps its `duration` on its first
+  block (`groups.ts` `FIRST_ONLY`), so the exported blocks of a complete split card read
+  "1 of 3 filled" while the app adds up the right time. Rejected: counting blocks there
+  too (a false warning on every split card with a duration); validating the source
+  instead of the view (Round 7: the editor is about what the teacher wrote); passing
+  both documents to `validate` (the rule is cheap to derive from the card).
+- **One `Screen`, read by components and by the AI (Phase 0).** `src/lib/screen/` is
+  headless: `types.ts` (`ScreenInput` and the regions), one pure builder per region
+  (`topbar`, `tree`, `issues`, `preview`, `notices`, `ui`) and `serialise.ts`
+  (`screenSlice(screen, region)`: the region as plain JSON, which is what an AI read
+  tool returns verbatim). `store.screen` (`state/screen.svelte.ts`) is a `$derived` per
+  region over the store's own state. Field names are snake_case and strings are the Czech
+  text as drawn. The rule for a new visible value: a field in a region, rendered with
+  `data-screen="<region>.<path>"`, covered by the parity test. Rejected: building the
+  regions inside `DocStore` (it would grow into the model); one big derived `Screen`
+  (every keystroke would rebuild every region; the regions are lazy).
+- **What moved into the store so the model can read it.** `store.preview` (view, the
+  pinned run, boot, sync status, error, `completed`), `store.ui` (validation panel,
+  export review, sidebar fold, hidden warnings, the parts note), `store.draftStatus`
+  (the `DraftSession` writes through it), `store.exportedJson`/`backedUp` (what the top
+  bar's save line says), and `store.cutOff` with `store.trackReach` (the
+  "teď nikam nevede" line, with its lifetime: while its change is the last edit; its text
+  is made by `screen/notices.ts` `cutOffText`). `listed` and `shown` are
+  `screen/issues.ts` `issueSets`, so the store, the top bar and every `visibility` the
+  model reports are one rule. Rejected: leaving them in components "because only that
+  component reads them" (that is how the AI would be told something else).
+- **Issues carry a visibility.** `issues.items` is everything `validate()` found, each as
+  `shown` (may be marked inline now), `pending_timing` (listed, but not yet its timing)
+  or `held_back` (advice about a feedback field while Zpětná vazba is off). The panel
+  lists what the top bar counts; the held ones are one quiet line. `issues.skipped_checks`
+  says that vectors are not checked while the skill list is `loading` or `failed`
+  (#46); the panel shows that line, which is a small addition on screen and the
+  one place this part changes what a teacher sees.
+- **The preview says when there is nothing to show (M4).** With no card open
+  (an empty course, the last card deleted) the column puts a Czech line over the player
+  and clears it with the existing `reset` message; in Vyzkoušet with no lesson the same.
+  Rejected: a new "clear" message (the fork cannot be changed from here, and `reset`
+  already is that). The bridge sends the existing `inspect` after each card or lesson it
+  posts, with an id of its own, and reads the `inspected` reply: `in_sync` means painted,
+  `content: 'error'` is `player_error` with the player's words. `completed` is kept in
+  `store.preview.completed` and reported as `preview.last_completed` with
+  `on_screen: false`, since nothing draws it yet. The fork's README calls `inspect` the
+  tests' message; the editor now uses it too (OPEN-PROBLEMS #46).
+- **The import guard (`screen/__tests__/import-guard.test.ts`).** A component under
+  `editor/`, `ui/` or `routes/` may not import `derive`, `naming`, `validate`,
+  `index-doc`, `groups` or `issue-groups` from the domain (commands, types, ids, refs,
+  `document` and the number parser are writes or data), compare `store.mode`, call
+  `Number(`/`parseFloat(`, or export functions from a module script. The files that
+  still do are in `PENDING`, with "part 3 removes these"; the test fails when a pending
+  file becomes clean, so the list only shrinks. Moved to make files clean:
+  `showsExportedBlocks(mode)` (`ui/fields.ts`), `preview/branch-labels.ts`,
+  `ui/autosize.ts`, `ui/card-type-labels.ts`, `pickerCardLabel` (`naming.ts`).
+- **Screen parity (`e2e/screen-parity.spec.ts`, editor project).** `window.__screen`
+  (`state/screen-hook.ts`) exists in the dev server and in a build made with
+  `--mode e2e`, which Playwright's web server now runs; Vite replaces
+  `import.meta.env.MODE` with the literal, so a production build contains none of it
+  (checked in the built chunk). The suite loads five courses (zlomky, spec §16 clean and
+  broken, onboarding, and a card in two lessons), in each mode: as opened, second lesson
+  open, feedback off, the validation panel open and a warning hidden, the export review,
+  the rail with a lesson's and a card's panel. Each `[data-screen]` element must equal the
+  model, and no text node with a digit or a word of the course may sit in those regions
+  outside one. Rejected: snapshotting the DOM (it would pin markup, not the claim); a
+  whitelist of static labels (every new label would be a test edit).
+- **`ui` and `notices` are not the whole of either yet.** `ui` has the panels above;
+  settings dialogs, folds and armed deletes are part 3. `notices` has the cut-off line;
+  the toast (`Notices`), the import notes and the draft-recovery message are still page
+  state.
+
 ## Formatting — one formatter, and the two places it is not allowed
 
 The repo had a house style and no formatter: `useTabs` nearly everywhere (129 files to
