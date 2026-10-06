@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { notANumberMessage, parseNumberDraft, parseNumberInput } from '../number-input';
+import {
+	clampNumber,
+	notANumberMessage,
+	parseNumberDraft,
+	parseNumberInput
+} from '../number-input';
 import { formatDateTimeCs } from '../format-date';
 
 describe('parseNumberInput', () => {
@@ -62,5 +67,19 @@ describe('numbers as Czech teachers type them', () => {
 		expect(parseNumberDraft('abc')).toEqual({ status: 'invalid', text: 'abc' });
 		expect(parseNumberDraft('2,5')).toEqual({ status: 'ok', value: 2.5 });
 		expect(notANumberMessage('abc')).toContain('„abc“');
+	});
+});
+
+describe('clampNumber', () => {
+	it('moves a number outside the range to the nearest end, and leaves the rest', () => {
+		expect(clampNumber({ min: 0, max: 100 }, 150)).toBe(100);
+		expect(clampNumber({ min: 0, max: 100 }, -5)).toBe(0);
+		expect(clampNumber({ min: 0, max: 100 }, 37.5)).toBe(37.5);
+		expect(clampNumber({ min: 1, max: 10 }, 10)).toBe(10);
+	});
+	it('has no end where the bounds give none', () => {
+		expect(clampNumber({ min: 0 }, 1e9)).toBe(1e9);
+		expect(clampNumber({ max: 5 }, -1e9)).toBe(-1e9);
+		expect(clampNumber({}, 42)).toBe(42);
 	});
 });

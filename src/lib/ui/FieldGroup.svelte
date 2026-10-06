@@ -150,6 +150,7 @@
 						ref={spec.ref}
 						describedby={hint ? hintId(spec) : undefined}
 						invalid={invalid?.(spec.path) === true}
+						bounds={spec}
 						onwrite={(v) => write(spec.path, v)}
 					/>
 				{:else}

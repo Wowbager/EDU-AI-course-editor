@@ -22,6 +22,8 @@ import {
 	SECTIONS as LEVEL_SECTIONS,
 	allows,
 	cardSettingsSummary,
+	clampTo,
+	fieldSpec,
 	fieldsFor,
 	hintFor,
 	isFeedbackRef,
@@ -654,5 +656,41 @@ describe('what a higher mode adds', () => {
 			section: 'topics'
 		});
 		expect(matchHigherModes(['block'], '  ', 'teacher')).toEqual([]);
+	});
+});
+
+describe('bounded number fields (H4)', () => {
+	const bounded = FIELDS.filter((spec) => spec.min !== undefined || spec.max !== undefined);
+
+	it('declares the range of the three numbers hand-written editors used to clamp alone', () => {
+		const range = (path: string) => {
+			const spec = fieldSpec('block', path);
+			return [spec?.min, spec?.max];
+		};
+		expect(range('gpf.elo_vector.elo')).toEqual([1, 10]);
+		expect(range('learning.competencies.weight')).toEqual([0, 100]);
+		expect(range('learning.prerequisites.min_level')).toEqual([0, 100]);
+	});
+
+	it('only bounds numbers, and each bound is a real range', () => {
+		for (const spec of bounded) {
+			expect(spec.kind, `${spec.level}.${spec.path}`).toBe('number');
+			expect(spec.min ?? -Infinity, `${spec.level}.${spec.path}`).toBeLessThan(
+				spec.max ?? Infinity
+			);
+		}
+	});
+
+	it('clamps by the spec, and leaves a field without bounds alone', () => {
+		const weight = fieldSpec('block', 'learning.competencies.weight');
+		expect(clampTo(weight, 250)).toBe(100);
+		expect(clampTo(weight, -3)).toBe(0);
+		expect(clampTo(fieldSpec('course', 'version'), 250)).toBe(250);
+		expect(clampTo(undefined, 250)).toBe(250);
+	});
+
+	it('shows the skill difficulty only in Pokročilý, where TopicPicker draws it', () => {
+		expect(allows('block', 'gpf.elo_vector.elo', 'metodik')).toBe(false);
+		expect(allows('block', 'gpf.elo_vector.elo', 'advanced')).toBe(true);
 	});
 });

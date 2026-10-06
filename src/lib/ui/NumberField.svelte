@@ -10,6 +10,7 @@
 	import { useStore } from './context';
 	import type { Ref } from '$lib/domain/ref';
 	import { parseNumberDraft, parseNumberInput } from '$lib/domain/number-input';
+	import { clampTo, type FieldSpec } from './fields';
 
 	interface Props {
 		/** The number in the document (a stray string from an import is shown as it is). */
@@ -21,6 +22,8 @@
 		monospace?: boolean;
 		describedby?: string;
 		invalid?: boolean;
+		/** The field's spec, for its range: a number outside it is written as the nearest end. */
+		bounds?: Pick<FieldSpec, 'min' | 'max'>;
 		/** Called with a number, or undefined when the box was emptied. */
 		onwrite: (value: number | undefined) => void;
 	}
@@ -33,6 +36,7 @@
 		monospace = true,
 		describedby,
 		invalid,
+		bounds,
 		onwrite
 	}: Props = $props();
 
@@ -55,11 +59,13 @@
 		if (ref === undefined) {
 			// No key to keep the text under: parse, and write only what is a number.
 			const parsed = parseDraftless(text);
-			if (parsed !== null) onwrite(parsed.value);
+			if (parsed !== null) {
+				onwrite(parsed.value === undefined ? undefined : clampTo(bounds, parsed.value));
+			}
 			return;
 		}
 		const parsed = store.enterNumber(ref, text);
-		if (parsed.status === 'ok') onwrite(parsed.value);
+		if (parsed.status === 'ok') onwrite(clampTo(bounds, parsed.value));
 		else if (parsed.status === 'empty') onwrite(undefined);
 	}
 

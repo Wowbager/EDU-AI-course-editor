@@ -41,3 +41,22 @@ export function parseNumberInput(raw: string | number | undefined | null): numbe
 export function notANumberMessage(text: string): string {
 	return `„${text}“ není číslo, proto se neuložilo a v kurzu zůstala původní hodnota. Napiš ho číslicemi, třeba 2,5.`;
 }
+
+/** What a number field accepts: the range its spec declares (`FieldSpec.min` / `max`). */
+export interface NumberBounds {
+	min?: number;
+	max?: number;
+}
+
+/**
+ * The one clamp rule of every bounded number field: a number outside the range is
+ * written as the nearest end, never refused and never written as it was typed. The
+ * range is the field's spec (`ui/fields.ts`), so a difficulty, a weight and a required
+ * mastery no longer each carry a rule of their own.
+ */
+export function clampNumber(bounds: NumberBounds, value: number): number {
+	let result = value;
+	if (bounds.max !== undefined) result = Math.min(bounds.max, result);
+	if (bounds.min !== undefined) result = Math.max(bounds.min, result);
+	return result;
+}
