@@ -202,7 +202,7 @@
 		onclick={() => (store.ai.panelOpen = !store.ai.panelOpen)}
 	>
 		<Sparkles size={16}></Sparkles>
-		<span data-screen="ai.button.label">{aiBar.button.label}</span>
+		<span class="ai-label" data-screen="ai.button.label">{aiBar.button.label}</span>
 	</Button>
 
 	<Button variant="ghost" onclick={() => fileInput?.click()}>
@@ -282,6 +282,13 @@
 		padding: 0 16px;
 		border-bottom: 1px solid var(--e-border);
 		background: var(--surface);
+	}
+
+	/* At 1280 the bar has no room for the word: the icon, its name and tooltip stay. */
+	@media (max-width: 1360px) {
+		.ai-label {
+			display: none;
+		}
 	}
 
 	.title {

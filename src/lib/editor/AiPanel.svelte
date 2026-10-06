@@ -65,6 +65,11 @@
 	}
 
 	function onkeydown(event: KeyboardEvent) {
+		// Zpět in the message box is the box's own, not the course's.
+		if ((event.ctrlKey || event.metaKey) && ['z', 'y'].includes(event.key.toLowerCase())) {
+			event.stopPropagation();
+			return;
+		}
 		if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
 			event.preventDefault();
 			send();
