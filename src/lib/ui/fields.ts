@@ -1625,6 +1625,13 @@ export function fieldSpec(level: FieldLevel, path: string): FieldSpec | undefine
 	return FIELDS.find((spec) => spec.level === level && spec.path === path);
 }
 
+/**
+ * Whether the mode shows the course as it is exported — one block per question, ids
+ * and all — instead of a question card as one card. Only Pokročilý does; the editor
+ * decides its views from this and not from the mode's name.
+ */
+export const showsExportedBlocks = (mode: Mode): boolean => mode === 'advanced';
+
 /** Whether a hand-written control should render at all. */
 export function allows(
 	level: FieldLevel,

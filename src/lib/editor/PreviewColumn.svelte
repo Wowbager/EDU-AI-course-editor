@@ -30,12 +30,11 @@
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import Chip from '$lib/ui/Chip.svelte';
 	import Button from '$lib/ui/Button.svelte';
-	import { PreviewBridge, type PreviewView } from '$lib/preview/bridge';
+	import { PreviewBridge } from '$lib/preview/bridge';
+	import { blocksOfCard, branchLabels, reachedSteps } from '$lib/preview/branch-labels';
 	import { serialise } from '$lib/domain/document';
 	import { useStepView, useStore } from '$lib/ui/context';
-	import { allows } from '$lib/ui/fields';
-	import { cardLabel, partLabel } from '$lib/domain/naming';
-	import { groupOf, groupsOf } from '$lib/domain/groups';
+	import { allows, showsExportedBlocks } from '$lib/ui/fields';
 
 	interface Props {
 		doc: CourseV2;
@@ -58,39 +57,25 @@
 
 	const store = useStore();
 	const stepView = useStepView();
-	let view = $state<PreviewView>('expanded');
 	/**
-	 * What a played run was started with: the lesson and the card. Both are pinned
-	 * when the mode is entered, never tracked from the selection — the run *moves*
-	 * the selection (see `onstepChanged`), and a run whose inputs followed its own
-	 * output would restart itself: a branch into a card shared with another lesson
-	 * changed the lesson, and "Od začátku" re-pinned the start to whatever card the
-	 * run had reached, which restarted it twice. The selection is the run's output
-	 * and never its input.
+	 * What the column knows about the player and the run lives in the store
+	 * (`store.preview`), so the screen model can say it. What a played run was started
+	 * with, the lesson and the card, is pinned there when the mode is entered, never
+	 * tracked from the selection: the run *moves* the selection (see `onstepChanged`),
+	 * and a run whose inputs followed its own output would restart itself — a branch
+	 * into a card shared with another lesson changed the lesson, and "Od začátku"
+	 * re-pinned the start to whatever card the run had reached, which restarted it
+	 * twice. The selection is the run's output and never its input.
 	 */
-	let playStart = $state<string | undefined>(undefined);
-	let playLessonId = $state<string | undefined>(undefined);
+	const preview = $derived(store.preview);
+	const view = $derived(preview.view);
+	const model = $derived(store.screen.preview);
 	let frame = $state<HTMLIFrameElement | null>(null);
-	let booted = $state(false);
-	/**
-	 * Why there is no player: its build is not served here (`missing`), or it is and
-	 * never announced itself, even after the retries below (`stalled`).
-	 */
-	let failed = $state<false | 'missing' | 'stalled'>(false);
 	/** Which load of the frame this is. Bumped to load it again. */
 	let attempt = $state(0);
-	let canGoBack = $state(false);
-	/** Undecided until the player URL has been probed — see below. */
-	let available = $state<boolean | null>(null);
+	const booted = $derived(preview.boot === 'ready');
 
 	const PLAYER_URL = '/player/preview';
-
-	/**
-	 * What the header chip and the browser suite read. A running player has no chip:
-	 * the segmented control beside it is the header, and a green tag naming the other
-	 * mode said nothing that the picture below it did not.
-	 */
-	const playerState = $derived(booted ? 'ready' : failed ? 'failed' : 'starting');
 
 	/**
 	 * A column that starts folded does not boot the player until it is first opened:
@@ -131,63 +116,14 @@
 
 	/** The course as the player gets it. */
 	const source = $derived(store.source);
-	const groups = $derived(groupsOf(source));
-
-	/** The blocks the card on screen is made of, as exported. */
-	const blocksOfCard = (cardId: string): BlockV2[] => {
-		const members = groups.get(cardId);
-		if (members !== undefined) return members;
-		const own = source.blocks.find((b) => b.block_id === cardId);
-		return own !== undefined ? [own] : [];
-	};
 
 	/**
-	 * What to call the other cards a branch leads to. The player holds one card and
-	 * cannot look another one up; left to itself it would print the `block_id`, which
-	 * a teacher must never be shown (plan §8). So the naming is decided here, by the
-	 * same rule the rest of the editor uses.
+	 * What to call the other cards a branch leads to; the player cannot look one up and
+	 * must never print an id (`preview/branch-labels.ts`).
 	 */
-	const blockLabels = $derived.by(() => {
-		const showIds = allows('block', 'block_id', store.mode);
-		const labels: Record<string, string> = {};
-		for (const candidate of source.blocks) {
-			if (showIds) {
-				labels[candidate.block_id] = candidate.block_id;
-				continue;
-			}
-			// A branch into a card's later question names the card and the question.
-			const key = groupOf(candidate);
-			const members = key !== undefined ? (groups.get(key) ?? []) : [];
-			const position = members.indexOf(candidate);
-			const card = members[0] ?? candidate;
-			const name = cardLabel(
-				store.doc,
-				store.toView({ blockId: card.block_id }).blockId ?? card.block_id,
-				{
-					max: 30
-				}
-			);
-			labels[candidate.block_id] =
-				position > 0 ? `${name}, ${partLabel(position, members.length)}` : name;
-		}
-		return labels;
-	});
-
-	/**
-	 * The steps of a played card the pupil has met: those of the card's blocks before
-	 * the one on screen, and the ones on screen. The step list folds the rest.
-	 */
-	function reachedSteps(blockId: string, shown: string[] | undefined): string[] | undefined {
-		if (shown === undefined) return undefined;
-		const key = groupOf(source.blocks.find((b) => b.block_id === blockId) ?? ({} as BlockV2));
-		if (key === undefined || store.mode === 'advanced') return shown;
-		const members = groups.get(key) ?? [];
-		const at = members.findIndex((m) => m.block_id === blockId);
-		return [
-			...members.slice(0, Math.max(at, 0)).flatMap((m) => m.steps.map((s) => s.id)),
-			...shown
-		];
-	}
+	const blockLabels = $derived(
+		branchLabels(source, store.doc, allows('block', 'block_id', store.mode))
+	);
 
 	/**
 	 * The lesson to show a card in: the played one when the card is in it — a card
@@ -197,15 +133,23 @@
 	function lessonOf(blockId: string | undefined): string | undefined {
 		if (blockId === undefined) return undefined;
 		const owners = store.index.lessonsByBlock.get(blockId) ?? [];
-		if (playLessonId !== undefined && owners.includes(playLessonId)) return playLessonId;
+		const playing = preview.run?.lessonId;
+		if (playing !== undefined && owners.includes(playing)) return playing;
 		return owners[0];
 	}
 
 	const bridge = new PreviewBridge({
 		onready: () => {
-			booted = true;
-			failed = false;
+			preview.boot = 'ready';
+			// A player that announces itself again has seen nothing yet.
+			preview.sync = 'idle';
+			preview.error = undefined;
 		},
+		// Only written: the bridge calls this from inside the effect that sends content,
+		// and reading `sync` there would make the effect re-run on every answer.
+		onsyncing: () => (preview.sync = 'syncing'),
+		oninspected: (state) => preview.inspected(state.content, state.error),
+		oncompleted: (result) => (preview.completed = result),
 		onclicked: (ref) => {
 			// Click-to-edit: a tap in Náhled selects the field behind it and brings it
 			// into view — the author clicked something they want to change. A played
@@ -220,10 +164,13 @@
 			if (view !== 'play') return;
 			// Folding first, so the step list never draws the new card fully open.
 			const card = store.toView({ blockId }).blockId!;
-			stepView.followRun(card, reachedSteps(blockId, shownStepIds));
+			stepView.followRun(
+				card,
+				reachedSteps(source, blockId, shownStepIds, !showsExportedBlocks(store.mode))
+			);
 			store.follow({ lessonId: lessonOf(card), blockId: card, stepId });
 		},
-		onnavState: (value) => (canGoBack = value)
+		onnavState: (value) => (preview.canGoBack = value)
 	});
 
 	// Ask whether the player is there before mounting the iframe. Without this the
@@ -234,13 +181,11 @@
 		fetch(PLAYER_URL, { method: 'GET', headers: { accept: 'text/html' } })
 			.then((response) => {
 				if (cancelled) return;
-				available = response.ok;
-				failed = response.ok ? false : 'missing';
+				preview.boot = response.ok ? 'starting' : 'missing';
 			})
 			.catch(() => {
 				if (cancelled) return;
-				available = false;
-				failed = 'missing';
+				preview.boot = 'missing';
 			});
 		return () => {
 			cancelled = true;
@@ -276,13 +221,13 @@
 		const timeout = setTimeout(() => {
 			if (bridge.ready) return;
 			if (untrack(() => attempt) + 1 < BOOT_ATTEMPTS) attempt++;
-			else failed = 'stalled';
+			else preview.boot = 'stalled';
 		}, BOOT_TIMEOUT_MS);
 		return () => clearTimeout(timeout);
 	});
 
 	function retry() {
-		failed = false;
+		preview.boot = 'starting';
 		attempt++;
 	}
 
@@ -291,14 +236,24 @@
 	$effect(() => {
 		if (!booted) return;
 		if (view === 'play') {
-			if (playLessonId === undefined) return;
-			bridge.showLesson(source, playLessonId, exportMode, serialise, playStart);
-		} else if (block !== undefined) {
+			const run = preview.run;
+			if (run?.lessonId === undefined) {
+				// Nothing to play: the player goes back to its placeholder, and the column
+				// says so (`screen.preview.empty_text`).
+				bridge.reset();
+				return;
+			}
+			bridge.showLesson(source, run.lessonId, exportMode, serialise, run.startBlockId);
+		} else if (block === undefined) {
+			// No card is open (an empty course, or the last card was deleted): clearing the
+			// player is the existing `reset`, so the last card is not left on screen.
+			bridge.reset();
+		} else {
 			// A folded column draws nothing anyone can see; it catches up when opened.
 			// Only here: re-sending a played lesson would restart the run.
 			if (collapsed === true) return;
 			bridge.showBlocks(
-				blocksOfCard(block.block_id),
+				blocksOfCard(source, block.block_id),
 				exportMode,
 				(blocks) => serialise({ ...source, lessons: [], blocks }).blocks,
 				'expanded',
@@ -326,7 +281,7 @@
 	});
 </script>
 
-<aside class="preview" class:collapsed data-player={playerState} aria-label="Náhled pro žáka">
+<aside class="preview" class:collapsed data-player={model.player} aria-label="Náhled pro žáka">
 	<div class="inner" inert={collapsed === true}>
 		<header>
 			<div class="hide" bind:this={hideHost}>
@@ -360,20 +315,22 @@
 				]}
 				onchange={(next) => {
 					if (next === 'play') {
-						playStart = block === undefined ? undefined : blocksOfCard(block.block_id)[0]?.block_id;
-						playLessonId = lessonId;
-						canGoBack = false;
+						preview.run = {
+							lessonId,
+							startBlockId:
+								block === undefined ? undefined : blocksOfCard(source, block.block_id)[0]?.block_id
+						};
+						preview.canGoBack = false;
 					} else {
 						stepView.endRun();
 					}
-					view = next;
+					preview.completed = null;
+					preview.view = next;
 				}}
 			/>
 			<!-- Running has no chip: only the two states a teacher has to wait out or act on. -->
-			{#if !booted && failed}
-				<Chip tone="warning">přehrávač neběží</Chip>
-			{:else if !booted && available === true}
-				<Chip>spouští se…</Chip>
+			{#if model.chip !== null}
+				<Chip tone={model.chip.tone} screen="preview.chip.text">{model.chip.text}</Chip>
 			{/if}
 
 			{#if view === 'play' && booted}
@@ -381,7 +338,7 @@
 				<Button
 					variant="ghost"
 					size="s"
-					disabled={!canGoBack}
+					disabled={!model.can_go_back}
 					title="O krok zpět — můžeš zkusit jinou odpověď"
 					onclick={() => bridge.back()}
 				>
@@ -393,7 +350,8 @@
 					size="s"
 					title="Znovu od karty, u které jsi začal/a"
 					onclick={() => {
-						canGoBack = false;
+						preview.canGoBack = false;
+						preview.completed = null;
 						bridge.restart();
 					}}
 				>
@@ -404,7 +362,13 @@
 		</header>
 
 		<div class="frame">
-			{#if failed === 'stalled' && !booted}
+			{#if model.status === 'empty'}
+				<!-- Nothing is selected, so there is nothing to show; the player is cleared behind this. -->
+				<div class="fallback empty" role="status">
+					<p data-screen="preview.empty_text">{model.empty_text}</p>
+				</div>
+			{/if}
+			{#if model.fallback === 'stalled'}
 				<div class="fallback">
 					<p><strong>Přehrávač se nespustil.</strong></p>
 					<p>
@@ -413,7 +377,7 @@
 					</p>
 					<Button variant="secondary" size="s" onclick={retry}>Zkusit znovu</Button>
 				</div>
-			{:else if failed === 'missing' && !booted}
+			{:else if model.fallback === 'missing'}
 				<div class="fallback">
 					<p><strong>Náhled zatím není k dispozici.</strong></p>
 					<p>
@@ -424,7 +388,7 @@
 					</p>
 				</div>
 			{/if}
-			{#if available === true && everRevealed && failed !== 'stalled'}
+			{#if (preview.boot === 'starting' || preview.boot === 'ready') && everRevealed}
 				{#key attempt}
 					<iframe bind:this={frame} src={PLAYER_URL} title="Náhled kurzu očima žáka"></iframe>
 				{/key}
@@ -534,6 +498,12 @@
 		color: var(--e-text-muted);
 		font-size: var(--text-s);
 		line-height: 1.55;
+	}
+
+	/* Over the frame, which still holds the last card until the player has cleared it. */
+	.fallback.empty {
+		z-index: 1;
+		background: var(--surface);
 	}
 
 	code {
