@@ -180,10 +180,12 @@ test('automatic XP explains incomplete steps and keeps the existing arithmetic',
 	await addStep(page, 'Text', card);
 	await expect(xpChip).toHaveText('10 XP');
 	await load(page);
-	const own = card.getByTitle('Zadaná odměna');
-	await expect(own).toHaveText('5 XP · vlastní hodnota');
+	// A card's own `xp` is read by nothing in the app: the chip shows what the steps are
+	// worth, and says that the typed figure is ignored.
+	const own = card.getByTitle(/Zadaná hodnota \(5 XP\) se v aplikaci nepoužije/);
+	await expect(own).toHaveText('2 XP');
 	await addStep(page, 'Text', card);
-	await expect(own).toHaveText('5 XP · vlastní hodnota');
+	await expect(own).toHaveText('3 XP');
 });
 
 test('a card says how long it takes only once someone has said so', async ({ page }) => {

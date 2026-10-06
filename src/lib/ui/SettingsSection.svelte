@@ -17,9 +17,11 @@
 		open?: boolean;
 		/** Open now, and stay open. The caller says why. */
 		autoOpen?: boolean;
+		/** Where the model says the heading, for `data-screen`. */
+		screen?: string;
 		children: Snippet;
 	}
-	let { label, open = $bindable(false), autoOpen = false, children }: Props = $props();
+	let { label, open = $bindable(false), autoOpen = false, screen, children }: Props = $props();
 
 	$effect(() => {
 		if (autoOpen) open = true;
@@ -37,7 +39,7 @@
 			onclick={() => (open = !open)}
 		>
 			<ChevronRight size={14} aria-hidden="true"></ChevronRight>
-			{label}
+			<span data-screen={screen}>{label}</span>
 		</button>
 	</h3>
 	{#if open}

@@ -345,6 +345,7 @@
 										-->
 										<div class="tree-actions">
 											<CardActions
+												armKey="card:{card.block_id}"
 												size="s"
 												position={position + 1}
 												onsettings={() => actions.settings(lesson.lesson_id, card.block_id)}

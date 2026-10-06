@@ -24,14 +24,9 @@ export function removeLesson(store: DocStore, lessonId: string) {
 	const doc = store.doc;
 	const lesson = doc.lessons.find((l) => l.lesson_id === lessonId);
 	if (lesson === undefined) return;
-	const selected = store.selection;
-	// A card of this lesson keeps its lessonId in the selection; a card opened from
-	// "Karty mimo lekce" has none, and only its block id ties it here.
-	const wasOpen =
-		selected?.lessonId === lessonId ||
-		(selected?.lessonId === undefined &&
-			selected?.blockId !== undefined &&
-			lesson.blocks.some((b) => b.block_id === selected.blockId));
+	// What is open decides, not the ref: a card opened from "Karty mimo lekce" has no
+	// lesson in it, and a card in this lesson belongs to it.
+	const wasOpen = store.open.lesson?.lesson_id === lessonId;
 	const before = store.undoStack.at(-1);
 	store.apply((d) => {
 		const deleted = deleteLesson(d, lessonId);

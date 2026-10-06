@@ -134,6 +134,9 @@ export function createHeadlessContext(store: DocStore, options: HeadlessOptions)
 		preview: store.screen.preview,
 		notices: store.screen.notices,
 		ui: store.screen.ui,
+		card: store.screen.card,
+		pickers: store.screen.pickers,
+		dialogs: store.screen.dialogs,
 		ai: store.screen.ai
 	});
 	const writer: AgentWriter = {

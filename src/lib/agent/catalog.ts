@@ -22,7 +22,17 @@ import type { ScreenRegion } from '$lib/screen/types';
  * Every region of the screen model the agent may read. Adding one to `Screen` is a type
  * error until it is here or in `NOT_OFFERED`.
  */
-export const SCREEN_REGIONS = ['topbar', 'tree', 'issues', 'preview', 'notices', 'ui'] as const;
+export const SCREEN_REGIONS = [
+	'topbar',
+	'tree',
+	'issues',
+	'preview',
+	'notices',
+	'ui',
+	'card',
+	'pickers',
+	'dialogs'
+] as const;
 /** `ai` is the assistant's own drawer: reading it would be reading the chat back to itself. */
 export type NotOffered = 'ai';
 const _allRegions: [Exclude<ScreenRegion, (typeof SCREEN_REGIONS)[number] | NotOffered>] extends [

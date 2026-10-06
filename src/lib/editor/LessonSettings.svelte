@@ -8,48 +8,34 @@
 	 * residence at the top of the screen.
 	 *
 	 * Which fields exist, and which section each sits in, is decided by the mode, from
-	 * `$lib/ui/fields.ts`. What is added here is the lesson's own removal, which was
-	 * reachable only by hovering a sidebar row, and one quiet line that says what is in
-	 * the lesson.
+	 * `$lib/ui/fields.ts`, and said by the model (`store.screen.dialogs.lesson_settings`).
+	 * What is added here is the lesson's own removal, which was reachable only by
+	 * hovering a sidebar row, and one quiet line that says what is in the lesson.
 	 */
 	import type { Snippet } from 'svelte';
-	import type { CourseV2 } from '$lib/domain/schema';
+	import type { LessonSettingsView } from '$lib/screen/types';
 	import Modal from '$lib/ui/Modal.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import FieldGroup from '$lib/ui/FieldGroup.svelte';
 	import SettingsNav from '$lib/ui/SettingsNav.svelte';
 	import { useStore } from '$lib/ui/context';
-	import { fieldsFor, listsSections, sectionsFor } from '$lib/ui/fields';
-	import { sectionHasIssue, sectionTargeted } from '$lib/ui/settings-target';
 	import { SettingsSearch, setSettingsSearch } from '$lib/ui/settings-search.svelte';
 	import { duplicateLesson, moveLesson, setField } from '$lib/domain/commands';
 	import { removeLesson } from './lesson-actions';
-	import { lessonDidactics, lessonTotals } from '$lib/domain/derive';
-	import { cardsCount } from '$lib/ui/plural';
+	import { ARMED_MS } from '$lib/state/ui-state.svelte';
 	import { ArrowDown, ArrowUp, Copy, Trash } from '@lucide/svelte';
 
 	interface Props {
-		doc: CourseV2;
-		lessonId: string;
+		view: LessonSettingsView;
 		/** Select the name on opening: the lesson was just made and has a placeholder name. */
 		focusName?: boolean;
 		onclose: () => void;
 	}
-	let { doc, lessonId, focusName = false, onclose }: Props = $props();
+	let { view, focusName = false, onclose }: Props = $props();
 
 	const store = useStore();
-	const lesson = $derived(doc.lessons.find((l) => l.lesson_id === lessonId));
-	const totals = $derived(lesson === undefined ? undefined : lessonTotals(lesson, store.index));
-	const didactics = $derived(
-		lesson === undefined ? undefined : lessonDidactics(lesson, store.index)
-	);
-
-	const fields = $derived(fieldsFor('lesson', store.mode));
-	const sections = $derived(sectionsFor('lesson', store.mode));
-	const inSection = (id: string) => fields.filter((f) => f.section === id);
-	const targeted = (id: string) => sectionTargeted(store, ['lesson'], id, { lessonId });
-	const alert = (id: string) => sectionHasIssue(store, ['lesson'], id, { lessonId });
-	const list = $derived(listsSections(store.mode));
+	const lessonId = $derived(view.lesson_id);
+	const screen = 'dialogs.lesson_settings';
 
 	const search = new SettingsSearch(
 		() => ['lesson'],
@@ -63,26 +49,22 @@
 	/**
 	 * Smazat takes two clicks, like a card's: the first arms it (and says so in its
 	 * name), the second deletes. It disarms after a few seconds and when focus leaves.
+	 * Which click it is lives in `store.ui.armed`, so the model says it.
 	 */
-	const ARMED_MS = 4000;
-	let armed = $state(false);
+	const armedKey = $derived(`lesson:${lessonId}`);
 	$effect(() => {
-		if (!armed) return;
-		const timer = setTimeout(() => (armed = false), ARMED_MS);
+		if (!view.delete.armed) return;
+		const key = armedKey;
+		const timer = setTimeout(() => store.ui.disarm(key), ARMED_MS);
 		return () => clearTimeout(timer);
 	});
 
 	function clickDelete() {
-		if (!armed) {
-			armed = true;
-			return;
-		}
-		armed = false;
+		if (!store.ui.arm(armedKey)) return;
 		removeLesson(store, lessonId);
 		onclose();
 	}
 
-	const place = $derived(doc.lessons.findIndex((l) => l.lesson_id === lessonId));
 	const move = (delta: -1 | 1) => store.apply((d) => moveLesson(d, lessonId, delta));
 
 	let fieldsEl = $state<HTMLElement | null>(null);
@@ -100,18 +82,17 @@
 
 	const set = (field: string, value: unknown) =>
 		store.apply((d) => setField(d, { lessonId, field }, value));
-	const read = (path: string): unknown => (lesson as Record<string, unknown> | undefined)?.[path];
 </script>
 
 {#snippet pane(id: string)}
-	{#if lesson !== undefined}
+	{#if view.found}
 		{#if id === 'main'}
 			<div class="fields" bind:this={fieldsEl}>
-				<FieldGroup fields={inSection('main')} {read} write={set} />
+				<FieldGroup rows={view.fields.main ?? []} write={set} screen="{screen}.fields.main" />
 			</div>
 
 			<div class="order">
-				<Button variant="ghost" size="s" onclick={() => move(-1)} disabled={place <= 0}>
+				<Button variant="ghost" size="s" onclick={() => move(-1)} disabled={view.order.up_disabled}>
 					<ArrowUp size={16}></ArrowUp>
 					Posunout nahoru
 				</Button>
@@ -119,57 +100,46 @@
 					variant="ghost"
 					size="s"
 					onclick={() => move(1)}
-					disabled={place < 0 || place >= doc.lessons.length - 1}
+					disabled={view.order.down_disabled}
 				>
 					<ArrowDown size={16}></ArrowDown>
 					Posunout dolů
 				</Button>
 			</div>
 
-			{#if totals !== undefined}
-				<p
-					class="totals"
-					title={totals.durationPartial
-						? 'U některých karet délka chybí, součet je proto nižší.'
-						: undefined}
-				>
-					{cardsCount(totals.cardCount)} · {totals.durationMinutes} min{totals.durationEstimated
-						? ' (odhad)'
-						: ''}
+			{#if view.totals !== null}
+				<p class="totals" title={view.totals.title ?? undefined}>
+					<span data-screen="{screen}.totals.text">{view.totals.text}</span>
 				</p>
 			{/if}
-		{:else if id === 'didactics' && didactics !== undefined}
+		{:else if id === 'didactics' && view.didactics !== null}
 			<p class="note">
 				Podíly se počítají z karet lekce a tady se jen čtou. Změníš je v nastavení jednotlivých
 				karet.
 			</p>
 			<dl>
-				{#if store.showFeedback}
-					<dt title="Podíl chybných odpovědí, které žákovi řeknou, kde udělal chybu">
-						Zpětná vazba u chybných odpovědí
-					</dt>
-					<dd>{Math.round(didactics.wrongOptionFeedbackShare * 100)} %</dd>
-				{/if}
-				<dt title="Podíl karet zařazených do denního opakování">Karty zařazené do cvičení</dt>
-				<dd>{Math.round(didactics.practiceShare * 100)} %</dd>
+				{#each view.didactics.rows as row, i (row.label)}
+					<dt title={row.title}>{row.label}</dt>
+					<dd data-screen="{screen}.didactics.rows[{i}].value">{row.value}</dd>
+				{/each}
 			</dl>
 		{:else if id === 'ai'}
-			<FieldGroup fields={inSection('ai')} {read} write={set} />
+			<FieldGroup rows={view.fields.ai ?? []} write={set} screen="{screen}.fields.ai" />
 		{:else if id === 'meta'}
 			<div class="row">
 				<span class="label">Identifikátor</span>
-				<code>{lesson.lesson_id}</code>
+				<code data-screen="{screen}.lesson_id">{view.lesson_id}</code>
 			</div>
-			<FieldGroup fields={inSection('meta')} {read} write={set} />
+			<FieldGroup rows={view.fields.meta ?? []} write={set} screen="{screen}.fields.meta" />
 		{/if}
 	{/if}
 {/snippet}
 
 {#snippet body()}
-	{#if lesson === undefined}
-		<p>Tato lekce v kurzu není.</p>
+	{#if !view.found}
+		<p>{view.gone_text}</p>
 	{:else}
-		<SettingsNav {sections} {list} {targeted} {alert} levels={['lesson']} {search} {pane} />
+		<SettingsNav dialog={view} {screen} {search} {pane} />
 	{/if}
 {/snippet}
 
@@ -186,19 +156,25 @@
 		Duplikovat
 	</Button>
 	<Button
-		variant={armed ? 'danger-solid' : 'danger'}
+		variant={view.delete.armed ? 'danger-solid' : 'danger'}
 		onclick={clickDelete}
-		onblur={() => (armed = false)}
-		ariaLabel={armed ? 'Opravdu smazat lekci? Klikni znovu' : 'Smazat lekci'}
+		onblur={() => store.ui.disarm(armedKey)}
+		ariaLabel={view.delete.label}
 	>
 		<Trash size={16}></Trash>
-		{armed ? 'Opravdu smazat? Klikni znovu' : 'Smazat'}
+		<span data-screen="{screen}.delete.text">{view.delete.text}</span>
 	</Button>
 	{@render notice()}
 	<Button variant="secondary" onclick={onclose}>Hotovo</Button>
 {/snippet}
 
-<Modal title="Nastavení lekce" size={list ? 'l' : 'm'} {onclose} children={body} footer={actions} />
+<Modal
+	title="Nastavení lekce"
+	size={view.list ? 'l' : 'm'}
+	{onclose}
+	children={body}
+	footer={actions}
+/>
 
 <style>
 	.fields {

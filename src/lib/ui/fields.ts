@@ -15,6 +15,8 @@
  */
 
 import type { Ref } from '$lib/domain/ref';
+import { clampNumber, type NumberBounds } from '$lib/domain/number-input';
+import { ELO_BASELINE, ELO_MAX, ELO_MIN } from '$lib/domain/skill-config';
 
 /**
  * The three editing modes, in increasing order of exposure. They are cumulative:
@@ -79,6 +81,12 @@ export interface FieldSpec {
 	options?: readonly { value: string; label: string }[];
 	/** For `select`: the document stores the chosen option as a number, not a string. */
 	numeric?: true;
+	/**
+	 * For `number`: the range the field accepts, as shown. A number outside it is
+	 * written as the nearest end (`clampNumber`, the one rule every bounded field uses).
+	 */
+	min?: number;
+	max?: number;
 	/** Set when a hand-written component owns this field rather than `FieldGroup`. */
 	custom?: true;
 	/**
@@ -294,6 +302,29 @@ export const FIELDS: readonly FieldSpec[] = [
 		kind: 'custom',
 		label: 'Kdo kurz uvidí',
 		hint: 'Nastavuje se ve verzích kurzu, spolu se zveřejněním. Žák v knihovně najde jen zveřejněný kurz; soukromý otevře s PINem.',
+		custom: true
+	},
+	{
+		// The editorial states beside the three a teacher chooses from, in the version
+		// history dialog (`VersionsDialog`).
+		level: 'course',
+		path: 'versions.visibility_editorial',
+		section: 'main',
+		mode: 'metodik',
+		kind: 'custom',
+		label: 'Redakční stavy kurzu',
+		gain: 'redakční stavy kurzu',
+		custom: true
+	},
+	{
+		// What changed against the published version, offered per saved version.
+		level: 'course',
+		path: 'versions.compare',
+		section: 'main',
+		mode: 'metodik',
+		kind: 'custom',
+		label: 'Porovnání s verzí',
+		gain: 'porovnání verzí',
 		custom: true
 	},
 	{
@@ -619,6 +650,21 @@ export const FIELDS: readonly FieldSpec[] = [
 		custom: true
 	},
 	{
+		// The number in a skill's row, which only Pokročilý shows (`TopicPicker`).
+		level: 'block',
+		path: 'gpf.elo_vector.elo',
+		section: 'topics',
+		mode: 'advanced',
+		kind: 'number',
+		label: 'Obtížnost dovednosti',
+		gain: 'obtížnost každé dovednosti',
+		hint: 'Počáteční hodnocení karty v dané dovednosti; podle něj se žákovi hodnota posouvá.',
+		min: ELO_MIN,
+		max: ELO_MAX,
+		default: String(ELO_BASELINE),
+		custom: true
+	},
+	{
 		level: 'block',
 		path: 'gpf.grade',
 		section: 'topics',
@@ -680,6 +726,18 @@ export const FIELDS: readonly FieldSpec[] = [
 		kind: 'custom',
 		label: 'Výstupy RVP',
 		hint: 'Kód výstupu a jeho váha v procentech.',
+		custom: true
+	},
+	{
+		level: 'block',
+		path: 'learning.competencies.weight',
+		section: 'topics',
+		mode: 'metodik',
+		kind: 'number',
+		label: 'Váha výstupu',
+		hint: 'Kolik procent karty slouží tomuto výstupu.',
+		min: 0,
+		max: 100,
 		custom: true
 	},
 	{
@@ -830,6 +888,31 @@ export const FIELDS: readonly FieldSpec[] = [
 		kind: 'custom',
 		label: 'Předpoklady',
 		hint: 'Co musí žák zvládat, než kartu dostane. Aplikace je zatím nevynucuje.',
+		custom: true
+	},
+	{
+		level: 'block',
+		path: 'learning.prerequisites.min_level',
+		section: 'followup',
+		mode: 'advanced',
+		kind: 'number',
+		label: 'Požadované zvládnutí',
+		hint: 'Kolik procent musí žák zvládat, aby karta přišla na řadu.',
+		min: 0,
+		max: 100,
+		custom: true
+	},
+	{
+		// Whether the card's questions are graded as one item (`domain/groups.ts`): the
+		// toggle in the card's details, which only Pokročilý draws.
+		level: 'block',
+		path: 'grouping.together',
+		section: 'meta',
+		mode: 'advanced',
+		kind: 'custom',
+		label: 'Více otázek v jedné kartě',
+		gain: 'sloučení otázek do jedné karty',
+		hint: 'Žák dostane otázky v jedné kartě a aplikace je hodnotí jako jednu: nejlepší skóre, poslední známka, jedna karta k procvičování. Vypnuto: každá otázka je vlastní karta.',
 		custom: true
 	},
 	{
@@ -1619,6 +1702,13 @@ export function cardSettingsSummary(mode: Mode, feedback: boolean = true): strin
 	const parts = [...open, ...folds];
 	return parts.length === 0 ? 'Nastavení karty' : `Nastavení karty: ${parts.join(', ')}`;
 }
+
+/**
+ * The one clamp for a bounded number field: the spec's `min` / `max` (`clampNumber`).
+ * A field with no bounds is not clamped.
+ */
+export const clampTo = (spec: NumberBounds | undefined, value: number): number =>
+	spec === undefined ? value : clampNumber(spec, value);
 
 /** One field, by level and path — for the hand-written editors that want its label. */
 export function fieldSpec(level: FieldLevel, path: string): FieldSpec | undefined {

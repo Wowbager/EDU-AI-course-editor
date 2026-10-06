@@ -15,70 +15,55 @@
 	 * box on the level step (current level marked, "Jiná dovednost" goes back to the skill
 	 * list), and the change keeps the row's relation and difficulty. The list comes from the course's skill configuration,
 	 * never from a constant here (§3 invariant 6).
+	 *
+	 * The rows, the chips and every step of the box are the model's (`screen/settings.ts`);
+	 * where the walk has got to is `store.ui.topic`. This draws the box, places it and
+	 * writes the choice.
 	 */
-	import { parseNumberInput } from '$lib/domain/number-input';
 	import { withUndoNotice } from './undo-notice';
 	import { tick } from 'svelte';
 	import type { BlockV2 } from '$lib/domain/schema';
+	import type { TopicPanelItem, TopicsView } from '$lib/screen/types';
 	import Chip from '$lib/ui/Chip.svelte';
 	import Button from '$lib/ui/Button.svelte';
+	import NumberField from '$lib/ui/NumberField.svelte';
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import { placeMenu } from '$lib/ui/placement';
 	import { useStore } from '$lib/ui/context';
 	import { blockTopics, setTopics, type BlockTopic } from '$lib/domain/commands';
-	import {
-		dimensionCount,
-		ELO_BASELINE,
-		ELO_MAX,
-		ELO_MIN,
-		skillTree,
-		type SkillDimension,
-		type SkillTreeSkill
-	} from '$lib/domain/skill-config';
+	import { dimensionCount, ELO_BASELINE } from '$lib/domain/skill-config';
 	import { ChevronLeft, Pencil, Plus, Trash2 } from '@lucide/svelte';
 
 	interface Props {
 		block: BlockV2;
+		view: TopicsView;
+		/** Where `view` is in the model, for `data-screen`. */
+		screen: string;
 	}
-	let { block }: Props = $props();
+	let { block, view, screen }: Props = $props();
 
 	const store = useStore();
 	const uid = $props.id();
 	const panelId = `skill-picker-${uid}`;
 
 	const count = $derived(dimensionCount(store.skillConfig));
-	const tree = $derived(skillTree(store.skillConfig));
 	const topics = $derived(blockTopics(block));
-	const chosen = $derived(new Set(topics.map((t) => t.dimensionIndex)));
-	/** The row being changed, or null when the box adds a new one. */
-	let editing = $state<number | null>(null);
+	const flow = $derived(store.ui.topic);
 	/** What is taken by another row: when editing, the edited row's own level is free. */
-	const taken = $derived(new Set([...chosen].filter((i) => i !== editing)));
-	const strongCount = $derived(topics.filter((t) => t.relation === 2).length);
-
-	/** Where each dimension sits in the tree, for the rows. */
-	const place = $derived(
-		new Map(
-			tree.flatMap((area) =>
-				area.skills.flatMap((skill) =>
-					skill.levels.map((l) => [l.dimension.dimension_index, { skill, level: l.level }] as const)
-				)
-			)
-		)
+	const taken = $derived(
+		new Set(topics.map((t) => t.dimensionIndex).filter((i) => i !== flow.editing))
 	);
 
 	const RELATIONS = [
 		{ value: '2', label: 'Je o tom', title: 'Karta tuhle dovednost učí' },
 		{ value: '1', label: 'Využívá', title: 'Karta ji potřebuje mimochodem' }
-	] as const;
-
-	function dimensionAt(index: number): SkillDimension | undefined {
-		return store.skillConfig?.vector?.dimensions?.find((d) => d.dimension_index === index);
-	}
+	];
 
 	/** The classification the strongest topic implies. */
 	function naming(index: number) {
-		const dimension = dimensionAt(index);
+		const dimension = store.skillConfig?.vector?.dimensions?.find(
+			(d) => d.dimension_index === index
+		);
 		if (dimension === undefined) return {};
 		return {
 			domain: dimension.domain_name,
@@ -93,14 +78,13 @@
 	 * out; with reduced motion it is the same mark without the fade (it is simply
 	 * removed after the same time), and nothing stays on screen afterwards.
 	 */
-	let flashed = $state<number | null>(null);
 	let flashTimer: ReturnType<typeof setTimeout> | undefined;
 	const FLASH_MS = 1200;
 
 	async function flash(index: number) {
-		flashed = index;
+		store.ui.topic.flashed = index;
 		clearTimeout(flashTimer);
-		flashTimer = setTimeout(() => (flashed = null), FLASH_MS);
+		flashTimer = setTimeout(() => (store.ui.topic.flashed = null), FLASH_MS);
 		await tick();
 		const row = list?.querySelector<HTMLElement>(`[data-dimension="${index}"]`);
 		const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -119,45 +103,23 @@
 			store,
 			'Dovednost odebrána.',
 			() => commit(topics.filter((t) => t.dimensionIndex !== index)),
-			{ lessonId: store.selection?.lessonId, blockId: block.block_id }
+			{ lessonId: store.open.lesson?.lesson_id, blockId: block.block_id }
 		);
 
 	const setRelation = (index: number, relation: 1 | 2) =>
 		commit(topics.map((t) => (t.dimensionIndex === index ? { ...t, relation } : t)));
 
-	/** An emptied (or unreadable) field gives back the default, never 0 clamped to the minimum. */
-	function setElo(index: number, raw: string) {
-		const parsed = parseNumberInput(raw);
-		const elo = parsed === undefined ? ELO_BASELINE : Math.min(ELO_MAX, Math.max(ELO_MIN, parsed));
-		commit(topics.map((t) => (t.dimensionIndex === index ? { ...t, elo } : t)));
-	}
+	/** An emptied field gives back the default, never 0 clamped to the minimum. */
+	const setElo = (index: number, elo: number | undefined) =>
+		commit(
+			topics.map((t) => (t.dimensionIndex === index ? { ...t, elo: elo ?? ELO_BASELINE } : t))
+		);
 
 	// The box: a native popover, placed once by `placeMenu` as `Menu` does.
-	type Step = 'skill' | 'level' | 'relation';
-	let step = $state<Step>('skill');
-	let skill = $state<SkillTreeSkill | null>(null);
-	let dimension = $state<SkillDimension | null>(null);
 	let wrapper = $state<HTMLElement | null>(null);
 	let panel = $state<HTMLElement | null>(null);
 	/** Which trigger's box was open when the press began: a click on that one only closes it. */
 	let openAtPointerDown: number | null | undefined = undefined;
-	let open = $state(false);
-
-	/** Skills with something left to choose, under their area. */
-	const available = $derived(
-		tree
-			.map((area) => ({
-				...area,
-				skills: area.skills.filter((s) =>
-					s.levels.some((l) => !taken.has(l.dimension.dimension_index))
-				)
-			}))
-			.filter((area) => area.skills.length > 0)
-	);
-	/** Adding offers only the free levels; changing lists all, the taken ones disabled. */
-	const levelChoices = $derived(
-		(skill?.levels ?? []).filter((l) => editing !== null || !taken.has(l.dimension.dimension_index))
-	);
 
 	const isShowing = () => panel?.matches(':popover-open') ?? false;
 
@@ -168,14 +130,20 @@
 		)?.focus();
 	}
 
-	/** `index` is the row to change; without it the box adds a skill. */
-	function show(anchor: HTMLElement | null | undefined, index: number | null = null) {
+	/** `index` is the row to change (with the skill it is in); without it the box adds one. */
+	function show(
+		anchor: HTMLElement | null | undefined,
+		row: { dimension: number; skill_key: string | null } | null = null
+	) {
 		if (panel === null || !anchor || isShowing()) return;
-		editing = index;
-		const current = index === null ? undefined : place.get(index);
-		step = current ? 'level' : 'skill';
-		skill = current?.skill ?? null;
-		dimension = null;
+		const current = row !== null && row.skill_key !== null;
+		store.ui.topic = {
+			...store.ui.topic,
+			editing: row?.dimension ?? null,
+			step: current ? 'level' : 'skill',
+			skill: current ? row.skill_key : null,
+			dimension: null
+		};
 		panel.showPopover();
 		const box = panel.getBoundingClientRect();
 		const spot = placeMenu(
@@ -194,23 +162,23 @@
 	}
 
 	function ontoggle(event: Event) {
-		open = (event as ToggleEvent).newState === 'open';
+		store.ui.topic.open = (event as ToggleEvent).newState === 'open';
 	}
 
 	function onpointerdown() {
-		openAtPointerDown = open ? editing : undefined;
+		openAtPointerDown = flow.open ? flow.editing : undefined;
 	}
 
-	function onclick(event: MouseEvent, index: number | null = null) {
-		const sameBox = openAtPointerDown === index;
+	function onclick(event: MouseEvent, row: { dimension: number; skill_key: string | null } | null) {
+		const sameBox = openAtPointerDown === (row?.dimension ?? null);
 		openAtPointerDown = undefined;
 		if (sameBox) return;
 		// Another row's box: the press already closed it, and this one opens straight away.
-		show(event.currentTarget as HTMLElement, index);
+		show(event.currentTarget as HTMLElement, row);
 	}
 
 	$effect(() => {
-		if (!open) return;
+		if (!flow.open) return;
 		// A box anchored to a rectangle that has moved is worse than no box.
 		const dismiss = (event: Event) => {
 			if (event.target instanceof Node && panel?.contains(event.target)) return;
@@ -224,142 +192,121 @@
 		};
 	});
 
-	function pickSkill(next: SkillTreeSkill) {
-		skill = next;
-		const free = next.levels.filter((l) => !taken.has(l.dimension.dimension_index));
-		if (editing === null && free.length === 1) pickLevel(free[0].dimension, 'skill');
+	function pickSkill(item: TopicPanelItem) {
+		store.ui.topic.skill = item.id;
+		if (item.quick !== null) pickLevel(item.quick, 'skill');
 		else {
-			step = 'level';
+			store.ui.topic.step = 'level';
 			focusFirst();
 		}
 	}
 
 	/** `from` is the step the back link of the relation step returns to. */
-	let relationBack: Step = 'level';
-	function pickLevel(next: SkillDimension, from: Step = 'level') {
-		if (editing !== null) return replaceRow(next);
-		dimension = next;
-		relationBack = from;
-		step = 'relation';
+	function pickLevel(index: number, from: 'level' | 'skill' = 'level') {
+		if (flow.editing !== null) return replaceRow(index);
+		store.ui.topic.dimension = index;
+		store.ui.topic.back = from;
+		store.ui.topic.step = 'relation';
 		focusFirst();
 	}
 
 	function back() {
-		step = step === 'relation' ? relationBack : 'skill';
+		store.ui.topic.step = flow.step === 'relation' ? flow.back : 'skill';
 		focusFirst();
 	}
 
 	/** Changing a row keeps what the teacher set on it: the relation and the difficulty. */
-	function replaceRow(next: SkillDimension) {
-		const from = editing;
+	function replaceRow(next: number) {
+		const from = flow.editing;
 		close();
-		if (from === null || from === next.dimension_index || taken.has(next.dimension_index)) return;
-		commit(
-			topics.map((t) =>
-				t.dimensionIndex === from ? { ...t, dimensionIndex: next.dimension_index } : t
-			)
-		);
-		flash(next.dimension_index);
+		if (from === null || from === next || taken.has(next)) return;
+		commit(topics.map((t) => (t.dimensionIndex === from ? { ...t, dimensionIndex: next } : t)));
+		flash(next);
 	}
 
 	function pickRelation(relation: 1 | 2) {
-		if (dimension === null || taken.has(dimension.dimension_index)) return close();
-		const added = dimension.dimension_index;
-		commit([...topics, { dimensionIndex: added, relation, elo: ELO_BASELINE }]);
+		const dimension = flow.dimension;
+		if (dimension === null || taken.has(dimension)) return close();
+		commit([...topics, { dimensionIndex: dimension, relation, elo: ELO_BASELINE }]);
 		close();
-		flash(added);
+		flash(dimension);
 	}
 
-	function relationHeading(dim: SkillDimension): string {
-		const where = place.get(dim.dimension_index);
-		if (!where) return dim.name;
-		return where.skill.levels.length > 1
-			? `${where.skill.name}, úroveň ${where.level}`
-			: where.skill.name;
+	/** An item of the box was clicked: what it does depends on the step. */
+	function choose(item: TopicPanelItem) {
+		if (item.reason !== null) return;
+		if (view.panel.step === 'skill') pickSkill(item);
+		else if (view.panel.step === 'level') pickLevel(item.dimension ?? -1);
+		else pickRelation(item.id === '2' ? 2 : 1);
 	}
 </script>
 
 <section class="topics">
 	<header>
-		{#if store.skillConfigStatus === 'loading'}
-			<Chip tone="neutral">Dovednosti se načítají</Chip>
-		{:else if count === null}
-			<Chip tone="warning">Nastavení dovedností se nenačetlo</Chip>
-		{:else if topics.length === 0}
-			<Chip tone="warning" title="Bez vazby na dovednost se profil žáka po této kartě nepohne">
-				nenastaveno
+		{#each view.chips as chip, i (chip.text)}
+			<Chip tone={chip.tone} title={chip.title ?? undefined}>
+				<span data-screen="{screen}.chips[{i}].text">{chip.text}</span>
 			</Chip>
-		{:else if strongCount > 3}
-			<Chip tone="warning" title="Jeden výsledek se rozmělní do příliš mnoha dovedností">
-				{strongCount} silných vazeb
-			</Chip>
-		{/if}
-		{#if store.skillConfigStatus === 'default'}
-			<!-- Not a problem, so not amber: the course simply has no skill list of its own. -->
-			<Chip tone="neutral">výchozí sada</Chip>
-			<span class="default-note">
-				Kurz nemá vlastní seznam dovedností, karta vybírá z obecného.
-			</span>
+		{/each}
+		{#if view.default_note}
+			<span class="default-note" data-screen="{screen}.default_note">{view.default_note}</span>
 		{/if}
 	</header>
 
-	{#if count !== null}
-		{#if topics.length > 0}
+	{#if view.configured}
+		{#if view.rows.length > 0}
 			<ul class="chosen" bind:this={list}>
-				{#each topics as topic (topic.dimensionIndex)}
-					{@const where = place.get(topic.dimensionIndex)}
-					{@const dim = dimensionAt(topic.dimensionIndex)}
-					{@const skillName = where?.skill.name ?? dim?.name ?? 'neznámá dovednost'}
-					<li data-dimension={topic.dimensionIndex} class:flash={flashed === topic.dimensionIndex}>
+				{#each view.rows as row, r (row.dimension)}
+					<li data-dimension={row.dimension} class:flash={row.flashed}>
 						<button
 							type="button"
 							class="what"
 							aria-haspopup="dialog"
 							aria-controls={panelId}
 							title="Změnit dovednost nebo úroveň"
-							aria-label={`Změnit dovednost ${skillName}${where && where.skill.levels.length > 1 ? `, úroveň ${where.level}` : ''}`}
+							aria-label={row.label}
 							{onpointerdown}
-							onclick={(e) => onclick(e, topic.dimensionIndex)}
+							onclick={(e) => onclick(e, row)}
 						>
 							<span class="line">
-								<strong>{skillName}</strong>
-								{#if where && where.skill.levels.length > 1}
-									<span class="level">Úroveň {where.level}</span>
+								<strong data-screen="{screen}.rows[{r}].skill_name">{row.skill_name}</strong>
+								{#if row.level}
+									<span class="level" data-screen="{screen}.rows[{r}].level">{row.level}</span>
 								{/if}
-								{#if store.mode === 'advanced' && dim?.code}
-									<span class="code">{dim.code}</span>
+								{#if row.code}
+									<span class="code" data-screen="{screen}.rows[{r}].code">{row.code}</span>
 								{/if}
 								<!-- The row is the way to change it; say so without hovering. -->
 								<Pencil class="edit" size={13} aria-hidden="true"></Pencil>
 							</span>
-							{#if dim && where && dim.name !== skillName}
-								<span class="desc">{dim.name}</span>
+							{#if row.description}
+								<span class="desc" data-screen="{screen}.rows[{r}].description"
+									>{row.description}</span
+								>
 							{/if}
 						</button>
 
 						<Segmented
-							label={`Jak karta pracuje s dovedností ${skillName}`}
-							options={[...RELATIONS]}
-							value={String(topic.relation)}
-							onchange={(v) => setRelation(topic.dimensionIndex, v === '2' ? 2 : 1)}
+							label={row.relation_label}
+							options={RELATIONS}
+							value={row.relation}
+							onchange={(v) => setRelation(row.dimension, v === '2' ? 2 : 1)}
 						/>
 
-						{#if store.mode === 'advanced'}
+						{#if row.elo}
 							<label class="elo">
 								obtížnost
-								<input
-									type="number"
-									min={ELO_MIN}
-									max={ELO_MAX}
-									step="0.5"
-									placeholder={`výchozí ${ELO_BASELINE}`}
-									value={topic.elo}
-									onchange={(e) => {
-										setElo(topic.dimensionIndex, e.currentTarget.value);
-										// The row may not re-render when the value is unchanged.
-										if (e.currentTarget.value.trim() === '') e.currentTarget.value = '';
-									}}
-								/>
+								<span class="elo-field">
+									<NumberField
+										label={row.elo.label}
+										value={row.elo.value}
+										emptyText={row.elo.empty_text}
+										ref={row.elo.ref}
+										bounds={row.elo}
+										screen="{screen}.rows[{r}].elo.value"
+										onwrite={(v) => setElo(row.dimension, v)}
+									/>
+								</span>
 							</label>
 						{/if}
 
@@ -367,18 +314,20 @@
 							type="button"
 							class="remove"
 							title="Odebrat dovednost"
-							aria-label={`Odebrat ${skillName}`}
-							onclick={() => remove(topic.dimensionIndex)}
+							aria-label={row.remove_label}
+							onclick={() => remove(row.dimension)}
 						>
 							<Trash2 size={15} aria-hidden="true"></Trash2>
 						</button>
 					</li>
 				{/each}
 			</ul>
-			<p class="help">
-				<strong>Je o tom</strong>: karta dovednost učí. <strong>Využívá</strong>: karta ji jen
-				potřebuje mimochodem. Většina karet učí jednu nebo dvě.
-			</p>
+			{#if view.help === 'rows'}
+				<p class="help">
+					<strong>Je o tom</strong>: karta dovednost učí. <strong>Využívá</strong>: karta ji jen
+					potřebuje mimochodem. Většina karet učí jednu nebo dvě.
+				</p>
+			{/if}
 		{/if}
 
 		<div class="add" bind:this={wrapper}>
@@ -387,10 +336,10 @@
 				variant="secondary"
 				size="s"
 				aria-haspopup="dialog"
-				aria-expanded={open}
+				aria-expanded={flow.open}
 				aria-controls={panelId}
 				{onpointerdown}
-				onclick={(e) => onclick(e)}
+				onclick={(e) => onclick(e, null)}
 			>
 				<Plus size={14} aria-hidden="true"></Plus>
 				Přidat dovednost
@@ -401,69 +350,72 @@
 				class="picker"
 				popover="auto"
 				role="dialog"
-				aria-label={editing === null ? 'Přidat dovednost' : 'Změnit dovednost'}
+				aria-label={view.panel.label}
 				bind:this={panel}
 				{ontoggle}
 			>
-				{#if step === 'skill'}
-					<h4>Dovednost</h4>
-					{#each available as area (area.code)}
-						<div class="area">{area.name}</div>
-						{#each area.skills as s (s.code)}
-							<button type="button" class="choice" onclick={() => pickSkill(s)}>{s.name}</button>
-						{/each}
-					{:else}
-						<p class="empty">Všechny dovednosti už karta má.</p>
-					{/each}
-				{:else if step === 'level' && skill}
-					<h4>Úroveň</h4>
+				<h4 data-screen="{screen}.panel.title">{view.panel.title}</h4>
+				{#if view.panel.back}
 					<button type="button" class="back" onclick={back}>
 						<ChevronLeft size={14} aria-hidden="true"></ChevronLeft>
-						{editing === null ? 'Zpět' : 'Jiná dovednost'}
+						<span data-screen="{screen}.panel.back">{view.panel.back}</span>
 					</button>
-					<div class="subject">{skill.name}</div>
-					{#each levelChoices as l (l.dimension.dimension_index)}
-						{@const index = l.dimension.dimension_index}
-						{@const used = taken.has(index)}
-						<button
-							type="button"
-							class="choice"
-							class:current={index === editing}
-							disabled={used}
-							aria-current={index === editing ? 'true' : undefined}
-							onclick={() => pickLevel(l.dimension)}
-						>
-							<span class="choice-title">
-								Úroveň {l.level}{#if index === editing}
-									<span class="mark"> · teď vybráno</span>{/if}
-							</span>
-							<span class="choice-desc">
-								{l.dimension.name}{#if used}{' '}· už je na jiném řádku{/if}
-							</span>
-						</button>
-					{/each}
-				{:else if step === 'relation' && dimension}
-					<h4>Jak s ní karta pracuje</h4>
-					<button type="button" class="back" onclick={back}>
-						<ChevronLeft size={14} aria-hidden="true"></ChevronLeft>
-						Zpět
-					</button>
-					<div class="subject">{relationHeading(dimension)}</div>
-					{#each RELATIONS as r (r.value)}
-						<button
-							type="button"
-							class="choice big"
-							onclick={() => pickRelation(r.value === '2' ? 2 : 1)}
-						>
-							<span class="choice-title">{r.label}</span>
-							<span class="choice-desc">{r.title}</span>
-						</button>
-					{/each}
 				{/if}
+				{#if view.panel.subject}
+					<div class="subject" data-screen="{screen}.panel.subject">{view.panel.subject}</div>
+				{/if}
+				{#each view.panel.groups as group, g (g)}
+					{#if group.heading}
+						<div class="area" data-screen="{screen}.panel.groups[{g}].heading">{group.heading}</div>
+					{/if}
+					{#each group.items as item, i (item.id)}
+						{#if view.panel.step === 'skill'}
+							<button type="button" class="choice" onclick={() => choose(item)}>
+								<span data-screen="{screen}.panel.groups[{g}].items[{i}].name">{item.name}</span>
+							</button>
+						{:else if view.panel.step === 'level'}
+							<button
+								type="button"
+								class="choice"
+								class:current={item.current}
+								disabled={item.reason !== null}
+								aria-current={item.current ? 'true' : undefined}
+								onclick={() => choose(item)}
+							>
+								<span class="choice-title">
+									<span data-screen="{screen}.panel.groups[{g}].items[{i}].name">{item.name}</span
+									>{#if item.current}
+										<span class="mark"> · teď vybráno</span>{/if}
+								</span>
+								<span class="choice-desc">
+									<span data-screen="{screen}.panel.groups[{g}].items[{i}].detail"
+										>{item.detail}</span
+									>{#if item.reason}{' '}·
+										<span data-screen="{screen}.panel.groups[{g}].items[{i}].reason"
+											>{item.reason}</span
+										>{/if}
+								</span>
+							</button>
+						{:else}
+							<button type="button" class="choice big" onclick={() => choose(item)}>
+								<span class="choice-title" data-screen="{screen}.panel.groups[{g}].items[{i}].name"
+									>{item.name}</span
+								>
+								<span class="choice-desc" data-screen="{screen}.panel.groups[{g}].items[{i}].detail"
+									>{item.detail}</span
+								>
+							</button>
+						{/if}
+					{/each}
+				{:else}
+					{#if view.panel.empty}
+						<p class="empty" data-screen="{screen}.panel.empty">{view.panel.empty}</p>
+					{/if}
+				{/each}
 			</div>
 		</div>
 
-		{#if topics.length === 0}
+		{#if view.help === 'none'}
 			<p class="help">
 				Většina karet má jednu nebo dvě dovednosti, které učí. Ostatní jen využívá.
 			</p>
@@ -597,12 +549,9 @@
 		font-size: var(--text-xs);
 	}
 
-	input[type='number'] {
-		width: 84px;
-		padding: 2px 6px;
-		border: 1px solid var(--e-border);
-		border-radius: var(--radius-xs);
-		font-family: var(--font-code);
+	.elo-field {
+		display: inline-block;
+		width: 96px;
 		font-size: var(--text-s);
 	}
 

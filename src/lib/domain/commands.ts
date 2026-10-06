@@ -25,6 +25,7 @@ import type { Ref } from './ref';
 import { lessonLabel } from './naming';
 import { deepCopy } from './clone';
 import { ELO_BASELINE } from './skill-config';
+import { mergeQuestionCard, splitQuestionCard } from './groups';
 import { buildIndex, referencesToBlock, referencesToStep, type Reference } from './index-doc';
 import {
 	duplicateBlockValue,
@@ -849,9 +850,92 @@ export function reorderOptions(
 }
 
 /**
- * Switch a question's type, seeding the shape that type requires (§14.1) so the
- * document is never briefly invalid in a way the author has to repair by hand.
+ * What a question becomes when its type changes, seeding the shape that type requires
+ * (§14.1) so the document is never briefly invalid in a way the author has to repair by
+ * hand. The one rule: `setQuestionType` applies it, and `planQuestionTypeChange` reads
+ * from it what would be lost, so the warning and the change cannot disagree.
  */
+export function convertQuestion(
+	previous: QuestionConfig | undefined,
+	type: QuestionConfig['type']
+): QuestionConfig {
+	const before = previous ?? emptyQuestion();
+	const next: QuestionConfig = { ...before, type };
+
+	if (type === 'true_false') {
+		next.options = [
+			{ id: 'true', text: 'Ano', is_correct: before.options?.[0]?.is_correct ?? true },
+			{ id: 'false', text: 'Ne', is_correct: false }
+		];
+		delete next.allow_multiple;
+	} else if (type === 'multiple_choice') {
+		if ((before.options?.length ?? 0) < 2) next.options = emptyQuestion().options;
+	} else {
+		// open and numeric take no options.
+		delete next.options;
+		delete next.allow_multiple;
+	}
+	if (type !== 'numeric') {
+		delete next.correct_number;
+		delete next.tolerance;
+	}
+	if (type !== 'open') {
+		delete next.correct_answer;
+		delete next.allow_photo;
+	}
+	return next;
+}
+
+/**
+ * What switching to `target` would throw away, counted only in things a teacher
+ * actually put there, or null when nothing is lost and the change can be applied
+ * straight away. A freshly scaffolded question (`emptyQuestion()`: two options, no
+ * text, no feedback, no branching) has nothing to lose on purpose: the option ids and
+ * the default `is_correct` are the type's own bookkeeping, not authored content, so
+ * switching an untouched question never nags.
+ */
+export interface QuestionTypeLoss {
+	answers: number;
+	withFeedback: number;
+	withBranching: number;
+	correctAnswer?: string;
+	correctNumber?: string;
+}
+
+export function planQuestionTypeChange(
+	question: QuestionConfig | undefined,
+	target: QuestionConfig['type']
+): QuestionTypeLoss | null {
+	if (question === undefined || question.type === target) return null;
+	const next = convertQuestion(question, target);
+
+	// Options are replaced when `convertQuestion` hands back another list.
+	const replaced = next.options !== question.options;
+	const authored = replaced
+		? (question.options ?? []).filter(
+				(o) => o.text.trim() !== '' || !!o.feedback?.trim() || !!o.go_to
+			)
+		: [];
+	const loss: QuestionTypeLoss = {
+		answers: authored.length,
+		withFeedback: authored.filter((o) => !!o.feedback?.trim()).length,
+		withBranching: authored.filter((o) => !!o.go_to).length
+	};
+	if (question.correct_answer?.trim() && next.correct_answer === undefined) {
+		loss.correctAnswer = question.correct_answer;
+	}
+	if (question.correct_number !== undefined && next.correct_number === undefined) {
+		loss.correctNumber =
+			question.tolerance !== undefined
+				? `${question.correct_number} (tolerance ±${question.tolerance})`
+				: String(question.correct_number);
+	}
+	const nothingLost =
+		loss.answers === 0 && loss.correctAnswer === undefined && loss.correctNumber === undefined;
+	return nothingLost ? null : loss;
+}
+
+/** Switch a question's type (`convertQuestion`). */
 export function setQuestionType(
 	doc: CourseV2,
 	blockId: string,
@@ -859,33 +943,10 @@ export function setQuestionType(
 	type: QuestionConfig['type']
 ): CommandResult {
 	return {
-		doc: mapStep(doc, blockId, stepId, (step) => {
-			const previous = step.question ?? emptyQuestion();
-			const next: QuestionConfig = { ...previous, type };
-
-			if (type === 'true_false') {
-				next.options = [
-					{ id: 'true', text: 'Ano', is_correct: previous.options?.[0]?.is_correct ?? true },
-					{ id: 'false', text: 'Ne', is_correct: false }
-				];
-				delete next.allow_multiple;
-			} else if (type === 'multiple_choice') {
-				if ((previous.options?.length ?? 0) < 2) next.options = emptyQuestion().options;
-			} else {
-				// open and numeric take no options.
-				delete next.options;
-				delete next.allow_multiple;
-			}
-			if (type !== 'numeric') {
-				delete next.correct_number;
-				delete next.tolerance;
-			}
-			if (type !== 'open') {
-				delete next.correct_answer;
-				delete next.allow_photo;
-			}
-			return { ...step, question: next };
-		}),
+		doc: mapStep(doc, blockId, stepId, (step) => ({
+			...step,
+			question: convertQuestion(step.question, type)
+		})),
 		ref: { blockId, stepId },
 		description: `Typ otázky změněn na ${type}`
 	};
@@ -1126,4 +1187,35 @@ export function restoreVersion(doc: CourseV2, saved: CourseV2, number: number): 
 	if (doc.logged_only === undefined) delete restored.logged_only;
 	else restored.logged_only = doc.logged_only;
 	return { doc: restored, description: `Obnovena verze ${number}` };
+}
+
+// ───────────────────────────────── questions graded together ─────────────────────────────────
+
+/**
+ * Keep a card's questions together, or give each its own card again (the advanced
+ * author's toggle, COURSE-EDITOR-SPEC §6.2a). It acts on the course as exported
+ * (`DocStore.applySource`): `group` is the card the questions are merged into, which
+ * the settings dialog was given when it offered the toggle.
+ */
+export function setQuestionsTogether(
+	source: CourseV2,
+	reserved: Reservations,
+	options: { on: boolean; blockId: string; group: string | undefined; lessonId?: string }
+): CommandResult {
+	const { on, blockId, group, lessonId } = options;
+	if (on && group !== undefined) {
+		return {
+			doc: mergeQuestionCard(source, group),
+			description: 'Otázky karty spojeny do jedné',
+			ref: { lessonId, blockId: group }
+		};
+	}
+	if (!on) {
+		return {
+			doc: splitQuestionCard(source, blockId, reserved),
+			description: 'Otázky karty rozděleny do samostatných karet',
+			ref: { lessonId, blockId }
+		};
+	}
+	return { doc: source, description: 'Otázky zůstaly, jak byly' };
 }

@@ -19,6 +19,8 @@
 import type { CourseV2 } from './schema';
 import { serialiseToJson } from './document';
 import { deepCopy } from './clone';
+import { validate } from './validate';
+import type { SkillConfig } from './skill-config';
 
 export type Visibility = 'private' | 'public' | 'logged_only' | 'draft' | 'approved' | 'locked';
 
@@ -300,4 +302,18 @@ export function summariseDiff(from: CourseV2, to: CourseV2): DiffSummary {
 		changed,
 		lessonsChanged: JSON.stringify(from.lessons) !== JSON.stringify(to.lessons)
 	};
+}
+
+/**
+ * What a version holds that stands in the way of publishing it, or is worth saying
+ * before: the errors that would break the course for a pupil (it cannot go out) and the
+ * warnings (it can, after a confirmation). The rule is `validate()`'s, run on the saved
+ * document.
+ */
+export function publishCheck(
+	doc: CourseV2,
+	skillConfig: SkillConfig | null
+): { errors: number; warnings: number } {
+	const result = validate(doc, skillConfig);
+	return { errors: result.errors.length, warnings: result.warnings.length };
 }

@@ -66,7 +66,7 @@ test('a skill is added in three steps, switched to "Využívá" and removed agai
 	await expect(row).not.toHaveClass(/flash/);
 	// A teacher never sees the code or the difficulty.
 	await expect(row).not.toContainText('N2.2');
-	await expect(row.getByRole('spinbutton')).toHaveCount(0);
+	await expect(row.getByRole('textbox')).toHaveCount(0);
 	await expect(row.getByRole('radio', { name: 'Využívá' })).toHaveAttribute('aria-checked', 'true');
 
 	await row.getByRole('radio', { name: 'Je o tom' }).click();
@@ -165,5 +165,5 @@ test('the code and the difficulty appear only in Pokročilý', async ({ page }) 
 	);
 	const row = advanced.getByRole('listitem').filter({ hasText: 'Zlomky' });
 	await expect(row).toContainText('N2.2');
-	await expect(row.getByRole('spinbutton')).toHaveCount(1);
+	await expect(row.getByRole('textbox', { name: 'obtížnost' })).toHaveCount(1);
 });

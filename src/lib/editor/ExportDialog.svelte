@@ -9,45 +9,32 @@
 	 *
 	 * The rule itself has not moved (§3 invariant 5): errors still keep the file from
 	 * being written, and warnings never do — with warnings alone this dialog offers
-	 * „Stáhnout i tak“. What changed is that the refusal explains itself. This is also
-	 * where fixing a problem with AI will go, per row, once that exists.
+	 * „Stáhnout i tak“. What the review says (`store.screen.dialogs.export_review`,
+	 * `screen/export.ts`) is the model's; this draws it and jumps. This is also where
+	 * fixing a problem with AI will go, per row, once that exists.
 	 */
 	import Modal from '$lib/ui/Modal.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import Crumbs from '$lib/ui/Crumbs.svelte';
 	import { useStore } from '$lib/ui/context';
-	import { groupIssues, type IssueGroup, type IssueRow } from '$lib/domain/issue-groups';
-	import { counted, warningsCount } from '$lib/ui/plural';
-	import { fixModeOf, MODE_LABELS, MODE_RANK, type Mode } from '$lib/ui/fields';
-	import type { Ref } from '$lib/domain/ref';
+	import type { ExportGroupView, ExportRowView, ExportView } from '$lib/screen/types';
 	import { ArrowRight, Download } from '@lucide/svelte';
 
 	interface Props {
+		view: ExportView;
 		ondownload: () => void;
 		onclose: () => void;
 	}
-	let { ondownload, onclose }: Props = $props();
+	let { view, ondownload, onclose }: Props = $props();
 
 	const store = useStore();
+	const screen = 'dialogs.export_review';
 
-	const errors = $derived(groupIssues(store.doc, store.index, store.validation.errors));
-	const warnings = $derived(groupIssues(store.doc, store.index, store.validation.warnings));
-	const warningTotal = $derived(store.validation.warnings.length);
-	const blocked = $derived(errors.length > 0);
-
-	/** How many cards are unfinished, which is the unit a teacher plans their time in. */
-	const cardGroups = $derived(errors.filter((g) => g.kind === 'card').length);
-
-	/** The mode a fix is in, when it is above the one the author is in. */
-	const higherMode = (target: Ref): Mode | null => {
-		const need = fixModeOf(target) ?? 'advanced';
-		return MODE_RANK[need] > MODE_RANK[store.mode] ? need : null;
-	};
-
-	function jump(row: IssueRow) {
+	function jump(row: ExportRowView) {
 		// A jump to a field this mode does not draw lands on nothing, so go up first.
-		const need = higherMode(row.target);
-		store.revealAt(need !== null ? store.switchMode(need, row.target) : row.target);
+		store.revealAt(
+			row.needs_mode !== null ? store.switchMode(row.needs_mode, row.target) : row.target
+		);
 		onclose();
 	}
 
@@ -57,24 +44,31 @@
 	}
 </script>
 
-{#snippet groupList(groups: IssueGroup[], tone: 'error' | 'warning')}
+{#snippet groupList(groups: ExportGroupView[], tone: 'error' | 'warning', path: string)}
 	<ul class="groups">
-		{#each groups as group (group.key)}
+		{#each groups as group, g (group.key)}
 			<li class="group {tone}">
 				<div class="group-head">
-					<span class="group-title">{group.title}</span>
-					{#if group.context}<span class="context">{group.context}</span>{/if}
+					<span class="group-title" data-screen="{path}[{g}].title">{group.title}</span>
+					{#if group.context}<span class="context" data-screen="{path}[{g}].context"
+							>{group.context}</span
+						>{/if}
 				</div>
 				<ul class="rows">
 					{#each group.rows as row, i (i)}
 						<li>
 							<div class="text">
-								{#if row.detail.length > 0}<Crumbs class="issue-detail" parts={row.detail} />{/if}
-								<span class="message">{row.issue.message}</span>
-								{#if higherMode(row.target)}
-									{@const need = higherMode(row.target)!}
-									<span class="mode"
-										>Opravíš v režimu {MODE_LABELS[need].label} — Přejít na něj přepne.</span
+								{#if row.detail.length > 0}<Crumbs
+										class="issue-detail"
+										parts={row.detail}
+										screen="{path}[{g}].rows[{i}].detail"
+									/>{/if}
+								<span class="message" data-screen="{path}[{g}].rows[{i}].message"
+									>{row.message}</span
+								>
+								{#if row.mode_note}
+									<span class="mode" data-screen="{path}[{g}].rows[{i}].mode_note"
+										>{row.mode_note}</span
 									>
 								{/if}
 							</div>
@@ -89,41 +83,27 @@
 	</ul>
 {/snippet}
 
-<Modal title={blocked ? 'Než kurz stáhneš' : 'Stáhnout kurz'} size="l" {onclose}>
+<Modal title={view.title} size="l" {onclose}>
 	<div class="review">
-		{#if blocked}
-			<p class="lead">
-				{#if cardGroups > 0}
-					Ještě je potřeba dokončit {counted(cardGroups, 'kartu', 'karty', 'karet')}{errors.length >
-					cardGroups
-						? ' a pár věcí v kurzu'
-						: ''}.
-				{:else}
-					Ještě je potřeba dokončit pár věcí v kurzu.
-				{/if}
-				Bez nich by žák narazil na lekci, která nefunguje, a proto se kurz zatím nedá stáhnout.
-			</p>
-			{@render groupList(errors, 'error')}
+		<p class="lead" data-screen="{screen}.lead">{view.lead}</p>
+		{#if view.blocked}
+			{@render groupList(view.errors, 'error', `${screen}.errors`)}
 
-			{#if warningTotal > 0}
+			{#if view.advice_heading}
 				<details class="advice">
-					<summary>Doporučení ({warningTotal}) — stažení nebrání</summary>
-					{@render groupList(warnings, 'warning')}
+					<summary data-screen="{screen}.advice_heading">{view.advice_heading}</summary>
+					{@render groupList(view.warnings, 'warning', `${screen}.warnings`)}
 				</details>
 			{/if}
 		{:else}
-			<p class="lead">
-				Kurz je hotový a dá se stáhnout. Našlo se k němu {warningsCount(warningTotal)} — nic z toho žákovi
-				lekci nerozbije, ale stojí za to se na ně podívat.
-			</p>
-			{@render groupList(warnings, 'warning')}
+			{@render groupList(view.warnings, 'warning', `${screen}.warnings`)}
 		{/if}
 	</div>
 
 	{#snippet footer()}
 		<div class="spacer"></div>
 		<Button variant="secondary" onclick={onclose}>Zpět k úpravám</Button>
-		{#if !blocked}
+		{#if view.can_download}
 			<Button variant="primary" onclick={download}>
 				<Download size={16} /> Stáhnout i tak
 			</Button>

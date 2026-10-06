@@ -5,16 +5,22 @@
  * and an AI tool read one and the same object.
  */
 import { buildAi } from '$lib/screen/ai';
+import { buildCard } from '$lib/screen/card';
+import { buildDialogs } from '$lib/screen/dialogs';
 import { buildIssues } from '$lib/screen/issues';
 import { buildNotices } from '$lib/screen/notices';
+import { buildPickers } from '$lib/screen/pickers';
 import { buildPreview } from '$lib/screen/preview';
 import { buildTopbar } from '$lib/screen/topbar';
 import { buildTree } from '$lib/screen/tree';
 import { buildUi } from '$lib/screen/ui';
 import type {
 	AiRegion,
+	CardRegion,
+	DialogsRegion,
 	IssuesRegion,
 	NoticesRegion,
+	PickersRegion,
 	PreviewRegion,
 	Screen,
 	ScreenInput,
@@ -46,7 +52,11 @@ export class ScreenModel implements Screen {
 			touched: { cards: s.touchedCards, fields: s.touchedFields },
 			reviewed: s.reviewedKeys,
 			skillConfigStatus: s.skillConfigStatus,
+			skillConfig: s.skillConfig,
+			selection: s.selection,
+			steps: s.steps.state,
 			versionState: s.versionState,
+			history: s.historyInput,
 			drafts: s.drafts,
 			save: { draftStatus: s.draftStatus, backedUp: s.backedUp, dirty: s.dirty },
 			canUndo: s.canUndo,
@@ -70,7 +80,20 @@ export class ScreenModel implements Screen {
 				reviewOpen: s.ui.reviewOpen,
 				sidebarCollapsed: s.ui.sidebarCollapsed,
 				dismissedIssues: s.ui.dismissedIssues,
-				partsNoteSeen: s.ui.partsNoteSeen
+				partsNoteSeen: s.ui.partsNoteSeen,
+				dialog: s.ui.dialog,
+				inherited: s.ui.inherited,
+				importNotes: s.ui.importNotes,
+				importError: s.ui.importError,
+				picker: s.ui.picker,
+				armed: s.ui.armed,
+				openDetails: s.ui.openDetails,
+				competency: s.ui.competency,
+				concepts: s.ui.concepts,
+				prerequisite: s.ui.prerequisite,
+				topic: s.ui.topic,
+				repairChoices: s.ui.repairChoices,
+				versions: s.ui.versions
 			},
 			ai: {
 				panelOpen: s.ai.panelOpen,
@@ -90,5 +113,8 @@ export class ScreenModel implements Screen {
 	preview = $derived<PreviewRegion>(buildPreview(this.input));
 	notices = $derived<NoticesRegion>(buildNotices(this.input));
 	ui = $derived<UiRegion>(buildUi(this.input));
+	card = $derived<CardRegion>(buildCard(this.input));
+	pickers = $derived<PickersRegion>(buildPickers(this.input));
+	dialogs = $derived<DialogsRegion>(buildDialogs(this.input));
 	ai = $derived<AiRegion>(buildAi(this.input));
 }

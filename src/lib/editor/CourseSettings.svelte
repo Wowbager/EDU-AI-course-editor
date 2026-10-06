@@ -3,41 +3,32 @@
 	 * Course-level settings (§3).
 	 *
 	 * Which settings exist here, and which section each sits in, is decided by the mode,
-	 * from `$lib/ui/fields.ts` — this panel renders those tables rather than keeping a
-	 * second opinion about them.
+	 * from `$lib/ui/fields.ts`, and said by the model (`store.screen.dialogs.course_settings`,
+	 * `screen/settings.ts`) — this panel draws that and writes what the teacher does.
 	 * The two exceptions are the course type and its status: both are consequential
 	 * enough to earn a segmented control and a written consequence per option.
 	 */
 	import type { Snippet } from 'svelte';
-	import type { CourseV2, ExportType } from '$lib/domain/schema';
+	import type { CourseSettingsView } from '$lib/screen/types';
 	import Button from '$lib/ui/Button.svelte';
-	import { VISIBILITY_LABEL, visibilityOf } from '$lib/domain/versions';
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import Modal from '$lib/ui/Modal.svelte';
 	import FieldGroup from '$lib/ui/FieldGroup.svelte';
 	import SettingsNav from '$lib/ui/SettingsNav.svelte';
 	import { useStore, useVersions } from '$lib/ui/context';
-	import { fieldsFor, listsSections, sectionsFor } from '$lib/ui/fields';
-	import { sectionHasIssue, sectionTargeted } from '$lib/ui/settings-target';
 	import { SettingsSearch, setSettingsSearch } from '$lib/ui/settings-search.svelte';
 	import { setField } from '$lib/domain/commands';
 
 	interface Props {
-		doc: CourseV2;
+		view: CourseSettingsView;
 		onclose: () => void;
 	}
-	let { doc, onclose }: Props = $props();
+	let { view, onclose }: Props = $props();
 
 	const store = useStore();
 	const versions = useVersions();
+	const screen = 'dialogs.course_settings';
 	const set = (field: string, value: unknown) => store.apply((d) => setField(d, { field }, value));
-	const read = (path: string): unknown => (doc as Record<string, unknown>)[path];
-
-	const fields = $derived(fieldsFor('course', store.mode));
-	const sections = $derived(sectionsFor('course', store.mode));
-	const inSection = (id: string) => fields.filter((f) => f.section === id);
-	const targeted = (id: string) => sectionTargeted(store, ['course'], id, {});
-	const alert = (id: string) => sectionHasIssue(store, ['course'], id, {});
 
 	const search = new SettingsSearch(
 		() => ['course'],
@@ -53,43 +44,13 @@
 		versions.dialogOpen = true;
 		onclose();
 	}
-
-	/**
-	 * "Cvičení" is also a card type inside a lesson, and the name of the daily
-	 * practice queue a single card can be enrolled in. This one is neither: it is a
-	 * property of the whole document, and it silently disables branching in every
-	 * card at once. The labels and titles say so, because a teacher who has just
-	 * added a Cvičení card has no reason to expect the same word here to mean
-	 * something else.
-	 */
-	const EXPORT_TYPES: { value: ExportType; label: string; title: string }[] = [
-		{
-			value: 'course_v2',
-			label: 'Kurz',
-			title: 'Celý kurz v plné podobě: nápovědy, řešení, větvení podle odpovědí, XP.'
-		},
-		{
-			value: 'exercise_v2',
-			// The qualifier is on the label and not only in the tooltip: the collision
-			// is visible on screen, so the fix has to be too. The type itself is
-			// untouched — this still writes `exercise_v2`.
-			label: 'Cvičení (celý kurz)',
-			title:
-				'Celý kurz jako drilovací sada: větvení se ignoruje ve všech kartách, žák jde vždy stejným pořadím. Pozor, tohle je nastavení celého kurzu — není to karta typu Cvičení uvnitř lekce ani zařazení karty do denního opakování. V aplikaci se exportuje jako exercise_v2.'
-		},
-		{
-			value: 'quiz_v2',
-			label: 'Test',
-			title: 'Celý kurz bez nápověd, řešení i zpětné vazby — žák se během něj nedozví, jak si vede.'
-		}
-	];
 </script>
 
 {#snippet pane(id: string)}
 	{#if id === 'main'}
 		<div class="settings">
 			<div class="grid">
-				<FieldGroup fields={inSection('main')} {read} write={set} />
+				<FieldGroup rows={view.fields.main ?? []} write={set} screen="{screen}.fields.main" />
 
 				<div class="row">
 					<span>Typ kurzu</span>
@@ -97,8 +58,8 @@
 						wrap
 						explain
 						label="Typ kurzu"
-						options={EXPORT_TYPES}
-						value={doc.export_type}
+						options={view.export_type.options}
+						value={view.export_type.value}
 						onchange={(v) => set('export_type', v)}
 					/>
 				</div>
@@ -111,7 +72,7 @@
 						>
 					</div>
 					<button type="button" class="link" onclick={openVersions}>
-						{VISIBILITY_LABEL[visibilityOf(doc)].label}
+						<span data-screen="{screen}.visibility_label">{view.visibility_label}</span>
 					</button>
 				</div>
 			</div>
@@ -120,25 +81,17 @@
 		<div class="settings">
 			<div class="row">
 				<span>Identifikátor</span>
-				<code class="id">{doc.course_id}</code>
+				<code class="id" data-screen="{screen}.course_id">{view.course_id}</code>
 			</div>
 		</div>
-		<FieldGroup fields={inSection('meta')} {read} write={set} />
+		<FieldGroup rows={view.fields.meta ?? []} write={set} screen="{screen}.fields.meta" />
 	{:else}
-		<FieldGroup fields={inSection(id)} {read} write={set} />
+		<FieldGroup rows={view.fields[id] ?? []} write={set} screen="{screen}.fields.{id}" />
 	{/if}
 {/snippet}
 
 {#snippet body()}
-	<SettingsNav
-		{sections}
-		list={listsSections(store.mode)}
-		{targeted}
-		{alert}
-		levels={['course']}
-		{search}
-		{pane}
-	/>
+	<SettingsNav dialog={view} {screen} {search} {pane} />
 {/snippet}
 
 {#snippet actions(notice: Snippet)}

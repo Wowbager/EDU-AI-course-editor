@@ -1,21 +1,23 @@
 <script lang="ts">
 	import Chip from './Chip.svelte';
 	/**
-	 * Renders a list of `FieldSpec`s through the existing primitives.
+	 * Draws a list of fields the screen model has built (`FieldView`, `screen/field-view.ts`)
+	 * through the existing primitives, and writes what the teacher does to them.
 	 *
 	 * This exists so that the advanced mode can expose the whole remaining format
 	 * without forty hand-written rows — and so that adding a field to `fields.ts` is
 	 * enough to make it editable. Fields marked `custom` are owned by a real
-	 * component and are never handed here; `fieldsFor` filters them out.
+	 * component and are never in the list the model hands over.
 	 *
-	 * The hint is the field's own sentence about what it does to the student. It is
-	 * always on screen, small and faint, under the field's name in the label column:
-	 * never under the control and never only while the field has focus, so nothing
-	 * shifts when a field is used and an open select covers nothing. It used to be a
-	 * tooltip, which nobody read, and before that the field's placeholder, which
-	 * vanished the moment anyone used the field. A field with no hint prints none.
+	 * It decides nothing about what is drawn: the text in the box, the line it says when
+	 * empty, the hint, the options of a select and the number that was typed and is no
+	 * number are all the row's. The hint is the field's own sentence about what it does to
+	 * the student. It is always on screen, small and faint, under the field's name in the
+	 * label column: never under the control and never only while the field has focus, so
+	 * nothing shifts when a field is used and an open select covers nothing. A field with
+	 * no hint prints none.
 	 *
-	 * A `select` spec with `display: 'segmented'` is drawn as a Segmented. Clicking the
+	 * A `select` row with `display: 'segmented'` is drawn as a Segmented. Clicking the
 	 * chosen segment again clears the field ("nenastaveno"), so the state a select
 	 * offered as its first option stays reachable without an extra button.
 	 */
@@ -24,144 +26,137 @@
 	import Segmented from './Segmented.svelte';
 	import { parseNumberInput } from '$lib/domain/number-input';
 	import NumberField from './NumberField.svelte';
-	import { formatDateTimeCs } from '$lib/domain/format-date';
-	import { hintFor, type FieldSpec } from './fields';
+	import type { FieldView } from '$lib/screen/types';
 	import { useSettingsSearch } from './settings-search.svelte';
 
 	interface Props {
-		fields: FieldSpec[];
-		/** Current value at a path, already resolved by the owning editor. */
-		read: (path: string) => unknown;
+		rows: FieldView[];
 		write: (path: string, value: unknown) => void;
-		/** Codes of validation issues to mark, keyed by path. */
-		invalid?: (path: string) => boolean;
+		/** Where `rows` is in the model, for `data-screen`: `<screen>[i].value`. */
+		screen: string;
 	}
-	let { fields, read, write, invalid }: Props = $props();
+	let { rows, write, screen }: Props = $props();
 
 	/** The dialog's search, if it has one: a field it found is marked. */
 	const search = useSettingsSearch();
 
 	const uid = $props.id();
-	const hintId = (spec: FieldSpec) => `${uid}-${spec.level}-${spec.path}`;
-
-	const asText = (value: unknown): string | undefined =>
-		value === undefined || value === null ? undefined : String(value);
+	const hintId = (row: FieldView) => `${uid}-${row.level}-${row.path}`;
+	const at = (i: number, rest: string) => `${screen}[${i}].${rest}`;
 
 	/** An option list's value as the number it stands for; text that is no number is not written. */
-	function writeChoice(path: string, spec: FieldSpec, raw: string) {
-		if (!spec.numeric) return write(path, raw);
+	function writeChoice(row: FieldView, raw: string) {
+		if (!row.numeric) return write(row.path, raw);
 		const value = parseNumberInput(raw);
-		if (value !== undefined) write(path, value);
+		if (value !== undefined) write(row.path, value);
 	}
 </script>
 
-{#each fields as spec (spec.level + spec.path)}
-	{@const value = read(spec.path)}
-	{@const hint = hintFor(spec)}
-	{@const match = search?.marks(spec.level, spec.path) === true}
-	{#if spec.kind === 'toggle'}
+{#each rows as row, i (row.key)}
+	{@const match = search?.marks(row.level, row.path) === true}
+	{#if row.kind === 'toggle'}
 		<div class="toggle-row" class:match>
 			<Toggle
-				label={spec.label}
-				{hint}
-				checked={value === true}
-				onchange={(v) => write(spec.path, v || undefined)}
+				label={row.label}
+				hint={row.hint ?? undefined}
+				checked={row.checked === true}
+				onchange={(v) => write(row.path, v || undefined)}
+				screen={at(i, 'checked')}
 			/>
 		</div>
-	{:else if spec.kind === 'select' && spec.display === 'segmented'}
-		{@const current = asText(value) ?? ''}
-		<!-- The number in "3 – splňuje" is the order the segments already show; without it
-		     a four- or five-step scale fits on one row. -->
-		{@const options = (spec.options ?? []).map((o) => ({
-			value: o.value,
-			label: o.label.replace(/^\d+ – /, '')
-		}))}
+	{:else if row.kind === 'select' && row.display === 'segmented'}
 		<div class="field-row" class:match>
 			<div class="field-label">
-				<span>{spec.label}</span>
-				{#if hint}<span class="hint" id={hintId(spec)}>{hint}</span>{/if}
+				<span data-screen={at(i, 'label')}>{row.label}</span>
+				{#if row.hint}<span class="hint" id={hintId(row)} data-screen={at(i, 'hint')}
+						>{row.hint}</span
+					>{/if}
 			</div>
 			<div class="control wide">
 				<Segmented
 					wrap
-					label={spec.label}
-					options={current !== '' && !options.some((o) => o.value === current)
-						? [...options, { value: current, label: current }]
-						: options}
-					value={current}
-					describedby={hint ? hintId(spec) : undefined}
+					label={row.label}
+					options={row.options ?? []}
+					value={row.value}
+					describedby={row.hint ? hintId(row) : undefined}
 					onchange={(v) => {
-						if (v === current) return write(spec.path, undefined);
-						writeChoice(spec.path, spec, v);
+						if (v === row.value) return write(row.path, undefined);
+						writeChoice(row, v);
 					}}
 				/>
 			</div>
 		</div>
-	{:else if spec.kind === 'select'}
+	{:else if row.kind === 'select'}
 		<div class="field-row" class:match>
 			<div class="field-label">
-				<span>{spec.label}</span>
-				{#if hint}<span class="hint" id={hintId(spec)}>{hint}</span>{/if}
+				<span data-screen={at(i, 'label')}>{row.label}</span>
+				{#if row.hint}<span class="hint" id={hintId(row)} data-screen={at(i, 'hint')}
+						>{row.hint}</span
+					>{/if}
 			</div>
 			<div class="control">
 				<select
-					aria-label={spec.label}
-					aria-describedby={hint ? hintId(spec) : undefined}
-					value={asText(value) ?? ''}
+					aria-label={row.label}
+					aria-describedby={row.hint ? hintId(row) : undefined}
+					value={row.value}
+					data-screen={at(i, 'value')}
 					onchange={(e) => {
 						const raw = e.currentTarget.value;
-						if (raw === '') return write(spec.path, undefined);
-						writeChoice(spec.path, spec, raw);
+						if (raw === '') return write(row.path, undefined);
+						writeChoice(row, raw);
 					}}
 				>
 					<option value="">— nenastaveno —</option>
-					{#each spec.options ?? [] as option (option.value)}
-						<option value={option.value}>{option.label}</option>
+					{#each row.options ?? [] as option, o (option.value)}
+						<option value={option.value} data-screen={at(i, `options[${o}].label`)}
+							>{option.label}</option
+						>
 					{/each}
-					<!-- A value outside the list stays visible as it is, not lost. -->
-					{#if asText(value) !== undefined && !(spec.options ?? []).some((o) => o.value === asText(value))}
-						<option value={asText(value)}>{asText(value)}</option>
-					{/if}
 				</select>
 			</div>
 		</div>
-	{:else if spec.display === 'datetime'}
+	{:else if row.display === 'datetime'}
 		<div class="field-row" class:match>
 			<div class="field-label">
-				<span>{spec.label}</span>
-				{#if hint}<span class="hint" id={hintId(spec)}>{hint}</span>{/if}
+				<span data-screen={at(i, 'label')}>{row.label}</span>
+				{#if row.hint}<span class="hint" id={hintId(row)} data-screen={at(i, 'hint')}
+						>{row.hint}</span
+					>{/if}
 			</div>
 			<div class="control">
-				<span class="read-only">{asText(value) ? formatDateTimeCs(asText(value)!) : '—'}</span>
+				<span class="read-only" data-screen={at(i, 'value')}>{row.value}</span>
 			</div>
 		</div>
 	{:else}
 		<div class="field-row" class:match>
 			<div class="field-label">
-				<span>{spec.label}</span>
-				{#if hint}<span class="hint" id={hintId(spec)}>{hint}</span>{/if}
+				<span data-screen={at(i, 'label')}>{row.label}</span>
+				{#if row.hint}<span class="hint" id={hintId(row)} data-screen={at(i, 'hint')}
+						>{row.hint}</span
+					>{/if}
 			</div>
 			<div class="control">
-				{#if spec.kind === 'number'}
+				{#if row.kind === 'number'}
 					<NumberField
-						label={spec.label}
-						value={typeof value === 'number' || typeof value === 'string' ? value : undefined}
-						emptyText={spec.default === undefined ? 'nevyplněno' : `výchozí ${spec.default}`}
-						ref={spec.ref}
-						describedby={hint ? hintId(spec) : undefined}
-						invalid={invalid?.(spec.path) === true}
-						onwrite={(v) => write(spec.path, v)}
+						label={row.label}
+						value={row.value === '' ? undefined : row.value}
+						emptyText={row.empty_text}
+						ref={row.ref}
+						describedby={row.hint ? hintId(row) : undefined}
+						bounds={row}
+						screen={at(i, 'value')}
+						onwrite={(v) => write(row.path, v)}
 					/>
 				{:else}
 					<FocusField
-						label={spec.label}
-						value={asText(value)}
-						multiline={spec.kind === 'multiline'}
-						emptyText={spec.default === undefined ? 'nevyplněno' : `výchozí ${spec.default}`}
-						ref={spec.ref}
-						describedby={hint ? hintId(spec) : undefined}
-						invalid={invalid?.(spec.path) === true}
-						onchange={(v) => write(spec.path, v)}
+						label={row.label}
+						value={row.value === '' ? undefined : row.value}
+						multiline={row.kind === 'multiline'}
+						emptyText={row.empty_text}
+						ref={row.ref}
+						describedby={row.hint ? hintId(row) : undefined}
+						screen={at(i, 'value')}
+						onchange={(v) => write(row.path, v)}
 					/>
 				{/if}
 			</div>

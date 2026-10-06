@@ -13,6 +13,11 @@
 	 *
 	 * Publishing is not wired to the API yet (its sign-in is unresolved), so a
 	 * published version is also downloaded, ready to upload in the administration.
+	 *
+	 * What it says is the model's (`store.screen.dialogs.versions`, `screen/versions.ts`);
+	 * what it is in the middle of (the note, a busy save, the message, a publication
+	 * waiting for "i tak") is `store.ui.versions`. This does the async work the history
+	 * store owns.
 	 */
 	import Modal from '$lib/ui/Modal.svelte';
 	import Button from '$lib/ui/Button.svelte';
@@ -20,192 +25,139 @@
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import { useStore, useVersions } from '$lib/ui/context';
 	import { restoreVersion, setVisibility } from '$lib/domain/commands';
-	import { validate } from '$lib/domain/validate';
 	import {
-		ALL_VISIBILITIES,
-		TEACHER_VISIBILITIES,
 		VISIBILITY_LABEL,
 		contentHash,
-		publishPlan,
+		publishCheck,
 		summariseDiff,
 		visibilityOf,
-		type DiffSummary,
 		type Visibility
 	} from '$lib/domain/versions';
 	import { courseFileName } from '$lib/domain/filename';
 	import { downloadCourse } from '$lib/ui/download';
-	import { counted, errorsCount, warningsCount } from '$lib/ui/plural';
 	import { Download, History, RotateCcw, Send } from '@lucide/svelte';
-	import type { ListedVersion } from '$lib/state/versions/version-store.svelte';
+	import type { VersionsView } from '$lib/screen/types';
 
 	interface Props {
+		view: VersionsView;
 		onclose: () => void;
 		/** Opens the export review, for a version that is the working copy. */
 		onreview: () => void;
 	}
-	let { onclose, onreview }: Props = $props();
+	let { view, onclose, onreview }: Props = $props();
 
 	const store = useStore();
 	const versions = useVersions();
+	const screen = 'dialogs.versions';
+	const form = $derived(store.ui.versions);
 
 	// Versions are of the course as exported, not of the view the editor shows.
 	const doc = $derived(store.source);
-	const version = $derived(store.versionState);
-	const next = $derived(version.next);
-	const modified = $derived(version.modified);
-	const visibility = $derived(visibilityOf(doc));
-	const choices = $derived(store.mode === 'teacher' ? TEACHER_VISIBILITIES : ALL_VISIBILITIES);
-	const published = $derived(versions.published);
-	const newestFirst = $derived([...versions.versions].reverse());
-
-	let note = $state('');
-	let busy = $state(false);
-	let message = $state<{ tone: 'ok' | 'error'; text: string } | null>(null);
-	/** A publication waiting for "i tak" because the version has warnings. */
-	let confirming = $state<{ version: number; warnings: number } | null>(null);
-	/** A version that cannot go out, and why. */
-	let refused = $state<{ version: number; errors: number; isWorkingCopy: boolean } | null>(null);
-	let diffs = $state<Record<number, DiffSummary | 'none'>>({});
-
-	const formatter = new Intl.DateTimeFormat('cs-CZ', { dateStyle: 'medium', timeStyle: 'short' });
-	const when = (iso: string) => formatter.format(new Date(iso));
 
 	async function save() {
-		busy = true;
-		message = null;
+		form.busy = true;
+		form.message = null;
 		try {
-			const saved = await versions.save(doc, note);
-			note = '';
-			message = { tone: 'ok', text: `Uloženo jako verze ${saved.version}.` };
+			const saved = await versions.save(doc, form.note);
+			form.note = '';
+			form.message = { tone: 'ok', text: `Uloženo jako verze ${saved.version}.` };
 		} catch (error) {
-			message = { tone: 'error', text: error instanceof Error ? error.message : String(error) };
+			form.message = {
+				tone: 'error',
+				text: error instanceof Error ? error.message : String(error)
+			};
 		} finally {
-			busy = false;
+			form.busy = false;
 		}
 	}
 
-	async function restore(version: ListedVersion) {
+	async function restore(number: number) {
 		if (
-			modified &&
+			store.versionState.modified &&
 			!window.confirm(
-				`Rozpracované změny se nahradí verzí ${version.version}. Vrátit to půjde tlačítkem Zpět.`
+				`Rozpracované změny se nahradí verzí ${number}. Vrátit to půjde tlačítkem Zpět.`
 			)
 		)
 			return;
-		const saved = await versions.get(version.version);
+		const saved = await versions.get(number);
 		if (saved === null) {
-			message = { tone: 'error', text: `Verzi ${version.version} se nepodařilo načíst.` };
+			form.message = { tone: 'error', text: `Verzi ${number} se nepodařilo načíst.` };
 			return;
 		}
-		store.applySource((d) => restoreVersion(d, saved.doc, version.version));
+		store.applySource((d) => restoreVersion(d, saved.doc, number));
 		// A version saved before questions had their own cards is split like an import.
 		store.splitQuestions();
-		message = { tone: 'ok', text: `Rozpracovaná verze je teď obsah verze ${version.version}.` };
+		form.message = { tone: 'ok', text: `Rozpracovaná verze je teď obsah verze ${number}.` };
 	}
 
-	async function download(version: ListedVersion) {
-		const saved = await versions.get(version.version);
+	async function download(number: number) {
+		const saved = await versions.get(number);
 		if (saved === null) return;
-		downloadCourse(
-			saved.doc,
-			courseFileName(saved.doc.name, doc.course_id, `-v${version.version}`)
-		);
+		downloadCourse(saved.doc, courseFileName(saved.doc.name, doc.course_id, `-v${number}`));
 	}
 
 	/** Check the version, then publish it — or say what stands in the way. */
-	async function requestPublish(version: ListedVersion, anyway = false) {
-		refused = null;
-		confirming = null;
-		const saved = await versions.get(version.version);
+	async function requestPublish(number: number, anyway = false) {
+		form.refused = null;
+		form.confirming = null;
+		const saved = await versions.get(number);
 		if (saved === null) return;
-		const result = validate(saved.doc, store.skillConfig);
-		if (result.errors.length > 0) {
-			refused = {
-				version: version.version,
-				errors: result.errors.length,
+		const check = publishCheck(saved.doc, store.skillConfig);
+		if (check.errors > 0) {
+			form.refused = {
+				version: number,
+				errors: check.errors,
 				isWorkingCopy: saved.hash === contentHash($state.snapshot(doc))
 			};
 			return;
 		}
-		if (result.warnings.length > 0 && !anyway) {
-			confirming = { version: version.version, warnings: result.warnings.length };
+		if (check.warnings > 0 && !anyway) {
+			form.confirming = { version: number, warnings: check.warnings };
 			return;
 		}
-		busy = true;
+		form.busy = true;
+		const visibility = visibilityOf(doc);
 		try {
-			const out = await versions.publish(version.version, visibility, doc);
+			const out = await versions.publish(number, visibility, doc);
 			downloadCourse(out, courseFileName(out.name, doc.course_id, `-v${out.version}`));
-			message = {
+			form.message = {
 				tone: 'ok',
 				text: `Verze ${out.version} je zveřejněná (${VISIBILITY_LABEL[visibility].label.toLowerCase()}). Soubor se stáhl — nahraj ho v administraci kurzů.`
 			};
 		} catch (error) {
-			message = { tone: 'error', text: error instanceof Error ? error.message : String(error) };
+			form.message = {
+				tone: 'error',
+				text: error instanceof Error ? error.message : String(error)
+			};
 		} finally {
-			busy = false;
+			form.busy = false;
 		}
 	}
 
-	function publishLabel(version: ListedVersion): string {
-		const plan = publishPlan(versions.index, version.version, doc);
-		return plan.kind === 'publish' ? 'Zveřejnit' : `Zveřejnit znovu jako verzi ${plan.version}`;
-	}
-
-	async function compare(version: ListedVersion) {
+	async function compare(number: number) {
+		const published = versions.published;
 		if (published === null) return;
-		const [a, b] = await Promise.all([
-			versions.get(published.version),
-			versions.get(version.version)
-		]);
-		diffs = { ...diffs, [version.version]: a && b ? summariseDiff(a.doc, b.doc) : 'none' };
+		const [a, b] = await Promise.all([versions.get(published.version), versions.get(number)]);
+		form.diffs = { ...form.diffs, [number]: a && b ? summariseDiff(a.doc, b.doc) : 'none' };
 	}
-
-	function describe(diff: DiffSummary): string {
-		const parts = [
-			diff.added > 0 ? `nové: ${counted(diff.added, 'karta', 'karty', 'karet')}` : '',
-			diff.removed > 0 ? `odebrané: ${counted(diff.removed, 'karta', 'karty', 'karet')}` : '',
-			diff.changed > 0 ? `upravené: ${counted(diff.changed, 'karta', 'karty', 'karet')}` : '',
-			diff.lessonsChanged ? 'změněné lekce' : ''
-		].filter((p) => p !== '');
-		return parts.length === 0 ? 'stejné jako zveřejněná verze' : parts.join(', ');
-	}
-
-	/** Where the history is, said plainly — it decides what a lost browser costs. */
-	const kept = $derived.by(() => {
-		const down = versions.unavailable;
-		const browser = !down.includes('browser');
-		const server = versions.backends.includes('server') && !down.includes('server');
-		if (browser && server) return 'Verze se ukládají v tomto prohlížeči a na serveru editoru.';
-		if (browser)
-			return 'Verze se ukládají jen v tomto prohlížeči — server editoru je teď nedostupný.';
-		if (server) return 'Verze se ukládají na serveru editoru; v tomto prohlížeči se uložit nedaří.';
-		return 'Verze se teď nedaří uložit nikam — historie platí jen do zavření stránky. Stáhni si důležité verze do souboru.';
-	});
 </script>
 
 <Modal title="Verze kurzu" {onclose} size="l">
 	<div class="versions">
 		<section class="working">
-			<h3>{next === undefined ? 'Rozpracovaná verze se načítá' : `Rozpracovaná verze ${next}`}</h3>
-			{#if !version.loaded}
-				<p class="muted">Historie verzí se načítá.</p>
-			{:else if versions.latest === undefined}
-				<p class="muted">Kurz zatím nemá uloženou žádnou verzi.</p>
-			{:else if modified}
-				<p class="muted">Od verze {versions.latest.version} je kurz upravený.</p>
-			{:else}
-				<p class="muted">Beze změn od verze {versions.latest.version}.</p>
-			{/if}
+			<h3 data-screen="{screen}.working.heading">{view.working.heading}</h3>
+			<p class="muted" data-screen="{screen}.working.status">{view.working.status}</p>
 			<div class="save">
 				<input
 					type="text"
-					bind:value={note}
+					value={form.note}
+					oninput={(e) => (form.note = e.currentTarget.value)}
 					placeholder="Poznámka k verzi (nepovinná)"
 					aria-label="Poznámka k verzi"
 				/>
-				<Button onclick={save} disabled={busy || !version.loaded || !modified}>
+				<Button onclick={save} disabled={!view.working.can_save}>
 					<History size={16}></History>
-					{next === undefined ? 'Uložit jako verzi' : `Uložit jako verzi ${next}`}
+					<span data-screen="{screen}.working.save_label">{view.working.save_label}</span>
 				</Button>
 			</div>
 		</section>
@@ -216,91 +168,102 @@
 				wrap
 				explain
 				label="Kdo kurz uvidí"
-				options={choices.map((v) => ({ value: v, ...VISIBILITY_LABEL[v] }))}
-				value={visibility}
+				options={view.visibility.options}
+				value={view.visibility.value}
 				onchange={(v: Visibility) => store.apply((d) => setVisibility(d, v))}
 			/>
-			{#if published !== null && published.visibility !== visibility}
-				<p class="muted">
-					Zveřejněná verze {published.version} je zatím „{VISIBILITY_LABEL[published.visibility]
-						.label}“. Nové nastavení platí od příštího zveřejnění.
+			{#if view.visibility.published_note}
+				<p class="muted" data-screen="{screen}.visibility.published_note">
+					{view.visibility.published_note}
 				</p>
 			{/if}
 		</section>
 
-		{#if message}
-			<p class="message {message.tone}" role="status">{message.text}</p>
+		{#if view.message}
+			<p class="message {view.message.tone}" role="status" data-screen="{screen}.message.text">
+				{view.message.text}
+			</p>
 		{/if}
 
 		<section>
 			<h3>Uložené verze</h3>
-			{#if versions.loading}
-				<p class="muted">Načítám…</p>
-			{:else if newestFirst.length === 0}
-				<p class="muted">Až verzi uložíš, objeví se tady.</p>
+			{#if view.list_text}
+				<p class="muted" data-screen="{screen}.list_text">{view.list_text}</p>
 			{:else}
 				<ul>
-					{#each newestFirst as version (version.version)}
-						<li class:current={published?.version === version.version}>
+					{#each view.items as item, i (item.version)}
+						<li class:current={item.published}>
 							<div class="line">
-								<strong>Verze {version.version}</strong>
-								<span class="muted">{when(version.savedAt)}</span>
-								{#if published?.version === version.version}
-									<Chip tone="ok">Zveřejněná · {VISIBILITY_LABEL[published.visibility].label}</Chip>
-								{/if}
-								{#if version.origin === 'import'}<Chip tone="quiet">ze souboru</Chip>{/if}
-								{#if version.restoredFrom !== undefined}
-									<Chip tone="quiet">z verze {version.restoredFrom}</Chip>
-								{/if}
+								<strong data-screen="{screen}.items[{i}].name">{item.name}</strong>
+								<span class="muted" data-screen="{screen}.items[{i}].saved_at">{item.saved_at}</span
+								>
+								{#each item.chips as chip, c (c)}
+									<Chip tone={chip.tone}>
+										<span data-screen="{screen}.items[{i}].chips[{c}].text">{chip.text}</span>
+									</Chip>
+								{/each}
 							</div>
-							{#if version.note}<p class="note">{version.note}</p>{/if}
-							{#if store.mode !== 'teacher' && published !== null && published.version !== version.version}
-								{@const diff = diffs[version.version]}
-								{#if diff === undefined}
-									<button type="button" class="link" onclick={() => compare(version)}>
+							{#if item.note}<p class="note" data-screen="{screen}.items[{i}].note">
+									{item.note}
+								</p>{/if}
+							{#if item.compare}
+								{#if item.compare.offered}
+									<button type="button" class="link" onclick={() => compare(item.version)}>
 										Co se změnilo oproti zveřejněné?
 									</button>
 								{:else}
-									<p class="muted">{diff === 'none' ? 'Nelze porovnat.' : describe(diff)}</p>
+									<p class="muted" data-screen="{screen}.items[{i}].compare.text">
+										{item.compare.text}
+									</p>
 								{/if}
 							{/if}
 							<div class="actions">
-								<Button variant="ghost" size="s" onclick={() => restore(version)} disabled={busy}>
+								<Button
+									variant="ghost"
+									size="s"
+									onclick={() => restore(item.version)}
+									disabled={view.working.busy}
+								>
 									<RotateCcw size={14}></RotateCcw>
 									Obnovit
 								</Button>
-								<Button variant="ghost" size="s" onclick={() => download(version)}>
+								<Button variant="ghost" size="s" onclick={() => download(item.version)}>
 									<Download size={14}></Download>
 									Stáhnout
 								</Button>
-								<!-- The version that is out has nothing to publish unless who sees it changed. -->
-								{#if published?.version !== version.version || published.visibility !== visibility}
+								{#if item.publish}
 									<Button
 										variant="secondary"
 										size="s"
-										onclick={() => requestPublish(version)}
-										disabled={busy}
+										onclick={() => requestPublish(item.version)}
+										disabled={view.working.busy}
 									>
 										<Send size={14}></Send>
-										{publishLabel(version)}
+										<span data-screen="{screen}.items[{i}].publish.label">{item.publish.label}</span
+										>
 									</Button>
 								{/if}
 							</div>
-							{#if refused?.version === version.version}
+							{#if item.refused_text}
 								<p class="message error" role="alert">
-									Verze {version.version} má {errorsCount(refused.errors)}, které žákovi rozbijí
-									kurz, a tak ji nejde zveřejnit.
-									{#if refused.isWorkingCopy}
+									<span data-screen="{screen}.items[{i}].refused_text">{item.refused_text}</span>
+									{#if item.refused_is_working_copy}
 										<button type="button" class="link" onclick={onreview}>Ukázat, co chybí</button>
 									{:else}
 										Obnov ji, oprav a ulož jako novou verzi.
 									{/if}
 								</p>
 							{/if}
-							{#if confirming?.version === version.version}
+							{#if item.confirming_text}
 								<p class="message warning" role="alert">
-									Verze {version.version} má {warningsCount(confirming.warnings)}.
-									<button type="button" class="link" onclick={() => requestPublish(version, true)}>
+									<span data-screen="{screen}.items[{i}].confirming_text"
+										>{item.confirming_text}</span
+									>
+									<button
+										type="button"
+										class="link"
+										onclick={() => requestPublish(item.version, true)}
+									>
 										Zveřejnit i tak
 									</button>
 								</p>
@@ -311,7 +274,7 @@
 			{/if}
 		</section>
 
-		<p class="muted kept">{kept}</p>
+		<p class="muted kept" data-screen="{screen}.kept">{view.kept}</p>
 	</div>
 </Modal>
 

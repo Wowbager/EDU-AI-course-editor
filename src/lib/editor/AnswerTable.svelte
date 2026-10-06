@@ -16,21 +16,21 @@
 	 * A change of "Kam dál" (or removing an answer) that leaves a step or a card with no
 	 * way to it says so once under that answer, with "Vrátit zpět" (`madeUnreachable`),
 	 * and says nothing after the next edit.
+	 *
+	 * Everything drawn is the model's (`store.screen.card`, `screen/card.ts`): the
+	 * columns the mode shows, the summary lines, which detail lines are open. This
+	 * writes what the teacher does and keeps focus.
 	 */
 	import { tick, untrack } from 'svelte';
-	import type { BlockStep, BlockV2, CourseV2 } from '$lib/domain/schema';
+	import type { BlockStep, BlockV2 } from '$lib/domain/schema';
+	import type { AnswersView } from '$lib/screen/types';
 	import FocusField from '$lib/ui/FocusField.svelte';
 	import NumberField from '$lib/ui/NumberField.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import Segmented from '$lib/ui/Segmented.svelte';
-	import GoToPicker, { goToSummary } from './GoToPicker.svelte';
-	import { sectionTargeted } from '$lib/ui/settings-target';
+	import GoToPicker from './GoToPicker.svelte';
 	import { useStore } from '$lib/ui/context';
-	import { uniqueKeys } from '$lib/ui/keys';
-	import { allows } from '$lib/ui/fields';
 	import { addOption, deleteOption, reorderOptions, setField } from '$lib/domain/commands';
-	import { optionOutcomesApply } from '$lib/domain/derive';
-	import { MIN_CHOICE_OPTIONS } from '$lib/domain/validate';
 	import {
 		ArrowDown,
 		ArrowUp,
@@ -43,55 +43,39 @@
 	import { withUndoNotice } from './undo-notice';
 
 	interface Props {
-		doc: CourseV2;
 		block: BlockV2;
 		step: BlockStep;
+		/** The step's key in the list, which its folds and open lines are remembered under. */
+		stepKey: string;
+		answers: AnswersView;
+		/** Where `answers` is in the model, for `data-screen`. */
+		screen: string;
+		/** Several picks are allowed: ticking one does not untick the rest. */
+		multiple: boolean;
 	}
-	let { doc, block, step }: Props = $props();
+	let { block, step, stepKey, answers, screen, multiple }: Props = $props();
 
 	const store = useStore();
 	const uid = $props.id();
 	const options = $derived(step.question?.options ?? []);
-	// Duplicate option ids are a warning (`W_DUPLICATE_OPTION_ID`), not a crash.
-	const optionKeys = $derived(uniqueKeys(options.map((o) => o.id)));
-	// The app reads an answer's "Kam dál" and grade only when the pupil picks one
-	// answer (`optionOutcomesApply`), so a question with several picks has neither.
-	const outcomes = $derived(optionOutcomesApply(step.question));
-	const branching = $derived(
-		outcomes && block.type === 'question' && doc.export_type !== 'exercise_v2'
-	);
-	const quizMarks = $derived(
-		outcomes && (doc.export_type === 'quiz_v2' || doc.quiz_evaluate === true)
-	);
-	const multiple = $derived(step.question?.allow_multiple === true);
-	const advanced = $derived(allows('option', 'score_koef', store.mode));
-	// Zpětná vazba off: the column that tells the pupil what went wrong goes, and its
-	// track with it — the rest of the row keeps its alignment.
-	const feedback = $derived(allows('option', 'feedback', store.mode, store.showFeedback));
-	const fixedOptions = $derived(step.question?.type === 'true_false');
-	// "Odpověď" alone is not worth a heading: the column is the only one there is.
-	const headed = $derived(feedback);
-	// A true/false pair has no order to change.
-	const movable = $derived(!fixedOptions && options.length > 1);
-	// The detail line exists only when at least one of its fields does.
-	const detailOffered = $derived(branching || quizMarks || advanced || movable);
-	const showIds = $derived(allows('step', 'id', store.mode));
-	// Which answers have their detail line open. Local to this table, like a fold.
-	let opened = $state<Record<string, boolean>>({});
-	const isOpen = (key: string) => opened[key] === true;
+	const detailKey = (key: string) => `${block.block_id}/${stepKey}/${key}`;
+	const rowScreen = (i: number, rest: string) => `${screen}.rows[${i}].${rest}`;
+
 	// A selection or a visible issue on one of the detail fields opens that row's line
 	// and leaves it open, so typing in the field never pulls it away.
+	// It opens when something starts pointing into the line, once: the author closing it
+	// by hand while the pointer is still there must not have it reopen.
+	const pointedBefore = new Set<string>();
 	$effect(() => {
-		if (!detailOffered) return;
-		for (const [i, option] of options.entries()) {
-			const pointed = sectionTargeted(store, ['option'], 'detail', {
-				blockId: block.block_id,
-				stepId: step.id,
-				optionId: option.id
-			});
-			// Untracked: closing the line by hand must not re-run this and reopen it.
-			if (pointed) untrack(() => (opened[optionKeys[i]] = true));
+		if (!answers.detail_offered) return;
+		const now = new Set<string>();
+		for (const row of answers.rows) {
+			if (!row.pointed) continue;
+			now.add(row.key);
+			if (!pointedBefore.has(row.key)) untrack(() => store.ui.setDetail(detailKey(row.key), true));
 		}
+		pointedBefore.clear();
+		for (const key of now) pointedBefore.add(key);
 	});
 
 	/**
@@ -99,7 +83,7 @@
 	 * "Kam dál" for a branching question. Used by the summary line under the answer.
 	 */
 	async function openDetail(key: string, i: number) {
-		opened[key] = true;
+		store.ui.setDetail(detailKey(key), true);
 		await tick();
 		document
 			.getElementById(`${uid}-detail-${i}`)
@@ -107,57 +91,10 @@
 			?.focus();
 	}
 
-	/**
-	 * What is set on an answer, in a few words; defaults say nothing. Where the answer
-	 * leads is drawn with the branch icon, not a typed arrow.
-	 */
-	function summaryOf(option: (typeof options)[number]): { text: string; branch?: true }[] {
-		const parts: { text: string; branch?: true }[] = [];
-		if (branching) {
-			const where = goToSummary(doc, block, option.go_to, showIds, store.index);
-			if (where !== '') parts.push({ text: where, branch: true });
-		}
-		if (quizMarks && option.mark !== undefined && option.mark !== '') {
-			parts.push({ text: `známka ${option.mark}` });
-		}
-		if (advanced && option.score_koef !== undefined) {
-			parts.push({ text: `podíl bodů ${option.score_koef}` });
-		}
-		return parts;
-	}
-	// The last answers have to stay: a question with nothing to choose from is not a
-	// question (`E_MC_TOO_FEW_OPTIONS`, which `MIN_CHOICE_OPTIONS` bounds).
-	const lastAnswers = $derived(
-		step.question?.type === 'multiple_choice' && options.length <= MIN_CHOICE_OPTIONS
-	);
-	// What is wrong with the list as a whole (too few answers, none right), said where
-	// the list is, under the same timing as every other warning.
-	const listIssues = $derived(
-		store.issuesAt({
-			blockId: block.block_id,
-			stepId: step.id,
-			field: 'question.options'
-		})
-	);
-	// Shared, content-independent tracks keep headings and all rows aligned.
-	const tracks = $derived(
-		[
-			'36px',
-			'minmax(0, 1.4fr)',
-			...(feedback ? ['minmax(0, 1.6fr)'] : []),
-			detailOffered ? '4.25rem' : '2rem'
-		].join(' ')
-	);
-
-	const ref = (optionId: string, field: string) => ({
-		blockId: block.block_id,
-		stepId: step.id,
-		optionId,
-		field
-	});
-
 	const set = (optionId: string, field: string, value: unknown) =>
-		store.apply((d) => setField(d, ref(optionId, field), value));
+		store.apply((d) =>
+			setField(d, { blockId: block.block_id, stepId: step.id, optionId, field }, value)
+		);
 
 	/** One place up (-1) or down (1); the ends stay where they are. */
 	function move(index: number, by: -1 | 1) {
@@ -176,15 +113,10 @@
 	 */
 	const cutOffNow = $derived(store.screen.notices.cut_off);
 
-	const MARKS = [
-		{ value: '', label: 'Bez známky' },
-		...['1', '2', '3', '4', '5'].map((m) => ({ value: m, label: m }))
-	];
-
 	function toggleChecked(optionId: string) {
 		const option = options.find((o) => o.id === optionId);
 
-		if (fixedOptions) {
+		if (answers.fixed) {
 			// True/false questions have exactly two options, one correct and one incorrect.
 			// Toggling one flips the other.
 			const other = options.find((o) => o.id !== optionId);
@@ -222,121 +154,118 @@
 	</p>
 {/snippet}
 
-<div class="answers" class:bare={!headed} style:--answer-tracks={tracks}>
-	{#if headed}
+<div class="answers" class:bare={!answers.headed} style:--answer-tracks={answers.tracks}>
+	{#if answers.headed}
 		<div class="head" aria-hidden="true">
 			<span></span>
 			<span>Odpověď</span>
-			{#if feedback}<span>Co se žák dozví</span>{/if}
+			{#if answers.feedback_column}<span>Co se žák dozví</span>{/if}
 			<span></span>
 		</div>
 	{/if}
 
-	{#each options as option, i (optionKeys[i])}
+	{#each answers.rows as row, i (row.key)}
 		<div class="row">
 			<div class="cell">
 				<button
 					type="button"
 					class="verb"
-					class:correct={option.is_correct}
+					class:correct={row.correct}
 					class:multiple
-					aria-pressed={option.is_correct === true}
-					aria-label={`Správná odpověď: ${option.text || 'bez textu'}`}
-					title={option.is_correct
-						? 'Správná odpověď — klikni pro označení jako chybná'
-						: 'Chybná odpověď — klikni pro označení jako správná'}
-					onclick={() => toggleChecked(option.id)}
+					aria-pressed={row.correct}
+					aria-label={row.correct_label}
+					title={row.correct_title}
+					onclick={() => toggleChecked(row.id)}
 				>
 					<!-- The mark of a radio button, or of a checkbox when several may be picked. -->
 					<span class="mark-box">
-						{#if option.is_correct}<Check size={14} strokeWidth={3} />{/if}
+						{#if row.correct}<Check size={14} strokeWidth={3} />{/if}
 					</span>
 				</button>
 			</div>
 
 			<div class="cell text">
 				<FocusField
-					label="Text odpovědi"
-					value={option.text}
-					emptyText="Napiš odpověď…"
-					onchange={(v) => set(option.id, 'text', v ?? '')}
-					disabled={fixedOptions}
-					ref={ref(option.id, 'text')}
+					label={row.text.label}
+					value={row.text.value}
+					emptyText={row.text.empty_text}
+					onchange={(v) => set(row.id, 'text', v ?? '')}
+					disabled={row.text.disabled}
+					ref={row.text.ref}
+					screen={rowScreen(i, 'text.value')}
 				/>
-				{#if !isOpen(optionKeys[i])}
-					{@const summary = summaryOf(option)}
-					{#if summary.length > 0}
+				{#if !row.open}
+					{#if row.summary.length > 0}
 						<button
 							type="button"
 							class="set-values"
 							aria-controls="{uid}-detail-{i}"
 							aria-expanded="false"
 							title="Upravit podrobnosti odpovědi"
-							onclick={() => openDetail(optionKeys[i], i)}
+							onclick={() => openDetail(row.key, i)}
 						>
-							{#each summary as part, j (j)}
+							{#each row.summary as part, j (j)}
 								{#if j > 0}<span aria-hidden="true"> · </span>{/if}
 								<span class="set-value">
 									{#if part.branch}<CornerDownRight size={12} aria-label="Kam dál:"
-										></CornerDownRight>{/if}{part.text}
+										></CornerDownRight>{/if}<span data-screen={rowScreen(i, `summary[${j}].text`)}
+										>{part.text}</span
+									>
 								</span>
 							{/each}
 						</button>
 					{/if}
 				{/if}
-				{#if cutOffNow !== null && cutOffNow.option_id === option.id}
+				{#if cutOffNow !== null && cutOffNow.option_id === row.id}
 					{@render cutOffLine(cutOffNow.text)}
 				{/if}
 			</div>
 
-			{#if feedback}
+			{#if row.feedback}
 				<div class="cell feedback">
 					<FocusField
-						label="Zpětná vazba k této odpovědi"
-						value={option.feedback}
+						label={row.feedback.label}
+						value={row.feedback.value}
 						multiline
-						emptyText={option.is_correct === true
-							? 'Potvrď, proč je to správně…'
-							: 'Pojmenuj chybu, která k této odpovědi vede…'}
-						ref={ref(option.id, 'feedback')}
-						onchange={(v) => set(option.id, 'feedback', v)}
+						emptyText={row.feedback.empty_text}
+						ref={row.feedback.ref}
+						onchange={(v) => set(row.id, 'feedback', v)}
+						screen={rowScreen(i, 'feedback.value')}
 					/>
 				</div>
 			{/if}
 
 			<div class="cell actions">
-				{#if detailOffered}
+				{#if answers.detail_offered}
 					<button
 						type="button"
 						class="more"
-						class:open={isOpen(optionKeys[i])}
-						aria-expanded={isOpen(optionKeys[i])}
+						class:open={row.open}
+						aria-expanded={row.open}
 						aria-controls="{uid}-detail-{i}"
-						aria-label={`Podrobnosti odpovědi ${option.text || 'bez textu'}`}
+						aria-label={row.more_label}
 						title="Podrobnosti odpovědi"
-						onclick={() => (opened[optionKeys[i]] = !isOpen(optionKeys[i]))}
+						onclick={() => store.ui.setDetail(detailKey(row.key), !row.open)}
 					>
 						<ChevronRight size={14} aria-hidden="true" />
 					</button>
 				{/if}
-				{#if !fixedOptions}
+				{#if row.trash}
 					<span class="trash">
 						<Button
 							variant="ghost"
 							size="s"
-							disabled={lastAnswers}
-							title={lastAnswers
-								? 'Otázka potřebuje aspoň dvě odpovědi, ze kterých žák vybírá'
-								: 'Smazat odpověď'}
-							ariaLabel={`Smazat odpověď ${option.text || 'bez textu'}`}
+							disabled={row.trash.disabled}
+							title={row.trash.title}
+							ariaLabel={row.trash.label}
 							onclick={() =>
 								store.trackReach('', () =>
 									withUndoNotice(
 										store,
 										'Odpověď smazána.',
-										() => store.apply((d) => deleteOption(d, block.block_id, step.id, option.id)),
+										() => store.apply((d) => deleteOption(d, block.block_id, step.id, row.id)),
 										{
-											lessonId: store.selection?.lessonId,
+											lessonId: store.open.lesson?.lesson_id,
 											blockId: block.block_id,
 											stepId: step.id
 										}
@@ -349,40 +278,38 @@
 				{/if}
 			</div>
 
-			{#if detailOffered && isOpen(optionKeys[i])}
+			{#if answers.detail_offered && row.open}
 				<div class="detail" id="{uid}-detail-{i}" role="group" aria-label="Podrobnosti odpovědi">
-					{#if branching}
+					{#if row.detail.branch}
 						<div class="field">
 							<span class="label">Kam dál</span>
 							<GoToPicker
-								{doc}
-								{block}
-								stepId={step.id}
-								value={option.go_to}
-								onchange={(v) => store.trackReach(option.id, () => set(option.id, 'go_to', v))}
+								branch={row.detail.branch}
+								screen={rowScreen(i, 'detail.branch.shown')}
+								onchange={(v) => store.trackReach(row.id, () => set(row.id, 'go_to', v))}
 							/>
 						</div>
 					{/if}
-					{#if quizMarks}
+					{#if row.detail.marks}
 						<div class="field">
 							<span class="label">Známka</span>
 							<Segmented
 								label="Známka za tuto odpověď"
-								options={MARKS}
-								value={option.mark ?? ''}
-								onchange={(v) => set(option.id, 'mark', v || undefined)}
+								options={row.detail.marks.options}
+								value={row.detail.marks.value}
+								onchange={(v) => set(row.id, 'mark', v || undefined)}
 							/>
 						</div>
 					{/if}
-					{#if movable}
+					{#if row.detail.order}
 						<div class="field">
 							<span class="label">Pořadí</span>
 							<span class="moves">
 								<Button
 									variant="secondary"
 									size="s"
-									disabled={i === 0}
-									ariaLabel={`Posunout nahoru: ${option.text || 'odpověď bez textu'}`}
+									disabled={row.detail.order.up_disabled}
+									ariaLabel={row.detail.order.up_label}
 									onclick={() => move(i, -1)}
 								>
 									<ArrowUp size={14} aria-hidden="true"></ArrowUp>
@@ -391,8 +318,8 @@
 								<Button
 									variant="secondary"
 									size="s"
-									disabled={i === options.length - 1}
-									ariaLabel={`Posunout dolů: ${option.text || 'odpověď bez textu'}`}
+									disabled={row.detail.order.down_disabled}
+									ariaLabel={row.detail.order.down_label}
 									onclick={() => move(i, 1)}
 								>
 									<ArrowDown size={14} aria-hidden="true"></ArrowDown>
@@ -401,15 +328,16 @@
 							</span>
 						</div>
 					{/if}
-					{#if advanced}
+					{#if row.detail.score}
 						<div class="field score">
 							<span class="label">Podíl bodů</span>
 							<NumberField
-								label="Podíl bodů za tuto odpověď"
-								value={option.score_koef}
-								emptyText="1.0"
-								ref={ref(option.id, 'score_koef')}
-								onwrite={(v) => set(option.id, 'score_koef', v)}
+								label={row.detail.score.label}
+								value={row.detail.score.value === '' ? undefined : row.detail.score.value}
+								emptyText={row.detail.score.empty_text}
+								ref={row.detail.score.ref}
+								screen={rowScreen(i, 'detail.score.value')}
+								onwrite={(v) => set(row.id, 'score_koef', v)}
 							/>
 						</div>
 					{/if}
@@ -422,13 +350,17 @@
 		{@render cutOffLine(cutOffNow.text)}
 	{/if}
 
-	{#each [...listIssues.errors, ...listIssues.warnings] as issue (issue.code)}
-		<p class="list-issue" class:warning={issue.severity === 'warning'}>
+	{#each answers.list_issues as issue, i (i)}
+		<p
+			class="list-issue"
+			class:warning={issue.severity === 'warning'}
+			data-screen="{screen}.list_issues[{i}].message"
+		>
 			{issue.message}
 		</p>
 	{/each}
 
-	{#if !fixedOptions}
+	{#if answers.can_add}
 		<div class="add">
 			<Button
 				variant="secondary"

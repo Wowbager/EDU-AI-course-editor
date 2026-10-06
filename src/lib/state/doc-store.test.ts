@@ -375,6 +375,35 @@ describe('what is open (store.open)', () => {
 		expect(store.open.card?.block_id).toBe(id);
 	});
 
+	it('keeps the open lesson when only the lesson was selected (nothing writes the card back)', () => {
+		const store = new DocStore();
+		store.apply((d, r) => addLesson(d, 'První', r));
+		store.apply((d, r) => addLesson(d, 'Druhá', r));
+		const [first, second] = store.doc.lessons.map((l) => l.lesson_id);
+		const card = store.apply((d, r) => addBlock(d, first, 'display', undefined, r)).ref!.blockId!;
+		store.apply((d) => bindBlock(d, second, card));
+		store.apply((d, r) => addStep(d, card, 'text', undefined, r));
+		store.selection = { lessonId: second };
+		expect(store.selection).toEqual({ lessonId: second });
+		expect(store.open.card?.block_id).toBe(card);
+		const step = store.doc.blocks.find((b) => b.block_id === card)!.steps![0];
+		store.apply((d) => setField(d, { blockId: card, stepId: step.id, field: 'content' }, 'Text'));
+		expect(store.open.lesson?.lesson_id).toBe(second);
+	});
+
+	it('counts the card that was open as left, even when the ref never named it', () => {
+		const store = loaded();
+		const lessonId = store.doc.lessons[0].lesson_id;
+		const [a, b] = store.doc.lessons[0].blocks.map((x) => x.block_id);
+		store.selection = { lessonId };
+		store.touchedCards = new Set();
+		// The lesson alone opens its first card, and that card has not been left yet.
+		expect(store.open.card?.block_id).toBe(a);
+		expect(store.touchedCards.has(a)).toBe(false);
+		store.selection = { lessonId, blockId: b };
+		expect(store.touchedCards.has(a)).toBe(true);
+	});
+
 	it('is empty for a course with nothing in it', () => {
 		const store = new DocStore();
 		expect(store.open.card).toBeUndefined();

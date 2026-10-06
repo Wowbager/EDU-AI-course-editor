@@ -19,7 +19,6 @@
 	import { DocStore } from '$lib/state/doc-store.svelte';
 	import { exposeScreen } from '$lib/state/screen-hook';
 	import { setStepView, setStore, setVersions } from '$lib/ui/context';
-	import { StepView } from '$lib/state/step-view.svelte';
 	import { VersionStore } from '$lib/state/versions/version-store.svelte';
 	import { BrowserBackend } from '$lib/state/versions/browser';
 	import { ServerBackend, workspaceKey } from '$lib/state/versions/server';
@@ -40,17 +39,13 @@
 	import { importCourseJson, emptyCourse } from '$lib/domain/document';
 	import { newCourseId } from '$lib/domain/ids';
 	import { looksLikeGpfTaxonomy, skillConfigFromGpfTaxonomy } from '$lib/domain/skill-config';
-	import { cardLabel } from '$lib/domain/naming';
-	import { lessonLabel } from '$lib/domain/naming';
-	import { fieldSpec } from '$lib/ui/fields';
 	import { loadSkillConfig } from '$lib/api/client';
-	import type { ImportNote } from '$lib/domain/legacy';
+	import { skillListNote, splitNotes } from '$lib/screen/notices';
 	import { X } from '@lucide/svelte';
-	import { cardsCount, counted } from '$lib/ui/plural';
 
 	const store = new DocStore();
 	setStore(store);
-	setStepView(new StepView());
+	setStepView(store.steps);
 	/**
 	 * The open course's version history (`state/versions/`). Loaded whenever the
 	 * course changes — a new course, an import, a restored draft — and nothing else:
@@ -115,8 +110,12 @@
 		});
 	});
 
-	let repairTarget = $state<{ blockId: string; stepId?: string } | null>(null);
-	let importNotes = $state<ImportNote[]>([]);
+	/** Where the delete-safety dialog is pointed, when it is open. */
+	const repairTarget = $derived(
+		store.ui.dialog?.kind === 'repair'
+			? { blockId: store.ui.dialog.blockId, stepId: store.ui.dialog.stepId }
+			: null
+	);
 
 	/**
 	 * Set when a file was imported. Nothing in it has been "touched", so its
@@ -125,32 +124,19 @@
 	 * does not set it: its unfinished parts are the teacher's own, and the top bar's
 	 * "N k dokončení" already counts them.
 	 */
-	let inherited = $state(false);
-	let importError = $state<string | null>(null);
-
-	/**
-	 * Which settings panel is open, if any. One variable rather than three booleans,
-	 * because the three are mutually exclusive and a modal stack is not a thing this
-	 * screen should be able to produce. It lives here and not in `DocStore`: the
-	 * store carries what the domain reads, and no command has an opinion about
-	 * dialogs.
-	 */
-	let modal = $state<
-		| { kind: 'course' }
-		| { kind: 'lesson'; lessonId: string; focusName?: boolean }
-		| { kind: 'card'; blockId: string }
-		| null
-	>(null);
 
 	const doc = $derived(store.doc);
 	const lesson = $derived(store.open.lesson);
 	const card = $derived(store.open.card);
-	const binding = $derived(store.open.binding);
 	const orphaned = $derived(store.open.orphaned);
-	const nameSpec = fieldSpec('block', 'name');
+	/** What the editor column says: the open card, or the sentence that stands in for it. */
+	const column = $derived(store.screen.card);
+	const dialogs = $derived(store.screen.dialogs);
+	const notices = $derived(store.screen.notices);
+	const closeDialog = () => (store.ui.dialog = null);
 
 	async function onimport(file: File) {
-		importError = null;
+		store.ui.importError = null;
 		try {
 			const text = await file.text();
 
@@ -160,11 +146,8 @@
 			const parsed: unknown = JSON.parse(text);
 			if (looksLikeGpfTaxonomy(parsed)) {
 				store.skillConfig = skillConfigFromGpfTaxonomy(parsed, file.name.replace(/\.json$/i, ''));
-				importNotes = [
-					{
-						code: 'IMPORT_SKILL_CONFIG',
-						message: `Načtena sada dovedností „${file.name}“ — ${store.skillConfig.vector?.dimension_count} dovedností. Vektory se nově kontrolují proti ní.`
-					}
+				store.ui.importNotes = [
+					skillListNote(file.name, store.skillConfig.vector?.dimension_count)
 				];
 				return;
 			}
@@ -178,7 +161,7 @@
 			)
 				return;
 			store.load(imported);
-			inherited = true;
+			store.ui.inherited = true;
 			// Every question gets its own card in the app; the teacher's cards stay
 			// as they were written (`domain/groups.ts`).
 			const { split, keptTogether } = store.splitQuestions();
@@ -189,34 +172,14 @@
 			void versions.recordImport($state.snapshot(store.source));
 			store.selection =
 				imported.lessons[0] !== undefined ? { lessonId: imported.lessons[0].lesson_id } : null;
-			importNotes = [...report.notes, ...splitNotes(split, keptTogether)];
+			store.ui.importNotes = [
+				...report.notes.map((note) => note.message),
+				...splitNotes(split, keptTogether)
+			];
 			void loadConfig();
 		} catch (error) {
-			importError = error instanceof Error ? error.message : String(error);
+			store.ui.importError = error instanceof Error ? error.message : String(error);
 		}
-	}
-
-	/** What splitting an imported course's questions did, said once and calmly. */
-	function splitNotes(split: string[], keptTogether: string[]): ImportNote[] {
-		const cards = cardsCount;
-		return [
-			...(split.length > 0
-				? [
-						{
-							code: 'IMPORT_QUESTIONS_SPLIT',
-							message: `${cards(split.length)} s více otázkami: každá otázka se teď žákovi hodnotí zvlášť. V editoru vypadají stejně.`
-						}
-					]
-				: []),
-			...(keptTogether.length > 0
-				? [
-						{
-							code: 'IMPORT_QUESTIONS_KEPT_TOGETHER',
-							message: `${cards(keptTogether.length)} s větvením mezi vlastními otázkami ${keptTogether.length === 1 ? 'zůstává celá' : 'zůstávají celé'} a hodnotí se jako celek, aby se nezměnila cesta žáka.`
-						}
-					]
-				: [])
-		];
 	}
 
 	async function loadConfig() {
@@ -227,17 +190,6 @@
 		const config = await loadSkillConfig(courseId).catch(() => null);
 		if (store.doc.course_id === courseId) store.skillConfig = config;
 	}
-
-	// Other parts of the editor read `store.selection.lessonId` (new cards, jumps), so
-	// the resolved card is written back when the selection does not name it. What is
-	// open is decided by `store.open`; this only keeps the ref in step with it. An
-	// orphan was selected on purpose, from the tree's list, and keeps its selection.
-	$effect(() => {
-		const { lesson: current, card: open, orphaned: orphan } = store.open;
-		if (current === undefined || open === undefined || orphan) return;
-		if (store.selection?.blockId === open.block_id) return;
-		store.selection = { lessonId: current.lesson_id, blockId: open.block_id };
-	});
 
 	onMount(() => {
 		exposeScreen(store);
@@ -385,76 +337,75 @@
 		<Sidebar
 			collapsed={store.ui.sidebarCollapsed}
 			ontoggle={() => (store.ui.sidebarCollapsed = !store.ui.sidebarCollapsed)}
-			oncourseSettings={() => (modal = { kind: 'course' })}
+			oncourseSettings={() => (store.ui.dialog = { kind: 'course' })}
 			onlessonSettings={(lessonId, options) =>
-				(modal = { kind: 'lesson', lessonId, focusName: options?.focusName })}
-			oncardSettings={(blockId) => (modal = { kind: 'card', blockId })}
-			onrepairBlock={(blockId) => (repairTarget = { blockId })}
+				(store.ui.dialog = { kind: 'lesson', lessonId, focusName: options?.focusName })}
+			oncardSettings={(blockId) => (store.ui.dialog = { kind: 'card', blockId })}
+			onrepairBlock={(blockId) => (store.ui.dialog = { kind: 'repair', blockId })}
 		/>
 
 		<main class="editor">
-			{#if importError !== null}
+			{#if notices.import_error}
 				<div class="banner error">
-					<strong>Soubor se nepodařilo načíst.</strong>
-					{importError}
-					<button type="button" aria-label="Zavřít" onclick={() => (importError = null)}
+					<strong>{notices.import_error.heading}</strong>
+					<span data-screen="notices.import_error.message">{notices.import_error.message}</span>
+					<button type="button" aria-label="Zavřít" onclick={() => (store.ui.importError = null)}
 						><X size={16} aria-hidden="true"></X></button
 					>
 				</div>
 			{/if}
 
-			{#if inherited && !store.ui.validationOpen && !store.reviewing && store.listed.errors.length > 0}
+			{#if notices.unfinished}
 				<div class="banner unfinished" role="status">
-					V kurzu je ještě {counted(store.listed.errors.length, 'věc', 'věci', 'věcí')} k dokončení.
+					<span data-screen="notices.unfinished.text">{notices.unfinished.text}</span>
 					<button
 						type="button"
 						class="show"
 						onclick={() => {
 							// The same list the top bar's count opens.
 							store.ui.validationOpen = true;
-							inherited = false;
+							store.ui.inherited = false;
 						}}>Zobrazit</button
 					>
-					<button type="button" aria-label="Skrýt oznámení" onclick={() => (inherited = false)}
+					<button
+						type="button"
+						aria-label="Skrýt oznámení"
+						onclick={() => (store.ui.inherited = false)}
 						><X size={16} aria-hidden="true"></X></button
 					>
 				</div>
 			{/if}
 
-			{#if importNotes.length > 0}
+			{#if notices.import_notes}
 				<div class="banner">
-					<strong>Při načtení se něco převedlo ({importNotes.length}):</strong>
+					<strong data-screen="notices.import_notes.heading">{notices.import_notes.heading}</strong>
 					<ul>
-						{#each importNotes.slice(0, 8) as note (note.code + (note.ref?.blockId ?? '') + note.message)}
-							<li>{note.message}</li>
+						{#each notices.import_notes.items as note, i (i)}
+							<li data-screen="notices.import_notes.items[{i}]">{note}</li>
 						{/each}
-						{#if importNotes.length > 8}<li>
-								…a dalších {importNotes.length - 8}.
+						{#if notices.import_notes.more}<li data-screen="notices.import_notes.more">
+								{notices.import_notes.more}
 							</li>{/if}
 					</ul>
-					<button type="button" aria-label="Zavřít" onclick={() => (importNotes = [])}
+					<button type="button" aria-label="Zavřít" onclick={() => (store.ui.importNotes = [])}
 						><X size={16} aria-hidden="true"></X></button
 					>
 				</div>
 			{/if}
 
-			{#if lesson === undefined && card === undefined}
-				<p class="empty">Začni přidáním lekce vlevo.</p>
-			{:else if card === undefined}
-				<p class="empty">
-					Lekce „{lesson === undefined ? '' : lessonLabel(doc, lesson)}“ zatím nemá kartu. Přidej ji
-					v seznamu vlevo — bez karty žák v lekci nic neuvidí.
-				</p>
+			{#if column.state !== 'card' || column.card === null || card === undefined}
+				<p class="empty" data-screen="card.empty_text">{column.empty_text}</p>
 			{:else}
+				{@const view = column.card}
 				<header class="card-head">
 					<!--
                         A card in a lesson is named by the tree and the heading below, so
                         there is nothing to say above it. The one thing worth saying is
                         that no lesson holds it.
                     -->
-					{#if orphaned}
+					{#if view.orphan_text}
 						<p class="crumb">
-							<span class="warn">Karta mimo lekce — žák se k ní nedostane</span>
+							<span class="warn" data-screen="card.card.orphan_text">{view.orphan_text}</span>
 						</p>
 					{/if}
 					<!--
@@ -468,12 +419,13 @@
 					-->
 					<h1>
 						<FocusField
-							label={nameSpec?.label ?? 'Název karty'}
-							value={card.name}
+							label={view.heading.label}
+							value={view.heading.value}
 							ref={{ blockId: card.block_id, field: 'name' }}
-							placeholder={cardLabel(doc, card, { lessonId: lesson?.lesson_id, max: 70 })}
+							placeholder={view.heading.placeholder}
 							placeholderKind="stand-in"
 							density="compact"
+							screen="card.card.heading.value"
 							onchange={(v) =>
 								store.apply((d) =>
 									setField(
@@ -488,17 +440,17 @@
 						/>
 					</h1>
 					<!-- Out of flow: it appears over what is below, so focusing the title moves nothing. -->
-					<p class="card-head-hint">{nameSpec?.hint}</p>
+					<p class="card-head-hint">{view.heading.hint}</p>
 				</header>
 
 				<CardEditor
-					{doc}
 					block={card}
-					{binding}
+					{view}
 					lessonId={orphaned ? undefined : lesson?.lesson_id}
-					onsettings={() => (modal = { kind: 'card', blockId: card.block_id })}
-					onrepairBlock={(blockId) => (repairTarget = { blockId })}
-					onrepairStep={(blockId, stepId) => (repairTarget = { blockId, stepId })}
+					onsettings={() => (store.ui.dialog = { kind: 'card', blockId: card.block_id })}
+					onrepairBlock={(blockId) => (store.ui.dialog = { kind: 'repair', blockId })}
+					onrepairStep={(blockId, stepId) =>
+						(store.ui.dialog = { kind: 'repair', blockId, stepId })}
 				/>
 			{/if}
 		</main>
@@ -517,27 +469,25 @@
 		</div>
 	</div>
 
-	{#if modal?.kind === 'course'}
-		<CourseSettings {doc} onclose={() => (modal = null)} />
-	{:else if modal?.kind === 'lesson'}
+	{#if dialogs.course_settings}
+		<CourseSettings view={dialogs.course_settings} onclose={closeDialog} />
+	{:else if dialogs.lesson_settings}
 		<LessonSettings
-			{doc}
-			lessonId={modal.lessonId}
-			focusName={modal.focusName}
-			onclose={() => (modal = null)}
+			view={dialogs.lesson_settings}
+			focusName={store.ui.dialog?.kind === 'lesson' ? store.ui.dialog.focusName : false}
+			onclose={closeDialog}
 		/>
-	{:else if modal?.kind === 'card' && card !== undefined && card.block_id === modal.blockId}
+	{:else if dialogs.card_settings && card !== undefined}
 		<CardSettings
-			{doc}
+			view={dialogs.card_settings}
 			block={card}
-			{binding}
 			lessonId={orphaned ? undefined : lesson?.lesson_id}
-			onclose={() => (modal = null)}
+			onclose={closeDialog}
 		/>
 	{/if}
 
-	{#if repairTarget !== null}
-		<RepairDialog {doc} target={repairTarget} onclose={() => (repairTarget = null)} />
+	{#if dialogs.repair && repairTarget !== null}
+		<RepairDialog view={dialogs.repair} target={repairTarget} onclose={closeDialog} />
 	{/if}
 
 	<AiPanel />

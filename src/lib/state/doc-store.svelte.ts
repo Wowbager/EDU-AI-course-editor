@@ -24,7 +24,9 @@ import { validate, type ValidationResult } from '$lib/domain/validate';
 import {
 	courseVersionState,
 	type CourseVersionState,
-	type VersionIndex
+	type Publication,
+	type VersionIndex,
+	type VersionMeta
 } from '$lib/domain/versions';
 import { courseTotals, type CourseTotals } from '$lib/domain/derive';
 import { emptyCourse, serialise } from '$lib/domain/document';
@@ -43,12 +45,13 @@ import type { CommandResult } from '$lib/domain/commands';
 import type { Mode } from '$lib/ui/fields';
 import { allows, isFeedbackRef } from '$lib/ui/fields';
 import { fieldKey, issueKey, madeUnreachable } from '$lib/ui/issue-visibility';
-import { issueSets } from '$lib/screen/issues';
+import { issueSets, matchesRef, shownAt } from '$lib/screen/issues';
 import { cutOffText } from '$lib/screen/notices';
 import { resolveOpen } from '$lib/screen/open';
-import type { DraftStatus, OpenState, SkillConfigStatus } from '$lib/screen/types';
+import type { DraftStatus, HistoryInput, OpenState, SkillConfigStatus } from '$lib/screen/types';
 import { PreviewState } from './preview-state.svelte';
 import { ScreenModel } from './screen.svelte';
+import { StepView } from './step-view.svelte';
 import { UiState } from './ui-state.svelte';
 import { AiState } from './ai-state.svelte';
 
@@ -104,6 +107,18 @@ const MAX_UNDO = 200;
 export type { DraftStatus, OpenState, SkillConfigStatus };
 export { resolveOpen };
 
+/** What the store reads of the `VersionStore` it is attached to. */
+export interface History {
+	index: VersionIndex;
+	courseId: string | null;
+	loading: boolean;
+	versions?: readonly (VersionMeta & { keptIn: string[] })[];
+	published?: Publication | null;
+	backends?: readonly string[];
+	unavailable?: readonly string[];
+	dialogOpen?: boolean;
+}
+
 export class DocStore {
 	/** The course as exported: one block per question. */
 	source = $state<CourseV2>(emptyCourse('NEW', 'Nový kurz'));
@@ -135,6 +150,8 @@ export class DocStore {
 	ai = new AiState();
 	/** What the preview column has learned about the player (`screen.preview`). */
 	preview = new PreviewState();
+	/** Which steps of the open card are folded, and whether one is being dragged (`screen.card`). */
+	steps = new StepView();
 	/** The autosave of the draft, reported by the `DraftSession`; null before it exists. */
 	draftStatus = $state<DraftStatus | null>(null);
 	/**
@@ -219,7 +236,9 @@ export class DocStore {
 		return this.#selection;
 	}
 	set selection(ref: Ref | null) {
-		const left = this.#selection?.blockId;
+		// The card that was open, which is not always the one the ref names: a selection
+		// of only a lesson opens its first card.
+		const left = this.#selection?.blockId ?? this.open.card?.block_id;
 		if (left !== undefined && left !== ref?.blockId) this.touchCard(left);
 		this.#selection = ref;
 	}
@@ -569,7 +588,7 @@ export class DocStore {
 	 * being worked in while it still holds the card.
 	 */
 	#inSameLesson(ref: Ref): Ref {
-		const lessonId = this.#selection?.lessonId;
+		const lessonId = this.open.lesson?.lesson_id;
 		if (ref.lessonId !== undefined || ref.blockId === undefined || lessonId === undefined) {
 			return ref;
 		}
@@ -856,36 +875,44 @@ export class DocStore {
 
 	/** Shown issues addressed at a given place — what the inline markers show. */
 	issuesAt(ref: Ref) {
-		const matches = (issue: { ref: Ref }) => {
-			let matrix = [0, 0, 0, 0, 0];
-			if (ref.lessonId) matrix[0] = ref.lessonId === issue.ref.lessonId ? 1 : -1;
-			if (ref.blockId) matrix[1] = ref.blockId === issue.ref.blockId ? 1 : -1;
-			if (ref.stepId) matrix[2] = ref.stepId === issue.ref.stepId ? 1 : -1;
-			if (ref.optionId) matrix[3] = ref.optionId === issue.ref.optionId ? 1 : -1;
-			if (ref.field) matrix[4] = ref.field === issue.ref.field ? 1 : -1;
+		return shownAt(this.shown, ref);
+	}
 
-			if (matrix.some((x) => x === -1)) return false;
-			return matrix.some((x) => x === 1);
-		};
-
-		return {
-			errors: this.shown.errors.filter(matches),
-			warnings: this.shown.warnings.filter(matches)
-		};
+	/**
+	 * The same, as the model's own items: `index` is the place in `screen.issues.items`
+	 * that draws it (`data-screen="issues.items[index].message"`).
+	 */
+	markersAt(ref: Ref): { index: number; severity: 'error' | 'warning'; message: string }[] {
+		return this.screen.issues.items.flatMap((item, index) =>
+			item.visibility === 'shown' && matchesRef(item.ref, ref)
+				? [{ index, severity: item.severity, message: item.message }]
+				: []
+		);
 	}
 
 	/**
 	 * The version history this store's course is read against. It is read, never
 	 * written, here: the `VersionStore` owns loading and saving.
 	 */
-	#history = $state.raw<{
-		index: VersionIndex;
-		courseId: string | null;
-		loading: boolean;
-	} | null>(null);
+	#history = $state.raw<History | null>(null);
 
-	attachHistory(history: { index: VersionIndex; courseId: string | null; loading: boolean }) {
+	attachHistory(history: History) {
 		this.#history = history;
+	}
+
+	/** The history as plain data, for the screen model; null before one is attached. */
+	get historyInput(): HistoryInput | null {
+		const h = this.#history;
+		if (h === null || h.versions === undefined) return null;
+		return {
+			index: h.index,
+			versions: h.versions.map((v) => ({ ...v })),
+			published: h.published ?? null,
+			backends: h.backends ?? [],
+			unavailable: h.unavailable ?? [],
+			loading: h.loading,
+			dialogOpen: h.dialogOpen ?? false
+		};
 	}
 
 	/**

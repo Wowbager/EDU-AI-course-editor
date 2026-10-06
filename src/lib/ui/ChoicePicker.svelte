@@ -6,9 +6,11 @@
 	 *
 	 * It is the box only: the owner has the trigger and calls `show(anchor)`. A native
 	 * popover placed once with `placeMenu`, so it closes on Escape and on a click
-	 * outside, and gives focus back to the trigger. The data is `PickerStep`s
-	 * (`choice-picker.ts`): groups of two-line items, a disabled item that says why, a
-	 * marked current one, and an item that opens a next step with a „Zpět“ link.
+	 * outside, and gives focus back to the trigger. What it lists, and which step the
+	 * walk has reached, is not its own: `id` names what it picks, `store.ui.picker`
+	 * holds the path and the search, and `store.screen.pickers.open` is the step as it is
+	 * drawn (`screen/pickers.ts`), so an AI is told the same list and the same
+	 * disabled reasons the teacher reads.
 	 *
 	 * Keys: arrows move through the items, Enter picks, and typing anywhere goes to the
 	 * search field, which exists only when the list is longer than eight items.
@@ -16,34 +18,24 @@
 	import { flushSync, tick } from 'svelte';
 	import { Check, ChevronLeft, ChevronRight } from '@lucide/svelte';
 	import { placeMenu, VIEWPORT_MARGIN } from './placement';
-	import {
-		filterGroups,
-		firstToFocus,
-		followPath,
-		needsSearch,
-		pickable,
-		type PickerItem,
-		type PickerStep
-	} from './choice-picker';
+	import { useStore } from './context';
+	import type { PickerItemView } from '$lib/screen/types';
 
 	interface Props {
-		/** The accessible name of the box. */
-		label: string;
-		root: PickerStep;
+		/** What this picker picks (`screen/pickers.ts` `pickerSource`). */
+		id: string;
 		/** The ids of the items picked, first step to last. */
 		onpick: (path: string[]) => void;
 	}
-	let { label, root, onpick }: Props = $props();
+	let { id, onpick }: Props = $props();
 
+	const store = useStore();
 	let panel = $state<HTMLElement | null>(null);
-	/** The ids walked through so far; the step shown is the one they lead to. */
-	let path = $state<string[]>([]);
-	let query = $state('');
-	/** Where the walk started, so „Zpět“ never goes above it. */
-	const trail = $derived(followPath(root, path));
-	const step = $derived(trail[trail.length - 1]);
-	const searchable = $derived(needsSearch(step.groups));
-	const shown = $derived(filterGroups(step.groups, searchable ? query : ''));
+	/** The model of this picker while it is the open one. */
+	const model = $derived(store.screen.pickers.open?.id === id ? store.screen.pickers.open : null);
+	const walk = $derived(store.ui.picker?.id === id ? store.ui.picker : null);
+	const path = $derived(walk?.path ?? []);
+	const screen = (rest: string) => `pickers.open.${rest}`;
 
 	const isShowing = () => panel?.matches(':popover-open') ?? false;
 
@@ -57,8 +49,7 @@
 	 */
 	export function show(anchor: HTMLElement, at: string[] = []) {
 		if (panel === null || isShowing()) return;
-		path = at;
-		query = '';
+		store.ui.picker = { id, path: at, query: '' };
 		// Rendered before it is measured, or the box is placed by its previous size.
 		flushSync();
 		panel.showPopover();
@@ -105,22 +96,21 @@
 		if (current) {
 			current.focus();
 			current.scrollIntoView({ block: 'nearest' });
-		} else if (searchable) panel?.querySelector<HTMLElement>('.search')?.focus();
+		} else if (model?.searchable) panel?.querySelector<HTMLElement>('.search')?.focus();
 		else (items()[0] ?? panel?.querySelector<HTMLElement>('.back'))?.focus();
 	}
 
 	/** A step change can make the box taller or shorter; keep it where it was anchored. */
 	async function enter(next: string[]) {
-		path = next;
-		query = '';
+		store.ui.picker = { id, path: next, query: '' };
 		await tick();
 		if (anchorRef) place(anchorRef);
 		focusStart();
 	}
 
-	function choose(item: PickerItem) {
-		if (item.disabledReason !== undefined) return;
-		if (item.next !== undefined) return void enter([...path, item.id]);
+	function choose(item: PickerItemView) {
+		if (item.disabled_reason !== null) return;
+		if (item.next) return void enter([...path, item.id]);
 		const picked = [...path, item.id];
 		close();
 		onpick(picked);
@@ -137,7 +127,7 @@
 			const down = event.key === 'ArrowDown';
 			if (at === -1) {
 				(down ? list[0] : list[list.length - 1])?.focus();
-			} else if (!down && at === 0 && searchable) {
+			} else if (!down && at === 0 && model?.searchable) {
 				panel?.querySelector<HTMLElement>('.search')?.focus();
 			} else {
 				list[Math.min(list.length - 1, Math.max(0, at + (down ? 1 : -1)))]?.focus();
@@ -145,10 +135,12 @@
 			list.find((el) => el === document.activeElement)?.scrollIntoView({ block: 'nearest' });
 		} else if (event.key === 'Enter' && target.classList.contains('search')) {
 			event.preventDefault();
-			const first = pickable(shown)[0];
+			const first = model?.groups
+				.flatMap((g) => g.items)
+				.find((item) => item.disabled_reason === null);
 			if (first) choose(first);
 		} else if (
-			searchable &&
+			model?.searchable &&
 			!target.classList.contains('search') &&
 			event.key.length === 1 &&
 			!event.ctrlKey &&
@@ -162,7 +154,11 @@
 	}
 
 	let open = $state(false);
-	const ontoggle = (event: Event) => (open = (event as ToggleEvent).newState === 'open');
+	function ontoggle(event: Event) {
+		open = (event as ToggleEvent).newState === 'open';
+		// Closed by Escape or a click outside: the walk ends with the box.
+		if (!open && store.ui.picker?.id === id) store.ui.picker = null;
+	}
 
 	$effect(() => {
 		if (!open) return;
@@ -185,62 +181,80 @@
 	popover="auto"
 	role="dialog"
 	tabindex="-1"
-	aria-label={label}
+	aria-label={model?.label}
 	bind:this={panel}
 	{ontoggle}
 	{onkeydown}
 >
-	<h4>{step.title}</h4>
-	{#if trail.length > 1}
-		<button type="button" class="back" onclick={back}>
-			<ChevronLeft size={14} aria-hidden="true"></ChevronLeft>
-			Zpět
-		</button>
-	{/if}
-	{#if step.subject}
-		<div class="subject">{step.subject}</div>
-	{/if}
-	{#if searchable}
-		<input
-			class="search"
-			type="search"
-			placeholder="Hledat"
-			aria-label="Hledat v nabídce"
-			autocomplete="off"
-			bind:value={query}
-		/>
-	{/if}
-	{#each shown as group, g (`${g}-${group.heading ?? ''}`)}
-		{#if group.heading}<div class="area">{group.heading}</div>{/if}
-		{#each group.items as item (item.id)}
-			<button
-				type="button"
-				class="choice"
-				class:current={item.current}
-				class:disabled={item.disabledReason !== undefined}
-				aria-disabled={item.disabledReason !== undefined ? 'true' : undefined}
-				aria-current={item.current ? 'true' : undefined}
-				onclick={() => choose(item)}
-			>
-				<span class="line">
-					<span class="choice-title">{item.name}</span>
-					{#if item.hint}<span class="hint">{item.hint}</span>{/if}
-					{#if item.current}
-						<Check size={14} aria-hidden="true"></Check>
-						<span class="sr">(vybráno)</span>
-					{:else if item.next}
-						<ChevronRight size={14} aria-hidden="true"></ChevronRight>
-					{/if}
-				</span>
-				{#if item.detail}<span class="choice-desc">{item.detail}</span>{/if}
-				{#if item.disabledReason}<span class="reason">{item.disabledReason}</span>{/if}
+	{#if model}
+		<h4 data-screen={screen('title')}>{model.title}</h4>
+		{#if model.can_go_back}
+			<button type="button" class="back" onclick={back}>
+				<ChevronLeft size={14} aria-hidden="true"></ChevronLeft>
+				Zpět
 			</button>
+		{/if}
+		{#if model.subject}
+			<div class="subject" data-screen={screen('subject')}>{model.subject}</div>
+		{/if}
+		{#if model.searchable}
+			<input
+				class="search"
+				type="search"
+				placeholder="Hledat"
+				aria-label="Hledat v nabídce"
+				autocomplete="off"
+				value={model.query}
+				oninput={(e) => {
+					if (store.ui.picker !== null) {
+						store.ui.picker = { ...store.ui.picker, query: e.currentTarget.value };
+					}
+				}}
+			/>
+		{/if}
+		{#each model.groups as group, g (`${g}-${group.heading ?? ''}`)}
+			{#if group.heading}
+				<div class="area" data-screen={screen(`groups[${g}].heading`)}>{group.heading}</div>
+			{/if}
+			{#each group.items as item, i (item.id)}
+				<button
+					type="button"
+					class="choice"
+					class:current={item.current}
+					class:disabled={item.disabled_reason !== null}
+					aria-disabled={item.disabled_reason !== null ? 'true' : undefined}
+					aria-current={item.current ? 'true' : undefined}
+					onclick={() => choose(item)}
+				>
+					<span class="line">
+						<span class="choice-title" data-screen={screen(`groups[${g}].items[${i}].name`)}
+							>{item.name}</span
+						>
+						{#if item.hint}<span class="hint" data-screen={screen(`groups[${g}].items[${i}].hint`)}
+								>{item.hint}</span
+							>{/if}
+						{#if item.current}
+							<Check size={14} aria-hidden="true"></Check>
+							<span class="sr">(vybráno)</span>
+						{:else if item.next}
+							<ChevronRight size={14} aria-hidden="true"></ChevronRight>
+						{/if}
+					</span>
+					{#if item.detail}<span
+							class="choice-desc"
+							data-screen={screen(`groups[${g}].items[${i}].detail`)}>{item.detail}</span
+						>{/if}
+					{#if item.disabled_reason}<span
+							class="reason"
+							data-screen={screen(`groups[${g}].items[${i}].disabled_reason`)}
+							>{item.disabled_reason}</span
+						>{/if}
+				</button>
+			{/each}
+		{:else}
+			<p class="empty" data-screen={screen('empty_text')}>{model.empty_text}</p>
 		{/each}
-	{:else}
-		<p class="empty">
-			{query.trim() !== '' ? 'Nic takového tu není.' : (step.empty ?? 'Není z čeho vybírat.')}
-		</p>
-	{/each}
+	{/if}
 </div>
 
 <style>

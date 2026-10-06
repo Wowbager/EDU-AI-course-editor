@@ -15,69 +15,33 @@
 	 * cycle (Kontrola kurzu's „na sebe čekají navzájem“), so it is listed but cannot be
 	 * picked. A card already used by another rule of this card is listed the same way.
 	 *
-	 * The app does not enforce these yet. The note says so rather than promising an
-	 * effect the student will never experience.
+	 * The sentences, the picker's list and its disabled reasons are the model's
+	 * (`screen/prerequisites.ts`); which rule is being changed and what was refused are
+	 * `store.ui.prerequisite`. The app does not enforce these yet. The note says so
+	 * rather than promising an effect the student will never experience.
 	 */
 	import { withUndoNotice } from './undo-notice';
-	import { parseNumberInput } from '$lib/domain/number-input';
-	import type { BlockV2, CourseV2, PrerequisiteRule } from '$lib/domain/schema';
+	import type { BlockV2, PrerequisiteRule } from '$lib/domain/schema';
+	import type { PrerequisitesView } from '$lib/screen/types';
 	import { useStore } from '$lib/ui/context';
 	import Button from '$lib/ui/Button.svelte';
+	import NumberField from '$lib/ui/NumberField.svelte';
 	import ChoicePicker from '$lib/ui/ChoicePicker.svelte';
-	import type { PickerStep } from '$lib/ui/choice-picker';
 	import { setField } from '$lib/domain/commands';
-	import { cardGroups, cardNames } from '$lib/domain/naming';
-	import { cardsWaitingFor } from '$lib/domain/validate';
-	import { skillTree } from '$lib/domain/skill-config';
 	import { Plus, Trash2 } from '@lucide/svelte';
 
 	interface Props {
-		doc: CourseV2;
 		block: BlockV2;
+		view: PrerequisitesView;
+		/** Where `view` is in the model, for `data-screen`. */
+		screen: string;
 	}
-	let { doc, block }: Props = $props();
+	let { block, view, screen }: Props = $props();
 
 	const store = useStore();
 	const rules = $derived(block.learning?.prerequisites ?? []);
-	const tree = $derived(skillTree(store.skillConfig));
-	const advanced = $derived(store.mode === 'advanced');
+	/** A new rule asks for this much of the skill or card. */
 	const DEFAULT_LEVEL = 0.5;
-
-	const names = $derived(cardNames(doc));
-	/** The skill level a rule's code stands for, with where it sits in the tree. */
-	const levelOf = $derived(
-		new Map(
-			tree.flatMap((area) =>
-				area.skills.flatMap((skill) =>
-					skill.levels.map((l) => [l.dimension.code, { area, skill, level: l }] as const)
-				)
-			)
-		)
-	);
-
-	/** What a rule says before „aspoň“, in words. */
-	function describe(rule: PrerequisiteRule): { text: string; where?: string; code?: string } {
-		if (rule.block_id !== undefined) {
-			const card = names.get(rule.block_id);
-			if (card === undefined) return { text: 'Nejdřív karta, která už neexistuje' };
-			return {
-				text: `Nejdřív karta „${card.name}“`,
-				where: card.collides ? card.place : card.lesson
-			};
-		}
-		if (rule.skill !== undefined) {
-			const found = levelOf.get(rule.skill);
-			if (found === undefined) return { text: 'Nejdřív dovednost, která už není v nastavení' };
-			const many = found.skill.levels.length > 1;
-			return {
-				text: `Nejdřív dovednost ${found.skill.name}${many ? ` · Úroveň ${found.level.level}` : ''}`,
-				code: advanced ? rule.skill : undefined
-			};
-		}
-		return { text: 'Nejdřív … (vyber kartu nebo dovednost)' };
-	}
-
-	let problem = $state('');
 
 	function write(next: PrerequisiteRule[]) {
 		store.apply((d) =>
@@ -91,127 +55,32 @@
 
 	const remove = (index: number) =>
 		withUndoNotice(store, 'Předpoklad odebrán.', () => write(rules.filter((_, i) => i !== index)), {
-			lessonId: store.selection?.lessonId,
+			lessonId: store.open.lesson?.lesson_id,
 			blockId: block.block_id
 		});
 
-	/** The stored 0–1 as a whole percentage. */
-	const percent = (level: number) => Math.round(level * 100);
-
-	function setLevel(index: number, input: HTMLInputElement) {
-		const value = parseNumberInput(input.value);
-		if (value === undefined) {
-			// The level is required by the format: emptying the field keeps the old one.
-			problem = 'Doplň, kolik procent musí žák zvládat. Zůstala původní hodnota.';
-			input.value = String(percent(rules[index]?.min_level ?? DEFAULT_LEVEL));
+	/** The level is required by the format: emptying the field keeps the old one. */
+	function setLevel(index: number, percent: number | undefined) {
+		if (percent === undefined) {
+			store.ui.prerequisite.problem =
+				'Doplň, kolik procent musí žák zvládat. Zůstala původní hodnota.';
 			return;
 		}
-		problem = '';
-		const level = Math.min(100, Math.max(0, value)) / 100;
-		write(rules.map((rule, i) => (i === index ? { ...rule, min_level: level } : rule)));
-		input.value = String(percent(level));
+		store.ui.prerequisite.problem = '';
+		write(rules.map((rule, i) => (i === index ? { ...rule, min_level: percent / 100 } : rule)));
 	}
 
 	// The picker: one box, opened from „Přidat předpoklad“ (a new rule) or from a rule's
 	// line (`editing` is its index, and its choice is marked).
 	let picker = $state<ReturnType<typeof ChoicePicker> | null>(null);
-	let editing = $state<number | null>(null);
-
-	const waiting = $derived(cardsWaitingFor(doc, block.block_id));
-	const cardStep = $derived.by((): PickerStep => {
-		const own = editing === null ? undefined : rules[editing];
-		const used = new Set(
-			rules.flatMap((r, i) => (r.block_id !== undefined && i !== editing ? [r.block_id] : []))
-		);
-		return {
-			title: 'Jaká karta',
-			empty: 'Žádná další karta, na kterou by šlo navázat.',
-			groups: cardGroups(doc, { exclude: block.block_id }).map((group) => ({
-				heading: group.title,
-				items: group.cards.map((card) => ({
-					id: card.id,
-					name: card.name,
-					detail: card.collides ? card.place : undefined,
-					current: own?.block_id === card.id,
-					disabledReason: waiting.has(card.id)
-						? 'čeká na tuhle kartu, nemůže být před ní'
-						: used.has(card.id)
-							? 'už je v předpokladech'
-							: undefined
-				}))
-			}))
-		};
-	});
-
-	const skillStep = $derived.by((): PickerStep => {
-		const own = editing === null ? undefined : rules[editing]?.skill;
-		return {
-			title: 'Dovednost',
-			empty: 'Kurz nemá nastavené dovednosti.',
-			groups: tree.map((area) => ({
-				heading: area.name,
-				items: area.skills.map((skill) => {
-					const levelItems = skill.levels.map((l) => ({
-						id: l.dimension.code,
-						name: `Úroveň ${l.level}`,
-						detail: l.dimension.name,
-						hint: advanced ? l.dimension.code : undefined,
-						current: own === l.dimension.code
-					}));
-					// A skill with one level has nothing to choose after it.
-					return skill.levels.length === 1
-						? { ...levelItems[0], name: skill.name, detail: undefined }
-						: {
-								id: `${area.code}/${skill.code}`,
-								name: skill.name,
-								current: levelItems.some((l) => l.current),
-								next: { title: 'Úroveň', subject: skill.name, groups: [{ items: levelItems }] }
-							};
-				})
-			}))
-		};
-	});
-
-	const root = $derived<PickerStep>({
-		title: 'Na co karta čeká?',
-		groups: [
-			{
-				items: [
-					{
-						id: 'card',
-						name: 'Jinou kartu',
-						detail: 'Počká, až žák zvládne jinou kartu.',
-						current: editing !== null && rules[editing]?.block_id !== undefined,
-						next: cardStep
-					},
-					{
-						id: 'skill',
-						name: 'Dovednost',
-						detail: 'Počká, až žák zvládne dovednost na určité úrovni.',
-						current: editing !== null && rules[editing]?.skill !== undefined,
-						next: skillStep
-					}
-				]
-			}
-		]
-	});
-
-	/** Where the picker opens for a rule: on the list its current choice is in. */
-	function pathOf(rule: PrerequisiteRule): string[] {
-		if (rule.block_id !== undefined) return ['card'];
-		const found = rule.skill === undefined ? undefined : levelOf.get(rule.skill);
-		if (found === undefined) return [];
-		return found.skill.levels.length > 1
-			? ['skill', `${found.area.code}/${found.skill.code}`]
-			: ['skill'];
-	}
 
 	function openFor(anchor: HTMLElement, index: number | null) {
-		editing = index;
-		picker?.show(anchor, index === null ? [] : pathOf(rules[index]));
+		store.ui.prerequisite.editing = index;
+		picker?.show(anchor, index === null ? [] : (view.rules[index]?.path ?? []));
 	}
 
 	function picked(path: string[]) {
+		const editing = store.ui.prerequisite.editing;
 		const [kind, ...rest] = path;
 		const choice: Partial<PrerequisiteRule> =
 			kind === 'card'
@@ -222,7 +91,7 @@
 			// A rule names a card or a skill, never both; the percentage stays.
 			write(rules.map((rule, i) => (i === editing ? { ...rule, ...choice } : rule)));
 		}
-		editing = null;
+		store.ui.prerequisite.editing = null;
 	}
 </script>
 
@@ -232,8 +101,7 @@
 		<span class="note">Aplikace je zatím nevynucuje — slouží jako dokumentace návaznosti.</span>
 	</header>
 
-	{#each rules as rule, index (index)}
-		{@const said = describe(rule)}
+	{#each view.rules as rule, index (index)}
 		<div class="rule">
 			<button
 				type="button"
@@ -242,21 +110,26 @@
 				title="Změnit, na co karta čeká"
 				onclick={(e) => openFor(e.currentTarget, index)}
 			>
-				{said.text}{#if said.where}<span class="where">({said.where})</span
-					>{/if}{#if said.code}<span class="code">{said.code}</span>{/if}
+				<span data-screen="{screen}.rules[{index}].text">{rule.text}</span>{#if rule.where}<span
+						class="where"
+						>(<span data-screen="{screen}.rules[{index}].where">{rule.where}</span>)</span
+					>{/if}{#if rule.code}<span class="code" data-screen="{screen}.rules[{index}].code"
+						>{rule.code}</span
+					>{/if}
 			</button>
 			<span class="sep" aria-hidden="true">·</span>
 			<label>
 				aspoň
-				<input
-					type="number"
-					min="0"
-					max="100"
-					step="5"
-					aria-label="Požadované zvládnutí v procentech"
-					value={percent(rule.min_level)}
-					onchange={(e) => setLevel(index, e.currentTarget)}
-				/>
+				<span class="level"
+					><NumberField
+						label={rule.min_level.label}
+						value={rule.min_level.value}
+						ref={rule.min_level.ref}
+						bounds={rule.min_level}
+						screen="{screen}.rules[{index}].min_level.value"
+						onwrite={(v) => setLevel(index, v)}
+					/></span
+				>
 				%
 			</label>
 
@@ -272,8 +145,8 @@
 		</div>
 	{/each}
 
-	{#if problem !== ''}
-		<p class="problem" role="alert">{problem}</p>
+	{#if view.problem !== ''}
+		<p class="problem" role="alert" data-screen="{screen}.problem">{view.problem}</p>
 	{/if}
 
 	<Button
@@ -287,7 +160,7 @@
 		Přidat předpoklad
 	</Button>
 
-	<ChoicePicker label="Na co karta čeká?" {root} onpick={picked} bind:this={picker} />
+	<ChoicePicker id="prerequisite" onpick={picked} bind:this={picker} />
 </section>
 
 <style>
@@ -365,15 +238,9 @@
 		font-size: var(--text-s);
 	}
 
-	/* A value, not a placeholder: full text colour. */
-	input {
-		width: 64px;
-		padding: 3px 6px;
-		border: 1px solid var(--e-border);
-		border-radius: var(--radius-xs);
-		background: var(--surface);
-		color: var(--e-text);
-		font-family: var(--font-code);
+	.level {
+		display: inline-block;
+		width: 76px;
 		font-size: var(--text-s);
 	}
 

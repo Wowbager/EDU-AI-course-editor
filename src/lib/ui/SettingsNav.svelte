@@ -33,34 +33,31 @@
 	import { tick } from 'svelte';
 	import { Search } from '@lucide/svelte';
 	import SettingsSection from './SettingsSection.svelte';
-	import {
-		MODE_LABELS,
-		modeGain,
-		type FieldLevel,
-		type HigherMatch,
-		type SectionSpec
-	} from './fields';
+	import { MODE_LABELS, type HigherMatch } from './fields';
+	import type { SettingsBaseView, SettingsSectionView } from '$lib/screen/types';
 	import { useStore } from './context';
 	import { SECTION_ICONS } from './section-icons';
 	import type { SettingsSearch } from './settings-search.svelte';
 
 	interface Props {
-		sections: SectionSpec[];
-		/** List the sections and show one at a time; otherwise one page with folds. */
-		list: boolean;
-		/** A jump or a problem points into this section: open on it. */
-		targeted: (id: string) => boolean;
-		/** An issue the author can see is in this section. */
-		alert: (id: string) => boolean;
-		/** The levels of field the dialog holds: what the line and the search look through. */
-		levels: readonly FieldLevel[];
+		/**
+		 * The dialog as the model says it: the sections (with whether a jump or a problem
+		 * points into each), whether they are listed, and what a higher mode adds.
+		 */
+		dialog: Pick<SettingsBaseView, 'sections' | 'list' | 'gain'>;
+		/** Where `dialog` is in the model, for `data-screen`. */
+		screen: string;
 		search: SettingsSearch;
 		pane: Snippet<[string]>;
 	}
-	let { sections, list, targeted, alert, levels, search, pane }: Props = $props();
+	let { dialog, screen, search, pane }: Props = $props();
 
 	const store = useStore();
-	const gain = $derived(modeGain(levels, store.mode, store.showFeedback));
+	const sections = $derived<SettingsSectionView[]>(dialog.sections);
+	const list = $derived(dialog.list);
+	const gain = $derived(dialog.gain ?? undefined);
+	const targeted = (id: string) => sections.find((s) => s.id === id)?.targeted === true;
+	const alert = (id: string) => sections.find((s) => s.id === id)?.alert === true;
 
 	/** Switch to the mode that has it and open on the section that holds it. */
 	function switchTo(mode: HigherMatch['mode'], section: string) {
@@ -167,7 +164,7 @@
 {#snippet more()}
 	{#if gain !== undefined}
 		<p class="more">
-			{gain.text} ·
+			<span data-screen="{screen}.gain.text">{gain.text}</span> ·
 			<button type="button" class="switch" onclick={() => switchTo(gain.mode, gain.section)}>
 				Přepnout
 			</button>
@@ -197,9 +194,10 @@
 	{/if}
 	{#if sections.length > 1}
 		<div class="folds">
-			{#each sections.slice(1) as section (section.id)}
+			{#each sections.slice(1) as section, index (section.id)}
 				<SettingsSection
 					label={section.label}
+					screen="{screen}.sections[{index + 1}].label"
 					autoOpen={targeted(section.id) ||
 						(search.active && search.result.sections.has(section.id))}
 				>
@@ -232,7 +230,9 @@
 							onkeydown={(event) => key(event, index)}
 						>
 							{#if Icon}<Icon size={16} aria-hidden="true"></Icon>{/if}
-							<span class="name">{section.label}</span>
+							<span class="name" data-screen="{screen}.sections[{sections.indexOf(section)}].label"
+								>{section.label}</span
+							>
 							{#if alert(section.id)}<span class="dot" aria-hidden="true"></span>{/if}
 						</button>
 					{/each}
@@ -252,7 +252,12 @@
 					aria-labelledby="{uid}-heading"
 					tabindex="-1"
 				>
-					<h3 id="{uid}-heading">{activeSection.label}</h3>
+					<h3
+						id="{uid}-heading"
+						data-screen="{screen}.sections[{sections.indexOf(activeSection)}].label"
+					>
+						{activeSection.label}
+					</h3>
 					{#key active}
 						<div class="content">
 							{@render pane(active)}

@@ -86,11 +86,13 @@ async function drawn(page: Page): Promise<{ path: string; shown: string }[]> {
 		nodes.map((node) => ({
 			path: node.getAttribute('data-screen')!,
 			shown:
-				node instanceof HTMLInputElement ||
-				node instanceof HTMLTextAreaElement ||
-				node instanceof HTMLSelectElement
-					? node.value
-					: (node.textContent ?? '')
+				node instanceof HTMLInputElement && node.type === 'checkbox'
+					? String(node.checked)
+					: node instanceof HTMLInputElement ||
+						  node instanceof HTMLTextAreaElement ||
+						  node instanceof HTMLSelectElement
+						? node.value
+						: (node.textContent ?? '')
 		}))
 	);
 }
@@ -103,7 +105,11 @@ async function untracked(page: Page): Promise<string[]> {
 			'header.topbar',
 			'aside[aria-label="Kontrola kurzu"]',
 			// A rail panel is drawn in the page's top layer, outside the nav it belongs to.
-			'[role="group"][data-peek-panel], .peek'
+			'[role="group"][data-peek-panel], .peek',
+			// The editor column and every dialog and picker open over it.
+			'main.editor',
+			'dialog[open]',
+			'.picker:popover-open'
 		]
 			.flatMap((selector) => [...document.querySelectorAll(selector)])
 			.filter((el, i, all) => all.indexOf(el) === i);
@@ -115,10 +121,16 @@ async function untracked(page: Page): Promise<string[]> {
 				if (text === '') continue;
 				if (node.parentElement?.closest('[data-screen]') !== null) continue;
 				if (node.parentElement?.closest('script, style') !== null) continue;
+				// What the teacher is writing in the Markdown editor is the field's value, which
+				// the model holds (`card.steps[].content.value`); the editor draws it line by line.
+				if (node.parentElement?.closest('.cm-editor') !== null) continue;
+				// The draft-recovery line is the page's own state (OPEN-PROBLEMS #46).
+				if (node.parentElement?.closest('.recovery') !== null) continue;
 				found.push(text);
 			}
 			for (const field of root.querySelectorAll('input, textarea')) {
 				if (field.closest('[data-screen]') !== null) continue;
+				if (field.closest('.cm-editor') !== null) continue;
 				const value = (field as HTMLInputElement).value;
 				if (value !== '') found.push(value);
 			}
@@ -182,6 +194,28 @@ async function expectParity(page: Page, course: Record<string, unknown>, state: 
 	}).toPass({ timeout: 10_000 });
 }
 
+/** The card region is drawn: its fields are in the model, with the value the box shows. */
+async function expectCardRegion(page: Page, doc: Record<string, unknown>) {
+	await expectParity(page, doc, 'the card');
+	const model = (await modelOf(page)) as {
+		card: { card: { steps: { expanded: boolean }[] } | null };
+	};
+	const drawnCard = await page.locator('[data-screen^="card.card."]').count();
+	if (model.card.card !== null) {
+		expect(drawnCard, 'the card is drawn from the model').toBeGreaterThan(3);
+	}
+}
+
+/** Each section of the open settings dialog, one at a time (from Metodik up they are listed). */
+async function openEachSection(page: Page, doc: Record<string, unknown>, state: string) {
+	const tabs = page.getByRole('dialog').getByRole('tab');
+	const count = await tabs.count();
+	for (let i = 0; i < count; i++) {
+		await tabs.nth(i).click();
+		await expectParity(page, doc, `${state}, section ${i + 1}`);
+	}
+}
+
 // ─────────────────────────────────────── the states ───────────────────────────────────────
 
 async function load(page: Page, course: Record<string, unknown>) {
@@ -204,6 +238,24 @@ for (const { name, course } of COURSES) {
 			await load(page, doc);
 			await setMode(page, mode);
 			await expectParity(page, doc, 'as opened');
+
+			// The card as the column draws it, and the dialogs its buttons open.
+			await expectCardRegion(page, doc);
+			await page.locator('main.editor').getByRole('button', { name: 'Nastavení karty' }).click();
+			await expect(page.getByRole('dialog', { name: 'Nastavení karty' })).toBeVisible();
+			await expectParity(page, doc, 'card settings');
+			await openEachSection(page, doc, 'card settings');
+			await page.keyboard.press('Escape');
+			await page.getByRole('button', { name: /Nastavení kurzu/ }).click();
+			await expect(page.getByRole('dialog', { name: 'Nastavení kurzu' })).toBeVisible();
+			await expectParity(page, doc, 'course settings');
+			await openEachSection(page, doc, 'course settings');
+			await page.keyboard.press('Escape');
+			await page.locator('header.topbar [data-screen="topbar.version.label"]').click();
+			await expect(page.getByRole('dialog', { name: 'Verze kurzu' })).toBeVisible();
+			await expectParity(page, doc, 'version history');
+			await page.keyboard.press('Escape');
+			await expect(page.getByRole('dialog')).toBeHidden();
 
 			// A card shared by two lessons is named by the lesson it is shown under.
 			const lessons = page.locator('.tree-lesson > .lesson');

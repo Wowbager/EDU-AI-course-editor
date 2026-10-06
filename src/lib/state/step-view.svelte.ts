@@ -10,7 +10,7 @@
  * `s1` alone let a step folded in one card show folded in the next.
  */
 import type { Ref } from '$lib/domain/ref';
-import { stepExpanded, stepViewKey } from '$lib/ui/step-expansion';
+import { stepIsExpanded, stepViewKey, type StepViewState } from '$lib/ui/step-expansion';
 
 export class StepView {
 	#collapsed = $state<ReadonlySet<string>>(new Set());
@@ -60,21 +60,23 @@ export class StepView {
 		);
 	}
 
+	/** Everything `expanded` reads, as plain data: what the screen model is given. */
+	get state(): StepViewState {
+		return {
+			collapsed: this.#collapsed,
+			suppressed: this.#suppressed,
+			dragging: this.dragging,
+			run: this.#run,
+			opened: this.#opened
+		};
+	}
+
 	/**
 	 * `stepKey` is where the folding is remembered; `stepId` is what the selection
 	 * names. They differ only for a duplicate id in a broken document.
 	 */
 	expanded(blockId: string, stepKey: string, stepId: string, selection: Ref | null): boolean {
-		const key = stepViewKey(blockId, stepKey);
-		const focused = selection?.blockId === blockId && selection?.stepId === stepId;
-		const suppressed = this.#suppressed?.key === key && this.#suppressed.selection === selection;
-		return stepExpanded({
-			userCollapsed: this.#collapsed.has(key),
-			focused,
-			suppressed,
-			dragging: this.dragging,
-			unreached: this.#unreached(blockId, key, stepId)
-		});
+		return stepIsExpanded(this.state, blockId, stepKey, stepId, selection);
 	}
 
 	/** The chevron: fold an open step, open a folded one. */

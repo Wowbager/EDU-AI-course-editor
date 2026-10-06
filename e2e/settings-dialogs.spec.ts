@@ -38,7 +38,7 @@ test('a skill row has a delete button that is visible without hovering', async (
 	await expect(remove).toHaveCSS('opacity', '1');
 
 	// An emptied difficulty gives back the default, which the field offers as a placeholder.
-	const elo = row.getByRole('spinbutton');
+	const elo = row.getByRole('textbox', { name: 'obtížnost' });
 	await expect(elo).toHaveAttribute('placeholder', 'výchozí 6');
 	await elo.fill('8');
 	await elo.blur();
@@ -95,7 +95,7 @@ test('RVP outputs: adding is its own action, no duplicate, an emptied weight sta
 	await code.fill('M-5-1-02');
 	await add.click();
 	// Saved: it is now a list row and the add row is closed again.
-	const weight = pane.getByRole('spinbutton', { name: 'Váha výstupu M-5-1-02' });
+	const weight = pane.getByRole('textbox', { name: 'Váha výstupu M-5-1-02' });
 	await expect(weight).toHaveValue('50');
 	await expect(code).toHaveCount(0);
 
@@ -103,7 +103,7 @@ test('RVP outputs: adding is its own action, no duplicate, an emptied weight sta
 	await code.fill('M-5-1-02');
 	await add.click();
 	await expect(pane.getByText('Tenhle výstup už karta má.')).toBeVisible();
-	const newWeight = pane.getByRole('spinbutton', { name: 'Váha výstupu', exact: true });
+	const newWeight = pane.getByRole('textbox', { name: 'Váha výstupu', exact: true });
 	await expect(newWeight).toHaveValue('50');
 
 	await newWeight.fill('');
@@ -128,9 +128,51 @@ test('RVP outputs: adding is its own action, no duplicate, an emptied weight sta
 	// A typed weight, not only the default: the number input hands over a number.
 	await open.click();
 	await code.fill('M-5-1-07');
-	await pane.getByRole('spinbutton', { name: 'Váha výstupu', exact: true }).fill('70');
+	await pane.getByRole('textbox', { name: 'Váha výstupu', exact: true }).fill('70');
 	await add.click();
-	await expect(pane.getByRole('spinbutton', { name: 'Váha výstupu M-5-1-07' })).toHaveValue('70');
+	await expect(pane.getByRole('textbox', { name: 'Váha výstupu M-5-1-07' })).toHaveValue('70');
+});
+
+test('a weight, a difficulty and a required mastery clamp to their range and keep text that is no number', async ({
+	page
+}) => {
+	// One rule for the three (`clampNumber`, the range in the field's spec): a number
+	// outside is written as the nearest end, text that is no number stays in the box with
+	// a line under it and never reaches the course.
+	const { pane } = await load(page, 'Co karta procvičuje');
+	await pane.getByRole('button', { name: 'Přidat výstup', exact: true }).click();
+	await pane.getByRole('textbox', { name: 'Kód výstupu RVP' }).fill('M-5-1-02');
+	await pane.getByRole('button', { name: 'Přidat', exact: true }).click();
+	const weight = pane.getByRole('textbox', { name: 'Váha výstupu M-5-1-02' });
+	await weight.fill('250');
+	await weight.blur();
+	await expect(weight).toHaveValue('100');
+	await weight.fill('abc');
+	await expect(pane.getByText(/„abc“ není číslo/)).toBeVisible();
+	await weight.blur();
+	await expect(weight).toHaveValue('abc');
+	await weight.fill('40');
+	await expect(pane.getByText(/„abc“ není číslo/)).toHaveCount(0);
+	await weight.blur();
+	await expect(weight).toHaveValue('40');
+
+	await pane.getByRole('button', { name: 'Přidat dovednost', exact: true }).click();
+	const picker = page.getByRole('dialog', { name: 'Přidat dovednost' });
+	await picker.getByRole('button', { name: 'Zlomky', exact: true }).click();
+	await picker.getByRole('button', { name: /^Úroveň 1/ }).click();
+	await picker.getByRole('button', { name: /^Je o tom/ }).click();
+	const elo = pane
+		.getByRole('listitem')
+		.filter({ hasText: 'Zlomky' })
+		.getByRole('textbox', { name: 'obtížnost' });
+	await elo.fill('99');
+	await elo.blur();
+	await expect(elo).toHaveValue('10');
+	await elo.fill('0');
+	await elo.blur();
+	await expect(elo).toHaveValue('1');
+	await elo.fill('x');
+	await expect(pane.getByText(/„x“ není číslo/)).toBeVisible();
 });
 
 test('Pojmy are chips: added with Enter or a pasted list, no duplicates, removed with undo', async ({
@@ -218,7 +260,7 @@ test('a prerequisite is one line, added through the picker and changed in place'
 	// A teacher never sees an id.
 	await expect(line).not.toContainText(/block_|L\d_B\d/);
 
-	const level = pane.getByRole('spinbutton', { name: 'Požadované zvládnutí v procentech' });
+	const level = pane.getByRole('textbox', { name: 'Požadované zvládnutí v procentech' });
 	await expect(level).toHaveValue('50');
 	await level.fill('');
 	await level.blur();
