@@ -524,6 +524,57 @@ Round 13 (`DECISIONS.md` → Round 13); what is left:**
 - **`W_BLOCK_TOO_MANY_STEPS` is one warning per card**, for its longest exported block,
   where the exported course would have one per long block. No corpus course has a card with
   two such blocks.
+### 48. The pupil simulator can drift from the player
+**Not a bug; a standing risk, with a test that catches part of it.** `domain/simulate.ts`
+copies the player's step rules by hand (`GoToResolver`, `BlockStepEngine._confirmAnswer`,
+`_resolveAndNavigate`, `_navigateToBlock`), each rule citing the Dart function. When
+`PLAYER_REF` moves, nothing forces the copy to follow. `e2e/preview-simulator-parity.spec.ts`
+plays three scripted paths in the real player and compares step by step, but it needs the
+Flutter build, so CI does not run it: run it with `REQUIRE_PLAYER=1` after every
+`PLAYER_REF` bump and read the cited functions again. What it does not cover: open and
+numeric answers, multi-select, `show_answers: false`, `quiz_v2` without evaluation, a
+jump into another lesson, XP.
+
+Where the editor's older rules and the player disagree (the simulator follows the player):
+- `stepSuccessors` / `reachableSteps` branch only in `question` cards. The player's
+  `GoToResolver.resolve` ignores `go_to` only in `exercise` cards, so a `display` card
+  with an answer that has a `go_to` branches in the player. The spec's table does not say
+  which is meant. `validate()` can therefore call a step unreachable that the player
+  reaches.
+- The spec says `exercise_v2` disables branching. The player looks at the card's type,
+  not at the export mode, so an `exercise_v2` course with `question` cards branches.
+- `stepSuccessors` lists a multi-select's option targets; the player never reads them
+  (`optionOutcomesApply`).
+- `derivedBlockXp` is the spec's +1 / +8. The engine's `_completeBlock` awards +1 per
+  step, +8 per question answered with koef 1 and +5 per other question, and never reads
+  `block.xp`.
+- `next_actions` and `user_options` are legacy keys the editor migrates away on import;
+  the player still reads them, the simulator does not.
+
+### 49. Player behaviour a course author cannot work around (app-side, from the simulator work)
+**Read from the code at the pinned player commit; the first was also seen in a run.**
+- **Numeric questions are always wrong.** `BlockStep.fromJsonWithId` builds the
+  `EvaluationConfig` of a V2 `question` step without `correct_number` and `tolerance`
+  (only `EvaluationConfig.fromJson` reads them), so `correctNumber` is null and
+  `_confirmAnswer` grades every answer wrong. The simulator reports it
+  (`PLAYER_GRADES_NUMERIC`). The editor cannot fix it.
+- **A right answer with `go_to: AGAIN` is a retry too.** `_confirmAnswer` pauses on
+  `AGAIN` whatever `isCorrect` says, so the pupil must press "Zkusit znovu" and is back
+  on the same question. The converted V1 course in the corpus has this on right answers.
+- **Jumping back to an answered question shows its solution and loops.** `_deriveState`
+  puts an answered question in the solution state, and "Pokračovat" follows the stored
+  answer's `go_to` again. A branch that returns to an earlier question the pupil already
+  answered has no way out. Only `AGAIN` clears the answer.
+- **A `go_to` to a card that does not exist leaves the pupil on a finished card.**
+  `_navigateToBlock` returns silently; the engine has already completed the card.
+- **After a forward jump in Vyzkoušet the target card is not reported until it is
+  scrolled into view.** The list is lazy and the scroll after the jump does not reach
+  the target, so `stepChanged` for the target arrives only after a wheel scroll; the
+  editor's "follow the pupil" waits for it. Seen once in a scripted run (cards
+  Q → C over two skipped cards); not diagnosed further.
+- **The accessibility layer folds a card with an answered question into one button** named
+  by the whole card's text, so a test finds "Pokračovat" as the node whose name contains
+  it and has to click the card's bottom right corner (`pressMain` in the parity spec).
 
 ### 11. Folding is remembered for the session only
 **By design for now.** `StepView` lives as long as the page. A reload opens every step
