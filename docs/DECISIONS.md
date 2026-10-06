@@ -2223,6 +2223,36 @@ a search field always open in Učitel (visual load for a dialog of three fields)
   a problem on the card. "nenastaveno" (amber) shows only while the card has no skills; the
   chips live only in `TopicPicker.svelte`.
 
+## Round 14 — AI provider
+
+### The in-app chat talks to an OpenAI-compatible provider, through the editor's server
+
+The browser never holds a key and never talks to a provider. `POST /ai/chat` on the
+editor's server (not under `/api/`, which nginx sends to Laravel) takes the neutral
+conversation (`src/lib/agent/protocol.ts`), adds the system prompt and the tool
+catalogue it owns (`src/lib/agent/server-prompt.ts`), and streams neutral events back.
+`src/lib/server/ai/provider.ts` is the only file that knows a provider.
+
+- **OpenRouter is the default**, with `provider: {require_parameters: true,
+  data_collection: 'deny'}`: requests only go to hosts that support tools and reasoning
+  and do not train on teacher content. Model default `deepseek/deepseek-v4.1-flash`.
+- **DeepSeek directly is the alternative** (`AI_PROVIDER=deepseek`): same wire format,
+  `thinking` and `reasoning_effort` instead of `reasoning`. Its `strict` tool mode is on
+  a beta endpoint, so `strict` is sent to OpenRouter only.
+- **Reasoning is kept and sent back.** Both providers require the assistant's reasoning
+  (`reasoning_content` / `reasoning_details`) to be returned unchanged on every later
+  turn when tools are used. The protocol carries it as one opaque `reasoning` field;
+  the browser stores it and never reads it.
+- **The server owns `system` and `tools`**, and rejects a conversation whose assistant
+  messages call a tool that is not in the catalogue. Argument JSON is passed on as the
+  model wrote it, valid or not; the browser validates it with zod.
+- **Limits** are per owner (`resolveOwner`), in memory: requests per minute and tokens
+  per day. They reset on restart.
+
+**Rejected.** The Claude API, and Anthropic-compatible endpoints of other providers:
+the project wants a low-cost model it can swap by changing three environment
+variables, and one wire format for both providers keeps the adapter to one file.
+
 ## Formatting — one formatter, and the two places it is not allowed
 
 The repo had a house style and no formatter: `useTabs` nearly everywhere (129 files to

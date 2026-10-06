@@ -306,6 +306,22 @@ which of those files is canonical. That is why it was not merged as part of the
 
 ---
 
+### 46. Where the AI chat sends teacher content, and who pays while only a workspace key authenticates
+**Not a bug; a risk to settle before the chat is switched on for teachers.**
+- **Where content goes.** Everything the model reads (course text, questions, answers,
+  what the teacher types) leaves the editor's server for a third party. With
+  `AI_PROVIDER=deepseek` that is DeepSeek itself, a processor outside the EU, which is
+  a GDPR question (a data-processing agreement, a privacy notice, whether pupils' data
+  can appear in a course). With OpenRouter the editor sends `data_collection: 'deny'`
+  and `require_parameters`, but the host that serves the model is still chosen by
+  OpenRouter; its provider list can be restricted (`provider.only` / `ignore`), which
+  the adapter does not yet expose. Nobody has decided which of these is acceptable.
+- **Cost exposure.** The only identity is the workspace key a browser makes for itself
+  (`resolveOwner`), so anyone can mint new owners and each one gets a fresh rate limit
+  and daily budget. The limits stop a runaway loop, not a determined abuser. Until
+  there is a login, set a spending cap on the provider key itself.
+- Limits live in memory, and reset when the server restarts.
+
 ## Unconfirmed
 
 Entries not reproduced, or reproduced only from the code. They stay until someone sees
