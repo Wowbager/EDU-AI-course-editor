@@ -30,6 +30,8 @@ import {
 	setField,
 	setPractice,
 	setQuestionType,
+	convertQuestion,
+	planQuestionTypeChange,
 	unbindBlock,
 	setTopics,
 	blockTopics,
@@ -554,6 +556,65 @@ describe('switching question type', () => {
 			.find((b) => b.block_id === 'L1_B3_poznej')!
 			.steps.find((s) => s.id === 's2')!.question!;
 		expect(question.options).toBeUndefined();
+	});
+});
+
+describe('what switching question type would lose (one rule with setQuestionType)', () => {
+	const option = (id: string, extra: Record<string, unknown> = {}) => ({
+		id,
+		text: '',
+		...extra
+	});
+
+	it('is nothing for a question that is only scaffolded', () => {
+		const scaffold = convertQuestion(undefined, 'multiple_choice');
+		for (const target of ['true_false', 'open', 'numeric'] as const) {
+			expect(planQuestionTypeChange(scaffold, target), target).toBeNull();
+		}
+		expect(planQuestionTypeChange(scaffold, 'multiple_choice')).toBeNull();
+		expect(planQuestionTypeChange(undefined, 'open')).toBeNull();
+	});
+
+	it('counts what a teacher wrote in the answers that are replaced', () => {
+		const question = {
+			type: 'multiple_choice' as const,
+			options: [
+				option('a', { text: 'Pět', feedback: 'Dobře' }),
+				option('b', { text: 'Šest', go_to: 'END' }),
+				option('c')
+			]
+		};
+		expect(planQuestionTypeChange(question, 'numeric')).toEqual({
+			answers: 2,
+			withFeedback: 1,
+			withBranching: 1
+		});
+		// Several answers stay a multiple choice: nothing is replaced.
+		expect(
+			planQuestionTypeChange({ ...question, type: 'true_false' }, 'multiple_choice')
+		).toBeNull();
+	});
+
+	it('names the typed answer and the number, as the change removes them', () => {
+		const open = { type: 'open' as const, correct_answer: 'čitatel' };
+		expect(planQuestionTypeChange(open, 'numeric')).toMatchObject({ correctAnswer: 'čitatel' });
+		const numeric = { type: 'numeric' as const, correct_number: 2.5, tolerance: 0.1 };
+		expect(planQuestionTypeChange(numeric, 'open')).toMatchObject({
+			correctNumber: '2.5 (tolerance ±0.1)'
+		});
+		expect(planQuestionTypeChange({ type: 'numeric', correct_number: 4 }, 'open')).toMatchObject({
+			correctNumber: '4'
+		});
+	});
+
+	it('agrees with the change: whatever the plan counts is gone after setQuestionType', () => {
+		const question = {
+			type: 'multiple_choice' as const,
+			options: [option('a', { text: 'Pět' })]
+		};
+		const next = convertQuestion(question, 'open');
+		expect(next.options).toBeUndefined();
+		expect(planQuestionTypeChange(question, 'open')?.answers).toBe(1);
 	});
 });
 

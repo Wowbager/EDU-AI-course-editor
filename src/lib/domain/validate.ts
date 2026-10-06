@@ -643,6 +643,14 @@ function checkFeedbackQuality(block: BlockV2, step: BlockStep, question: Questio
 }
 
 /** §14.5 — media must be playable for the student. */
+/**
+ * A video address that is a YouTube or Vimeo page and not a video file: the player
+ * cannot load it (`E_MEDIA_NOT_DIRECT`). The field says so as soon as it is pasted, by
+ * this same rule, and not by a copy of it.
+ */
+export const isVideoPageLink = (url: string | undefined): boolean =>
+	/youtube\.com|youtu\.be|vimeo\.com/i.test(url ?? '');
+
 function checkMedia(block: BlockV2, step: BlockStep, add: Add) {
 	const ref: Ref = { blockId: block.block_id, stepId: step.id };
 	const position = stepPosition(block, step);
@@ -680,7 +688,7 @@ function checkMedia(block: BlockV2, step: BlockStep, add: Add) {
 
 	const video = step.video?.url;
 	if (typeof video === 'string' && video !== '') {
-		if (/youtube\.com|youtu\.be|vimeo\.com/i.test(video)) {
+		if (isVideoPageLink(video)) {
 			add(
 				'error',
 				'E_MEDIA_NOT_DIRECT',

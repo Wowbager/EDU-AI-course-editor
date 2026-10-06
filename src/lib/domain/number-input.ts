@@ -44,8 +44,8 @@ export function notANumberMessage(text: string): string {
 
 /** What a number field accepts: the range its spec declares (`FieldSpec.min` / `max`). */
 export interface NumberBounds {
-	min?: number;
-	max?: number;
+	min?: number | null;
+	max?: number | null;
 }
 
 /**
@@ -56,7 +56,7 @@ export interface NumberBounds {
  */
 export function clampNumber(bounds: NumberBounds, value: number): number {
 	let result = value;
-	if (bounds.max !== undefined) result = Math.min(bounds.max, result);
-	if (bounds.min !== undefined) result = Math.max(bounds.min, result);
+	if (bounds.max !== undefined && bounds.max !== null) result = Math.min(bounds.max, result);
+	if (bounds.min !== undefined && bounds.min !== null) result = Math.max(bounds.min, result);
 	return result;
 }
