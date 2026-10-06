@@ -465,8 +465,8 @@ Round 13 (`DECISIONS.md` → Round 13); what is left:**
 - From the Round 13 teacher test (all eight tasks done, these slowed it down):
   Pokročilý also changes the XP totals and names steps „s1“ instead of „Krok 1“, which
   the one-time note does not mention; the import banner says „V editoru vypadají stejně“
-  while Pokročilý shows them split. The cut-off warning says „Krok 3“, not the step's
-  name. „Kam dál“ groups read as jargon („Průběh“, „Krok v tomto bloku“, „Ukončit blok“).
+  while Pokročilý shows them split. (The cut-off notice and the step chip now name a step
+  by one function, `stepName`; Pokročilý still shows ids on purpose.) „Kam dál“ groups read as jargon („Průběh“, „Krok v tomto bloku“, „Ukončit blok“).
   Answer feedback shows raw Markdown (`**nahoře**`). Search knows a few teacher words per
   section, not a thesaurus. Settings in a higher mode still need the switch: that is
   the modes' design, now signposted.
@@ -477,6 +477,19 @@ Round 13 (`DECISIONS.md` → Round 13); what is left:**
   a new skill row is marked; the undo notice sits in the dialog's footer; Pojmy suggest
   the course's terms; „Kam dál“ keeps letters typed while it opens; „výchozí sada“ is a
   grey label with its meaning; the course dialog has „Hotovo“.
+
+### 46. Round 14 part 1 left
+**Not reproduced as bugs; places where the new rules do not yet reach.**
+- Three numeric fields still use a native `type="number"` box with their own clamp
+  (`TopicPicker` Elo, `CompetencyEditor` weight, `PrerequisiteEditor` level). They go
+  through `parseNumberInput`, so they never write NaN, but they have three clamp rules and
+  no draft/inline error. One `clampNumber(spec)` is still to do.
+- `validate()` skips the skill-vector checks while `store.skillConfigStatus` is `loading`
+  or `failed`, and says nothing about it; the Screen model's `issues` slice should.
+- `store.selection` is still written back by the page from `store.open`; consumers that
+  read `selection.lessonId` should read `store.open.lesson` instead (part 2).
+- A card in no lesson is now named „Karta N“ by its place among all cards in the tree's
+  orphan list (it was „Karta bez textu“).
 
 ### 11. Folding is remembered for the session only
 **By design for now.** `StepView` lives as long as the page. A reload opens every step

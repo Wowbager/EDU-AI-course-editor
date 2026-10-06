@@ -2223,6 +2223,59 @@ a search field always open in Učitel (visual load for a dialog of three fields)
   a problem on the card. "nenastaveno" (amber) shows only while the card has no skills; the
   chips live only in `TopicPicker.svelte`.
 
+## Round 14 — one screen model
+
+The owner's requirement: what an AI agent is told about the editor must equal what the
+teacher sees. So the screen has to be derivable without the components (`Screen` model,
+plan "Phase 0"). Part 1 removes the divergences that are plain rules in components.
+
+### What is open, which number a file carries, and what a number field holds (H1, H4, H5, M5)
+
+- **What is open (H1).** `store.open` (`lesson`, `card`, `binding`, `orphaned`, `position`)
+  is the one place the selection is resolved: lesson from the ref, else from the card's
+  first lesson, else the first lesson; card from the ref, else the lesson's first card; a
+  card in no lesson is `orphaned` and has no lesson. The page's copy of that logic and its
+  `cardPosition` are gone. The page keeps one small effect that writes the resolved card
+  back into `store.selection`, because many editors read `selection.lessonId` (new cards,
+  jumps, undo notices). Rejected: removing the write-back now, which would leave those
+  readers with a null or stale ref; it goes when they read `store.open` (part 2).
+- **Numbers (H4).** `parseNumberDraft` tells empty / ok / invalid; it strips every kind of
+  space (NBSP, narrow NBSP), reads the typographic minus and a decimal comma, and rejects
+  `0x10`. Text that is no number never reaches the document: it stays in `store.drafts`
+  (keyed by `refKey`), the field shows it with a line under it („…“ není číslo, proto se
+  neuložilo…), and it is dropped on a valid number, an emptied box, Escape, undo/redo and
+  `load`. One `NumberField` is used for `correct_number`, `tolerance`, Podíl bodů and every
+  `kind: 'number'` spec in `FieldGroup`. `validate()` has `E_NOT_A_NUMBER` for a NaN or
+  infinity that arrives in a file, worded as what the pupil gets. Rejected: writing the
+  invalid text into the document and warning (it exports as `null`); blocking the keystroke
+  (a teacher mid-word would be told off for "1,").
+- **Version (H5).** `courseVersionState` (`domain/versions.ts`) is the one function for the
+  number a file or save carries and for the button's label, title and name;
+  `store.versionState` reads the `VersionStore` attached with `store.attachHistory`.
+  `store.export()` / `exportJson()` carry that number; Topbar and VersionsDialog use
+  both. While the history of this course is loading the label says „načítá se“, the
+  download does nothing and „Uložit jako verzi“ is disabled; the number is never guessed.
+- **Skill list (M5).** `store.skillConfigStatus` is `loading | loaded | default | failed`;
+  `load()` resets it; the skill picker says „Dovednosti se načítají“ while loading and
+  reads „výchozí sada“ from the status. Rejected: keeping the old course's list until the
+  new one arrives (it measured the new course against the wrong dimensions).
+
+### One name for a card, a part and a step (M1, #45)
+
+- `cardLabel(doc, card, {lessonId?, max?})` in `domain/naming.ts` names a card on every
+  surface: tree, rail, heading placeholder, preview branch labels, pickers, repair dialog,
+  validation messages. A card with no text is „Karta N“ where N comes from `cardPlace`:
+  position in the lesson asked about; else in the first lesson that has the card; else
+  (a card in no lesson) among all cards, and the picker says „mimo lekce“. A card in two
+  lessons therefore reads by the lesson it is shown under in the tree, and by its first
+  lesson wherever no lesson is asked (pickers, messages). `cardNames` / `cardGroups`
+  moved from `card-names.ts` into `naming.ts`, built on `cardLabel`. `blockLabel` is gone.
+- `partLabel` gives „část n/m“ for the tree and the preview (the preview said „n. část“).
+- `stepName(block, step, {showIds})` is the step as a heading: „Krok 2“, or its id in
+  Pokročilý, which is the existing per-mode behaviour. The chip, the go-to picker and the
+  „teď nikam nevede“ notice use it; sentences keep `stepLabel` („krok 2“). Rejected:
+  „Krok 2“ in Pokročilý too, because that mode shows ids on purpose.
+
 ## Formatting — one formatter, and the two places it is not allowed
 
 The repo had a house style and no formatter: `useTabs` nearly everywhere (129 files to
