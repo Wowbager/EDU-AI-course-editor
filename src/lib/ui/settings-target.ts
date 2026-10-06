@@ -1,6 +1,12 @@
 import type { Ref } from '$lib/domain/ref';
-import type { DocStore } from '$lib/state/doc-store.svelte';
+import type { Issue } from '$lib/domain/validate';
 import { specOf, type FieldLevel } from './fields';
+
+/** What `sectionTargeted` reads: the selection, and the issues that may be marked now. */
+export interface TargetSource {
+	selection: Ref | null;
+	shown: { errors: Issue[]; warnings: Issue[] };
+}
 
 /**
  * Whether the selection, or an issue the author can see, points at a field of one
@@ -12,7 +18,7 @@ import { specOf, type FieldLevel } from './fields';
  * the rest, so a step's hint is never taken for its card's.
  */
 export function sectionTargeted(
-	store: Pick<DocStore, 'selection' | 'shown'>,
+	store: TargetSource,
 	levels: readonly FieldLevel[],
 	section: string,
 	scope: Ref
@@ -30,7 +36,7 @@ export function sectionTargeted(
  * beside its name in the dialog's list. The selection alone is not a problem.
  */
 export function sectionHasIssue(
-	store: Pick<DocStore, 'shown'>,
+	store: Pick<TargetSource, 'shown'>,
 	levels: readonly FieldLevel[],
 	section: string,
 	scope: Ref

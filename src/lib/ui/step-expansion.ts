@@ -51,3 +51,43 @@ export function stepExpanded({
 
 /** The key a step's view state is stored under — step ids are unique per card only. */
 export const stepViewKey = (blockId: string, stepKey: string) => `${blockId}/${stepKey}`;
+
+/** What the step list remembers: the author's folds and the run being played. */
+export interface StepViewState {
+	/** `stepViewKey`s the author folded with the chevron. */
+	collapsed: ReadonlySet<string>;
+	/** The step folded while it was focused, and the selection it was folded under. */
+	suppressed: { key: string; selection: unknown } | null;
+	dragging: boolean;
+	/** The card a played run is on and the steps of it the pupil has been shown. */
+	run: { blockId: string; shown: ReadonlySet<string> } | null;
+	/** Unreached steps the author opened with the chevron during this run. */
+	opened: ReadonlySet<string>;
+}
+
+/**
+ * Whether the step is drawn open: `stepExpanded` over what the step list remembers.
+ * `StepView.expanded` and the screen model's `card.steps[].expanded` are this.
+ * `stepKey` is where the folding is kept; `stepId` is what the selection names.
+ */
+export function stepIsExpanded(
+	state: StepViewState,
+	blockId: string,
+	stepKey: string,
+	stepId: string,
+	selection: { blockId?: string; stepId?: string } | null
+): boolean {
+	const key = stepViewKey(blockId, stepKey);
+	const unreached =
+		state.run !== null &&
+		state.run.blockId === blockId &&
+		!state.run.shown.has(stepId) &&
+		!state.opened.has(key);
+	return stepExpanded({
+		userCollapsed: state.collapsed.has(key),
+		focused: selection?.blockId === blockId && selection?.stepId === stepId,
+		suppressed: state.suppressed?.key === key && state.suppressed.selection === selection,
+		dragging: state.dragging,
+		unreached
+	});
+}

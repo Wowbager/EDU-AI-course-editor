@@ -7,6 +7,7 @@
  * only once its timing allows, `ui/issue-visibility.ts`). `DocStore.listed` and
  * `DocStore.shown` are this, and so is every `visibility` the model reports.
  */
+import type { Ref } from '$lib/domain/ref';
 import type { Issue, ValidationResult } from '$lib/domain/validate';
 import { issueLessonId, issuePlace } from '$lib/domain/issue-groups';
 import { heldBack, isVisible, type Touched } from '$lib/ui/issue-visibility';
@@ -33,6 +34,32 @@ export function issueSets(
 	return {
 		listed,
 		shown: { errors: listed.errors.filter(visible), warnings: listed.warnings.filter(visible) }
+	};
+}
+
+/**
+ * Whether an issue addressed at `at` is about `ref`: every id `ref` names must be the
+ * issue's own, and it must name at least one. A ref of just a card matches everything
+ * in the card; one with a step, only that step's.
+ */
+export function matchesRef(at: Ref, ref: Ref): boolean {
+	let matched = false;
+	for (const key of ['lessonId', 'blockId', 'stepId', 'optionId', 'field'] as const) {
+		if (!ref[key]) continue;
+		if (ref[key] !== at[key]) return false;
+		matched = true;
+	}
+	return matched;
+}
+
+/** What may be marked inline at `ref` now, as the shown issues of the place. */
+export function shownAt(
+	shown: { errors: Issue[]; warnings: Issue[] },
+	ref: Ref
+): { errors: Issue[]; warnings: Issue[] } {
+	return {
+		errors: shown.errors.filter((issue) => matchesRef(issue.ref, ref)),
+		warnings: shown.warnings.filter((issue) => matchesRef(issue.ref, ref))
 	};
 }
 
