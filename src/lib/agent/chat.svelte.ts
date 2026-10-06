@@ -60,7 +60,7 @@ export class ChatSession {
 	usage: Usage = empty();
 	/** Requests sent and the tools called, in order: what a test or an eval grades. */
 	requests = 0;
-	toolCalls: { name: string; arguments: string; ok: boolean }[] = [];
+	toolCalls: { name: string; arguments: string; ok: boolean; error?: string }[] = [];
 
 	constructor(options: ChatSessionOptions) {
 		this.#store = options.store;
@@ -163,7 +163,12 @@ export class ChatSession {
 		} catch {
 			result = fail('internal', 'Nástroj selhal. Nic se nezměnilo.');
 		}
-		this.toolCalls.push({ name: call.name, arguments: call.arguments, ok: result.ok });
+		this.toolCalls.push({
+			name: call.name,
+			arguments: call.arguments,
+			ok: result.ok,
+			...(result.ok ? {} : { error: result.error.code })
+		});
 		return result;
 	}
 

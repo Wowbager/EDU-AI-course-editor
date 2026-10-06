@@ -37,3 +37,6 @@ pnpm-lock.yaml
 
 # Version history kept by the dev server (DATA_DIR defaults here)
 /.data
+
+# Results of the agent evals (run by hand, `npm run eval:agent`)
+/evals/agent/results/
