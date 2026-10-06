@@ -1,0 +1,185 @@
+[
+  {
+    "id": "gen-2",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "role": "assistant",
+          "content": null
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-2",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "tool_calls": [
+            {
+              "index": 0,
+              "type": "function",
+              "id": "call_a1",
+              "function": {
+                "name": "read_lesson",
+                "arguments": ""
+              }
+            }
+          ]
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-2",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "tool_calls": [
+            {
+              "index": 0,
+              "type": "function",
+              "function": {
+                "arguments": "{\"lesson"
+              }
+            }
+          ]
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-2",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "tool_calls": [
+            {
+              "index": 1,
+              "type": "function",
+              "id": "call_b2",
+              "function": {
+                "name": "list_skills",
+                "arguments": ""
+              }
+            }
+          ]
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-2",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "tool_calls": [
+            {
+              "index": 0,
+              "type": "function",
+              "function": {
+                "arguments": "Id\":\"l"
+              }
+            }
+          ]
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-2",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "tool_calls": [
+            {
+              "index": 1,
+              "type": "function",
+              "function": {
+                "arguments": "{}"
+              }
+            }
+          ]
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-2",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "tool_calls": [
+            {
+              "index": 0,
+              "type": "function",
+              "function": {
+                "arguments": "1\"}"
+              }
+            }
+          ]
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-2",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {},
+        "finish_reason": "tool_calls"
+      }
+    ]
+  },
+  {
+    "id": "gen-2",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [],
+    "usage": {
+      "prompt_tokens": 900,
+      "completion_tokens": 40,
+      "total_tokens": 940
+    }
+  }
+]

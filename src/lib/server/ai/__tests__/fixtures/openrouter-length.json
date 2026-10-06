@@ -1,0 +1,60 @@
+[
+  {
+    "id": "gen-4",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "role": "assistant",
+          "content": "Lekce má několik "
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-4",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": "částí, první je"
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-4",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": ""
+        },
+        "finish_reason": "length"
+      }
+    ]
+  },
+  {
+    "id": "gen-4",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [],
+    "usage": {
+      "prompt_tokens": 500,
+      "completion_tokens": 4096,
+      "total_tokens": 4596
+    }
+  }
+]

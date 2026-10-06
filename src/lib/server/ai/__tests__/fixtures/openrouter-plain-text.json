@@ -1,0 +1,93 @@
+[
+  {
+    "id": "gen-1",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "role": "assistant",
+          "content": ""
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-1",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": "Ahoj"
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-1",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": ", co "
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-1",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": "potřebuješ?"
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-1",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": ""
+        },
+        "finish_reason": "stop"
+      }
+    ]
+  },
+  {
+    "id": "gen-1",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [],
+    "usage": {
+      "prompt_tokens": 812,
+      "completion_tokens": 9,
+      "total_tokens": 821,
+      "prompt_tokens_details": {
+        "cached_tokens": 640
+      }
+    }
+  }
+]

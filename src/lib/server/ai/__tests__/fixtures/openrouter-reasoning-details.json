@@ -1,0 +1,157 @@
+[
+  {
+    "id": "gen-6",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "role": "assistant",
+          "content": "",
+          "reasoning": "",
+          "reasoning_details": []
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-6",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": "",
+          "reasoning": "Nejdřív ",
+          "reasoning_details": [
+            {
+              "type": "reasoning.text",
+              "text": "Nejdřív ",
+              "format": "unknown",
+              "index": 0
+            }
+          ]
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-6",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": "",
+          "reasoning": "zjistím lekci.",
+          "reasoning_details": [
+            {
+              "type": "reasoning.text",
+              "text": "zjistím lekci.",
+              "format": "unknown",
+              "index": 0
+            }
+          ]
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-6",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": "",
+          "reasoning": "",
+          "reasoning_details": [
+            {
+              "type": "reasoning.text",
+              "signature": "sig-abc123==",
+              "format": "unknown",
+              "index": 0
+            }
+          ]
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-6",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": "Podívám se."
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-6",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "tool_calls": [
+            {
+              "index": 0,
+              "type": "function",
+              "id": "call_r1",
+              "function": {
+                "name": "read_lesson",
+                "arguments": "{\"lessonId\":\"l1\"}"
+              }
+            }
+          ]
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  {
+    "id": "gen-6",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {},
+        "finish_reason": "tool_calls"
+      }
+    ]
+  },
+  {
+    "id": "gen-6",
+    "object": "chat.completion.chunk",
+    "created": 1791000000,
+    "model": "deepseek/deepseek-v4.1-flash",
+    "choices": [],
+    "usage": {
+      "prompt_tokens": 610,
+      "completion_tokens": 61,
+      "total_tokens": 671
+    }
+  }
+]
