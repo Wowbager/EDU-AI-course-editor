@@ -2,7 +2,7 @@
 	import type { BlockStep, BlockV2, CourseV2 } from '$lib/domain/schema';
 	import type { DocIndex } from '$lib/domain/index-doc';
 	import { stepSummary } from '$lib/domain/derive';
-	import { cardGroups, cardLabel, cardNames, stepName } from '$lib/domain/naming';
+	import { cardGroups, pickerCardLabel, stepName } from '$lib/domain/naming';
 	import { STEP_TYPES } from '$lib/lang';
 
 	/** The names the picker and the answer table's summary share (§8: "Krok 3", not "s3"). */
@@ -15,11 +15,8 @@
 		return `${name} (${type.toLowerCase()})`;
 	}
 
-	/** A card's name; when another card has the same, its place follows (card-names.ts). */
-	export function blockLabelOf(doc: CourseV2, b: BlockV2, showIds: boolean): string {
-		const name = cardNames(doc, 40).get(b.block_id)?.label ?? cardLabel(doc, b, { max: 40 });
-		return showIds ? `${b.block_id} — ${name}` : name;
-	}
+	/** A card's name; when another card has the same, its place follows (`pickerCardLabel`). */
+	export const blockLabelOf = pickerCardLabel;
 
 	/**
 	 * Where an answer leads, in a few words, for a row that is not being edited. Empty

@@ -1,5 +1,6 @@
 import { BookOpenText, Dumbbell, MessageCircleQuestionMark } from '@lucide/svelte';
 import type { BlockType } from '$lib/domain/schema';
+import { CARD_TYPE_LABELS } from './card-type-labels';
 
 export interface CardTypeInfo {
 	type: BlockType;
@@ -33,21 +34,21 @@ export interface CardTypeInfo {
 export const CARD_TYPES: readonly CardTypeInfo[] = [
 	{
 		type: 'display',
-		label: 'Výklad',
+		label: CARD_TYPE_LABELS.display,
 		icon: BookOpenText,
 		title:
 			'Karta typu Výklad — čtení po krocích. Žák vidí jeden krok, klikne Pokračovat a teprve pak se objeví další; hotové kroky mu zůstanou nad tím. Otázka vložená dovnitř výkladu je zastávka: dokud na ni neodpoví, další krok neuvidí.'
 	},
 	{
 		type: 'question',
-		label: 'Otázka',
+		label: CARD_TYPE_LABELS.question,
 		icon: MessageCircleQuestionMark,
 		title:
 			'Karta typu Otázka — jedna bublina, ve které je žák rovnou u otázky. Text, který napíšeš před ni, čte jako zadání, ne jako samostatnou zastávku. Podle zvolené odpovědi ho umí poslat na jiný krok nebo na jinou kartu. Použij, když má odpověď rozhodnout, co bude dál.'
 	},
 	{
 		type: 'exercise',
-		label: 'Cvičení',
+		label: CARD_TYPE_LABELS.exercise,
 		icon: Dumbbell,
 		title:
 			'Karta typu Cvičení (jedna karta v lekci — ne typ celého kurzu v Nastavení kurzu ani zařazení do denního opakování). Chová se jako Otázka, ale větvení se ignoruje: žák projde úlohy vždy ve stejném pořadí. Pro drilování postupu, který už zná.'

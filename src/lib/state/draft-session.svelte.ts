@@ -1,9 +1,16 @@
 import type { DocStore } from './doc-store.svelte';
+import type { DraftStatus } from '$lib/screen/types';
 import { DRAFT_KEY, readDraft, type Draft } from './draft';
 
 /** Browser-only lifecycle; constructed in onMount, never during SSR. */
 export class DraftSession {
-	status = $state<'saving' | 'saved' | 'error' | 'blocked'>('saving');
+	/** Read and written through the store, so the screen model can say it. */
+	get status(): DraftStatus {
+		return this.#store.draftStatus ?? 'saving';
+	}
+	set status(next: DraftStatus) {
+		this.#store.draftStatus = next;
+	}
 	message = $state('');
 	#known: string | null = null;
 	#timer: ReturnType<typeof setTimeout> | undefined;
@@ -11,6 +18,7 @@ export class DraftSession {
 
 	constructor(store: DocStore) {
 		this.#store = store;
+		store.draftStatus = 'saving';
 	}
 
 	restore(): boolean {

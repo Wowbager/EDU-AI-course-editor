@@ -265,3 +265,14 @@ export function cardGroups(
 	if (loose.length > 0) groups.push({ title: 'Karty mimo lekce', cards: loose });
 	return groups;
 }
+
+/**
+ * A card named for a picker or a sentence that has to tell it from the others: its name,
+ * with its place when another card has the same one (`cardNames`), and its id in front
+ * where ids are shown (Pokročilý). The go-to picker, the answer summary and the
+ * "teď nikam nevede" notice all call this.
+ */
+export function pickerCardLabel(doc: CourseV2, block: BlockV2, showIds: boolean): string {
+	const name = cardNames(doc, 40).get(block.block_id)?.label ?? cardLabel(doc, block, { max: 40 });
+	return showIds ? `${block.block_id} — ${name}` : name;
+}

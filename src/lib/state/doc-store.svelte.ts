@@ -38,13 +38,18 @@ import {
 	splitQuestionCards,
 	toView
 } from '$lib/domain/groups';
-import { cardPlace } from '$lib/domain/naming';
 import type { SkillConfig } from '$lib/domain/skill-config';
 import type { CommandResult } from '$lib/domain/commands';
 import type { Mode } from '$lib/ui/fields';
-import { isFeedbackRef } from '$lib/ui/fields';
-import { fieldKey, heldBack, isVisible, issueKey } from '$lib/ui/issue-visibility';
-import type { Issue } from '$lib/domain/validate';
+import { allows, isFeedbackRef } from '$lib/ui/fields';
+import { fieldKey, issueKey, madeUnreachable } from '$lib/ui/issue-visibility';
+import { issueSets } from '$lib/screen/issues';
+import { cutOffText } from '$lib/screen/notices';
+import { resolveOpen } from '$lib/screen/open';
+import type { DraftStatus, OpenState, SkillConfigStatus } from '$lib/screen/types';
+import { PreviewState } from './preview-state.svelte';
+import { ScreenModel } from './screen.svelte';
+import { UiState } from './ui-state.svelte';
 
 export interface UndoEntry {
 	description: string;
@@ -58,64 +63,8 @@ export type { Mode } from '$lib/ui/fields';
 
 const MAX_UNDO = 200;
 
-/**
- * `loading` until the list has been asked for, `loaded` when the course's own (or the
- * platform's) list arrived, `default` when it is the neutral set shipped with the
- * editor, `failed` when nothing could be read.
- */
-export type SkillConfigStatus = 'loading' | 'loaded' | 'default' | 'failed';
-
-/** What `DocStore.open` resolves the selection to. */
-export interface OpenState {
-	lesson: CourseV2['lessons'][number] | undefined;
-	card: CourseV2['blocks'][number] | undefined;
-	/** The card's entry in the open lesson's block list. */
-	binding: CourseV2['lessons'][number]['blocks'][number] | undefined;
-	/** A card in no lesson at all. */
-	orphaned: boolean;
-	/** 1-based place of the card in the open lesson; undefined when it is not in it. */
-	position: number | undefined;
-}
-
-export function resolveOpen(doc: CourseV2, index: DocIndex, selection: Ref | null): OpenState {
-	let lesson: OpenState['lesson'];
-	const owner =
-		selection?.blockId !== undefined
-			? (index.lessonsByBlock.get(selection.blockId) ?? [])[0]
-			: undefined;
-	if (selection?.lessonId !== undefined) {
-		lesson = doc.lessons.find((l) => l.lesson_id === selection.lessonId);
-	} else if (owner !== undefined) {
-		lesson = doc.lessons.find((l) => l.lesson_id === owner);
-	} else if (
-		selection?.blockId !== undefined &&
-		doc.blocks.some((b) => b.block_id === selection.blockId)
-	) {
-		// A card in no lesson at all. Belonging to the first lesson would be a lie.
-		lesson = undefined;
-	} else {
-		lesson = doc.lessons[0];
-	}
-	const selected =
-		selection?.blockId !== undefined
-			? doc.blocks.find((b) => b.block_id === selection.blockId)
-			: undefined;
-	const card =
-		selected ??
-		(lesson !== undefined
-			? doc.blocks.find((b) => b.block_id === lesson.blocks[0]?.block_id)
-			: undefined);
-	const binding =
-		card === undefined ? undefined : lesson?.blocks.find((b) => b.block_id === card.block_id);
-	const orphaned =
-		card !== undefined && (index.lessonsByBlock.get(card.block_id) ?? []).length === 0;
-	// The position is the card's place in the open lesson, by the one naming rule.
-	const position =
-		card === undefined || binding === undefined || lesson === undefined
-			? undefined
-			: cardPlace(doc, card, { lessonId: lesson.lesson_id }).position;
-	return { lesson, card, binding, orphaned, position };
-}
+export type { DraftStatus, OpenState, SkillConfigStatus };
+export { resolveOpen };
 
 export class DocStore {
 	/** The course as exported: one block per question. */
@@ -141,6 +90,20 @@ export class DocStore {
 	#mode = $state<Mode>('teacher');
 	#selection = $state<Ref | null>(null);
 	#showFeedback = $state(true);
+
+	/** Which panels are open (`screen.ui`). */
+	ui = new UiState();
+	/** What the preview column has learned about the player (`screen.preview`). */
+	preview = new PreviewState();
+	/** The autosave of the draft, reported by the `DraftSession`; null before it exists. */
+	draftStatus = $state<DraftStatus | null>(null);
+	/**
+	 * The exact JSON handed to the browser by the last download. The draft lives in
+	 * `localStorage` and nowhere else, so the top bar says whether the work on screen
+	 * has ever left the browser; comparing the text rather than counting edits is what
+	 * makes it honest (type a sentence and undo it, and the file is current again).
+	 */
+	exportedJson = $state<string | null>(null);
 
 	/**
 	 * What the editor shows and edits. In Pokročilý the source; otherwise each
@@ -283,6 +246,11 @@ export class DocStore {
 		return this.#reviewed !== null;
 	}
 
+	/** The keys of what the review listed, or null while there is none. */
+	get reviewedKeys(): ReadonlySet<string> | null {
+		return this.#reviewed;
+	}
+
 	/** The author opened the export review: what it lists is now to be fixed. */
 	beginReview() {
 		const { errors, warnings } = this.validation;
@@ -390,28 +358,60 @@ export class DocStore {
 		this.touchedFields = new Set([...this.touchedFields, key]);
 	}
 
-	#shown = (issue: Issue) =>
-		isVisible(issue, { cards: this.touchedCards, fields: this.touchedFields }, this.#reviewed);
+	/**
+	 * The issues the editor lists and shows (`screen/issues.ts` `issueSets`). `listed`:
+	 * every error, and the warnings not held back by the Zpětná vazba toggle; the topbar
+	 * count and the validation panel read it, the export review and the banner read
+	 * `validation`, which is all of them. `shown`: what may be marked inline right now,
+	 * once its timing allows (`ui/issue-visibility.ts`).
+	 */
+	#sets = $derived(
+		issueSets(
+			this.validation,
+			this.#showFeedback,
+			{ cards: this.touchedCards, fields: this.touchedFields },
+			this.#reviewed
+		)
+	);
+	listed = $derived(this.#sets.listed);
+	shown = $derived(this.#sets.shown);
+
+	/** Whether the file on disk is what is on screen. */
+	backedUp = $derived(this.exportedJson !== null && this.exportedJson === this.exportJson());
 
 	/**
-	 * The issues the editor lists while the author is writing: every error, and the
-	 * warnings that are not about a field the Zpětná vazba toggle has hidden
-	 * (`heldBack`). The topbar count and the validation panel read this; the export
-	 * review and the banner read `validation`, which is all of them.
+	 * What the last change to an answer's "Kam dál" cut off, said under that answer
+	 * while the change is the last edit (`screen.notices.cut_off`).
 	 */
-	listed = $derived({
-		errors: this.validation.errors,
-		warnings: this.validation.warnings.filter((issue) => !heldBack(issue, this.#showFeedback))
-	});
+	cutOff = $state.raw<{ entry: UndoEntry; optionId: string; text: string } | null>(null);
 
 	/**
-	 * The issues that may be on screen right now. Inline markers read this: what is
-	 * listed, and then only once its timing allows (`ui/issue-visibility.ts`).
+	 * Run `change` (a `store.apply` on an answer's "Kam dál", or removing the answer)
+	 * and, if it left a step or card unreachable that was reachable, remember it as the
+	 * notice under that answer. `optionId` is empty for a removed answer, which has no
+	 * row left. The next edit of any kind clears it, so its "Vrátit zpět" can only ever
+	 * undo this change.
 	 */
-	shown = $derived({
-		errors: this.listed.errors.filter(this.#shown),
-		warnings: this.listed.warnings.filter(this.#shown)
-	});
+	trackReach(optionId: string, change: () => void) {
+		const before = this.doc;
+		const top = this.undoStack.at(-1);
+		change();
+		const entry = this.undoStack.at(-1);
+		this.cutOff = null;
+		if (entry === undefined || entry === top) return;
+		const lost = madeUnreachable(before, this.doc);
+		if (lost.length === 0) return;
+		const text = cutOffText(this.doc, lost, allows('step', 'id', this.#mode));
+		if (text !== null) this.cutOff = { entry, optionId, text };
+	}
+
+	/** The file went out: remember what it held. */
+	markExported(json: string) {
+		this.exportedJson = json;
+	}
+
+	/** The screen model: what the teacher sees, as data (`$lib/screen`). */
+	screen = new ScreenModel(this);
 
 	/**
 	 * Run a command and record it. The command is given the document and the current
