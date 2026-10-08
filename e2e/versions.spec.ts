@@ -13,7 +13,7 @@ async function json(download: Download) {
 
 test.beforeEach(async ({ page }) => {
 	await openEditor(page);
-	await page.locator('.cm-content').first().click();
+	await page.locator('.rich-content').first().click();
 	await page.keyboard.type('Fotosyntéza je proces, při kterém rostliny vyrábějí cukr.');
 });
 
@@ -68,7 +68,7 @@ test('the history survives a reload, and restoring is an undoable edit', async (
 	await page.keyboard.press('Escape');
 
 	// Change the working copy, then go back to version 1.
-	await page.locator('.cm-content').first().click();
+	await page.locator('.rich-content').first().click();
 	await page.keyboard.press('End');
 	await page.keyboard.type(' A ještě věta navíc.');
 	await page.locator('main h1').click();
@@ -83,10 +83,10 @@ test('the history survives a reload, and restoring is an undoable edit', async (
 	await dialog.getByRole('button', { name: 'Obnovit' }).click();
 	await page.keyboard.press('Escape');
 	await expect(page.locator('header .version')).toHaveText(/v1$/);
-	await expect(page.locator('.cm-content').first()).not.toContainText('věta navíc');
+	await expect(page.locator('.rich-content').first()).not.toContainText('věta navíc');
 
 	await page.getByRole('button', { name: 'Zpět', exact: true }).click();
-	await expect(page.locator('.cm-content').first()).toContainText('věta navíc');
+	await expect(page.locator('.rich-content').first()).toContainText('věta navíc');
 });
 
 test('a version with errors is not published, and says where to look', async ({ page }) => {

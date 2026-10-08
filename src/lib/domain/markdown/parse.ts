@@ -71,7 +71,7 @@ export function parseMarkdown(markdown: string, dialect: MarkdownDialect): Parse
 
 	if (dialect.sniffed && !looksLikeMarkdown(markdown)) {
 		if (looksLikeHtml(markdown)) unsupported.push('html');
-		const parsed = { doc: parsePlain(markdown), unsupported };
+		const parsed = { doc: parsePlainText(markdown), unsupported };
 		return dialect.inline ? inlineOnly(parsed) : parsed;
 	}
 
@@ -98,7 +98,7 @@ export function parseMarkdown(markdown: string, dialect: MarkdownDialect): Parse
  * A text the app shows as plain text: what is written is what is seen. A blank line
  * separates paragraphs; every other newline is a line break.
  */
-function parsePlain(source: string): DocNode {
+export function parsePlainText(source: string): DocNode {
 	const paragraphs = source
 		.split(/\n[ \t]*\n\s*/)
 		.map((chunk) => chunk.replace(/^\n+|\n+$/g, ''))

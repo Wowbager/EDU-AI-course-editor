@@ -32,18 +32,22 @@ test('unblurred feedback survives reload even when export is blocked', async ({ 
 	page.on('pageerror', (e) => errors.push(e.message));
 	await page.locator('.tree-add').getByRole('button', { name: 'Otázka', exact: true }).click();
 	const feedback = page.getByRole('textbox', { name: 'Zpětná vazba k této odpovědi' }).first();
-	await feedback.fill('Nezapomeň porovnat jmenovatele.\nDruhý řádek.');
+	await feedback.click();
+	await page.keyboard.type('Nezapomeň porovnat jmenovatele.');
+	await page.keyboard.press('Shift+Enter');
+	await page.keyboard.type('Druhý řádek.');
 	await expect(feedback).toBeFocused();
 	// Checked without touching the page: clicking anything would blur the field.
 	await expect(page.getByRole('button', { name: /^Kontrola kurzu: .*chyb/ })).toBeVisible();
 	await expect(saved(page)).toBeVisible();
 	await page.reload();
-	await expect(feedback).toHaveValue('Nezapomeň porovnat jmenovatele.\nDruhý řádek.');
+	await expect(feedback).toHaveText('Nezapomeň porovnat jmenovatele.Druhý řádek.');
+	await expect(feedback.locator('br')).toHaveCount(1);
 	expect(errors).toEqual([]);
 });
 
 test('a restored draft says so quietly, once, and does not repeat the count', async ({ page }) => {
-	await page.locator('.cm-content').first().click();
+	await page.locator('.rich-content').first().click();
 	await page.keyboard.type('Zlomek');
 	await expect(saved(page)).toBeVisible();
 	await page.reload();
@@ -80,7 +84,7 @@ test('typing groups undo, Escape cancels, and redo is saved', async ({ page }) =
 });
 
 test('a run of typing in a text step is one undo, however it ends', async ({ page }) => {
-	const text = page.locator('.cm-content').first();
+	const text = page.locator('.rich-content').first();
 
 	// Typed key by key, then left: one Ctrl+Z takes the whole sentence back.
 	await text.click();
@@ -112,7 +116,7 @@ test('a run of typing in a text step is one undo, however it ends', async ({ pag
 test('undoing an edit in the middle of a text leaves the cursor where the edit was', async ({
 	page
 }) => {
-	const text = page.locator('.cm-content').first();
+	const text = page.locator('.rich-content').first();
 	await text.click();
 	await page.keyboard.type('Ahoj světe');
 	await page.getByRole('heading', { level: 1 }).click();
@@ -239,8 +243,8 @@ test('the top bar says whether the work has ever left the browser', async ({ pag
 
 	// A fresh course is invalid (its seeded card has no text), so fill it in first —
 	// export is gated on validity, and an ungated assertion would be testing nothing.
-	await page.locator('.cm-content').first().click();
-	await page.locator('.cm-content').first().fill('Zlomek popisuje část celku.');
+	await page.locator('.rich-content').first().click();
+	await page.locator('.rich-content').first().fill('Zlomek popisuje část celku.');
 	// Unsaved work that could be downloaded, and has not been, is the one thing to warn about.
 	await expect(line).toHaveText('Bez zálohy v souboru');
 	await expect(line).toHaveClass(/warning/);
@@ -253,7 +257,7 @@ test('the top bar says whether the work has ever left the browser', async ({ pag
 	await expect(backup(page, 'Staženo do souboru')).toHaveText('Staženo do souboru');
 
 	// One more edit and the file on disk is behind again.
-	await page.locator('.cm-content').first().click();
+	await page.locator('.rich-content').first().click();
 	await page.keyboard.type(' Jmenovatel říká, na kolik dílů.');
 	await expect(backup(page, 'Bez zálohy v souboru')).toHaveText('Bez zálohy v souboru');
 });

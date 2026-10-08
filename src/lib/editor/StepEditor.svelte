@@ -12,12 +12,13 @@
 		QuestionType
 	} from '$lib/domain/schema';
 	import FocusField from '$lib/ui/FocusField.svelte';
+	import RichField from '$lib/ui/RichField.svelte';
+	import { ALWAYS_MARKDOWN, SNIFFED } from '$lib/domain/markdown';
 	import Chip from '$lib/ui/Chip.svelte';
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import Toggle from '$lib/ui/Toggle.svelte';
 	import Modal from '$lib/ui/Modal.svelte';
 	import AnswerTable from './AnswerTable.svelte';
-	import { markdownEditor } from '$lib/ui/codemirror';
 	import FieldGroup from '$lib/ui/FieldGroup.svelte';
 	import { useStepView, useStore } from '$lib/ui/context';
 	import { dragHandle } from 'svelte-dnd-action';
@@ -591,17 +592,14 @@
 			onpointerdown={focusStep}
 		>
 			{#if step.type === 'text'}
-				<div
-					class="markdown"
-					class:invalid={missingText !== undefined}
-					use:markdownEditor={{
-						value: step.content ?? '',
-						placeholder: 'Napiš, co si má žák přečíst.',
-						onchange: (v) => set('content', v === '' ? undefined : v),
-						onbeginedit: () => store.beginEdit(),
-						onendedit: () => store.endEdit()
-					}}
-				></div>
+				<RichField
+					label="Text kroku"
+					value={step.content}
+					dialect={SNIFFED}
+					emptyText="Napiš, co si má žák přečíst."
+					invalid={missingText !== undefined}
+					onchange={(v) => set('content', v)}
+				/>
 				{#if missingText}
 					<p class="missing-text">{missingText.message}</p>
 				{/if}
@@ -697,16 +695,13 @@
 				</div>
 			{:else if step.type === 'question'}
 				<div class="question">
-					<div
-						class="markdown"
-						use:markdownEditor={{
-							value: step.content ?? '',
-							placeholder: 'Zadání otázky',
-							onchange: (v) => set('content', v === '' ? undefined : v),
-							onbeginedit: () => store.beginEdit(),
-							onendedit: () => store.endEdit()
-						}}
-					></div>
+					<RichField
+						label="Zadání otázky"
+						value={step.content}
+						dialect={SNIFFED}
+						emptyText="Zadání otázky"
+						onchange={(v) => set('content', v)}
+					/>
 
 					<div class="question-type">
 						<Segmented
@@ -790,10 +785,10 @@
 					{#if showSolution}
 						<div class="field-row">
 							<span class="field-label">Řešení</span>
-							<FocusField
+							<RichField
+								dialect={SNIFFED}
 								label="Vysvětlení řešení"
 								value={step.question?.solution}
-								multiline
 								ref={{
 									blockId: block.block_id,
 									stepId: step.id,
@@ -820,10 +815,10 @@
 							<span>{hintSpec?.label ?? 'Nápověda'}</span>
 							{#if hintSpec?.hint}<span class="hint">{hintSpec.hint}</span>{/if}
 						</div>
-						<FocusField
+						<RichField
+							dialect={ALWAYS_MARKDOWN}
 							label={hintSpec?.label ?? 'Nápověda'}
 							value={step.hint}
-							multiline
 							ref={{
 								blockId: block.block_id,
 								stepId: step.id,
@@ -840,10 +835,10 @@
 							<span>{helpSpec?.label ?? 'Podrobná pomoc'}</span>
 							{#if helpSpec?.hint}<span class="hint">{helpSpec.hint}</span>{/if}
 						</div>
-						<FocusField
+						<RichField
+							dialect={ALWAYS_MARKDOWN}
 							label={helpSpec?.label ?? 'Podrobná pomoc'}
 							value={step.help}
-							multiline
 							ref={{
 								blockId: block.block_id,
 								stepId: step.id,
@@ -989,26 +984,11 @@
 		color: var(--e-text);
 	}
 
-	.markdown {
-		border: 1px solid var(--e-border);
-		border-radius: var(--radius-s);
-		padding: 2px 10px;
-		background: var(--info-bg);
-	}
-
-	.markdown.invalid {
-		box-shadow: inset 2px 0 0 var(--e-error);
-	}
-
 	.missing-text {
 		margin: 4px 0 0;
 		padding-left: 8px;
 		color: var(--e-error);
 		font-size: var(--text-xs);
-	}
-
-	.markdown:focus-within {
-		border-color: var(--primary);
 	}
 
 	.media {

@@ -105,7 +105,7 @@ test('a folded step opens while it is focused and folds again when left', async 
 	await expect(list.nth(2)).toHaveClass(/targeted/);
 
 	// …and working in another step folds it back.
-	await list.nth(0).locator('.cm-content').click();
+	await list.nth(0).locator('.rich-content').click();
 	await expect(isFolded(list.nth(2))).toBeVisible();
 });
 
@@ -208,7 +208,7 @@ async function openTallCard(page: Page, questions: number) {
 	await expect(steps(page)).toHaveCount(questions + 1);
 	// Every step's text says which one it is, so a reorder can be told from the outside.
 	for (let i = 0; i <= questions; i++) {
-		await steps(page).nth(i).locator('.cm-content').first().click();
+		await steps(page).nth(i).locator('.rich-content').first().click();
 		await page.keyboard.type(`krok-${i + 1}`);
 	}
 	await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());

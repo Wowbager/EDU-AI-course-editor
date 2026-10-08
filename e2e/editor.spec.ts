@@ -33,9 +33,14 @@ test('a teacher builds a lesson from scratch', async ({ page }) => {
 	await expect(page.locator('.tree-lesson.open .name')).toHaveText('První lekce');
 	await expect(page.locator('.tree-card')).toHaveCount(1);
 
-	// Write the explanation. A text step is a Markdown editor, not a revealed field.
-	await page.locator('.cm-content').first().click();
-	await page.locator('.cm-content').first().fill('Zlomek popisuje **část celku**.');
+	// Write the explanation. A text step is formatted text: Ctrl+B is bold, no asterisks.
+	await page.locator('.rich-content').first().click();
+	await page.keyboard.type('Zlomek popisuje ');
+	await page.keyboard.press('Control+b');
+	await page.keyboard.type('část celku');
+	await page.keyboard.press('Control+b');
+	await page.keyboard.type('.');
+	await expect(page.locator('.rich-content strong').first()).toHaveText('část celku');
 
 	// Add a question card. The add buttons live under the open lesson in the tree —
 	// scoped, because "Otázka" is also the name of an add-*step* button.
@@ -48,7 +53,7 @@ test('a teacher builds a lesson from scratch', async ({ page }) => {
 	await page.keyboard.type('Čitatel je 5');
 	await page.keyboard.press('Enter');
 
-	await expect(answers.getByRole('textbox', { name: 'Text odpovědi' }).first()).toHaveValue(
+	await expect(answers.getByRole('textbox', { name: 'Text odpovědi' }).first()).toHaveText(
 		'Čitatel je 5'
 	);
 
@@ -266,7 +271,7 @@ test('a type change that loses answers says Zpět brings them back, even from an
 	await page.locator('.tree-card').first().click();
 	await expect(page.locator('.answers')).toHaveCount(0);
 	await page.getByRole('button', { name: 'Zpět', exact: true }).click();
-	await expect(answer).toHaveValue('Čitatel je 5');
+	await expect(answer).toHaveText('Čitatel je 5');
 });
 
 test('the practice switch agrees with the Opakování chip, and off means off', async ({ page }) => {
@@ -562,13 +567,12 @@ test("the card title's placeholder is a name, not a cue: upright, while a cue st
 	await expect(page.locator(title).first()).toHaveAttribute('placeholder', /^Karta \d+$/);
 	expect(await style(title)).toBe('normal');
 	// An invitation to write is still set as one.
-	expect(await style('.answers textarea, .answers input[aria-label="Text odpovědi"]')).toBe(
-		'italic'
-	);
+	const cue = page.locator('.answers .rich-content p[data-placeholder]').first();
+	expect(await cue.evaluate((el) => getComputedStyle(el, '::before').fontStyle)).toBe('italic');
 	// No stray full stop, no markup jargon on the step prompts.
-	await expect(page.locator('.cm-placeholder', { hasText: 'Zadání otázky' }).first()).toHaveText(
-		'Zadání otázky'
-	);
+	await expect(
+		page.locator('.rich-content p[data-placeholder="Zadání otázky"]').first()
+	).toBeAttached();
 });
 
 test('the course dialog closes with Hotovo, like the card and lesson dialogs', async ({ page }) => {
