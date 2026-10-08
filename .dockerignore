@@ -10,3 +10,6 @@ playwright-report
 .git
 .env
 .env.*
+# Version histories written by `npm run dev` (DATA_DIR defaults to .data/ outside
+# the image). They are someone's courses, not build input.
+.data
