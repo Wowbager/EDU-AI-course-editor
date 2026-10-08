@@ -35,6 +35,7 @@
 	import MenuItem from './MenuItem.svelte';
 	import MenuSeparator from './MenuSeparator.svelte';
 	import { createRichEditor, type RichEditor } from './rich/editor';
+	import { EditRun } from '$lib/state/edit-run';
 	import { renderMath } from './rich/math';
 	import { isImageAddress } from './rich/paste';
 
@@ -112,14 +113,13 @@
 				editable: !disabled,
 				onchange: (markdown) => emit(markdown),
 				onbeginedit: begin,
-				onendedit: () => store.endEdit(),
+				onendedit: () => typing.end(),
 				onmath: openMath,
 				onrefused: (message) => (refused = message),
 				onstate: () => tick++,
 				onundo: (redo) => {
 					// The run ends here; what is typed after the undo is a run of its own.
-					store.endEdit();
-					editing = false;
+					typing.end();
 					if (redo) store.redo();
 					else store.undo();
 				},
@@ -142,16 +142,9 @@
 
 	onDestroy(() => rich?.destroy());
 
-	/** What the field held when this run of typing began, for Escape. */
-	let baseline: string | undefined;
-	let editing = false;
-
-	function begin() {
-		if (editing) return;
-		editing = true;
-		baseline = value;
-		store.beginEdit();
-	}
+	/** This field's run of typing, in whichever view: one undo entry, Escape's target. */
+	const typing = new EditRun(store);
+	const begin = () => typing.begin(value);
 
 	function emit(markdown: string) {
 		refused = null;
@@ -164,8 +157,7 @@
 		closeMath();
 		imagePanel = null;
 		rich?.end();
-		store.endEdit();
-		editing = false;
+		typing.end();
 		if (ref) store.touchField(ref);
 		onblur?.();
 	}
@@ -186,7 +178,11 @@
 		});
 	}
 
-	/** Escape in the formula or image row closes it; in the text, it reverts the run. */
+	/**
+	 * Escape in the formula or image row closes it. In the source view it takes back the
+	 * run of typing; the visual editor does that itself (`onescape`), before its own
+	 * key bindings can claim the key.
+	 */
 	function onkeydown(event: KeyboardEvent) {
 		if (event.key !== 'Escape' || event.defaultPrevented) return;
 		if (mathPos !== null || imagePanel) {
@@ -195,18 +191,19 @@
 			closeMath();
 			imagePanel = null;
 			focusText();
+		} else if (source && revert()) {
+			event.preventDefault();
+			event.stopPropagation();
 		}
 	}
 
+	/** Take back the run of typing, in whichever view is showing. */
 	function revert(): boolean {
-		if (!editing) return false;
-		const back = baseline;
-		emitted = back;
-		if (back !== value) onchange(back);
-		rich?.setValue(back ?? '');
-		store.endEdit();
-		editing = false;
-		return true;
+		return typing.revert((back) => {
+			emitted = back;
+			if (back !== value) onchange(back);
+			rich?.setValue(back ?? '');
+		});
 	}
 
 	// ─── Toolbar ────────────────────────────────────────────────────────────
@@ -389,7 +386,7 @@
 				placeholder: emptyText ?? label,
 				onchange: (v) => emit(v),
 				onbeginedit: begin,
-				onendedit: () => store.endEdit()
+				onendedit: () => typing.end()
 			}}
 		></div>
 	{:else}
