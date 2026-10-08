@@ -9,7 +9,7 @@
 	 * bottom edge: the text the teacher clicked never moves, and an untouched field is
 	 * just a field. The formula and image editors open in that same row.
 	 */
-	import { onDestroy, untrack } from 'svelte';
+	import { onDestroy, tick as settled, untrack } from 'svelte';
 	import {
 		Bold,
 		BetweenHorizontalEnd,
@@ -358,10 +358,16 @@
 
 	// The text is the editor's DOM; it carries the field's state for assistive tech.
 	$effect(() => {
-		const surface = ready ? host?.querySelector('.rich-content') : null;
-		if (!surface) return;
-		if (flagged) surface.setAttribute('aria-invalid', 'true');
-		else surface.removeAttribute('aria-invalid');
+		const invalidNow = flagged;
+		void source;
+		void ready;
+		// The visual editor's text, or the Markdown view's: whichever is showing, once
+		// its editor has mounted.
+		void settled().then(() => {
+			const surface = wrapper?.querySelector('.rich-content, .cm-content');
+			if (invalidNow) surface?.setAttribute('aria-invalid', 'true');
+			else surface?.removeAttribute('aria-invalid');
+		});
 	});
 </script>
 
@@ -384,6 +390,8 @@
 			use:markdownEditor={{
 				value: value ?? '',
 				placeholder: emptyText ?? label,
+				label,
+				describedby,
 				onchange: (v) => emit(v),
 				onbeginedit: begin,
 				onendedit: () => typing.end()

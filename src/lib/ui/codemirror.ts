@@ -12,6 +12,10 @@ import { markdown } from '@codemirror/lang-markdown';
 export interface MarkdownEditorOptions {
 	value: string;
 	placeholder?: string;
+	/** The field's name for assistive tech: the editable element is otherwise unnamed. */
+	label?: string;
+	/** Id of the line that describes the field (its hint, its error). */
+	describedby?: string;
 	onchange: (value: string) => void;
 	/**
 	 * A run of typing starts, just before its first change is reported. The store
@@ -68,6 +72,10 @@ export function markdownEditor(node: HTMLElement, options: MarkdownEditorOptions
 		EditorView.lineWrapping,
 		theme,
 		placeholderExtension(current.placeholder ?? ''),
+		EditorView.contentAttributes.of({
+			...(current.label ? { 'aria-label': current.label } : {}),
+			...(current.describedby ? { 'aria-describedby': current.describedby } : {})
+		}),
 		EditorView.updateListener.of((update) => {
 			if (!update.docChanged || pushing) return;
 			if (!editing) {
