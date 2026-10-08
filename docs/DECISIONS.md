@@ -2362,6 +2362,31 @@ The app's Markdown renderer loads `![…](https://…)` straight from its host, 
 web works only for hosts that send CORS headers. `player-shim.js` now sends a cross-origin
 `https://` request for an image file through `/preview-image` too, like a step image.
 
+### Review findings, and the checks that now catch their kind
+
+Copilot's review of PR #3 found six defects; each now has a check that failed on the code
+before its fix:
+
+| Finding | Fix | Caught by |
+|---|---|---|
+| Pasting `A **B**` into an answer added spaces | `toOneLine` in the domain separates blocks only | `properties.test.ts` (fast-check) |
+| Adjacent links with different titles merged | a link's identity includes its title | `properties.test.ts` |
+| Switching to Markdown mid-run split typing into one undo entry per key | `EditRun`, shared by both views, asks the store for its session | `edit-contract.spec.ts`, `edit-run.test.ts` |
+| Escape did nothing in the Markdown view | `EditRun.revert` in either view | `edit-contract.spec.ts` |
+| The Markdown view was an unnamed textbox | the CodeMirror action takes `label`, `describedby` | `accessibility.spec.ts` (axe, WCAG A) |
+| A formula could not be opened without a mouse | arrows select it, Enter/Space open it; announced as an image | keyboard test in `rich-text.spec.ts` |
+
+The property tests found seven more on their first runs, all fixed in the same commit:
+two lists in a row merging, emphasis hidden between `<` and `>`, `!` before a link making
+an image, emphasis that could not close after a link, a heading's trailing `#`, and
+escaping that removed the app's own Markdown trigger (`__`). One is a limit of Markdown
+and is written into the generator: two different emphases ending on one letter with a
+letter straight after.
+
+Rejected: gating colour contrast now (it fails on the existing top bar, #52);
+generating arbitrary Unicode (the generator builds what a teacher can make, plus every
+Markdown syntax character, so a failure is a real one).
+
 ### Changed without being asked
 
 - Placeholders in these fields are faint italic, distinct from written text (a known gap

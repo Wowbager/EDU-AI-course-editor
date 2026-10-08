@@ -328,6 +328,12 @@ mathematics they agree. A command one supports and the other does not would draw
 field and fall back to orange source in the app (or the reverse). Náhled is the reference:
 it is the app.
 
+### 52. Faint text in the top bar and elsewhere fails WCAG AA colour contrast
+**Reproduced by axe** (Round 15, `@axe-core/playwright`, rule `color-contrast`): 24
+elements on a new course's page, among them the version chip and the save status.
+`e2e/accessibility.spec.ts` gates WCAG level A only for that reason; once these pass,
+add `wcag2aa` to its tags. Not caused by the visual editor.
+
 ---
 
 ## Unconfirmed
