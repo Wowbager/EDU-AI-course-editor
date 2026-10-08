@@ -146,8 +146,9 @@ to follow. Some are being worked on in Round 9.
 - Placeholders are styled so they look like written content.
 - Metodik shows a practice switch on every step, and fields nothing reads.
 - Náhled is a hand-drawn copy of the app's card layout (OPEN-PROBLEMS #18).
-- In quiz courses the editor asks for hints and feedback the app never shows
-  (OPEN-PROBLEMS #25).
+- The spec suggests `quiz_v2` with `quiz_evaluate: false` suppresses solutions
+  and per-option feedback that the editor may still ask for; verify this against
+  the app before changing those fields (OPEN-PROBLEMS #25).
 - Hover-only actions are unverified on touch screens (OPEN-PROBLEMS #26).
 
 ## Keeping this file true
