@@ -19,6 +19,7 @@ import { Image } from '@tiptap/extension-image';
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table';
 import { Placeholder } from '@tiptap/extensions';
 import { Slice, type Node as PMNode } from '@tiptap/pm/model';
+import { NodeSelection } from '@tiptap/pm/state';
 import {
 	parseMarkdown,
 	serializeMarkdown,
@@ -43,6 +44,8 @@ export interface RichEditorOptions {
 	onendedit: () => void;
 	/** A formula was clicked or inserted. */
 	onmath: (pos: number) => void;
+	/** An image was chosen with the keyboard: open it for editing. */
+	onimage: () => void;
 	/** Something the field cannot take was pasted or dropped, such as an image file. */
 	onrefused: (message: string) => void;
 	/** Selection or formatting changed: the toolbar redraws. */
@@ -112,6 +115,23 @@ export function createRichEditor(options: RichEditorOptions) {
 				// Escape takes back the run of typing, as in every other field; when there
 				// is nothing to take back it is the page's (closing a dialog).
 				if (event.key === 'Escape') return options.onescape();
+				// A formula or an image the arrows have landed on opens with Enter or Space,
+				// as it does with a click: neither is a tab stop of its own inside the text.
+				const selection = editor.state.selection;
+				if (
+					(event.key === 'Enter' || event.key === ' ') &&
+					!meta &&
+					selection instanceof NodeSelection
+				) {
+					if (selection.node.type.name === 'math') {
+						options.onmath(selection.from);
+						return true;
+					}
+					if (selection.node.type.name === 'image') {
+						options.onimage();
+						return true;
+					}
+				}
 				if (event.key === 'Enter' && dialect.inline) {
 					options.onenter?.();
 					return true;

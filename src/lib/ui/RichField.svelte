@@ -115,6 +115,7 @@
 				onbeginedit: begin,
 				onendedit: () => typing.end(),
 				onmath: openMath,
+				onimage: () => openImage(),
 				onrefused: (message) => (refused = message),
 				onstate: () => tick++,
 				onundo: (redo) => {

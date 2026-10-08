@@ -183,6 +183,43 @@ test('Ctrl+Z in the text undoes the course, not just the field', async ({ page }
 	await expect(text(page).locator('strong')).toHaveText('světe');
 });
 
+test('a formula and an image open from the keyboard, as they do with a click', async ({ page }) => {
+	// Copilot, PR #3: a formula inside the text was a button nobody could reach without
+	// a mouse. The arrows land on it like on a letter; Enter opens it.
+	await text(page).click();
+	await page.keyboard.type('Plocha $x^2$');
+	await expect(text(page).locator('.math')).toHaveCount(1);
+	await page.keyboard.press('ArrowLeft');
+	await page.keyboard.press('Enter');
+	const latex = page.getByRole('textbox', { name: 'Vzorec v LaTeXu' });
+	await expect(latex).toBeFocused();
+	await expect(latex).toHaveValue('x^2');
+	await latex.fill('x^3');
+	await latex.press('Enter');
+	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', /x\^3/);
+	// Back in the text, after the formula: typing goes on where it was.
+	await page.keyboard.type(' m');
+	await expect(text(page)).toContainText(' m');
+
+	await page.route('https://example.com/**', (route) =>
+		route.fulfill({
+			contentType: 'image/svg+xml',
+			body: '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"/>'
+		})
+	);
+	await toolbar(page).getByRole('button', { name: 'Obrázek' }).click();
+	await page
+		.getByRole('textbox', { name: 'Webová adresa obrázku' })
+		.fill('https://example.com/a.svg');
+	await page.keyboard.press('Enter');
+	await expect(text(page).locator('img:not(.ProseMirror-separator)')).toHaveCount(1);
+	await page.keyboard.press('ArrowLeft');
+	await page.keyboard.press('Enter');
+	await expect(page.getByRole('textbox', { name: 'Webová adresa obrázku' })).toHaveValue(
+		'https://example.com/a.svg'
+	);
+});
+
 test.describe('the system clipboard', () => {
 	test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
 

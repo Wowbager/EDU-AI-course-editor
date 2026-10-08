@@ -91,9 +91,11 @@ export const MathNode = Node.create<MathOptions>({
 		return ({ node, getPos }) => {
 			const dom = document.createElement('span');
 			dom.className = 'math';
-			dom.setAttribute('role', 'button');
+			// Drawn maths, named by its source. Not a button: inside the text it is no tab
+			// stop of its own; the arrows select it and Enter opens it (`editor.ts`).
+			dom.setAttribute('role', 'img');
 			dom.setAttribute('aria-label', `Vzorec ${node.attrs.latex}`);
-			dom.title = 'Upravit vzorec';
+			dom.title = 'Upravit vzorec (klepnutím nebo Enter)';
 			let current = node;
 			const draw = () => {
 				dom.classList.toggle('math-display', current.attrs.display === true);
