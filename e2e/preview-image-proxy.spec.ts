@@ -73,4 +73,49 @@ test.describe('the player is rewritten to fetch images from this origin', () => 
 		);
 		expect(wentDirectlyToTheLaravelProxy).toHaveLength(0);
 	});
+
+	test('an image written into a text is fetched through /preview-image as well', async ({
+		page
+	}) => {
+		// The app's Markdown renderer loads `![…](https://…)` straight from its host, which
+		// on the web works only for hosts that send CORS headers.
+		const fixture = JSON.parse(
+			readFileSync(
+				new URL('../src/lib/domain/__tests__/fixtures/spec-16-course.json', import.meta.url),
+				'utf-8'
+			)
+		);
+		const textStep = fixture.blocks[0].steps.find((step: { type: string }) => step.type === 'text');
+		const inline = 'https://example.com/inline-image-test.png';
+		textStep.content = `Kruh: ![Kruh](${inline}) a **text**.`;
+
+		// Only the player's requests: the editor's own text field shows the image too.
+		const requestUrls: string[] = [];
+		page.on('request', (request) => {
+			if (request.frame() !== page.mainFrame()) requestUrls.push(request.url());
+		});
+		await openEditor(page);
+		await page.setInputFiles('input[type=file]', {
+			name: 'inline-image-course.json',
+			mimeType: 'application/json',
+			buffer: Buffer.from(JSON.stringify(fixture))
+		});
+		await expect(page.locator('aside.preview')).toHaveAttribute('data-player', 'ready', {
+			timeout: 120_000
+		});
+		await page.locator('.tree-card').first().click();
+		const origin = new URL(page.url()).origin;
+		await expect
+			.poll(
+				() =>
+					requestUrls.some(
+						(url) =>
+							url.startsWith(`${origin}/preview-image?url=`) &&
+							url.includes(encodeURIComponent(inline))
+					),
+				{ timeout: 30_000 }
+			)
+			.toBe(true);
+		expect(requestUrls.filter((url) => url === inline)).toHaveLength(0);
+	});
 });

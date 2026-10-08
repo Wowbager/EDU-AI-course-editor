@@ -117,7 +117,7 @@ describe('player-shim: fetch', () => {
 
 	it('passes a non-matching Request object through unchanged', async () => {
 		const { sandbox, fetchMock } = loadShim();
-		const request = new sandbox.Request('https://example.com/unrelated.png');
+		const request = new sandbox.Request('https://example.com/unrelated.json');
 
 		await sandbox.fetch(request);
 
@@ -131,6 +131,37 @@ describe('player-shim: fetch', () => {
 		await expect(sandbox.fetch(123)).resolves.toBeDefined();
 		await expect(sandbox.fetch({})).resolves.toBeDefined();
 		expect(fetchMock).toHaveBeenCalledTimes(3);
+	});
+});
+
+describe('player-shim: an image written into a text', () => {
+	// The app's Markdown renderer loads `![popis](https://…)` straight from its host.
+	it('sends an image on another origin to the preview-image endpoint', async () => {
+		const { sandbox, fetchMock } = loadShim();
+		await sandbox.fetch('https://example.com/kruh.png?w=200');
+		expect(fetchMock.mock.calls[0][0]).toBe(
+			`/preview-image?url=${encodeURIComponent('https://example.com/kruh.png?w=200')}`
+		);
+	});
+
+	it('leaves an image on the page’s own origin alone', async () => {
+		const { sandbox, fetchMock } = loadShim();
+		sandbox.location = { host: 'editor.example' } as never;
+		vm.runInContext(source, sandbox);
+		await sandbox.fetch('https://editor.example/player/assets/logo.png');
+		expect(fetchMock.mock.calls.at(-1)?.[0]).toBe('https://editor.example/player/assets/logo.png');
+	});
+
+	it('leaves what is not an image file alone: fonts, the API, plain http', async () => {
+		const { sandbox, fetchMock } = loadShim();
+		for (const url of [
+			'https://fonts.gstatic.com/s/poppins/v1/a.woff2',
+			'https://app-api.edu-ai.eu/api/courses/1',
+			'http://example.com/kruh.png'
+		]) {
+			await sandbox.fetch(url);
+			expect(fetchMock.mock.calls.at(-1)?.[0]).toBe(url);
+		}
 	});
 });
 

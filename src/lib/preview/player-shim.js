@@ -56,8 +56,29 @@
 		var match = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^/]+)?(\/api\/proxy\/image)\?url=(.+)$/.exec(
 			rawUrl
 		);
+		if (match) return '/preview-image?url=' + match[2];
+		return rewriteDirectImageUrl(rawUrl);
+	}
+
+	/**
+	 * An image written into a text (`![popis](https://…/obrazek.png)`) is not routed
+	 * through the proxy at all: the app's Markdown renderer loads it straight from its
+	 * host (`markdown_latex_widget.dart` has no image builder). On the web that only
+	 * works for a host that sends CORS headers, so Náhled would show an empty space
+	 * where the pupil's phone shows the picture. Such a request — an absolute https://
+	 * address on another origin, for an image file — goes to `/preview-image` too.
+	 */
+	function rewriteDirectImageUrl(rawUrl) {
+		var match = /^https:\/\/([^/?#]+)[^?#]*\.(png|jpe?g|gif|webp|svg|avif|bmp)(?:[?#].*)?$/i.exec(
+			rawUrl
+		);
 		if (!match) return null;
-		return '/preview-image?url=' + match[2];
+		try {
+			if (typeof location !== 'undefined' && location.host === match[1]) return null;
+		} catch (e) {
+			// No location to compare with: treat the address as another origin's.
+		}
+		return '/preview-image?url=' + encodeURIComponent(rawUrl);
 	}
 
 	// ── fetch ──────────────────────────────────────────────────────────────────
