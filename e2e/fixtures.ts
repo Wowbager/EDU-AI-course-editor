@@ -89,6 +89,11 @@ export async function openEditor(page: Page, url = '/'): Promise<boolean> {
  * Locally the frames land before the next assertion, so waiting on the panel looked
  * sufficient for a long time. On a CI runner (and under load) they do not, and the
  * caller burned its whole 30 s timeout on a not-visible element.
+ *
+ * An open menu can still close before the caller clicks it. A step just added is
+ * revealed with a smooth scroll, and a scroll that is still going when the next menu
+ * opens closes it again a frame later — after it was seen open here. A caller that
+ * clicks an item straight away uses `chooseFromMenu`, which opens and clicks in one retry.
  */
 export async function openMenu(
 	page: Page,
@@ -105,6 +110,19 @@ export async function openMenu(
 }
 
 /**
+ * Open a menu and click one of its items, retrying both together: a menu closed by a
+ * late scroll (see `openMenu`) is opened again instead of leaving the click to wait on
+ * an item that is gone. The click is the last thing tried, so one that went through is
+ * never repeated.
+ */
+export async function chooseFromMenu(page: Page, trigger: Locator, item: Locator) {
+	await expect(async () => {
+		if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click();
+		await item.click({ timeout: 1_000 });
+	}).toPass({ timeout: 10_000 });
+}
+
+/**
  * Add a step at the end of the open card, through the "Přidat krok" menu. `within`
  * narrows it to one card when the column holds more than one.
  */
@@ -112,8 +130,7 @@ export async function addStep(page: Page, type: StepKind, within: Pick<Page, 'lo
 	const trigger = within
 		.locator('.add-step')
 		.getByRole('button', { name: 'Přidat krok', exact: true });
-	const menu = await openMenu(page, trigger, 'Přidat krok', addStepItem(page, type));
-	await menu.getByRole('menuitem', { name: type, exact: true }).click();
+	await chooseFromMenu(page, trigger, addStepItem(page, type));
 }
 
 /** An item of a named menu, as `openMenu` wants it. */
