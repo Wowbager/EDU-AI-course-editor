@@ -2284,6 +2284,98 @@ the unit tests and the e2e `editor` project. The rule for a person is in `AGENTS
 format the files you touched, and if the whole tree is reformatted that is its own
 commit with nothing else in it.
 
+## Round 15 — text is written as formatted text, not Markdown
+
+The owner: *"The editor needs easy to use WYSIWYG editor the current markdown isn't
+suitable for most users, make sure it works well and supports things like using system
+copy/paste. … ease of use and minimal visual load."* In answers to questions: a slim
+toolbar that **must support images**; every Markdown field; raw Markdown only through the
+⋯ menu; images by web address only, no upload.
+
+### What a teacher sees
+
+Step text, question, solution, hint, help, answer text and answer feedback are edited
+as formatted text (`src/lib/ui/RichField.svelte`). The field looks like every other field
+at rest. While it has focus, one row of icons sits inside its bottom edge — Tučně,
+Kurzíva, Nadpis, Odrážky, Číslování, Vzorec, Obrázek, ⋯ (Citace, Tabulka, Upravit jako
+text) — and the formula and image editors open in that same row. An answer, one line,
+gets Tučně, Kurzíva, Vzorec and ⋯. Markdown typed by hand still works (`## `, `- `,
+`1. `, `> `, `**…**`, `$x^2$`).
+
+**The row is inside the bottom edge, not above the field and not floating.** Above, it
+covered the label or the step's header; floating over a selection (Notion, Medium) is
+the least visual load but research and support threads agree that non-technical users
+then believe formatting is missing. At the bottom, the text the teacher clicked never
+moves when the row appears; only what is below shifts. Rejected: an always-visible
+toolbar (DESIGN principle 1), a bubble menu as well as the row (two mechanisms for one
+thing, principle 9), a slash menu (same).
+
+### The document still holds Markdown, read the app's way
+
+`src/lib/domain/markdown/` converts Markdown to the editor's document and back, headless
+and tested, with the app's rules one function each (`app-dialect.ts`, citing
+`markdown_latex_widget.dart` and `step_content_renderer.dart`): every newline a line break
+(written back as a bare newline); `$…$`/`$$…$$` with the app's own regexes; a lone `$$…$$`
+line its own paragraph; and — the surprising one — a sniffed field without a Markdown
+character is plain text, written exactly as typed with no backslash escapes, because the
+app would print the backslash. Bullets are written as `*` and the toolbar's heading as
+`##` so the app's sniff still sees them (OPEN-PROBLEMS #47 for what it cannot help).
+
+Rejected: `@tiptap/markdown` (marked-based like ours, but its hard breaks, escaping and
+math are not the app's, and it needs the editor loaded to convert); Milkdown (best
+Markdown fidelity, no Svelte binding, and the same dialect problem); CKEditor 5 (licence);
+storing HTML or the editor's JSON (the app reads Markdown, and AGENTS rule 6).
+
+**Nothing is rewritten by being opened.** A field is serialised only after the teacher
+edits it. `canEditVisually` sends any text the editor cannot hold exactly — HTML, a
+`<video>`, an entity, an h4, a task list, an aligned table — to the source view, where it
+stays as written; on the corpus, 417 of 428 texts open visually and the 11 that do not
+are the legacy HTML ones (`corpus.test.ts`). After a first edit, what normalises is
+cosmetic: `-` bullets become `*`, a table's `|---|` becomes `| --- |`.
+
+### Copy and paste
+
+The schema is the whitelist. Before it, `rich/paste.ts` undoes how other programs encode
+formatting the app has: Google Docs' `<b style="font-weight:normal" id="docs-internal-guid">`
+wrapper and its `font-weight:700` spans, Word's `MsoListParagraph` lists and `mso-*`,
+`<o:p>`, comments. Fonts, colours and sizes go. Plain text that reads as Markdown is
+parsed as Markdown; Ctrl+Shift+V pastes words and line breaks. Copying out puts HTML on
+the clipboard for Word and Markdown on the plain-text one, so a formula survives a trip
+through a chat. A pasted image file is refused with one line saying how to copy the
+image's address (#48).
+
+### Keys and undo
+
+The store keeps undo, as with CodeMirror before (Round 9): Ctrl+Z in the text undoes the
+course, a run of typing is one entry, Escape takes the run back, and an undo ends the run.
+Tiptap's own bindings are trimmed where they collide: Ctrl+Shift+B is the page's preview
+toggle (Tiptap binds it to bold *and* to the quote), Ctrl+Alt+digit and Ctrl+Alt+C are
+AltGr characters on a Czech keyboard, not a heading or a code block.
+
+Headings inside a text are drawn two levels down (`h3`–`h5`, with `data-level` 1–3), so
+the card's `<h1>` stays the page's only one; tests that ask for "the heading" kept
+working, and so does a screen reader's outline.
+
+### Images in Náhled
+
+The app's Markdown renderer loads `![…](https://…)` straight from its host, which on the
+web works only for hosts that send CORS headers. `player-shim.js` now sends a cross-origin
+`https://` request for an image file through `/preview-image` too, like a step image.
+
+### Changed without being asked
+
+- Placeholders in these fields are faint italic, distinct from written text (a known gap
+  in DESIGN.md).
+- An answer gets the same row as other fields, with fewer buttons, rather than no row.
+- OPEN-PROBLEMS #39 closed: PR #1 is merged and `docs/DESIGN.md` is on `main`.
+
+### Proposed, not built
+
+- A link button (links are not tappable in the app, #49).
+- Image upload (#48).
+- Giving focus back when the player takes it at boot (#46).
+- Table row and column controls beyond the ⋯ menu's.
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

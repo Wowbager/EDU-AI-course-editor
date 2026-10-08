@@ -283,26 +283,50 @@ the file with no field to clear them, except by switching the option off and on 
 branch of `_confirmAnswer` skips an option's `score_koef` too (`block_step_engine.dart:597-601`),
 which the advanced "Podíl bodů" field still offers. Not changed here.
 
-### 39. The design brief agents are told to follow is not on `main`
-**Verified by reading the repo.** The standing instructions every agent on this project
-gets — the workspace `AGENTS.md`, which sits outside this repository, next to the
-checkouts — tell them: *"For anything a teacher sees, follow `docs/DESIGN.md`"* (in this
-repo). That file does not exist on `main`. It was written by the 2026-09-29 design review
-and pushed as branch `claude/design-brief`, which is open as **PR #1** and unmerged. So
-the standing instructions point at a document the repository does not contain, and an
-agent that checks will find nothing; one that does not check will invent a design
-authority from the current UI — which is exactly what the brief was written to stop.
+### 46. The player takes focus from the field being typed in when it boots
+**Reproduced in the browser** (Round 15, real player). About two seconds after the page
+loads, the Flutter player in the preview column focuses itself, and the field the teacher
+had already clicked into loses focus — any field, the course name as much as a text step.
+Whatever was typed after that goes nowhere until the teacher clicks back. It happens once
+per player boot (page load, and the reload of a player that did not start). Not caused by
+the visual editor; found while testing it. An editor-side fix is possible (give focus back
+when the preview takes it without a click in it), not done here.
 
-This is the owner's call, not a fix to make here. Either **merge PR #1** (the brief then
-becomes real authority and this entry goes away), or **rewrite the instruction** to say
-the brief is a *proposal pending approval* and the current UI is not yet the target.
-Until one of those happens the reference in the workspace instructions is marked as
-pending rather than approved, so nobody mistakes a proposal for a decision.
+### 47. A text with formatting but no `*`, `__`, `##`, ``` ``` ```, `$` or `![` is shown raw by the app
+**Reproduced by reading the app** (`step_content_renderer.dart` `_looksLikeMarkdown`). The
+app renders a text step, question, answer, solution or feedback as Markdown only if it
+contains one of those characters; otherwise it prints it as typed. The visual editor
+writes bullets as `*` and the toolbar's heading as `##` so that a list or a heading alone
+still counts. What it cannot help: a text whose only formatting is a numbered list, a
+quote, a table, a link or a `# ` heading typed by hand prints as `1. …`, `> …`, `| … |`.
+Reloaded, the editor then shows that text plainly too, matching the app. The fix is
+app-side (render these fields as Markdown always, as hints already are); the editor may
+not write `expected_output_format`, which is a legacy key (spec §3 invariant 7).
 
-The same branch also rewrites `docs/DECISIONS.md` and `docs/OPEN-PROBLEMS.md` down to
-their post-review state, so merging it is not a docs-only change: it is a decision about
-which of those files is canonical. That is why it was not merged as part of the
-2026-09-30 workspace tidy.
+### 48. Teachers cannot upload an image; the visual editor takes web addresses only
+**Verified by reading the API.** The only upload is `POST /api/admin/assets/upload`
+(S3, public URL), and it is admin-only. So an image in a text, like an image step, is a
+public `https://` address; a pasted or dropped image *file* gets one line saying how to
+copy an image's address instead. Opening that endpoint to teachers is API-side.
+
+### 49. Links in a text cannot be tapped in the app
+**Reproduced by reading the app.** `MarkdownLatexWidget` sets no `onTapLink`, so a link
+is styled but dead. The visual editor keeps the links a text already has and offers no
+link button; pasted links stay links. App-side.
+
+### 50. The app turns every `\n` in a text step into a line break, including inside a formula
+**Reproduced by reading the app** (`block_model.dart` `displayText`:
+`replaceAll(r'\n', '\n')`). It is there for backends that double-escaped newlines, and it
+also hits LaTeX: `$a \neq b$`, `\nu`, `\nabla`, `\newline` lose their command to a line
+break in a text step (not in hints, answers or solutions, which do not go through it).
+The editor writes what the teacher typed; the fix is app-side. Until then, `\ne` has the
+same problem and `\not=` does not.
+
+### 51. Formulas in the editor are drawn by KaTeX, in the app by flutter_math
+**Not a reproduced defect; a known difference.** Both read the same LaTeX, and for school
+mathematics they agree. A command one supports and the other does not would draw in the
+field and fall back to orange source in the app (or the reverse). Náhled is the reference:
+it is the app.
 
 ---
 
@@ -492,6 +516,30 @@ Headings kept so that a citation from `docs/DECISIONS.md`,
 **Nothing here is open**, and the entries no longer sit in the live list above. The round
 that closed it is named, and the reasoning is in that round's section of
 `docs/DECISIONS.md`.
+
+### 39. The design brief agents are told to follow is not on `main` — closed (PR #1 merged)
+**Verified by reading the repo.** The standing instructions every agent on this project
+gets — the workspace `AGENTS.md`, which sits outside this repository, next to the
+checkouts — tell them: *"For anything a teacher sees, follow `docs/DESIGN.md`"* (in this
+repo). That file does not exist on `main`. It was written by the 2026-09-29 design review
+and pushed as branch `claude/design-brief`, which is open as **PR #1** and unmerged. So
+the standing instructions point at a document the repository does not contain, and an
+agent that checks will find nothing; one that does not check will invent a design
+authority from the current UI — which is exactly what the brief was written to stop.
+
+This is the owner's call, not a fix to make here. Either **merge PR #1** (the brief then
+becomes real authority and this entry goes away), or **rewrite the instruction** to say
+the brief is a *proposal pending approval* and the current UI is not yet the target.
+Until one of those happens the reference in the workspace instructions is marked as
+pending rather than approved, so nobody mistakes a proposal for a decision.
+
+The same branch also rewrites `docs/DECISIONS.md` and `docs/OPEN-PROBLEMS.md` down to
+their post-review state, so merging it is not a docs-only change: it is a decision about
+which of those files is canonical. That is why it was not merged as part of the
+2026-09-30 workspace tidy.
+
+**Closed in Round 15.** PR #1 was merged (`842c8ad`); `docs/DESIGN.md` is on `main` and is
+the authority `AGENTS.md` says it is.
 
 ### 1. An empty lesson is invisible to validation — fixed (Round 4)
 `W_EMPTY_LESSON` reports it in the review. The tree still says "5 min" for it, on
