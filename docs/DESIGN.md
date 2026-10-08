@@ -89,7 +89,8 @@ keep the result close to the ask:
 ## Before you hand back
 
 1. **Screenshots.** Take screenshots at 1440×900 in Učitel mode, with a realistic
-   course (`src/lib/domain/__tests__/fixtures/corpus/zlomky-5-trida.json` or `spec-16-course.json` next to it), before and after your
+   course (`src/lib/domain/__tests__/fixtures/corpus/zlomky-5-trida.json` or
+   `src/lib/domain/__tests__/fixtures/spec-16-course.json`), before and after your
    change. Include a new, empty card and a filled one. Use Playwright against your own
    dev server port, and save to your scratchpad, not the repo.
 2. **An outside design review.** A fresh subagent that did not write the change gets
