@@ -182,3 +182,38 @@ test('Ctrl+Z in the text undoes the course, not just the field', async ({ page }
 	await page.keyboard.press('Control+Shift+z');
 	await expect(text(page).locator('strong')).toHaveText('světe');
 });
+
+test.describe('the system clipboard', () => {
+	test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
+
+	test('copying formatted text into another field keeps it; Ctrl+Shift+V pastes it plain', async ({
+		page
+	}) => {
+		await text(page).click();
+		await page.keyboard.type('Zlomek je ');
+		await page.keyboard.press('Control+b');
+		await page.keyboard.type('část');
+		await page.keyboard.press('Control+b');
+		await page.keyboard.type(' a $x^2$ hotovo');
+		await page.keyboard.press('Control+a');
+		await page.keyboard.press('Control+c');
+		// Plain text elsewhere (a chat, a text editor) gets the Markdown, formula and all.
+		const plain = await page.evaluate(async () => {
+			const [item] = await navigator.clipboard.read();
+			return (await item.getType('text/plain')).text();
+		});
+		expect(plain).toBe('Zlomek je **část** a $x^2$ hotovo');
+
+		const hint = page.getByRole('textbox', { name: 'Nápověda', exact: true });
+		await hint.click();
+		await page.keyboard.press('Control+v');
+		await expect(hint.locator('strong')).toHaveText('část');
+		await expect(hint.locator('.math')).toHaveCount(1);
+
+		const help = page.getByRole('textbox', { name: 'Podrobná pomoc', exact: true });
+		await help.click();
+		await page.keyboard.press('Control+Shift+v');
+		await expect(help).toContainText('Zlomek je **část** a $x^2$ hotovo');
+		await expect(help.locator('strong')).toHaveCount(0);
+	});
+});

@@ -50,8 +50,9 @@ export const MathNode = Node.create<MathOptions>({
 
 	addAttributes() {
 		return {
-			latex: { default: '' },
-			display: { default: false }
+			// Written out by `renderHTML` as data- attributes, not as bare ones.
+			latex: { default: '', rendered: false },
+			display: { default: false, rendered: false }
 		};
 	},
 

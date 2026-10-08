@@ -78,6 +78,9 @@ export function createRichEditor(options: RichEditorOptions) {
 		editable: options.editable,
 		content: toDoc(options.value),
 		extensions: extensions(options),
+		// Pasted text is read by `clipboardTextParser` below, the app's way. Tiptap's paste
+		// rules would turn `**x**` bold on top of that, even in a Ctrl+Shift+V plain paste.
+		enablePasteRules: false,
 		editorProps: {
 			attributes: {
 				role: 'textbox',
