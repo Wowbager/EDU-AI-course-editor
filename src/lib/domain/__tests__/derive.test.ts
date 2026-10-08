@@ -104,6 +104,18 @@ describe('a card name is the author’s sentence, not a stripped one', () => {
 		expect(blockPreview(card('> Citát z učebnice'))).toBe('Citát z učebnice');
 		expect(blockPreview(card('**Tučně** a *kurzívou*'))).toBe('Tučně a kurzívou');
 	});
+
+	it('reads an escaped character as the character the author typed', () => {
+		// The visual editor escapes a typed star so the app does not read it as bold.
+		expect(blockPreview(card('a \\* b je \\$5 a \\#1 *x*'))).toBe('a * b je $5 a #1 x');
+		expect(blockPreview(card('\\# Není nadpis'))).toBe('# Není nadpis');
+	});
+
+	it('names an image or a link by its words, not its address', () => {
+		expect(blockPreview(card('![Kruh](https://example.com/kruh.png) a [web](https://x.cz)'))).toBe(
+			'Kruh a web'
+		);
+	});
 });
 
 describe('a card is named by its opening line', () => {
