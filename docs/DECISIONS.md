@@ -2223,6 +2223,25 @@ a search field always open in Učitel (visual load for a dialog of three fields)
   a problem on the card. "nenastaveno" (amber) shows only while the card has no skills; the
   chips live only in `TopicPicker.svelte`.
 
+## Round 14 — the AI assistant stays on its branch
+
+PR #2 (`claude/ai-surface`, merging `claude/screen-model`, `claude/ai-provider` and
+`claude/ai-simulator`) built a "screen model" (one `store.screen` that both the UI and an
+AI assistant read, replacing per-component derivations) and, on top of it, an in-app AI
+chat: a provider adapter (OpenRouter/DeepSeek), tools in MCP shape gated by mode, size and
+teacher confirmation, a pupil simulator for parity evals, and a drawer UI. All checks
+green on the branch.
+
+**Deferred, unmerged, for now.** Reviewed and not wanted yet — ship the editor without an
+AI assistant while that is decided properly. Left as an open PR rather than closed outright
+or deleted, so the work is there to re-review and land later, including the real bugs the
+screen-model refactor found along the way (NaN stored by number fields, several
+card-naming rules disagreeing, reachability not following the player). `main` ships
+without any of it: the component-level rule AGENTS.md already had (one function per app
+rule in `src/lib/domain/`) stands; there is no screen model and no AI surface here.
+Rejected: merging just the screen-model half — its own tests assume the AI reads the same
+data it derives, so separating the two is a review task of its own, not a quick cut.
+
 ## Formatting — one formatter, and the two places it is not allowed
 
 The repo had a house style and no formatter: `useTabs` nearly everywhere (129 files to
