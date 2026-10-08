@@ -84,6 +84,13 @@ describe('writing Markdown the app shows the same way', () => {
 		expect(serializeMarkdown(typed, SNIFFED)).toBe('Úkol #1: a_b, [poznámka] ~ 3 < 5');
 	});
 
+	it('keeps a blank to fill in as typed, and an entity-like text as text', () => {
+		expect(serializeMarkdown(p(text('Doplň: ____ .')), SNIFFED)).toBe('Doplň: ____ .');
+		const md = serializeMarkdown(p(text('&amp;__')), SNIFFED);
+		expect(parse(md)).toEqual(p(text('&amp;__')));
+		expect(looksLikeMarkdown(md)).toBe(true);
+	});
+
 	it('escapes a typed star once the text is Markdown', () => {
 		expect(serializeMarkdown(p(text('a * b')), SNIFFED)).toBe('a \\* b');
 		expect(looksLikeMarkdown('a \\* b')).toBe(true);

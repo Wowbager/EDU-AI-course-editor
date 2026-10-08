@@ -40,9 +40,47 @@ export const text = (value: string, marks?: Mark[]): DocNode =>
 	marks?.length ? { type: 'text', text: value, marks } : { type: 'text', text: value };
 export const hardBreak = (): DocNode => ({ type: 'hardBreak' });
 
-/** Same mark, same target. */
+/** Same mark, same target: a link is the same link only with the same address and title. */
 export function sameMark(a: Mark, b: Mark): boolean {
-	return a.type === b.type && (a.type !== 'link' || a.attrs?.href === b.attrs?.href);
+	if (a.type !== b.type) return false;
+	if (a.type !== 'link') return true;
+	return a.attrs?.href === b.attrs?.href && (a.attrs?.title || null) === (b.attrs?.title || null);
+}
+
+/**
+ * Everything a pasted text holds, on one line, for an answer: blocks and line breaks
+ * become one space each, and the inline content between them — formatted runs,
+ * formulas, images — is kept exactly as it was.
+ */
+export function toOneLine(root: DocNode): DocNode {
+	const inline: DocNode[] = [];
+	let pendingSpace = false;
+	const separate = () => {
+		if (inline.length) pendingSpace = true;
+	};
+	const walk = (node: DocNode) => {
+		if (node.type === 'text' || node.type === 'math' || node.type === 'image') {
+			if (pendingSpace) {
+				const last = inline[inline.length - 1];
+				const leading = node.type === 'text' && /^\s/.test(node.text ?? '');
+				const trailing = last?.type === 'text' && /\s$/.test(last.text ?? '');
+				if (!leading && !trailing) pushInline(inline, text(' '));
+				pendingSpace = false;
+			}
+			pushInline(
+				inline,
+				node.type === 'math' ? { ...node, attrs: { ...node.attrs, display: false } } : node
+			);
+		} else if (node.type === 'hardBreak') {
+			separate();
+		} else {
+			// A block: whatever it holds is separated from what came before it.
+			if (node.type !== 'doc') separate();
+			node.content?.forEach(walk);
+		}
+	};
+	walk(root);
+	return doc([inline.length ? paragraph(inline) : paragraph()]);
 }
 
 export function sameMarks(a: Mark[] = [], b: Mark[] = []): boolean {
@@ -64,4 +102,32 @@ export function pushInline(into: DocNode[], node: DocNode): void {
 		}
 	}
 	into.push(node);
+}
+
+/** The same document, as far as the app can tell: attributes Markdown does not carry don't count. */
+export function sameDoc(a: DocNode, b: DocNode): boolean {
+	return JSON.stringify(normalise(a)) === JSON.stringify(normalise(b));
+}
+
+function normalise(node: DocNode): unknown {
+	const attrs = node.attrs
+		? Object.fromEntries(
+				Object.entries(node.attrs).filter(([, v]) => v !== null && v !== undefined)
+			)
+		: undefined;
+	return {
+		type: node.type,
+		...(attrs && Object.keys(attrs).length ? { attrs } : {}),
+		...(node.text !== undefined ? { text: node.text } : {}),
+		...(node.marks?.length
+			? {
+					marks: node.marks
+						.map((m) =>
+							m.type === 'link' ? `link:${m.attrs?.href} ${m.attrs?.title || ''}` : m.type
+						)
+						.sort()
+				}
+			: {}),
+		...(node.content?.length ? { content: node.content.map(normalise) } : {})
+	};
 }

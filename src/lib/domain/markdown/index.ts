@@ -6,6 +6,7 @@ export {
 	SNIFFED,
 	ALWAYS_MARKDOWN,
 	INLINE,
+	toOneLine,
 	type DocNode,
 	type Mark,
 	type MarkdownDialect

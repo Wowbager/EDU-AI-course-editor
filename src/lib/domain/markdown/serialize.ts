@@ -12,18 +12,30 @@
  * - Escapes only where the character would otherwise be read as syntax.
  */
 import { looksLikeHtml, looksLikeMarkdown } from './app-dialect';
-import { sameMark, type DocNode, type Mark, type MarkdownDialect } from './doc';
+import { sameDoc, sameMark, type DocNode, type Mark, type MarkdownDialect } from './doc';
+import { parseMarkdown } from './parse';
 
 export function serializeMarkdown(root: DocNode, dialect: MarkdownDialect): string {
 	const content = root.content ?? [];
-	if (dialect.sniffed && isPlain(content)) {
-		const plain = content
-			.map((p) => (p.content ?? []).map((n) => (n.type === 'hardBreak' ? '\n' : n.text)).join(''))
-			.filter((p) => p.trim() !== '')
-			.join('\n\n');
-		if (!looksLikeMarkdown(plain) && !looksLikeHtml(plain)) return plain;
+	const markdown = blocks(content, { table: false }).trim();
+	if (!dialect.sniffed || !isPlain(content)) return markdown;
+	const plain = content
+		.map((p) => (p.content ?? []).map((n) => (n.type === 'hardBreak' ? '\n' : n.text)).join(''))
+		.filter((p) => p.trim() !== '')
+		.join('\n\n');
+	if (!looksLikeMarkdown(plain) && !looksLikeHtml(plain)) return plain;
+	// Escaping can take away the very character that makes the app read Markdown
+	// (`__` becomes `\_\_`), and the app would then print the backslashes. Of the two
+	// ways to write a plain text, keep the one that reads back as what was typed.
+	// One run of underscores left as typed keeps `__` — a blank to fill in, "Doplň: ____"
+	// — where the app looks for it. Alone, with every other `_` escaped, it has nothing
+	// to pair with, so it can never be emphasis.
+	const oneRunAsTyped = markdown.replace(/(?<!\\)((?:\\_){2,})/, (run) => run.replace(/\\_/g, '_'));
+	for (const candidate of [markdown, oneRunAsTyped, plain]) {
+		const read = parseMarkdown(candidate, dialect);
+		if (read.unsupported.length === 0 && sameDoc(read.doc, root)) return candidate;
 	}
-	return blocks(content, { table: false }).trim();
+	return markdown;
 }
 
 /** Paragraphs of unformatted text and line breaks: what the app could show as plain text. */
@@ -39,14 +51,28 @@ function isPlain(content: DocNode[]): boolean {
 
 interface Context {
 	table: boolean;
+	/** This list follows one of its own kind, so it takes the other marker. */
+	alternate?: boolean;
 }
 
+/** A list's own items start afresh: the alternation is about siblings only. */
+const inner = (ctx: Context): Context => ({ ...ctx, alternate: false });
+
 function blocks(content: DocNode[], ctx: Context): string {
+	let alternate = false;
 	return content
-		.map((node) => block(node, ctx))
+		.map((node, i) => {
+			// Two lists of a kind one after another are one list in Markdown, whatever
+			// separates them; a different marker keeps the second its own.
+			const previous = content[i - 1];
+			alternate = previous?.type === node.type && LISTS.includes(node.type) ? !alternate : false;
+			return block(node, { ...ctx, alternate });
+		})
 		.filter((out) => out.trim() !== '')
 		.join('\n\n');
 }
+
+const LISTS = ['bulletList', 'orderedList'];
 
 function block(node: DocNode, ctx: Context): string {
 	const content = node.content ?? [];
@@ -56,14 +82,22 @@ function block(node: DocNode, ctx: Context): string {
 		case 'heading': {
 			const level = Math.min(Math.max(Number(node.attrs?.level) || 2, 1), 6);
 			// A heading is one line; the app does not break it.
-			const body = inline(content, ctx).replace(/\n/g, ' ');
+			const body = inline(content, ctx)
+				.replace(/\n/g, ' ')
+				// `# Úkol #` would lose its last `#` as a closing sequence.
+				.replace(/(\s)(#+)(\s*)$/, '$1\\$2$3');
 			return body.trim() === '' ? '' : `${'#'.repeat(level)} ${body}`;
 		}
-		case 'bulletList':
-			return content.map((item) => listItem(item, '* ', ctx)).join('\n');
+		case 'bulletList': {
+			const marker = ctx.alternate ? '- ' : '* ';
+			return content.map((item) => listItem(item, marker, inner(ctx))).join('\n');
+		}
 		case 'orderedList': {
 			const start = Number(node.attrs?.start ?? 1) || 1;
-			return content.map((item, i) => listItem(item, `${start + i}. `, ctx)).join('\n');
+			const delimiter = ctx.alternate ? ')' : '.';
+			return content
+				.map((item, i) => listItem(item, `${start + i}${delimiter} `, inner(ctx)))
+				.join('\n');
 		}
 		case 'blockquote':
 			return blocks(content, ctx)
@@ -150,6 +184,13 @@ function inline(content: DocNode[], ctx: Context): string {
 	const transition = (target: Mark[]) => {
 		let keep = 0;
 		while (keep < stack.length && target.some((m) => sameMark(m, stack[keep]))) keep++;
+		// A link's edge is a clean break. Emphasis closed right after `](…)` and before a
+		// letter cannot close at all (`*a[b](u)*c` is not italic), so formatting is
+		// closed before a link starts or ends and opened again on the other side.
+		const linkOf = (marks: Mark[]) => marks.find((m) => m.type === 'link');
+		const before = linkOf(stack);
+		const after = linkOf(target);
+		if ((before || after) && !(before && after && sameMark(before, after))) keep = 0;
 		close(keep);
 		const opening = target
 			.filter((m) => !stack.some((s) => sameMark(s, m)))
@@ -287,8 +328,17 @@ export function escapeText(value: string, atLineStart: boolean, ctx: Context): s
 				// `a_b` is never emphasis; `_a_` is.
 				out += WORD.test(prev) && WORD.test(next) ? c : '\\_';
 				break;
+			// `<` and `>` around other text read as an HTML tag, which hides the
+			// formatting between them (marked masks `<…>` before it reads emphasis).
 			case '<':
-				out += /[A-Za-z/!?]/.test(next) ? '\\<' : c;
+				out += /\s/.test(next) ? c : '\\<';
+				break;
+			case '>':
+				out += /\s/.test(prev) ? c : '\\>';
+				break;
+			// A `!` just before a link would make it an image.
+			case '!':
+				out += next === '' ? '\\!' : c;
 				break;
 			case '&':
 				out += /^&(#\d+|#x[\da-f]+|[a-z][a-z\d]*);/i.test(value.slice(i)) ? '\\&' : c;

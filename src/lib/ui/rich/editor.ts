@@ -22,6 +22,7 @@ import { Slice, type Node as PMNode } from '@tiptap/pm/model';
 import {
 	parseMarkdown,
 	serializeMarkdown,
+	toOneLine,
 	type DocNode,
 	type MarkdownDialect
 } from '$lib/domain/markdown';
@@ -318,29 +319,10 @@ function textToSlice(
 	} else {
 		docJson = parsePlainText(text);
 	}
-	if (dialect.inline) docJson = flattenToOneLine(docJson);
+	if (dialect.inline) docJson = toOneLine(docJson);
 	const node = editor.schema.nodeFromJSON(docJson);
 	// Open on both sides, so a single paragraph flows into the one being typed in.
 	return Slice.maxOpen(node.content);
-}
-
-function flattenToOneLine(root: DocNode): DocNode {
-	const inline: DocNode[] = [];
-	const walk = (node: DocNode) => {
-		if (node.type === 'text' || node.type === 'math' || node.type === 'image') {
-			if (inline.length && node.type === 'text' && inline[inline.length - 1].type === 'text')
-				inline.push({ type: 'text', text: ' ' });
-			inline.push(
-				node.type === 'math' ? { ...node, attrs: { ...node.attrs, display: false } } : node
-			);
-		} else if (node.type === 'hardBreak') inline.push({ type: 'text', text: ' ' });
-		else node.content?.forEach(walk);
-	};
-	walk(root);
-	return {
-		type: 'doc',
-		content: [{ type: 'paragraph', content: inline.length ? inline : undefined }]
-	};
 }
 
 /** Image files: the app shows images from the web only, so say how to bring one. */
