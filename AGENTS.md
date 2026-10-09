@@ -69,9 +69,10 @@ npm run test:e2e       # Playwright, against the built editor on port 5178
 
 CI runs `check`, `npm test` and `test:e2e -- --project=editor`. The `editor` project needs
 no Flutter build, so it is a real gate on every push and PR. CI also starts the editor
-the two ways README gives — `npm run dev -- --host` and the Docker image — and loads the
-page in each (`npm run smoke -- <url>`, `scripts/smoke.mjs`). The image job builds the
-player and checks that nginx serves it, but drives nothing inside it: the `player`
+the two ways README gives. `run-dev` starts `npm run dev -- --host` and loads the page in a
+browser (`npm run smoke -- <url>`, `scripts/smoke.mjs`). `run-docker` builds the image
+and only checks with `curl` that it starts and serves the page and the player. Nothing
+drives the player inside it: the `player`
 project is yours to run, and so is `REQUIRE_PLAYER=1`. When you add a way to run the
 editor, or change how one starts, it gets a job there.
 

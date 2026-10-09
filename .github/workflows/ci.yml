@@ -15,8 +15,9 @@
 # `REQUIRE_PLAYER=1` turns that skip into a failure, and it is the flag to use when
 # the preview itself is what changed. See AGENTS.md → Checks.
 #
-# `run-dev` and `run-docker` start the editor the two ways README tells people to, and
-# load the page in a browser (`scripts/smoke.mjs`). Every other job runs the built
+# `run-dev` and `run-docker` start the editor the two ways README tells people to:
+# the first loads the page in a browser (`scripts/smoke.mjs`), the second only checks
+# that the image starts and serves the page and the player (curl). Every other job runs the built
 # editor under `vite preview`, which nobody runs for real: a dev server that answers
 # every page with a 500, or an image whose nginx serves the player from the wrong
 # root (OPEN-PROBLEMS #40), passed all of them. A runner always installs from scratch,
@@ -90,9 +91,11 @@ jobs:
       - if: failure()
         run: cat dev.log
 
-  # The image, built from this commit and run as deployed: nginx in front, the Node
-  # server behind it, the player cloned and built at PLAYER_REF. The Flutter stage is
-  # the slow part and changes only with PLAYER_REF, so it comes from the Actions cache.
+  # The image, built from this commit and started as deployed: nginx in front, the
+  # Node server behind it, the player cloned and built at PLAYER_REF. Only a smoke test
+  # that it starts and serves — no browser, no npm install; the editor's behaviour is
+  # `e2e-editor`'s job. The Flutter stage is the slow part and changes only with
+  # PLAYER_REF, so it comes from the Actions cache.
   run-docker:
     runs-on: ubuntu-latest
     steps:
@@ -106,12 +109,14 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - run: docker run -d --name editor -p 8080:8080 edu-editor:ci
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run smoke -- http://localhost:8080/ --player
+      # The page; then the player, which only the image serves through nginx: its index
+      # with the image shim spliced in, and canvaskit.wasm as wasm — the asset nginx once
+      # served from the wrong root (OPEN-PROBLEMS #40).
+      - name: Smoke test
+        run: |
+          curl -fsS --retry 30 --retry-delay 1 --retry-all-errors -o page.html http://localhost:8080/
+          grep -q 'lang="cs"' page.html
+          curl -fsS http://localhost:8080/player/ | grep -q 'edu-preview-image-shim:start'
+          curl -fsS -o /dev/null -w '%{content_type}' http://localhost:8080/player/canvaskit/canvaskit.wasm | grep -qx 'application/wasm'
       - if: failure()
         run: docker logs editor

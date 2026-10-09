@@ -1,25 +1,20 @@
 #!/usr/bin/env node
 /**
- * Does a running editor load? `node scripts/smoke.mjs <url> [--player]`
+ * Does a running editor load? `node scripts/smoke.mjs <url>`
  *
- * CI starts the editor every way the README tells people to — `npm run dev` and the
- * Docker image — and runs this against each. It passes only when the page comes back
- * 200 and hydrates (`html[data-hydrated]`, set last by `+page.svelte`), with no error
+ * CI's `run-dev` job runs this against `npm run dev`; the Docker job only curls the
+ * image. It passes only when the page comes back 200 and hydrates (`html[data-hydrated]`, set last by `+page.svelte`), with no error
  * thrown on the page. A server that starts and then answers every request with a 500
  * is the failure it exists for: the start-up log looks healthy, the page does not.
- *
- * `--player` also checks that `/player/` serves the Flutter build with the image shim
- * spliced in, which only the Docker image is expected to have.
  *
  * Waits up to two minutes for the server to answer at all, so a CI step can start the
  * server in the background and call this straight after.
  */
 import { chromium } from '@playwright/test';
-import { SHIM_START } from './inject-player-shim.mjs';
 
-const [url, ...flags] = process.argv.slice(2);
+const [url] = process.argv.slice(2);
 if (!url) {
-	console.error('usage: node scripts/smoke.mjs <url> [--player]');
+	console.error('usage: node scripts/smoke.mjs <url>');
 	process.exit(2);
 }
 
@@ -60,27 +55,7 @@ try {
 		.catch(() => fail(`the page did not hydrate${errors.length ? `: ${errors.join('; ')}` : ''}`));
 	if (errors.length) fail(`the page threw: ${errors.join('; ')}`);
 
-	if (flags.includes('--player')) {
-		const player = await fetch(new URL('/player/', url));
-		const html = await player.text();
-		if (!player.ok) fail(`/player/ came back ${player.status}`);
-		if (!html.includes('flutter_bootstrap.js')) fail('/player/ is not the Flutter build');
-		if (!html.includes(SHIM_START)) fail('/player/ is missing the preview image shim');
-		// OPEN-PROBLEMS #40: nginx once answered these from the wrong root, and a blank
-		// preview was the only sign. A file served as the index page is the other way
-		// the same mistake looks like success.
-		for (const [asset, type] of [
-			['canvaskit/canvaskit.wasm', 'application/wasm'],
-			['favicon.ico', 'image/'],
-			['favicon.png', 'image/png']
-		]) {
-			const response = await fetch(new URL(`/player/${asset}`, url));
-			const served = response.headers.get('content-type') ?? '';
-			if (!response.ok || !served.startsWith(type))
-				fail(`/player/${asset} came back ${response.status} as "${served}", not ${type}`);
-		}
-	}
-	console.log(`smoke: ${url}: loaded${flags.includes('--player') ? ', player served' : ''}`);
+	console.log(`smoke: ${url}: loaded`);
 } finally {
 	await browser.close();
 }

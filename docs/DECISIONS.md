@@ -2411,16 +2411,20 @@ The error was a checkout whose `node_modules` predated PR #3: Vite started, said
 "Failed to run dependency scan" among its other lines, and every page was a 500
 (`Cannot find module 'marked'`). `--host` had nothing to do with it.
 
-- **`run-dev` and `run-docker` in CI**, each starting the editor as README says and
-  loading the page in Chromium through `scripts/smoke.mjs`: a 200, hydration, no
-  uncaught error. The image job also checks `/player/` and three of its assets by
-  content type, which is the guard #40 asked for.
+- **`run-dev` and `run-docker` in CI**, each starting the editor as README says.
+  `run-dev` loads the page in Chromium through `scripts/smoke.mjs`: a 200, hydration, no
+  uncaught error. `run-docker` is a smoke test only, with `curl`: the page answers, and
+  `/player/` serves the Flutter build with its shim and `canvaskit.wasm` as wasm, which is
+  the guard #40 asked for. It first loaded the page in Chromium too; the owner: *"make the
+  Docker CI test, just smoke test that it starts, it doesn't have to be full test run, it
+  is adding lot of time"*. The browser and its install were half a minute of a job whose
+  bulk is the image build itself (about 2 min with the Flutter stage cached, 7–8 without).
 - **`scripts/check-install.mjs` before `dev` and `build`**, because CI cannot see the
   failure that started this: a runner always installs from scratch. Only direct
   dependencies, by version — what a pull changes.
-- Rejected: a `curl` for a 200 alone. A page that renders on the server and then throws
-  in the browser passes it, and the hydration marker the e2e suite already waits for
-  costs nothing more. Rejected too: `vite preview` and `node build/index.js` as jobs of
+- Rejected for `run-dev`: a `curl` for a 200 alone. A page that renders on the server and
+  then throws in the browser passes it. The image's client code is the same build that
+  `e2e-editor` drives, so there a `curl` is enough. Rejected too: `vite preview` and `node build/index.js` as jobs of
   their own. README offers neither; `e2e-editor` runs the first, and the image runs the
   second.
 

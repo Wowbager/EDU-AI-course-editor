@@ -20,7 +20,8 @@ To check that a running editor really loads, with any of the ways below:
 npm run smoke -- http://localhost:5173/
 ```
 
-CI does this for `npm run dev` and for the Docker image on every push.
+CI does this for `npm run dev` on every push, and checks that the Docker image starts and
+serves the page.
 
 ### The preview
 

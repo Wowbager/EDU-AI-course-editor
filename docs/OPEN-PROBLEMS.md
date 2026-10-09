@@ -620,10 +620,10 @@ Not related, but checked while looking: `docker-entrypoint.sh` expands the templ
 `envsubst '$PORT $API_URL'` — an explicit allowlist — so the fix's `$asset` capture and
 nginx's own `$uri` survive expansion. That part is fine.
 
-**Closed in round 16.** CI's `run-docker` job builds the image, runs it and loads it with
-`npm run smoke -- <url> --player` (`scripts/smoke.mjs`). Besides the page itself, that
-needs `/player/` to be the Flutter build with the image shim, and `canvaskit.wasm`,
-`favicon.ico` and `favicon.png` under it to answer 200 with their own content types. Under
-the pre-`1bcff8d` config they came from nginx's default root and 404'd, so the job should
-fail there; that is read from the config, not run against the old image. It checks that nginx serves the player, not that the preview draws; that is still
-the `player` Playwright project, run locally.
+**Closed in round 16.** CI's `run-docker` job builds the image, runs it and checks it
+with `curl`: besides the page itself, `/player/` must be the Flutter build with the image
+shim, and `/player/canvaskit/canvaskit.wasm` must answer 200 as `application/wasm`. Under
+the pre-`1bcff8d` config it came from nginx's default root and 404'd, so the job should
+fail there; that is read from the config, not run against the old image. It checks that
+nginx serves the player, not that the preview draws; that is still the `player`
+Playwright project, run locally.
