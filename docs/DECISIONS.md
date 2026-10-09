@@ -2401,6 +2401,40 @@ Markdown syntax character, so a failure is a real one).
 - Giving focus back when the player takes it at boot (#46).
 - Table row and column controls beyond the ⋯ menu's.
 
+## Round 16 — every way to run the editor starts, in CI
+
+The owner, after `npm run dev -- --host` answered the page with an error: *"add simple
+check for every recommended way to run the server (docker, npm) for CI, so that every
+way to run it is at least able to start the server and load the page."*
+
+The error was a checkout whose `node_modules` predated PR #3: Vite started, said
+"Failed to run dependency scan" among its other lines, and every page was a 500
+(`Cannot find module 'marked'`). `--host` had nothing to do with it.
+
+- **`run-dev` and `run-docker` in CI**, each starting the editor as README says.
+  `run-dev` loads the page in Chromium through `scripts/smoke.mjs`: a 200, hydration, no
+  uncaught error. `run-docker` is a smoke test only, with `curl`: the page answers, and
+  `/player/` serves the Flutter build with its shim and `canvaskit.wasm` as wasm, which is
+  the guard #40 asked for. It first loaded the page in Chromium too; the owner: *"make the
+  Docker CI test, just smoke test that it starts, it doesn't have to be full test run, it
+  is adding lot of time"*. The browser and its install were half a minute of a job whose
+  bulk is the image build itself (about 2 min with the Flutter stage cached, 7–8 without).
+- **Four more texts the visual editor could not write back**, found by the round-15
+  property tests: one turned this branch's CI red by chance, and a run of 20 000 cases
+  instead of 400 found the rest. `\__` (a typed backslash before a blank), a typed `![`,
+  an answer that is only `____`, and a line `:-` / `-:` / `-|` under text, which GFM reads
+  as a table. Each has a test that failed before its fix; two runs of 20 000 cases are
+  clean. A seed was not pinned: a property test that fails at random is reporting a
+  real text a teacher can type.
+- **`scripts/check-install.mjs` before `dev` and `build`**, because CI cannot see the
+  failure that started this: a runner always installs from scratch. Only direct
+  dependencies, by version — what a pull changes.
+- Rejected for `run-dev`: a `curl` for a 200 alone. A page that renders on the server and
+  then throws in the browser passes it. The image's client code is the same build that
+  `e2e-editor` drives, so there a `curl` is enough. Rejected too: `vite preview` and `node build/index.js` as jobs of
+  their own. README offers neither; `e2e-editor` runs the first, and the image runs the
+  second.
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

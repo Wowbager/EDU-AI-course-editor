@@ -90,10 +90,12 @@ export async function openEditor(page: Page, url = '/'): Promise<boolean> {
  * sufficient for a long time. On a CI runner (and under load) they do not, and the
  * caller burned its whole 30 s timeout on a not-visible element.
  *
- * An open menu can still close before the caller clicks it. A step just added is
- * revealed with a smooth scroll, and a scroll that is still going when the next menu
- * opens closes it again a frame later — after it was seen open here. A caller that
- * clicks an item straight away uses `chooseFromMenu`, which opens and clicks in one retry.
+ * An open menu can still close after it was seen open. A card just selected, or a step
+ * just added, is revealed with a smooth scroll, and a scroll still going when the menu
+ * opens closes it a frame later. So the menu counts as open only once nothing has
+ * scrolled for a few frames and it is still open (CI, PR #4: the add-step menu was seen
+ * open, then had no items). A caller that clicks an item straight away can use
+ * `chooseFromMenu`, which opens and clicks in one retry.
  */
 export async function openMenu(
 	page: Page,
@@ -105,8 +107,31 @@ export async function openMenu(
 	await expect(async () => {
 		if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click();
 		await expect(item).toBeVisible({ timeout: 1_000 });
+		await scrollSettled(page);
+		await expect(item).toBeVisible({ timeout: 100 });
 	}).toPass({ timeout: 10_000 });
 	return menu;
+}
+
+/**
+ * Resolves once nothing on the page has scrolled for five frames. A smooth scroll fires
+ * `scroll` every frame it moves, so five quiet ones mean it has ended.
+ */
+async function scrollSettled(page: Page) {
+	await page.evaluate(
+		() =>
+			new Promise<void>((resolve) => {
+				let quiet = 0;
+				const moved = () => (quiet = 0);
+				window.addEventListener('scroll', moved, true);
+				const frame = () => {
+					if (++quiet < 5) return requestAnimationFrame(frame);
+					window.removeEventListener('scroll', moved, true);
+					resolve();
+				};
+				requestAnimationFrame(frame);
+			})
+	);
 }
 
 /**

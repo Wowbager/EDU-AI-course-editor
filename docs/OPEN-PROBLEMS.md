@@ -96,42 +96,6 @@ editor will not, and uses `status: private` for "PIN only".
 Entries where something is wrong and a teacher can hit it. These want fixing. The note at
 the top of this file applies: numbers are a citation key and are never renumbered.
 
-### 40. Production `nginx.conf` is exercised by no test, and it has already served a blank preview once
-**Verified by reading the repo and the 2026-09-30 fix** (`1bcff8d`). In the image, nginx
-serves `/player/` and the editor on one origin; `vite preview` serves `/player/` a
-different way (`vite-plugin-player.ts`), which is what the e2e suite runs against. So the
-config that actually ships is reached by nothing in CI and nothing in `e2e/`.
-
-That is not theoretical. On 2026-09-30 the `/player/` asset `location` matched its
-requests but had **no `alias`**, so nginx served those paths from its *default* root and
-every `.png` / `.ico` / `.woff` / `.wasm` under `/player/` was a 404 — CanvasKit above
-all. The page loaded, the wasm did not, and the preview stayed blank. `1bcff8d` fixed it
-by capturing the asset path by name (`location ~* ^/player/(?<asset>…)`) and aliasing it
-into `/usr/share/nginx/player/$asset`. The player's build really does ship
-`canvaskit/canvaskit.wasm`, `canvaskit/skwasm.wasm` and `sqlite3.wasm`, so every one of
-them was in the failing set.
-
-The failure class — *page loads, an asset 404s, the preview is blank* — is invisible to
-`npm run check`, to `npm test`, and to the `editor` and `player` Playwright projects
-alike. It was found by a person looking at an empty preview.
-
-Two things follow, and the second is the one that bites:
-
-- The `/player/` asset block now carries a comment saying why the `alias` and the named
-  capture are both needed, because the obvious "simplification" back to
-  `alias …/player/;` reintroduces a 301 whose fallback still hands Flutter the wrong
-  bytes — a failure that reads as a working request.
-- **Nothing would catch it if it happened again.** A guard is a Docker smoke test: build
-  the image, run it, and assert a known player asset answers `200` with
-  `content-type: application/wasm`, plus a representative `.woff2` and `.ico`. That test
-  fails on the pre-`1bcff8d` config, which is the point of it. It needs the image build
-  (which clones the player at `PLAYER_REF` and runs a Flutter build inside the image), so
-  it is slow and belongs in CI rather than in the local loop. Not written yet.
-
-Not related, but checked while looking: `docker-entrypoint.sh` expands the template with
-`envsubst '$PORT $API_URL'` — an explicit allowlist — so the fix's `$asset` capture and
-nginx's own `$uri` survive expansion. That part is fine.
-
 ### 41. Unread fields no longer say so on screen
 **Verified by reading the code** (Round 10). Until Round 10 every field nothing reads
 yet began its hint with "Zatím bez účinku — aplikace ani API tuto hodnotu nečtou, jen se
@@ -620,3 +584,46 @@ The card-level opaque `PreviewTarget` is in the fork since `22b37cb`, so a click
 step's padding in Náhled lands on the step. It is fork-only: `edu-ai-00` has no
 `lib/preview/` at all, so nothing here depends on it being accepted upstream.
 
+### 40. Production `nginx.conf` is exercised by no test, and it has already served a blank preview once — closed (round 16)
+**Verified by reading the repo and the 2026-09-30 fix** (`1bcff8d`). In the image, nginx
+serves `/player/` and the editor on one origin; `vite preview` serves `/player/` a
+different way (`vite-plugin-player.ts`), which is what the e2e suite runs against. So the
+config that actually ships is reached by nothing in CI and nothing in `e2e/`.
+
+That is not theoretical. On 2026-09-30 the `/player/` asset `location` matched its
+requests but had **no `alias`**, so nginx served those paths from its *default* root and
+every `.png` / `.ico` / `.woff` / `.wasm` under `/player/` was a 404 — CanvasKit above
+all. The page loaded, the wasm did not, and the preview stayed blank. `1bcff8d` fixed it
+by capturing the asset path by name (`location ~* ^/player/(?<asset>…)`) and aliasing it
+into `/usr/share/nginx/player/$asset`. The player's build really does ship
+`canvaskit/canvaskit.wasm`, `canvaskit/skwasm.wasm` and `sqlite3.wasm`, so every one of
+them was in the failing set.
+
+The failure class — *page loads, an asset 404s, the preview is blank* — is invisible to
+`npm run check`, to `npm test`, and to the `editor` and `player` Playwright projects
+alike. It was found by a person looking at an empty preview.
+
+Two things follow, and the second is the one that bites:
+
+- The `/player/` asset block now carries a comment saying why the `alias` and the named
+  capture are both needed, because the obvious "simplification" back to
+  `alias …/player/;` reintroduces a 301 whose fallback still hands Flutter the wrong
+  bytes — a failure that reads as a working request.
+- **Nothing would catch it if it happened again.** A guard is a Docker smoke test: build
+  the image, run it, and assert a known player asset answers `200` with
+  `content-type: application/wasm`, plus a representative `.woff2` and `.ico`. That test
+  fails on the pre-`1bcff8d` config, which is the point of it. It needs the image build
+  (which clones the player at `PLAYER_REF` and runs a Flutter build inside the image), so
+  it is slow and belongs in CI rather than in the local loop. Not written yet.
+
+Not related, but checked while looking: `docker-entrypoint.sh` expands the template with
+`envsubst '$PORT $API_URL'` — an explicit allowlist — so the fix's `$asset` capture and
+nginx's own `$uri` survive expansion. That part is fine.
+
+**Closed in round 16.** CI's `run-docker` job builds the image, runs it and checks it
+with `curl`: besides the page itself, `/player/` must be the Flutter build with the image
+shim, and `/player/canvaskit/canvaskit.wasm` must answer 200 as `application/wasm`. Under
+the pre-`1bcff8d` config it came from nginx's default root and 404'd, so the job should
+fail there; that is read from the config, not run against the old image. It checks that
+nginx serves the player, not that the preview draws; that is still the `player`
+Playwright project, run locally.

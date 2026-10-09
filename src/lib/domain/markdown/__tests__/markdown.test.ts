@@ -91,6 +91,49 @@ describe('writing Markdown the app shows the same way', () => {
 		expect(looksLikeMarkdown(md)).toBe(true);
 	});
 
+	it('keeps a blank as typed after a typed backslash', () => {
+		// CI, PR #4 (fast-check): the backslash's own escape hid the run from the rule above.
+		for (const typed of ['\\__Ř', 'a \\\\____ b']) {
+			const md = serializeMarkdown(p(text(typed)), SNIFFED);
+			expect(parse(md), md).toEqual(p(text(typed)));
+			expect(looksLikeMarkdown(md)).toBe(true);
+		}
+	});
+
+	it('keeps an answer that is only a blank, and it is no horizontal rule', () => {
+		// fast-check: `____` alone on a line is a rule; escaped, the app prints backslashes.
+		for (const typed of ['___', '____']) {
+			const md = serializeMarkdown(p(text(typed)), INLINE);
+			expect(parseMarkdown(md, INLINE), md).toEqual({ doc: p(text(typed)), unsupported: [] });
+			expect(looksLikeMarkdown(md)).toBe(true);
+		}
+	});
+
+	it('keeps a typed `![` where the app looks for it, and it is no image', () => {
+		// fast-check: escaping `[` hid the `![` that makes the app read Markdown.
+		const typed = '\\|0![1.';
+		const md = serializeMarkdown(p(text(typed)), SNIFFED);
+		expect(parse(md), md).toEqual(p(text(typed)));
+		expect(looksLikeMarkdown(md)).toBe(true);
+	});
+
+	it('a line `:-` under another is text, not a table', () => {
+		// fast-check: GFM reads `Ž` over `:-` as a one-column table, with no pipe at all.
+		const typed = doc([
+			paragraph([
+				text('Ž'),
+				hardBreak(),
+				text(':-'),
+				hardBreak(),
+				text('-:'),
+				hardBreak(),
+				text('-|')
+			])
+		]);
+		const md = serializeMarkdown(typed, ALWAYS_MARKDOWN);
+		expect(parseMarkdown(md, ALWAYS_MARKDOWN).doc, md).toEqual(typed);
+	});
+
 	it('escapes a typed star once the text is Markdown', () => {
 		expect(serializeMarkdown(p(text('a * b')), SNIFFED)).toBe('a \\* b');
 		expect(looksLikeMarkdown('a \\* b')).toBe(true);

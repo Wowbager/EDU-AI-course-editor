@@ -25,18 +25,38 @@ export function serializeMarkdown(root: DocNode, dialect: MarkdownDialect): stri
 		.join('\n\n');
 	if (!looksLikeMarkdown(plain) && !looksLikeHtml(plain)) return plain;
 	// Escaping can take away the very character that makes the app read Markdown
-	// (`__` becomes `\_\_`), and the app would then print the backslashes. Of the two
-	// ways to write a plain text, keep the one that reads back as what was typed.
-	// One run of underscores left as typed keeps `__` — a blank to fill in, "Doplň: ____"
-	// — where the app looks for it. Alone, with every other `_` escaped, it has nothing
-	// to pair with, so it can never be emphasis.
-	const oneRunAsTyped = markdown.replace(/(?<!\\)((?:\\_){2,})/, (run) => run.replace(/\\_/g, '_'));
-	for (const candidate of [markdown, oneRunAsTyped, plain]) {
+	// (`__` becomes `\_\_`, `![` becomes `!\[`), and the app would then print the
+	// backslashes. Of the ways to write a plain text, keep the first that reads back as
+	// what was typed. One run of underscores left as typed keeps `__` — a blank to fill
+	// in, "Doplň: ____" — where the app looks for it. Alone, with every other `_`
+	// escaped, it has nothing to pair with, so it can never be emphasis; a `![` with
+	// every bracket after it escaped can never be an image. A typed backslash before the
+	// run is an escaped `\\` that stays (`\__` is written `\\__`), so pairs of them are
+	// stepped over.
+	const asTyped = TRIGGERS.map((escaped) =>
+		markdown.replace(
+			escaped,
+			(_, backslashes: string, run: string) => backslashes + run.replace(/\\(?=[_[`])/g, '')
+		)
+	);
+	for (const candidate of [markdown, ...asTyped, plain]) {
 		const read = parseMarkdown(candidate, dialect);
 		if (read.unsupported.length === 0 && sameDoc(read.doc, root)) return candidate;
 	}
 	return markdown;
 }
+
+/**
+ * The app's Markdown triggers (`looksLikeMarkdown`) as escaping writes them; group 1 is
+ * kept, group 2 is written as typed. A run alone on a line, `____`, is a horizontal
+ * rule as typed, so it is also tried with its first underscore still escaped.
+ */
+const TRIGGERS = [
+	/(?<!\\)((?:\\\\)*)((?:\\_){2,})/,
+	/(?<!\\)((?:\\\\)*\\_)((?:\\_){2,})/,
+	/()(!\\\[)/,
+	/(?<!\\)((?:\\\\)*)((?:\\`){3,})/
+];
 
 /** Paragraphs of unformatted text and line breaks: what the app could show as plain text. */
 function isPlain(content: DocNode[]): boolean {
@@ -353,7 +373,11 @@ export function escapeText(value: string, atLineStart: boolean, ctx: Context): s
 	if (!atLineStart) return out;
 	// Leading spaces are dropped by Markdown, and four of them make a code block.
 	out = out.replace(/^[ \t]+/, '');
-	return out
-		.replace(/^(#|>|\||[-+=](?=\s|$)|-{2,}\s*$|={2,}\s*$)/, '\\$1')
-		.replace(/^(\d{1,9})([.)])(?=\s|$)/, '$1\\$2');
+	return (
+		out
+			.replace(/^(#|>|\||[-+=](?=\s|$)|-{2,}\s*$|={2,}\s*$)/, '\\$1')
+			.replace(/^(\d{1,9})([.)])(?=\s|$)/, '$1\\$2')
+			// Under a line of text, `:-`, `-:` or `-|` starts a table's divider row.
+			.replace(/^(:?-+:?)(?=\s*(\||$))/, '\\$1')
+	);
 }
