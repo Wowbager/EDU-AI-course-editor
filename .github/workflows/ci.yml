@@ -14,6 +14,15 @@
 # build, ~11 MB of JS and several MB of wasm per page). It skips without a build;
 # `REQUIRE_PLAYER=1` turns that skip into a failure, and it is the flag to use when
 # the preview itself is what changed. See AGENTS.md → Checks.
+#
+# `run-dev` and `run-docker` start the editor the two ways README tells people to, and
+# load the page in a browser (`scripts/smoke.mjs`). Every other job runs the built
+# editor under `vite preview`, which nobody runs for real: a dev server that answers
+# every page with a 500, or an image whose nginx serves the player from the wrong
+# root (OPEN-PROBLEMS #40), passed all of them. A runner always installs from scratch,
+# so the commonest local cause of that 500 — a pull that added a dependency, and no
+# `npm install` after it — is caught by `scripts/check-install.mjs` before `npm run
+# dev` starts, not here.
 name: CI
 
 on:
@@ -62,3 +71,47 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  # `npm run dev -- --host`, as a person starts it. `--host` because that is how it was
+  # run when a 500 on every page was found, and it binds every interface rather than
+  # only localhost, which is the less-trodden path.
+  run-dev:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run dev -- --host --strictPort > dev.log 2>&1 &
+      - run: npm run smoke -- http://localhost:5173/
+      - if: failure()
+        run: cat dev.log
+
+  # The image, built from this commit and run as deployed: nginx in front, the Node
+  # server behind it, the player cloned and built at PLAYER_REF. The Flutter stage is
+  # the slow part and changes only with PLAYER_REF, so it comes from the Actions cache.
+  run-docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: edu-editor:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - run: docker run -d --name editor -p 8080:8080 edu-editor:ci
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run smoke -- http://localhost:8080/ --player
+      - if: failure()
+        run: docker logs editor
