@@ -8,7 +8,9 @@
     "node": ">=22"
   },
   "scripts": {
+    "predev": "node scripts/check-install.mjs",
     "dev": "vite dev",
+    "prebuild": "node scripts/check-install.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "prepare": "svelte-kit sync || echo ''",
