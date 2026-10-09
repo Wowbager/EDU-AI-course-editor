@@ -68,9 +68,16 @@ npm run test:e2e       # Playwright, against the built editor on port 5178
 ```
 
 CI runs `check`, `npm test` and `test:e2e -- --project=editor`. The `editor` project needs
-no Flutter build, so it is a real gate on every push and PR. The `player` project is
-yours to run, and so is `REQUIRE_PLAYER=1` — the one thing CI cannot check is the
-preview itself, because the runner has no player.
+no Flutter build, so it is a real gate on every push and PR. CI also starts the editor
+the two ways README gives — `npm run dev -- --host` and the Docker image — and loads the
+page in each (`npm run smoke -- <url>`, `scripts/smoke.mjs`). The image job builds the
+player and checks that nginx serves it, but drives nothing inside it: the `player`
+project is yours to run, and so is `REQUIRE_PLAYER=1`. When you add a way to run the
+editor, or change how one starts, it gets a job there.
+
+`npm run dev` and `npm run build` first check that `node_modules` matches
+`package-lock.json` (`scripts/check-install.mjs`); after a pull that adds a dependency
+they stop and say to run `npm install`, instead of serving a 500.
 
 - Two Playwright projects: `editor` (every suite about the editor, with a fake player
   from `e2e/fixtures.ts`) and `player` (`e2e/preview*.spec.ts`, the real Flutter build,
@@ -154,8 +161,9 @@ that expires.** A fix arrives with one of:
 
 - a test that fails without it (the ordinary case, and rule 4 above);
 - an `OPEN-PROBLEMS.md` entry, if it is app-side or cannot be tested from here — the
-  player is a repository this project cannot push to, and #40 is the example: production
-  `nginx.conf` is reached by no test, so the gap is written down rather than implied.
+  player is a repository this project cannot push to. #40 was the example: production
+  `nginx.conf` was reached by no test, so the gap was written down rather than implied,
+  until round 16's `run-docker` job closed it.
 
 The second half is the part that keeps getting missed. When a check is *deliberately*
 not run, the reason for that is a statement about the world at the time — and the world

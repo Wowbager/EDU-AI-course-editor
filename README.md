@@ -11,7 +11,16 @@ npm install
 npm run dev
 ```
 
-Then open http://localhost:5173.
+Then open http://localhost:5173. After a pull, `npm run dev` may stop with "node_modules
+does not match package-lock.json": someone added a dependency, and `npm install` fixes it.
+
+To check that a running editor really loads, with any of the ways below:
+
+```bash
+npm run smoke -- http://localhost:5173/
+```
+
+CI does this for `npm run dev` and for the Docker image on every push.
 
 ### The preview
 
