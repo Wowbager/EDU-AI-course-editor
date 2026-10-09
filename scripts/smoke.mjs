@@ -31,7 +31,7 @@ function fail(message) {
 
 const deadline = Date.now() + 120_000;
 for (;;) {
-	const answered = await fetch(url).then(
+	const answered = await fetch(url, { signal: AbortSignal.timeout(1000) }).then(
 		() => true,
 		() => false
 	);
