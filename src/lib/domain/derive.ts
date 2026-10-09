@@ -224,8 +224,22 @@ export function derivedBlockName(block: BlockV2, max = 70, position?: number): s
  * the two never disagree about what the author wrote.
  */
 export function plainFirstLine(markdown: string): string {
-	return (
-		plainMath(markdown)
+	const escaped: string[] = [];
+	const line =
+		plainMath(
+			markdown
+				// A backslash escape keeps a typed `*` or `#` from being read as syntax; the
+				// character is the author's, the backslash is not. Set aside until the end,
+				// so the strips below leave an escaped `*` the star it was.
+				.replace(/\\([\\`*_{}[\]()#+\-.!|~<>&$])/g, (_, c: string) => {
+					escaped.push(c);
+					return `\u0000${escaped.length - 1}\u0001`;
+				})
+				// An image or a link reads as its words. The visual editor writes both, and a
+				// card called "![Kruh](https://…)" names an address, not what the author wrote.
+				.replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+				.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+		)
 			// Markdown and LaTeX delimiters are syntax, not words. A card called
 			// "Zlomek $\frac{a}{b}$ popisuje…" is harder to recognise than one called
 			// "Zlomek \frac{a}{b} popisuje…", and much harder than the prose around it.
@@ -246,8 +260,8 @@ export function plainFirstLine(markdown: string): string {
 			.map((line) => line.trim())
 			.find((line) => line !== '')
 			?.replace(/\s+/g, ' ')
-			.trim() ?? ''
-	);
+			.trim() ?? '';
+	return line.replace(/\u0000(\d+)\u0001/g, (_, i: string) => escaped[Number(i)]);
 }
 
 /**

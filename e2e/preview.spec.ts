@@ -256,7 +256,7 @@ test.describe('live preview', () => {
 		await openCard(page, 0, INTRO);
 		const mark = log.mark();
 
-		await page.locator('.cm-content').first().click();
+		await page.locator('.rich-content').first().click();
 		await page.keyboard.type(' Změna.');
 		await expect
 			.poll(() => log.down('setBlock', mark).some((m) => JSON.stringify(m).includes('Změna.')))

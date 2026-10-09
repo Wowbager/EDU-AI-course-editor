@@ -73,6 +73,12 @@ export interface FieldSpec {
 	 */
 	gain?: string;
 	kind: FieldKind;
+	/**
+	 * A Markdown + LaTeX text, edited visually (`RichField`). `always` when the app
+	 * always renders it as Markdown (hint, help: `hint_sheet.dart`); `sniffed` when it
+	 * does only if the text holds a Markdown character (`looksLikeMarkdown`).
+	 */
+	markdown?: 'always' | 'sniffed';
 	/** What it does to the student. Shown under the control; house style is consequences. */
 	hint?: string;
 	/** For `select`. */
@@ -546,6 +552,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		feedback: true,
 		mode: 'teacher',
 		kind: 'multiline',
+		markdown: 'always',
 		label: 'Nápověda ke kartě',
 		hint: 'Otazník ji ukáže u každého kroku, který nemá vlastní nápovědu. Použití srazí skóre na 0,75.'
 	},
@@ -556,6 +563,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		feedback: true,
 		mode: 'teacher',
 		kind: 'multiline',
+		markdown: 'always',
 		label: 'Podrobná pomoc',
 		hint: 'Druhá úroveň otazníku, když nápověda nestačila. Použití srazí skóre na 0,5.'
 	},
@@ -1029,6 +1037,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		feedback: true,
 		mode: 'teacher',
 		kind: 'multiline',
+		markdown: 'always',
 		label: 'Nápověda',
 		hint: 'Zúží hledání, neprozradí výsledek. Použití srazí skóre na 0,75.'
 	},
@@ -1039,6 +1048,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		feedback: true,
 		mode: 'teacher',
 		kind: 'multiline',
+		markdown: 'always',
 		label: 'Podrobná pomoc',
 		hint: 'Naučí metodu, když nápověda nestačila. Použití srazí skóre na 0,5.'
 	},
@@ -1157,6 +1167,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		feedback: true,
 		mode: 'teacher',
 		kind: 'multiline',
+		markdown: 'sniffed',
 		label: 'Řešení',
 		hint: 'Napiš postup, ne jen výsledek — tohle je nejčtenější text v kurzu.'
 	},

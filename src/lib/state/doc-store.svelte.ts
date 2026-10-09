@@ -410,6 +410,14 @@ export class DocStore {
 		this.#edit = { before: this.source };
 	}
 
+	/**
+	 * The open editing session, if any, as an opaque token. A field asks rather than
+	 * remembers: undo, import or another field close a session without telling it.
+	 */
+	get session(): object | undefined {
+		return this.#edit;
+	}
+
 	endEdit() {
 		const edit = this.#edit;
 		this.#edit = undefined;

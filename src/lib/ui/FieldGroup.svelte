@@ -20,6 +20,8 @@
 	 * offered as its first option stays reachable without an extra button.
 	 */
 	import FocusField from './FocusField.svelte';
+	import RichField from './RichField.svelte';
+	import { ALWAYS_MARKDOWN, SNIFFED } from '$lib/domain/markdown';
 	import Toggle from './Toggle.svelte';
 	import Segmented from './Segmented.svelte';
 	import { parseNumberInput } from '$lib/domain/number-input';
@@ -143,18 +145,31 @@
 				{#if hint}<span class="hint" id={hintId(spec)}>{hint}</span>{/if}
 			</div>
 			<div class="control">
-				<FocusField
-					label={spec.label}
-					value={asText(value)}
-					multiline={spec.kind === 'multiline'}
-					monospace={spec.kind === 'number'}
-					emptyText={spec.default === undefined ? 'nevyplněno' : `výchozí ${spec.default}`}
-					ref={spec.ref}
-					describedby={hint ? hintId(spec) : undefined}
-					invalid={invalid?.(spec.path) === true}
-					onchange={(v) =>
-						spec.kind === 'number' ? writeNumber(spec.path, v) : write(spec.path, v)}
-				/>
+				{#if spec.markdown}
+					<RichField
+						label={spec.label}
+						value={asText(value)}
+						dialect={spec.markdown === 'always' ? ALWAYS_MARKDOWN : SNIFFED}
+						emptyText={spec.default === undefined ? 'nevyplněno' : `výchozí ${spec.default}`}
+						ref={spec.ref}
+						describedby={hint ? hintId(spec) : undefined}
+						invalid={invalid?.(spec.path) === true}
+						onchange={(v) => write(spec.path, v)}
+					/>
+				{:else}
+					<FocusField
+						label={spec.label}
+						value={asText(value)}
+						multiline={spec.kind === 'multiline'}
+						monospace={spec.kind === 'number'}
+						emptyText={spec.default === undefined ? 'nevyplněno' : `výchozí ${spec.default}`}
+						ref={spec.ref}
+						describedby={hint ? hintId(spec) : undefined}
+						invalid={invalid?.(spec.path) === true}
+						onchange={(v) =>
+							spec.kind === 'number' ? writeNumber(spec.path, v) : write(spec.path, v)}
+					/>
+				{/if}
 			</div>
 		</div>
 	{/if}

@@ -21,6 +21,8 @@
 	import { tick, untrack } from 'svelte';
 	import type { BlockStep, BlockV2, CourseV2 } from '$lib/domain/schema';
 	import FocusField from '$lib/ui/FocusField.svelte';
+	import RichField from '$lib/ui/RichField.svelte';
+	import { INLINE, SNIFFED } from '$lib/domain/markdown';
 	import Button from '$lib/ui/Button.svelte';
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import GoToPicker, { blockLabelOf, goToSummary } from './GoToPicker.svelte';
@@ -292,8 +294,9 @@
 			</div>
 
 			<div class="cell text">
-				<FocusField
+				<RichField
 					label="Text odpovědi"
+					dialect={INLINE}
 					value={option.text}
 					emptyText="Napiš odpověď…"
 					onchange={(v) => set(option.id, 'text', v ?? '')}
@@ -328,10 +331,10 @@
 
 			{#if feedback}
 				<div class="cell feedback">
-					<FocusField
+					<RichField
 						label="Zpětná vazba k této odpovědi"
+						dialect={SNIFFED}
 						value={option.feedback}
-						multiline
 						emptyText={option.is_correct === true
 							? 'Potvrď, proč je to správně…'
 							: 'Pojmenuj chybu, která k této odpovědi vede…'}

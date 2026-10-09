@@ -58,7 +58,7 @@ test('Ctrl+B while typing is left to the text, and Ctrl+Shift+B still works ther
 	await page.keyboard.press('Control+b');
 	await expect(name).toBeFocused();
 	await expect(fold(page)).toBeVisible();
-	const text = page.locator('.cm-content').first();
+	const text = page.locator('.rich-content').first();
 	await text.click();
 	await page.keyboard.press('Control+b');
 	await expect(text).toBeFocused();
