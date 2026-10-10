@@ -59,6 +59,7 @@
 	import { withUndoNotice } from './undo-notice';
 	import Menu from '$lib/ui/Menu.svelte';
 	import MenuItem from '$lib/ui/MenuItem.svelte';
+	import { fade } from 'svelte/transition';
 
 	interface Props {
 		doc: CourseV2;
@@ -590,6 +591,7 @@
 			aria-label="Obsah kroku {position}"
 			onfocusin={focusStep}
 			onpointerdown={focusStep}
+			out:fade={{ duration: 200 }}
 		>
 			{#if step.type === 'text'}
 				<RichField
@@ -879,8 +881,31 @@
 </article>
 
 <style>
-	.collapsed header {
+	header:not(+ .body) {
 		margin-bottom: 0;
+	}
+
+	.step {
+		interpolate-size: allow-keywords;
+		transition: height 200ms ease-in-out;
+		height: calc-size(auto, size);
+	}
+
+	.collapsed {
+		height: 51px;
+	}
+
+	.body {
+		animation: expand 200ms ease-out;
+	}
+
+	@keyframes expand {
+		from {
+			opacity: 0;
+		}
+		to {
+			opacity: 1;
+		}
 	}
 
 	.step {
