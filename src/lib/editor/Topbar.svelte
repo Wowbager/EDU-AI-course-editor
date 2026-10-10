@@ -152,13 +152,32 @@
 
 	/** The chip shows a bare number; the accessible name has to say what it counts. */
 	const checkLabel = $derived(
-		store.listed.errors.length > 0
+		(store.listed.errors.length > 0
 			? `Kontrola kurzu: ${errorsCount(store.listed.errors.length)}`
 			: store.listed.warnings.length > 0
 				? `Kontrola kurzu: ${warningsCount(store.listed.warnings.length)}`
-				: 'Kontrola kurzu: v pořádku'
+				: 'Kontrola kurzu: v pořádku') + ' (Ctrl+E)'
 	);
+
+	function onkeydown(event: KeyboardEvent) {
+		if (event.defaultPrevented) return;
+		const meta = event.metaKey || event.ctrlKey;
+		if (!meta) return;
+		// AltGr arrives as Ctrl+Alt on Czech keyboards; it types characters, not commands.
+		if (event.altKey) return;
+
+		if (event.key.toLowerCase() === 's') {
+			event.preventDefault();
+			requestDownload();
+		} else if (event.key.toLowerCase() === 'o') {
+			event.preventDefault();
+
+			fileInput?.click();
+		}
+	}
 </script>
+
+<svelte:window {onkeydown} />
 
 <header class="topbar">
 	<div class="title">

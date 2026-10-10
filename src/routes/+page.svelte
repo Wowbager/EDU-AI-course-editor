@@ -392,6 +392,15 @@
 			event.preventDefault();
 			if (event.shiftKey) togglePreview();
 			else sidebarCollapsed = !sidebarCollapsed;
+		} else if (event.key.toLowerCase() === 'e') {
+			event.preventDefault();
+			showValidation = !showValidation;
+		} else if (event.key.toLowerCase() === 'f') {
+			// Allow Ctrl+F to open the browser's search.
+			if (!event.shiftKey) return;
+			event.preventDefault();
+
+			store.showFeedback = !store.showFeedback;
 		}
 	}
 
