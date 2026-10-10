@@ -889,6 +889,7 @@
 		interpolate-size: allow-keywords;
 		transition: height 200ms ease-in-out;
 		height: calc-size(auto, size);
+		overflow: hidden;
 	}
 
 	.collapsed {

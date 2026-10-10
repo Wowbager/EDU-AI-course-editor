@@ -699,7 +699,7 @@
 	}
 
 	.cards {
-		gap: 1px;
+		gap: 4px;
 		margin: 0 6px;
 	}
 

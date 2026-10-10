@@ -493,6 +493,7 @@
 
 	.lesson.open {
 		background: var(--primary-dark-06);
+		padding: 10px 0;
 	}
 
 	.lesson-row {

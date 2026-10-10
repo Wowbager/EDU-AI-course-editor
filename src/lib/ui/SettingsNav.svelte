@@ -68,15 +68,6 @@
 		search.show(section);
 	}
 
-	// Učitel: the search is closed until asked for.
-	let searchOpen = $state(false);
-	let searchInput = $state<HTMLInputElement | null>(null);
-	async function openSearch() {
-		searchOpen = true;
-		await tick();
-		searchInput?.focus();
-	}
-
 	const uid = $props.id();
 
 	let current = $state(
@@ -140,10 +131,6 @@
 			placeholder="Hledat nastavení"
 			aria-label="Hledat nastavení"
 			bind:value={search.query}
-			bind:this={searchInput}
-			onblur={() => {
-				if (!list && !search.active) searchOpen = false;
-			}}
 		/>
 	</label>
 {/snippet}
@@ -176,21 +163,12 @@
 {/snippet}
 
 {#if !list}
-	{#if searchOpen || search.active}
-		<div class="top">
-			{@render searchField()}
-		</div>
-		{@render higherResults()}
-		{#if search.active && search.result.sections.size === 0 && search.higher.length === 0}
-			<p class="none page">Nic takového tu není. Zkus jiné slovo.</p>
-		{/if}
-	{:else}
-		<div class="top">
-			<button type="button" class="find" onclick={openSearch}>
-				<Search size={13} aria-hidden="true"></Search>
-				Hledat nastavení
-			</button>
-		</div>
+	<div class="top">
+		{@render searchField()}
+	</div>
+	{@render higherResults()}
+	{#if search.active && search.result.sections.size === 0 && search.higher.length === 0}
+		<p class="none page">Nic takového tu není. Zkus jiné slovo.</p>
 	{/if}
 	{#if sections[0] !== undefined}
 		{@render pane(sections[0].id)}
@@ -397,24 +375,6 @@
 		flex: 1;
 	}
 
-	.find {
-		display: inline-flex;
-		align-items: center;
-		gap: 5px;
-		padding: 2px 4px;
-		border: 0;
-		border-radius: var(--radius-xs);
-		background: none;
-		color: var(--e-text-faint);
-		font: var(--type-meta);
-		cursor: pointer;
-	}
-
-	.find:hover {
-		color: var(--e-text);
-	}
-
-	.find:focus-visible,
 	.switch:focus-visible {
 		outline: 2px solid var(--e-focus-ring);
 		outline-offset: 1px;

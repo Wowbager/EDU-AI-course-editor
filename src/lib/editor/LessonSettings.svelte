@@ -110,22 +110,6 @@
 				<FieldGroup fields={inSection('main')} {read} write={set} />
 			</div>
 
-			<div class="order">
-				<Button variant="ghost" size="s" onclick={() => move(-1)} disabled={place <= 0}>
-					<ArrowUp size={16}></ArrowUp>
-					Posunout nahoru
-				</Button>
-				<Button
-					variant="ghost"
-					size="s"
-					onclick={() => move(1)}
-					disabled={place < 0 || place >= doc.lessons.length - 1}
-				>
-					<ArrowDown size={16}></ArrowDown>
-					Posunout dolů
-				</Button>
-			</div>
-
 			{#if totals !== undefined}
 				<p
 					class="totals"
