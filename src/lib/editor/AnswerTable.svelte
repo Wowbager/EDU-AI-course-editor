@@ -35,15 +35,7 @@
 	import { addOption, deleteOption, reorderOptions, setField } from '$lib/domain/commands';
 	import { optionOutcomesApply } from '$lib/domain/derive';
 	import { MIN_CHOICE_OPTIONS } from '$lib/domain/validate';
-	import {
-		ArrowDown,
-		ArrowUp,
-		Check,
-		ChevronRight,
-		CornerDownRight,
-		Plus,
-		Trash
-	} from '@lucide/svelte';
+	import { Check, ChevronRight, CornerDownRight, GripVertical, Plus, Trash } from '@lucide/svelte';
 	import { withUndoNotice } from './undo-notice';
 
 	interface Props {
@@ -77,8 +69,9 @@
 	const headed = $derived(feedback);
 	// A true/false pair has no order to change.
 	const movable = $derived(!fixedOptions && options.length > 1);
-	// The detail line exists only when at least one of its fields does.
-	const detailOffered = $derived(branching || quizMarks || advanced || movable);
+	// The detail line exists only when at least one of its fields does. Reordering
+	// lives on each row's own handle, so it no longer keeps the line alive.
+	const detailOffered = $derived(branching || quizMarks || advanced);
 	const showIds = $derived(allows('step', 'id', store.mode));
 	// Which answers have their detail line open. Local to this table, like a fold.
 	let opened = $state<Record<string, boolean>>({});
@@ -97,6 +90,70 @@
 			if (pointed) untrack(() => (opened[optionKeys[i]] = true));
 		}
 	});
+
+	/**
+	 * Reordering an answer is a pointer drag on its own handle. It is done here, not
+	 * with `svelte-dnd-action`, because an answer list is a drag zone nested inside a
+	 * step — itself an item of the card's step zone — and the library keeps one drag
+	 * per page in module state: the inner `dragHandleZone` subscribing to that state
+	 * resets it on the step's handle press, so the step drag never starts. The pointer
+	 * events here touch nothing shared, and the command is the same `reorderOptions`.
+	 */
+	let rowsEl = $state<HTMLDivElement | null>(null);
+	/** The carried answer: where it came from and the gap it would drop into. */
+	let drag = $state<{ id: string; from: number; to: number; moved: boolean } | null>(null);
+
+	/** The index the carried answer would land in: how many rows end above the pointer. */
+	function dropIndexFor(clientY: number): number {
+		const rows = rowsEl?.querySelectorAll<HTMLElement>(':scope > .row') ?? [];
+		let to = 0;
+		for (const row of rows) {
+			const rect = row.getBoundingClientRect();
+			if (clientY > rect.top + rect.height / 2) to++;
+		}
+		return to;
+	}
+
+	/**
+	 * The press on a handle, carried on the handle itself with pointer capture, so the
+	 * row under the pointer is never the one that decides the drop. A press that moves
+	 * less than the threshold is not a drag, and a drop where it started is not an edit.
+	 */
+	function dragStart(event: PointerEvent, index: number) {
+		if (event.button !== 0) return;
+		const option = options[index];
+		if (option === undefined) return;
+		event.preventDefault();
+		const handle = event.currentTarget as HTMLElement;
+		handle.setPointerCapture(event.pointerId);
+		const startY = event.clientY;
+		drag = { id: option.id, from: index, to: index, moved: false };
+
+		const move = (e: PointerEvent) => {
+			if (drag === null) return;
+			drag = {
+				...drag,
+				to: dropIndexFor(e.clientY),
+				moved: drag.moved || Math.abs(e.clientY - startY) > 4
+			};
+		};
+		const finish = (e: PointerEvent) => {
+			handle.removeEventListener('pointermove', move);
+			handle.removeEventListener('pointerup', finish);
+			handle.removeEventListener('pointercancel', finish);
+			if (handle.hasPointerCapture(e.pointerId)) handle.releasePointerCapture(e.pointerId);
+			const committed = drag;
+			drag = null;
+			if (committed === null || !committed.moved) return;
+			const ids = options.map((o) => o.id);
+			const [moved] = ids.splice(committed.from, 1);
+			ids.splice(committed.to > committed.from ? committed.to - 1 : committed.to, 0, moved);
+			store.apply((d) => reorderOptions(d, block.block_id, step.id, ids));
+		};
+		handle.addEventListener('pointermove', move);
+		handle.addEventListener('pointerup', finish);
+		handle.addEventListener('pointercancel', finish);
+	}
 
 	/**
 	 * Opens an answer's detail line and puts the cursor in its first field, which is
@@ -143,9 +200,11 @@
 			field: 'question.options'
 		})
 	);
-	// Shared, content-independent tracks keep headings and all rows aligned.
+	// Shared, content-independent tracks keep headings and all rows aligned. The grip
+	// track is only there when answers can be reordered.
 	const tracks = $derived(
 		[
+			...(movable ? ['1.25rem'] : []),
 			'36px',
 			'minmax(0, 1.4fr)',
 			...(feedback ? ['minmax(0, 1.6fr)'] : []),
@@ -170,6 +229,30 @@
 		if (to < 0 || to >= ids.length) return;
 		[ids[index], ids[to]] = [ids[to], ids[index]];
 		store.apply((d) => reorderOptions(d, block.block_id, step.id, ids));
+	}
+
+	/**
+	 * The arrow keys on a row's handle move the answer — the keyboard's way to the same
+	 * command a drag sends. Focus is given back to the handle the DOM reorders around.
+	 */
+	function grabbed(handle: HTMLElement, optionId: string) {
+		const key = async (event: KeyboardEvent) => {
+			if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+			event.preventDefault();
+			event.stopPropagation();
+			const index = options.findIndex((o) => o.id === optionId);
+			if (index < 0) return;
+			move(index, event.key === 'ArrowUp' ? -1 : 1);
+			// Moving a node in the DOM can drop its focus; give it back to the same handle.
+			await tick();
+			handle.focus();
+		};
+		handle.addEventListener('keydown', key);
+		return {
+			destroy() {
+				handle.removeEventListener('keydown', key);
+			}
+		};
 	}
 
 	/**
@@ -264,6 +347,7 @@
 <div class="answers" class:bare={!headed} style:--answer-tracks={tracks}>
 	{#if headed}
 		<div class="head" aria-hidden="true">
+			{#if movable}<span></span>{/if}
 			<span></span>
 			<span>Odpověď</span>
 			{#if feedback}<span>Co se žák dozví</span>{/if}
@@ -271,198 +355,196 @@
 		</div>
 	{/if}
 
-	{#each options as option, i (optionKeys[i])}
-		<div class="row">
-			<div class="cell">
-				<button
-					type="button"
-					class="verb"
-					class:correct={option.is_correct}
-					class:multiple
-					aria-pressed={option.is_correct === true}
-					aria-label={`Správná odpověď: ${option.text || 'bez textu'}`}
-					title={option.is_correct
-						? 'Správná odpověď — klikni pro označení jako chybná'
-						: 'Chybná odpověď — klikni pro označení jako správná'}
-					onclick={() => toggleChecked(option.id)}
-				>
-					<!-- The mark of a radio button, or of a checkbox when several may be picked. -->
-					<span class="mark-box">
-						{#if option.is_correct}<Check size={14} strokeWidth={3} />{/if}
-					</span>
-				</button>
-			</div>
-
-			<div class="cell text">
-				<RichField
-					label="Text odpovědi"
-					dialect={INLINE}
-					value={option.text}
-					emptyText="Napiš odpověď…"
-					onchange={(v) => set(option.id, 'text', v ?? '')}
-					disabled={fixedOptions}
-					ref={ref(option.id, 'text')}
-				/>
-				{#if !isOpen(optionKeys[i])}
-					{@const summary = summaryOf(option)}
-					{#if summary.length > 0}
+	<div class="rows" bind:this={rowsEl}>
+		{#each options as option, i (optionKeys[i])}
+			{@const key = optionKeys[i]}
+			<div
+				class="row"
+				class:dragged={drag !== null && drag.moved && drag.id === option.id}
+				class:drop-before={drag !== null && drag.moved && drag.to === i}
+				class:drop-after={drag !== null &&
+					drag.moved &&
+					drag.to === options.length &&
+					i === options.length - 1}
+			>
+				{#if movable}
+					<div class="cell grip-cell">
 						<button
 							type="button"
-							class="set-values"
-							aria-controls="{uid}-detail-{i}"
-							aria-expanded="false"
-							title="Upravit podrobnosti odpovědi"
-							onclick={() => openDetail(optionKeys[i], i)}
+							class="grip"
+							onpointerdown={(event) => dragStart(event, i)}
+							use:grabbed={option.id}
+							aria-label={`Přesunout odpověď: ${option.text || 'bez textu'}`}
+							title="Přetažením (nebo šipkami nahoru a dolů) změníš pořadí odpovědí"
 						>
-							{#each summary as part, j (j)}
-								{#if j > 0}<span aria-hidden="true"> · </span>{/if}
-								<span class="set-value">
-									{#if part.branch}<CornerDownRight size={12} aria-label="Kam dál:"
-										></CornerDownRight>{/if}{part.text}
-								</span>
-							{/each}
+							<GripVertical size={16} aria-hidden="true" />
 						</button>
-					{/if}
+					</div>
 				{/if}
-				{#if cutOffNow !== null && cutOffNow.optionId === option.id}
-					{@render cutOffLine(cutOffNow.text)}
-				{/if}
-			</div>
-
-			{#if feedback}
-				<div class="cell feedback">
-					<RichField
-						label="Zpětná vazba k této odpovědi"
-						dialect={SNIFFED}
-						value={option.feedback}
-						emptyText={option.is_correct === true
-							? 'Potvrď, proč je to správně…'
-							: 'Pojmenuj chybu, která k této odpovědi vede…'}
-						ref={ref(option.id, 'feedback')}
-						onchange={(v) => set(option.id, 'feedback', v)}
-					/>
-				</div>
-			{/if}
-
-			<div class="cell actions">
-				{#if detailOffered}
+				<div class="cell">
 					<button
 						type="button"
-						class="more"
-						class:open={isOpen(optionKeys[i])}
-						aria-expanded={isOpen(optionKeys[i])}
-						aria-controls="{uid}-detail-{i}"
-						aria-label={`Podrobnosti odpovědi ${option.text || 'bez textu'}`}
-						title="Podrobnosti odpovědi"
-						onclick={() => (opened[optionKeys[i]] = !isOpen(optionKeys[i]))}
+						class="verb"
+						class:correct={option.is_correct}
+						class:multiple
+						aria-pressed={option.is_correct === true}
+						aria-label={`Správná odpověď: ${option.text || 'bez textu'}`}
+						title={option.is_correct
+							? 'Správná odpověď — klikni pro označení jako chybná'
+							: 'Chybná odpověď — klikni pro označení jako správná'}
+						onclick={() => toggleChecked(option.id)}
 					>
-						<ChevronRight size={14} aria-hidden="true" />
+						<!-- The mark of a radio button, or of a checkbox when several may be picked. -->
+						<span class="mark-box">
+							{#if option.is_correct}<Check size={14} strokeWidth={3} />{/if}
+						</span>
 					</button>
-				{/if}
-				{#if !fixedOptions}
-					<span class="trash">
-						<Button
-							variant="ghost"
-							size="s"
-							disabled={lastAnswers}
-							title={lastAnswers
-								? 'Otázka potřebuje aspoň dvě odpovědi, ze kterých žák vybírá'
-								: 'Smazat odpověď'}
-							ariaLabel={`Smazat odpověď ${option.text || 'bez textu'}`}
-							onclick={() =>
-								withReachNotice('', () =>
-									withUndoNotice(
-										store,
-										'Odpověď smazána.',
-										() => store.apply((d) => deleteOption(d, block.block_id, step.id, option.id)),
-										{
-											lessonId: store.selection?.lessonId,
-											blockId: block.block_id,
-											stepId: step.id
-										}
-									)
-								)}
-						>
-							<Trash size={14}></Trash>
-						</Button>
-					</span>
-				{/if}
-			</div>
+				</div>
 
-			{#if detailOffered && isOpen(optionKeys[i])}
-				<div class="detail" id="{uid}-detail-{i}" role="group" aria-label="Podrobnosti odpovědi">
-					{#if branching}
-						<div class="field">
-							<span class="label">Kam dál</span>
-							<GoToPicker
-								{doc}
-								{block}
-								stepId={step.id}
-								value={option.go_to}
-								onchange={(v) => withReachNotice(option.id, () => set(option.id, 'go_to', v))}
-							/>
-						</div>
+				<div class="cell text">
+					<RichField
+						label="Text odpovědi"
+						dialect={INLINE}
+						value={option.text}
+						emptyText="Napiš odpověď…"
+						onchange={(v) => set(option.id, 'text', v ?? '')}
+						disabled={fixedOptions}
+						ref={ref(option.id, 'text')}
+					/>
+					{#if !isOpen(key)}
+						{@const summary = summaryOf(option)}
+						{#if summary.length > 0}
+							<button
+								type="button"
+								class="set-values"
+								aria-controls="{uid}-detail-{i}"
+								aria-expanded="false"
+								title="Upravit podrobnosti odpovědi"
+								onclick={() => openDetail(key, i)}
+							>
+								{#each summary as part, j (j)}
+									{#if j > 0}<span aria-hidden="true"> · </span>{/if}
+									<span class="set-value">
+										{#if part.branch}<CornerDownRight size={12} aria-label="Kam dál:"
+											></CornerDownRight>{/if}{part.text}
+									</span>
+								{/each}
+							</button>
+						{/if}
 					{/if}
-					{#if quizMarks}
-						<div class="field">
-							<span class="label">Známka</span>
-							<Segmented
-								label="Známka za tuto odpověď"
-								options={MARKS}
-								value={option.mark ?? ''}
-								onchange={(v) => set(option.id, 'mark', v || undefined)}
-							/>
-						</div>
-					{/if}
-					{#if movable}
-						<div class="field">
-							<span class="label">Pořadí</span>
-							<span class="moves">
-								<Button
-									variant="secondary"
-									size="s"
-									disabled={i === 0}
-									ariaLabel={`Posunout nahoru: ${option.text || 'odpověď bez textu'}`}
-									onclick={() => move(i, -1)}
-								>
-									<ArrowUp size={14} aria-hidden="true"></ArrowUp>
-									Posunout nahoru
-								</Button>
-								<Button
-									variant="secondary"
-									size="s"
-									disabled={i === options.length - 1}
-									ariaLabel={`Posunout dolů: ${option.text || 'odpověď bez textu'}`}
-									onclick={() => move(i, 1)}
-								>
-									<ArrowDown size={14} aria-hidden="true"></ArrowDown>
-									Posunout dolů
-								</Button>
-							</span>
-						</div>
-					{/if}
-					{#if advanced}
-						<div class="field score">
-							<span class="label">Podíl bodů</span>
-							<FocusField
-								label="Podíl bodů za tuto odpověď"
-								value={option.score_koef === undefined ? undefined : String(option.score_koef)}
-								emptyText="1.0"
-								monospace
-								ref={ref(option.id, 'score_koef')}
-								onchange={(v) => {
-									// Empty is unset; a comma is a decimal; text is not written.
-									const value = parseNumberInput(v);
-									if (v === undefined || v.trim() === '' || value !== undefined)
-										set(option.id, 'score_koef', value);
-								}}
-							/>
-						</div>
+					{#if cutOffNow !== null && cutOffNow.optionId === option.id}
+						{@render cutOffLine(cutOffNow.text)}
 					{/if}
 				</div>
-			{/if}
-		</div>
-	{/each}
+
+				{#if feedback}
+					<div class="cell feedback">
+						<RichField
+							label="Zpětná vazba k této odpovědi"
+							dialect={SNIFFED}
+							value={option.feedback}
+							emptyText={option.is_correct === true
+								? 'Potvrď, proč je to správně…'
+								: 'Pojmenuj chybu, která k této odpovědi vede…'}
+							ref={ref(option.id, 'feedback')}
+							onchange={(v) => set(option.id, 'feedback', v)}
+						/>
+					</div>
+				{/if}
+
+				<div class="cell actions">
+					{#if detailOffered}
+						<button
+							type="button"
+							class="more"
+							class:open={isOpen(key)}
+							aria-expanded={isOpen(key)}
+							aria-controls="{uid}-detail-{i}"
+							aria-label={`Podrobnosti odpovědi ${option.text || 'bez textu'}`}
+							title="Podrobnosti odpovědi"
+							onclick={() => (opened[key] = !isOpen(key))}
+						>
+							<ChevronRight size={14} aria-hidden="true" />
+						</button>
+					{/if}
+					{#if !fixedOptions}
+						<span class="trash">
+							<Button
+								variant="ghost"
+								size="s"
+								disabled={lastAnswers}
+								title={lastAnswers
+									? 'Otázka potřebuje aspoň dvě odpovědi, ze kterých žák vybírá'
+									: 'Smazat odpověď'}
+								ariaLabel={`Smazat odpověď ${option.text || 'bez textu'}`}
+								onclick={() =>
+									withReachNotice('', () =>
+										withUndoNotice(
+											store,
+											'Odpověď smazána.',
+											() => store.apply((d) => deleteOption(d, block.block_id, step.id, option.id)),
+											{
+												lessonId: store.selection?.lessonId,
+												blockId: block.block_id,
+												stepId: step.id
+											}
+										)
+									)}
+							>
+								<Trash size={14}></Trash>
+							</Button>
+						</span>
+					{/if}
+				</div>
+
+				{#if detailOffered && isOpen(key)}
+					<div class="detail" id="{uid}-detail-{i}" role="group" aria-label="Podrobnosti odpovědi">
+						{#if branching}
+							<div class="field">
+								<span class="label">Kam dál</span>
+								<GoToPicker
+									{doc}
+									{block}
+									stepId={step.id}
+									value={option.go_to}
+									onchange={(v) => withReachNotice(option.id, () => set(option.id, 'go_to', v))}
+								/>
+							</div>
+						{/if}
+						{#if quizMarks}
+							<div class="field">
+								<span class="label">Známka</span>
+								<Segmented
+									label="Známka za tuto odpověď"
+									options={MARKS}
+									value={option.mark ?? ''}
+									onchange={(v) => set(option.id, 'mark', v || undefined)}
+								/>
+							</div>
+						{/if}
+						{#if advanced}
+							<div class="field score">
+								<span class="label">Podíl bodů</span>
+								<FocusField
+									label="Podíl bodů za tuto odpověď"
+									value={option.score_koef === undefined ? undefined : String(option.score_koef)}
+									emptyText="1.0"
+									monospace
+									ref={ref(option.id, 'score_koef')}
+									onchange={(v) => {
+										// Empty is unset; a comma is a decimal; text is not written.
+										const value = parseNumberInput(v);
+										if (v === undefined || v.trim() === '' || value !== undefined)
+											set(option.id, 'score_koef', value);
+									}}
+								/>
+							</div>
+						{/if}
+					</div>
+				{/if}
+			</div>
+		{/each}
+	</div>
 
 	{#if cutOffNow !== null && cutOffNow.optionId === ''}
 		{@render cutOffLine(cutOffNow.text)}
@@ -499,6 +581,13 @@
 		margin-top: 12px;
 	}
 
+	/* The drag zone: its direct children are the answers, so it is the rows alone. */
+	.rows {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
 	.head,
 	.row {
 		display: grid;
@@ -518,7 +607,7 @@
 	.row {
 		padding: 8px;
 		border-radius: var(--radius-s);
-		transition: background 0.2s;
+		transition: background 0.2s ease-in-out;
 	}
 
 	/*
@@ -537,6 +626,75 @@
 	.cell {
 		min-width: 0;
 		font-size: var(--text-m);
+	}
+
+	/*
+	 * Reordering an answer is a drag, so the handle sits at the row's edge, faint
+	 * until the row is pointed at or worked in (like a step's grip and the trash).
+	 * A screen with no hover shows it full.
+	 */
+	.grip-cell {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.grip {
+		display: inline-flex;
+		align-items: center;
+		padding: 2px;
+		border: none;
+		border-radius: var(--radius-s);
+		background: none;
+		color: var(--e-text-faint);
+		opacity: 0.45;
+		transition:
+			opacity 120ms,
+			background 120ms;
+		cursor: grab;
+		touch-action: none;
+		height: 36px;
+	}
+
+	/* Drag feedback: the carried row fades, and a line shows the gap it drops into. */
+	.dragged {
+		opacity: 0.4;
+	}
+
+	.row.dragged .grip {
+		cursor: grabbing;
+	}
+
+	.drop-before {
+		box-shadow: inset 0 2px 0 var(--e-focus-ring);
+	}
+
+	.drop-after {
+		box-shadow: inset 0 -2px 0 var(--e-focus-ring);
+	}
+
+	.row:hover .grip,
+	.row:focus-within .grip,
+	.grip:hover,
+	.grip:focus-visible {
+		opacity: 1;
+	}
+
+	.grip:hover,
+	.grip:focus-visible {
+		color: var(--e-text);
+		background: var(--surface);
+	}
+
+	.grip:focus-visible {
+		outline: 2px solid var(--e-focus-ring);
+		outline-offset: 1px;
+	}
+
+	@media (hover: none) {
+		.grip {
+			opacity: 1;
+		}
 	}
 
 	.actions {
@@ -717,6 +875,11 @@
 		.feedback::before {
 			content: 'Co se žák dozví';
 		}
+
+		/* The handle is not a field: no caption line above it. */
+		.grip-cell::before {
+			display: none;
+		}
 	}
 
 	/*
@@ -773,6 +936,7 @@
 		display: inline-flex;
 		opacity: 0.45;
 		transition: opacity 120ms;
+		height: 36px;
 	}
 
 	.row:hover .trash,
@@ -801,12 +965,6 @@
 
 	.list-issue.warning {
 		color: var(--e-warning);
-	}
-
-	.moves {
-		display: inline-flex;
-		flex-wrap: wrap;
-		gap: 6px;
 	}
 
 	.add {

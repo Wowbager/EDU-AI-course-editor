@@ -827,23 +827,32 @@ export function deleteOption(
 	};
 }
 
+/**
+ * Reorder a question's options by id, like `reorderSteps`. A drop that left every
+ * answer where it was returns the same document, so it is not an edit — no undo
+ * entry and no dirty flag.
+ */
 export function reorderOptions(
 	doc: CourseV2,
 	blockId: string,
 	stepId: string,
 	orderedIds: string[]
 ): CommandResult {
+	const block = requireBlock(doc, blockId);
+	const step = block.steps.find((s) => s.id === stepId);
+	const current = step?.question?.options ?? [];
+	const remaining = [...current];
+	const reordered: QuestionOption[] = [];
+	for (const id of orderedIds) {
+		const at = remaining.findIndex((o) => o.id === id);
+		if (at >= 0) reordered.push(...remaining.splice(at, 1));
+	}
+	reordered.push(...remaining);
+	if (sameSequence(current, reordered)) return { doc, description: 'Pořadí odpovědí se nezměnilo' };
 	return {
-		doc: mapStep(doc, blockId, stepId, (step) => {
-			if (step.question === undefined) return step;
-			const remaining = [...(step.question.options ?? [])];
-			const reordered: QuestionOption[] = [];
-			for (const id of orderedIds) {
-				const at = remaining.findIndex((o) => o.id === id);
-				if (at >= 0) reordered.push(...remaining.splice(at, 1));
-			}
-			return { ...step, question: { ...step.question, options: [...reordered, ...remaining] } };
-		}),
+		doc: mapStep(doc, blockId, stepId, (s) =>
+			s.question === undefined ? s : { ...s, question: { ...s.question, options: reordered } }
+		),
 		description: 'Změněno pořadí odpovědí'
 	};
 }

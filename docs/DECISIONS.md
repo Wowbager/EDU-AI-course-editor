@@ -2435,6 +2435,50 @@ The error was a checkout whose `node_modules` predated PR #3: Vite started, said
   their own. README offers neither; `e2e-editor` runs the first, and the image runs the
   second.
 
+## Round 17 — an answer is reordered by dragging its handle
+
+The owner, on the answer table: *"Currently, when the teacher click the Expand button, it
+shows them 2 buttons for moving the answer up or down. Make it so those answers can be
+rearranged by dragging (similar to other components)."*
+
+- **Reordering moved out of the detail line and onto each answer's own handle.** A faint
+  grip at the row's edge carries the answer with pointer events (capture on the handle,
+  the row whose midpoint the pointer passed, a line for the gap), and answers the arrow
+  keys, like a step's grip; the two „Posunout nahoru / dolů“ buttons and the „Pořadí“
+  field are gone. The detail line no longer keeps itself alive for reordering: it exists
+  only for „Kam dál“, „Známka“ and „Podíl bodů“.
+- **Why not `svelte-dnd-action`, which every other list uses.** An answer list is a drag
+  zone nested inside a step, and a step is an item of the card's step zone. The library
+  keeps one drag per page in module state, and a `dragHandleZone` subscribes to it: the
+  inner zone reset that state on the step's handle press, so the step drag never started
+  (`step-list.spec.ts` 54 and 228 failed). A plain `dndzone` does not subscribe and leaves
+  the step drag alone, but it starts from any press in the row, and the right-answer
+  marker is a `<span>` inside a `<button>`, so a press on the tick would drag the row.
+  Pointer events on the handle touch nothing shared. *Rejected:* the whole row draggable,
+  like a tree card: an answer row is mostly fields and buttons, and each press would have
+  to be guarded by hand.
+- **The build was red before this change, and that is its own concern.** `StepEditor`'s
+  `header:not(+ .body)` (`239ac8a`) is not valid CSS — `:not()` takes a selector, not a
+  relative one — and the CSS minifier refuses it, so `vite build` and the whole `editor`
+  e2e project could not run. The body renders exactly when the step is not collapsed, so
+  the rule is `.collapsed header`. Fixed here rather than under it, since nothing else
+  could be checked until it was.
+- **A drop where it started is not an edit, for answers too.** `reorderOptions` returned a
+  new document even when nothing moved, unlike `reorderSteps` and `reorderBindings`; a
+  drag always finalizes through it, so the no-op was about to leave an undo entry and a
+  dirty flag behind. It now returns the same document when the order is unchanged, with a
+  test that failed before the fix.
+- **A step-drag test read one frame of a 200ms fold.** `step-list.spec.ts` "a folded step
+  stays folded while it is carried" compared every step's height the instant the pointer
+  moved. The fold animates (`transition: height 200ms`), and the answer table's extra DOM
+  made the fold's first paint land a frame later, so the test caught an in-between height
+  (955px instead of ≤134px). It now polls until the fold settles — the condition it means
+  to assert (rule 7) — and passes again.
+- Rejected: keeping the buttons beside the handle. The brief has actions appear where they
+  are used, not a permanent row of buttons; a step does the same job with one grip, and
+  its arrow keys are the keyboard's way to it.
+
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

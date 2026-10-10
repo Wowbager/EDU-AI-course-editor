@@ -164,7 +164,8 @@ test('a question with several picks has no "Kam dál" and no grade, since the ap
 		page.getByRole('button', { name: 'Kam pokračovat po této odpovědi' }).first()
 	).toBeVisible();
 
-	// The line stays (the order is changed there), without the two fields.
+	// Switching to several picks drops both fields, so the line has nothing left to
+	// show and closes. The values stay in the card; switching back shows them again.
 	await multiple(page).check();
 	await expect(page.getByRole('radiogroup', { name: 'Známka za tuto odpověď' })).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'Kam pokračovat po této odpovědi' })).toHaveCount(
@@ -221,36 +222,47 @@ test('the detail line opens from the row, and a set value is read without openin
 	).toHaveCount(0);
 });
 
-test('an answer moves up and down from its detail line, and not past the ends', async ({
+test('an answer is reordered by dragging its handle, and the handle answers the arrow keys', async ({
 	page
 }) => {
 	await loadCourse(page);
 	const rows = page.locator('.answers .row');
 	// The answers' own text: the summary line under a row changes as its details open.
-	const texts = () =>
-		rows
+	const texts = () => {
+		return rows
 			.getByRole('textbox', { name: 'Text odpovědi' })
 			.evaluateAll((els) => els.map((el) => (el as HTMLInputElement).value ?? el.textContent));
+	};
 	const before = await texts();
 	expect(before.length).toBeGreaterThan(2);
 
-	await details(page).first().click();
-	const up = rows.first().getByRole('button', { name: /^Posunout nahoru/ });
-	const down = rows.first().getByRole('button', { name: /^Posunout dolů/ });
-	await expect(up).toBeDisabled();
-	await down.click();
-	await expect.poll(texts).toEqual([before[1], before[0], ...before.slice(2)]);
+	const grip = (i: number) => rows.nth(i).getByRole('button', { name: /^Přesunout odpověď/ });
 
-	// The moved answer is now second, and its line stayed open with it.
-	await expect(rows.nth(1).getByRole('button', { name: /^Posunout nahoru/ })).toBeEnabled();
-	await rows
-		.nth(1)
-		.getByRole('button', { name: /^Posunout nahoru/ })
-		.click();
-	await expect.poll(texts).toEqual(before);
+	// The first answer is carried past the last one by its own handle.
+	const from = (await grip(0).boundingBox())!;
+	const x = from.x + from.width / 2;
+	await page.mouse.move(x, from.y + from.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(x, from.y + 20, { steps: 4 });
+	const last = (await rows.last().boundingBox())!;
+	await page.mouse.move(x, last.y + last.height + 8, { steps: 10 });
+	// The carried row fades and the gap under the last row shows where it will land.
+	await expect(page.locator('.rows .row.dragged')).toHaveCount(1);
+	await page.mouse.up();
+	await expect.poll(texts).toEqual([...before.slice(1), before[0]]);
 
-	await details(page).last().click();
-	await expect(rows.last().getByRole('button', { name: /^Posunout dolů/ })).toBeDisabled();
+	// The handle answers the arrow keys too, and keeps its focus through the move. The
+	// moved answer (now last) swaps back up one place.
+	const swappedUp = [...before.slice(1, -1), before[0], before[before.length - 1]];
+	await grip(before.length - 1).focus();
+	await page.keyboard.press('ArrowUp');
+	await expect.poll(texts).toEqual(swappedUp);
+	await expect(grip(2)).toBeFocused();
+
+	// At the ends it stays put: the first answer cannot go up.
+	await grip(0).focus();
+	await page.keyboard.press('ArrowUp');
+	await expect.poll(texts).toEqual(swappedUp);
 });
 
 test('the heading row goes when "Odpověď" would be its only label', async ({ page }) => {

@@ -881,7 +881,7 @@
 </article>
 
 <style>
-	header:not(+ .body) {
+	.collapsed header {
 		margin-bottom: 0;
 	}
 

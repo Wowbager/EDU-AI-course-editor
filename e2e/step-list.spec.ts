@@ -59,14 +59,17 @@ test('a folded step stays folded while it is carried and after it lands', async 
 	const folded = (await list.nth(0).boundingBox())!.height;
 	const summary = await list.nth(0).locator('.summary').textContent();
 
-	// Carry step 1 below step 3. Every step is folded while the drag is on.
+	// Carry step 1 below step 3. Every step is folded while the drag is on. The fold
+	// animates (200ms), so wait for the settled height rather than read one frame.
 	const from = await press(page, 1);
 	await page.mouse.move(from.x, from.y + 20, { steps: 4 });
-	for (const box of await page
-		.locator('main .step')
-		.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height))) {
-		expect(box).toBeLessThanOrEqual(folded + 2);
-	}
+	await expect
+		.poll(() =>
+			page
+				.locator('main .step')
+				.evaluateAll((els) => Math.max(...els.map((el) => el.getBoundingClientRect().height)))
+		)
+		.toBeLessThanOrEqual(folded + 2);
 	const target = (await list.nth(2).boundingBox())!;
 	await page.mouse.move(from.x, target.y + target.height - 4, { steps: 12 });
 	await page.mouse.up();

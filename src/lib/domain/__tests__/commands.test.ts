@@ -208,6 +208,12 @@ describe('reordering answers', () => {
 		const next = reorderOptions(base(), 'L1_B3_poznej', 's2', [ids[ids.length - 1]]).doc;
 		expect(optionIds(next)).toEqual([ids[ids.length - 1], ...ids.slice(0, -1)]);
 	});
+
+	it('leaves the document alone when nothing moved — a drop in place is not an edit', () => {
+		const doc = base();
+		const ids = optionIds(doc);
+		expect(reorderOptions(doc, 'L1_B3_poznej', 's2', ids).doc).toBe(doc);
+	});
 });
 
 describe('moving a card with the keyboard', () => {

@@ -134,6 +134,8 @@ Each row is a design the agents chose, and what the owner said once he saw it.
 | Notes in the editor explaining an app bug | fix the fork instead | Don't explain a bug to the teacher, fix it |
 | Recommended options that added a control (scope switch, caveat label) | chose the option with less, every time | Recommend the smaller option |
 | CI with an e2e job | "extra complexity" | No infrastructure nobody asked for |
+| „Posunout nahoru / dolů“ buttons in an answer's detail line | "make it so those answers can be rearranged by dragging" | Reorder at the thing itself: one handle, like a step |
+
 
 ## Known gaps in the current editor
 
