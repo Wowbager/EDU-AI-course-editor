@@ -489,6 +489,23 @@
 			stepId: step.id
 		};
 	}
+
+	function numerize(v: string | undefined): number | undefined {
+		console.log('numerize', v);
+
+		if (v === undefined) return undefined;
+
+		let num = Number(v.replaceAll(/[^\d,.-]/g, '').replaceAll(',', '.'));
+		if (isNaN(num)) return undefined;
+		return num;
+	}
+
+	let answerValue: string | undefined = $state(
+		step.question?.correct_number === undefined ? undefined : String(step.question.correct_number)
+	);
+	let toleranceValue: string | undefined = $state(
+		step.question?.tolerance === undefined ? undefined : String(step.question.tolerance)
+	);
 </script>
 
 <article
@@ -734,9 +751,7 @@
 							<span class="field-label">Správný výsledek</span>
 							<FocusField
 								label="Správný výsledek"
-								value={step.question.correct_number === undefined
-									? undefined
-									: String(step.question.correct_number)}
+								value={answerValue}
 								emptyText="Číslo"
 								monospace
 								ref={{
@@ -744,20 +759,22 @@
 									stepId: step.id,
 									field: 'question.correct_number'
 								}}
-								onchange={(v) =>
-									set(
-										'question.correct_number',
-										v === undefined ? undefined : Number(v.replaceAll(',', '.'))
-									)}
+								onblur={() => {
+									let n = numerize(answerValue);
+									set('question.correct_number', n);
+									answerValue =
+										n === undefined ? undefined : n.toLocaleString('cs-CZ', { useGrouping: false });
+								}}
+								onchange={(v) => {
+									answerValue = v;
+								}}
 							/>
 						</div>
 						<div class="field-row">
 							<span class="field-label">Tolerance ±</span>
 							<FocusField
 								label="Tolerance"
-								value={step.question.tolerance === undefined
-									? undefined
-									: String(step.question.tolerance)}
+								value={toleranceValue}
 								emptyText="0 — vyžaduje přesnou shodu"
 								monospace
 								ref={{
@@ -765,11 +782,15 @@
 									stepId: step.id,
 									field: 'question.tolerance'
 								}}
-								onchange={(v) =>
-									set(
-										'question.tolerance',
-										v === undefined ? undefined : Number(v.replaceAll(',', '.'))
-									)}
+								onblur={() => {
+									let n = numerize(toleranceValue);
+									set('question.tolerance', n);
+									toleranceValue =
+										n === undefined ? undefined : n.toLocaleString('cs-CZ', { useGrouping: false });
+								}}
+								onchange={(v) => {
+									toleranceValue = v;
+								}}
 							/>
 						</div>
 					{:else}
