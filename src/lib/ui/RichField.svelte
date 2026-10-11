@@ -25,7 +25,8 @@
 		Table,
 		TextQuote,
 		Trash,
-		Type
+		Type,
+		CircleQuestionMark
 	} from '@lucide/svelte';
 	import { canEditVisually, type MarkdownDialect } from '$lib/domain/markdown';
 	import type { Ref } from '$lib/domain/ref';
@@ -430,6 +431,15 @@
 					{/if}
 					<button
 						type="button"
+						class="icon-button"
+						onclick={() => window.open('https://katex.org/docs/supported.html', '_blank', 'noopener')}
+						title="Nápověda k LaTeXu"
+						aria-label="Nápověda k LaTeXu"
+					>
+						<CircleQuestionMark size={14}></CircleQuestionMark>
+					</button>
+					<button
+						type="button"
 						class="text-button"
 						onclick={() => {
 							closeMath();
@@ -607,6 +617,20 @@
 </div>
 
 <style>
+	.icon-button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		padding: 0;
+		border: 0;
+		border-radius: var(--radius-xs);
+		background: none;
+		color: var(--e-text-muted);
+		cursor: pointer;
+	}
+
 	.rich-field {
 		display: flex;
 		flex-direction: column;
