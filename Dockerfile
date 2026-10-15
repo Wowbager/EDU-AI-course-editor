@@ -56,7 +56,9 @@ RUN npm run build && npm prune --omit=dev
 # ── Stage 3: what actually runs ────────────────────────────────────────────
 FROM node:22-alpine
 
-RUN apk add --no-cache nginx gettext
+# nginx-mod-http-brotli: `brotli_static`, which serves the player's precompressed
+# `.br` files (below, and nginx.conf).
+RUN apk add --no-cache nginx nginx-mod-http-brotli gettext
 
 WORKDIR /app
 COPY --from=editor /app/build ./build
@@ -74,6 +76,12 @@ COPY scripts/inject-player-shim.mjs /tmp/inject-player-shim.mjs
 COPY src/lib/preview/player-shim.js /tmp/player-shim.js
 RUN node /tmp/inject-player-shim.mjs /usr/share/nginx/player/index.html /tmp/player-shim.js \
     && rm /tmp/inject-player-shim.mjs /tmp/player-shim.js
+
+# Compressed once here, at the highest levels, so nginx serves `.br` and `.gz` copies
+# as they are instead of gzipping megabytes of JS and wasm per request. After the
+# shim, which rewrites index.html.
+COPY scripts/precompress.mjs /tmp/precompress.mjs
+RUN node /tmp/precompress.mjs /usr/share/nginx/player && rm /tmp/precompress.mjs
 
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY docker-entrypoint.sh /usr/local/bin/

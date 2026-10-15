@@ -63,6 +63,26 @@ docker build -t edu-editor .
 The context is this directory; the player is cloned and built from the pinned commit,
 so nothing has to be checked out beside it.
 
+The image is built for a teacher's first load, which is mostly the player:
+
+- **A preview-only player.** The image builds the player from
+  `player/preview_main.dart` (copied into the app checkout, `-t lib/preview_main.dart`):
+  the app's preview page and nothing else, so the rest of the app is not in
+  `main.dart.js` (11.1 → 9.2 MB). `npm run dev` serves whatever player build you point it
+  at, usually the whole app; to run the suites against what the image ships, build the
+  fork with that file:
+  ```bash
+  cp ../editor/player/preview_main.dart lib/
+  flutter build web --release --base-href /player/ --no-web-resources-cdn -t lib/preview_main.dart
+  ```
+- **Compressed once, at build time.** `scripts/precompress.mjs` writes `.br` and `.gz`
+  copies of the player's files and nginx serves them as they are (`brotli_static`,
+  `gzip_static`). In Chrome the preview's first load goes from about 5.3 MB to 3.2 MB;
+  it adds about a minute to `docker build`.
+- **Revalidated, never cached blind.** No player file has a version in its name, so
+  nginx sends `Cache-Control: no-cache` for all of them: a returning browser keeps its
+  copy and gets a 304, and never runs a new `main.dart.js` on an old CanvasKit.
+
 Two modes, and they are different things rather than two spellings of one:
 
 - **Náhled** — the selected card with every step expanded at once, and nothing to
