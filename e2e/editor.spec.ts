@@ -185,10 +185,8 @@ test('in Metodik the list is there even with few sections, and Učitel has none'
 	dialog = page.getByRole('dialog', { name: 'Nastavení karty' });
 	await expect(dialog.getByRole('textbox', { name: 'Délka' })).toBeVisible();
 	await expect(dialog.getByRole('tablist')).toHaveCount(0);
-	// ... and its search is one faint word until it is asked for.
-	await expect(dialog.getByRole('searchbox', { name: 'Hledat nastavení' })).toHaveCount(0);
-	await dialog.getByRole('button', { name: 'Hledat nastavení' }).click();
-	await expect(dialog.getByRole('searchbox', { name: 'Hledat nastavení' })).toBeFocused();
+	// ... and its search is there too, open like in the other modes.
+	await expect(dialog.getByRole('searchbox', { name: 'Hledat nastavení' })).toBeVisible();
 });
 
 test('a dialog says what the next mode adds, and Přepnout opens on it', async ({ page }) => {
@@ -222,7 +220,6 @@ test('the search in Učitel finds a Pokročilý field, and Přepnout lands on it
 	await importCourse(page, 'spec-16-course.json');
 	await page.getByRole('button', { name: 'Nastavení karty' }).click();
 	const dialog = page.getByRole('dialog', { name: 'Nastavení karty' });
-	await dialog.getByRole('button', { name: 'Hledat nastavení' }).click();
 	await dialog.getByRole('searchbox', { name: 'Hledat nastavení' }).fill('nejdelsi odstup');
 	const row = dialog.getByRole('listitem').filter({ hasText: 'Nejdelší odstup' });
 	await expect(row).toContainText('je v režimu Pokročilý');
@@ -239,7 +236,6 @@ test("the search in Učitel knows a teacher's words, and says when it finds noth
 	await importCourse(page, 'spec-16-course.json');
 	await page.getByRole('button', { name: 'Nastavení karty' }).click();
 	const dialog = page.getByRole('dialog', { name: 'Nastavení karty' });
-	await dialog.getByRole('button', { name: 'Hledat nastavení' }).click();
 	const field = dialog.getByRole('searchbox', { name: 'Hledat nastavení' });
 	await field.fill('kdy se vrátí');
 	await expect(dialog.getByRole('list', { name: 'Nalezeno v jiném režimu' })).toContainText(

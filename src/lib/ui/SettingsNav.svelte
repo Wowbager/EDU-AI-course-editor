@@ -30,7 +30,6 @@
 	 */
 	import type { Snippet } from 'svelte';
 	import { untrack } from 'svelte';
-	import { tick } from 'svelte';
 	import { Search } from '@lucide/svelte';
 	import SettingsSection from './SettingsSection.svelte';
 	import {

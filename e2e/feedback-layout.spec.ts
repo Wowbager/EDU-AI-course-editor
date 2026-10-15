@@ -37,9 +37,10 @@ for (const marks of [false, true]) {
 			const answers = page.locator('.answers').first();
 			const head = answers.locator('.head');
 			await expect(head).toBeVisible();
-			// Mark, answer, feedback and the row-end control: whatever else an answer has is
-			// in its detail line, so the grid no longer grows with the course's settings.
-			const columns = 4;
+			// The drag handle, mark, answer, feedback and the row-end control: whatever else
+			// an answer has is in its detail line, so the grid does not grow with the
+			// course's settings.
+			const columns = 5;
 			await expect(head.locator(':scope > span')).toHaveCount(columns);
 			const template = await head.evaluate((node) => getComputedStyle(node).gridTemplateColumns);
 			expect(template.split(' ')).toHaveLength(columns);
