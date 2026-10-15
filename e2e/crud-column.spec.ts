@@ -67,16 +67,14 @@ test('a card, a step and a lesson move without dragging', async ({ page }) => {
 	await expect(stepMenu.getByRole('menuitem', { name: 'Posunout nahoru' })).toBeDisabled();
 	await page.keyboard.press('Escape');
 
-	// A lesson, from its settings.
+	// A lesson, from the keyboard: the list's own keyboard drag. Space picks the lesson
+	// up, an arrow moves it, Space puts it down. Its settings no longer move it.
 	const names = page.locator('.tree-lesson > button.lesson .name');
 	const firstLesson = await names.nth(0).innerText();
-	await page
-		.getByRole('button', { name: /^Nastavení lekce/ })
-		.first()
-		.click();
-	await expect(page.getByRole('button', { name: 'Posunout nahoru' })).toBeDisabled();
-	await page.getByRole('button', { name: 'Posunout dolů' }).click();
-	await page.getByRole('button', { name: 'Hotovo' }).click();
+	await page.locator('li.tree-lesson').first().focus();
+	await page.keyboard.press('Space');
+	await page.keyboard.press('ArrowDown');
+	await page.keyboard.press('Space');
 	await expect(names.nth(1)).toHaveText(firstLesson);
 });
 

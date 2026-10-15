@@ -22,11 +22,11 @@
 	import { fieldsFor, listsSections, sectionsFor } from '$lib/ui/fields';
 	import { sectionHasIssue, sectionTargeted } from '$lib/ui/settings-target';
 	import { SettingsSearch, setSettingsSearch } from '$lib/ui/settings-search.svelte';
-	import { duplicateLesson, moveLesson, setField } from '$lib/domain/commands';
+	import { duplicateLesson, setField } from '$lib/domain/commands';
 	import { removeLesson } from './lesson-actions';
 	import { lessonDidactics, lessonTotals } from '$lib/domain/derive';
 	import { cardsCount } from '$lib/ui/plural';
-	import { ArrowDown, ArrowUp, Copy, Trash } from '@lucide/svelte';
+	import { Copy, Trash } from '@lucide/svelte';
 
 	interface Props {
 		doc: CourseV2;
@@ -81,9 +81,6 @@
 		removeLesson(store, lessonId);
 		onclose();
 	}
-
-	const place = $derived(doc.lessons.findIndex((l) => l.lesson_id === lessonId));
-	const move = (delta: -1 | 1) => store.apply((d) => moveLesson(d, lessonId, delta));
 
 	let fieldsEl = $state<HTMLElement | null>(null);
 	$effect(() => {
@@ -189,11 +186,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
-	}
-
-	.order {
-		display: flex;
-		gap: 4px;
 	}
 
 	.totals {
