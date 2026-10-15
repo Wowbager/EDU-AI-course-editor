@@ -95,9 +95,10 @@ editor will not, and uses `status: private` for "PIN only".
 - `main.dart.js` is 9.2 MB (1.25 MB brotli): the Flutter framework plus every package
   the preview's widgets import (Markdown, maths, HTML, video). Deferred imports in the
   app (`import … deferred as`) would load the heavy renderers when a card needs them.
-- The build ships 22 `.ttf` and one `.otf` in `assets/` (KaTeX's among them), and
-  `google_fonts` fetches from Google at run time (#17). Which of them load at start was
-  not measured.
+- The build ships 22 `.ttf` and one `.otf` in `assets/`, and `google_fonts` fetches from
+  Google at run time (#17). Measured in Round 20: all 15 KaTeX fonts (348 KB brotli)
+  and Roboto load at start, for every card, maths or not. Registering KaTeX's fonts
+  lazily is the app's to do.
 - `flutter build web --wasm` (the smaller, faster skwasm renderer) fails:
   `flutter_secure_storage_web` 1.2.1 uses `dart:html`, which wasm builds do not support.
   Seen on 2026-10-01 at this `PLAYER_REF`, not re-run since. It needs a dependency
