@@ -79,9 +79,17 @@ The image is built for a teacher's first load, which is mostly the player:
   copies of the player's files and nginx serves them as they are (`brotli_static`,
   `gzip_static`). In Chrome the preview's first load goes from about 5.3 MB to 3.2 MB;
   it adds about a minute to `docker build`.
-- **Revalidated, never cached blind.** No player file has a version in its name, so
-  nginx sends `Cache-Control: no-cache` for all of them: a returning browser keeps its
-  copy and gets a 304, and never runs a new `main.dart.js` on an old CanvasKit.
+- **The Markdown source view loads when it is first opened**, in every build, not only
+  the image (`src/lib/ui/codemirror.ts`): CodeMirror is a quarter of the editor's
+  script, and most teachers never open it.
+- **Kept for good, under a versioned path.** No Flutter file has a version in its name,
+  so `scripts/version-player.mjs` moves every file but `index.html` to
+  `/player/<hash>/`, the hash taken from the files, and points the page's `<base href>`
+  there. nginx revalidates the page and sends the rest `immutable`: a returning teacher
+  asks for one page, and a new build can never run on an old CanvasKit.
+- **No sign-in scripts.** The player's page loads Microsoft's sign-in library and its
+  plugin's script; the preview signs nobody in, so both are dropped when the page is
+  served (`scripts/inject-player-shim.mjs`, in `npm run dev` too).
 
 Two modes, and they are different things rather than two spellings of one:
 

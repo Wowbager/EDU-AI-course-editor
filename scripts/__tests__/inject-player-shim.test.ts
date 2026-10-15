@@ -64,9 +64,19 @@ describe('injectPlayerShim', () => {
 		expect(result).toContain(
 			'external script dropped: //alcdn.msauth.net/browser/2.13.1/js/msal-browser.min.js'
 		);
-		// Same-origin scripts stay, and so does the bootstrap.
-		expect(result).toContain('<script src="assets/packages/aad_oauth/assets/msalv2.js"></script>');
+		// The sign-in plugin's half goes too: it wraps the library just dropped.
+		expect(result).not.toContain('<script src="assets/packages/aad_oauth/assets/msalv2.js">');
+		expect(result).toContain('sign-in script dropped: assets/packages/aad_oauth/assets/msalv2.js');
+		// The bootstrap stays, and every other script of the page's own.
 		expect(result).toContain('<script src="flutter_bootstrap.js" async></script>');
 		expect(injectPlayerShim(result, 'x')).toBe(result);
+	});
+
+	it('keeps same-origin scripts that are not the sign-in plugin', () => {
+		const html = `<html><head><script src="assets/packages/other/x.js"></script></head><body>
+<script src="flutter_bootstrap.js" async></script></body></html>`;
+		const result = injectPlayerShim(html, 'x');
+		expect(result).toContain('<script src="assets/packages/other/x.js"></script>');
+		expect(result).toContain('<script src="flutter_bootstrap.js" async></script>');
 	});
 });

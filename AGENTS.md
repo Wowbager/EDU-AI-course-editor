@@ -71,8 +71,8 @@ CI runs `check`, `npm test` and `test:e2e -- --project=editor`. The `editor` pro
 no Flutter build, so it is a real gate on every push and PR. CI also starts the editor
 the two ways README gives. `run-dev` starts `npm run dev -- --host` and loads the page in a
 browser (`npm run smoke -- <url>`, `scripts/smoke.mjs`). `run-docker` builds the image
-and only checks with `curl` that it starts and serves the page and the player, compressed
-and revalidated as `nginx.conf` says. Nothing
+and only checks with `curl` that it starts and serves the page and the player, at its
+versioned path, compressed and cached as `nginx.conf` says. Nothing
 drives the player inside it: the `player`
 project is yours to run, and so is `REQUIRE_PLAYER=1`. When you add a way to run the
 editor, or change how one starts, it gets a job there.

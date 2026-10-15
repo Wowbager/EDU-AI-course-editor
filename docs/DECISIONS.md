@@ -2563,6 +2563,46 @@ was never committed. Redone against the current code and measured again:
   `no-cache`. What is left is the app's (OPEN-PROBLEMS G).
 
 
+## Round 20 — the first load pushed further, and a returning teacher asks for one page
+
+The owner: *"Merge PR 5, then build the three further steps: versioned player path,
+dropping the MSAL scripts from the image's player, and lazy-loading CodeMirror."*
+Measured as a browser loads the editor with the preview open, before → after Round 19 →
+now: 5.7 MB → 3.64 MB → 3.56 MB brotli on first load, 58 → 48 same-origin requests;
+on a return visit, one revalidated page instead of every player file.
+
+- **CodeMirror is a chunk of its own** (`ui/codemirror.ts` loads `codemirror-editor.ts`
+  the first time a source view mounts). The page's script 1.28 → 0.97 MB (329 → 248 KB
+  brotli); the editor chunk is 85 KB brotli, for the teachers who open „Upravit jako
+  text (Markdown)“ or have a field the visual editor cannot show. Until it is there the
+  field shows its text in the editor's type. `RichField` focused the source view and
+  marked it invalid a tick after it opened, which no longer finds it: the action now
+  says when the editor is there (`onready`). `lazy-source.spec.ts` fails when CodeMirror
+  is back in the page. *Rejected:* fetching it when the page is idle — it would be
+  downloaded by everyone again, only later.
+- **The sign-in plugin's script is dropped from the player's page**, beside the MSAL
+  library from Microsoft's CDN that `dropExternalScripts` already dropped (`a96c35e`).
+  `aad_oauth/assets/msalv2.js` only wraps that library, so it could sign nobody in, but
+  it was a blocking script before Flutter's bootstrap. It is dropped in the shared
+  `injectPlayerShim`, so in `npm run dev` too: the module exists so the two pages
+  cannot drift.
+- **The player is served under `/player/<hash>/`** (`scripts/version-player.mjs`),
+  built in Round 19 as *Proposed, not built*. The hash is of the build's files, not
+  `PLAYER_REF`: the Dockerfile's Flutter is `stable`, so one commit can build different
+  bytes. Only `index.html` stays at `/player/`, revalidated, with its `<base href>`
+  naming the hash; everything under a hash is `immutable`, and a file missing there is
+  a 404, never the page. It also settles what Round 19's `no-cache` could not: a browser
+  that kept CanvasKit under the old year-long `immutable` header would still have used
+  it, and now nothing asks for those URLs. The editor still opens `/player/preview`, and
+  `npm run dev` serves the build as it is. All 16 `player` tests pass on a versioned
+  build (through the dev plugin, so the browser half: `<base>`, workers, wasm);
+  `run-docker` checks nginx's half.
+- **Left, and where:** CanvasKit (1.57 MB) and `main.dart.js` (1.25 MB) are most of the
+  rest, then 15 KaTeX fonts (348 KB) the app registers and Flutter loads at start even
+  for a card without maths — all app-side (OPEN-PROBLEMS G). Google Fonts and Google's
+  sign-in client are still fetched by the app's Dart code at run time (#17).
+
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

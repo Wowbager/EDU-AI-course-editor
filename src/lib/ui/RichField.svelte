@@ -345,9 +345,26 @@
 
 	// ─── Source view ────────────────────────────────────────────────────────
 
+	/**
+	 * Whether the source editor has mounted. It loads on first use (`codemirror.ts`),
+	 * so a tick after the source view opens it may not be there yet.
+	 */
+	let sourceReady = $state(false);
+	/** The teacher asked for the source view, so it takes focus once it is there. */
+	let focusSource = false;
+	$effect(() => {
+		if (!source) sourceReady = false;
+	});
+	function sourceMounted() {
+		sourceReady = true;
+		if (!focusSource) return;
+		focusSource = false;
+		wrapper?.querySelector<HTMLElement>('.cm-content')?.focus();
+	}
+
 	function showSource() {
 		chosenSource = true;
-		queueMicrotask(() => wrapper?.querySelector<HTMLElement>('.cm-content')?.focus());
+		focusSource = true;
 	}
 
 	function showVisual() {
@@ -363,6 +380,7 @@
 		const invalidNow = flagged;
 		void source;
 		void ready;
+		void sourceReady;
 		// The visual editor's text, or the Markdown view's: whichever is showing, once
 		// its editor has mounted.
 		void settled().then(() => {
@@ -396,7 +414,8 @@
 				describedby,
 				onchange: (v) => emit(v),
 				onbeginedit: begin,
-				onendedit: () => typing.end()
+				onendedit: () => typing.end(),
+				onready: sourceMounted
 			}}
 		></div>
 	{:else}

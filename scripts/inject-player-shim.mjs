@@ -44,7 +44,7 @@ function escapeRegExp(literal) {
  * @returns {string}
  */
 export function injectPlayerShim(html, shimSource) {
-	html = dropExternalScripts(html);
+	html = dropSignInScripts(dropExternalScripts(html));
 	const block = `${SHIM_START}\n<script>\n${shimSource}\n</script>\n${SHIM_END}`;
 	const existing = new RegExp(`${escapeRegExp(SHIM_START)}[\\s\\S]*?${escapeRegExp(SHIM_END)}`);
 	if (existing.test(html)) {
@@ -79,6 +79,27 @@ export function dropExternalScripts(html) {
 	return html.replace(
 		/<script\b[^>]*\bsrc\s*=\s*["'](https?:)?\/\/([^"']*)["'][^>]*>\s*<\/script>/gi,
 		(_tag, _scheme, url) => `<!-- edu-preview: external script dropped: //${url} -->`
+	);
+}
+
+/**
+ * Removes the Microsoft sign-in plugin's own script, `aad_oauth/assets/msalv2.js`.
+ *
+ * It is the page's half of `aad_oauth`: it defines the global `aadOauth` that the
+ * app's Dart code calls when a user signs in with Microsoft, by wrapping the MSAL
+ * library `dropExternalScripts` already took out. Without that library it cannot
+ * sign anyone in, and the preview signs nobody in; the image's player
+ * (`player/preview_main.dart`) does not even contain the code that would call it.
+ * What it still did was hold the player's boot for a request: a blocking script in
+ * `<head>`, before `flutter_bootstrap.js`.
+ *
+ * @param {string} html
+ * @returns {string}
+ */
+export function dropSignInScripts(html) {
+	return html.replace(
+		/<script\b[^>]*\bsrc\s*=\s*["']([^"']*\/aad_oauth\/[^"']*)["'][^>]*>\s*<\/script>/gi,
+		(_tag, url) => `<!-- edu-preview: sign-in script dropped: ${url} -->`
 	);
 }
 

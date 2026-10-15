@@ -77,11 +77,15 @@ COPY src/lib/preview/player-shim.js /tmp/player-shim.js
 RUN node /tmp/inject-player-shim.mjs /usr/share/nginx/player/index.html /tmp/player-shim.js \
     && rm /tmp/inject-player-shim.mjs /tmp/player-shim.js
 
-# Compressed once here, at the highest levels, so nginx serves `.br` and `.gz` copies
-# as they are instead of gzipping megabytes of JS and wasm per request. After the
+# Every file but index.html moves under /player/<hash>/, named by the build's contents,
+# so nginx can let browsers keep them for good (scripts/version-player.mjs). Then each
+# is compressed once, at the highest levels, so nginx serves `.br` and `.gz` copies as
+# they are instead of gzipping megabytes of JS and wasm per request. Both after the
 # shim, which rewrites index.html.
-COPY scripts/precompress.mjs /tmp/precompress.mjs
-RUN node /tmp/precompress.mjs /usr/share/nginx/player && rm /tmp/precompress.mjs
+COPY scripts/version-player.mjs scripts/precompress.mjs /tmp/
+RUN node /tmp/version-player.mjs /usr/share/nginx/player \
+    && node /tmp/precompress.mjs /usr/share/nginx/player \
+    && rm /tmp/version-player.mjs /tmp/precompress.mjs
 
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY docker-entrypoint.sh /usr/local/bin/
