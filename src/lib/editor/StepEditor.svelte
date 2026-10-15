@@ -60,6 +60,7 @@
 	import Menu from '$lib/ui/Menu.svelte';
 	import MenuItem from '$lib/ui/MenuItem.svelte';
 	import { fade } from 'svelte/transition';
+	import { formatNumberInput, parseNumberInput } from '$lib/domain/number-input';
 
 	interface Props {
 		doc: CourseV2;
@@ -490,22 +491,24 @@
 		};
 	}
 
-	function numerize(v: string | undefined): number | undefined {
-		console.log('numerize', v);
-
-		if (v === undefined) return undefined;
-
-		let num = Number(v.replaceAll(/[^\d,.-]/g, '').replaceAll(',', '.'));
-		if (isNaN(num)) return undefined;
-		return num;
+	/**
+	 * The two number fields of a numeric question. While the teacher types, the field
+	 * keeps their text ("3," or "-" is half a number, not a wrong one) and every text
+	 * that reads as a number is written at once, so the preview and the checks follow.
+	 * Out of the field it shows the document's value, so undo, redo and import show
+	 * what the course really holds, and leaving it never rewrites the number.
+	 */
+	type NumberField = 'correct_number' | 'tolerance';
+	let typedNumber = $state<Partial<Record<NumberField, string | undefined>>>({});
+	const numberText = (field: NumberField) =>
+		field in typedNumber ? typedNumber[field] : formatNumberInput(step.question?.[field]);
+	function typeNumber(field: NumberField, text: string | undefined) {
+		typedNumber[field] = text;
+		set(`question.${field}`, parseNumberInput(text));
 	}
-
-	let answerValue: string | undefined = $state(
-		step.question?.correct_number === undefined ? undefined : String(step.question.correct_number)
-	);
-	let toleranceValue: string | undefined = $state(
-		step.question?.tolerance === undefined ? undefined : String(step.question.tolerance)
-	);
+	function leaveNumber(field: NumberField) {
+		delete typedNumber[field];
+	}
 </script>
 
 <article
@@ -752,7 +755,7 @@
 							<span class="field-label">Správný výsledek</span>
 							<FocusField
 								label="Správný výsledek"
-								value={answerValue}
+								value={numberText('correct_number')}
 								emptyText="Číslo"
 								monospace
 								ref={{
@@ -760,22 +763,15 @@
 									stepId: step.id,
 									field: 'question.correct_number'
 								}}
-								onblur={() => {
-									let n = numerize(answerValue);
-									set('question.correct_number', n);
-									answerValue =
-										n === undefined ? undefined : n.toLocaleString('cs-CZ', { useGrouping: false });
-								}}
-								onchange={(v) => {
-									answerValue = v;
-								}}
+								onblur={() => leaveNumber('correct_number')}
+								onchange={(v) => typeNumber('correct_number', v)}
 							/>
 						</div>
 						<div class="field-row">
 							<span class="field-label">Tolerance ±</span>
 							<FocusField
 								label="Tolerance"
-								value={toleranceValue}
+								value={numberText('tolerance')}
 								emptyText="0 — vyžaduje přesnou shodu"
 								monospace
 								ref={{
@@ -783,15 +779,8 @@
 									stepId: step.id,
 									field: 'question.tolerance'
 								}}
-								onblur={() => {
-									let n = numerize(toleranceValue);
-									set('question.tolerance', n);
-									toleranceValue =
-										n === undefined ? undefined : n.toLocaleString('cs-CZ', { useGrouping: false });
-								}}
-								onchange={(v) => {
-									toleranceValue = v;
-								}}
+								onblur={() => leaveNumber('tolerance')}
+								onchange={(v) => typeNumber('tolerance', v)}
 							/>
 						</div>
 					{:else}

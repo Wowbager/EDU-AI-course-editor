@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseNumberInput } from '../number-input';
+import { formatNumberInput, parseNumberInput } from '../number-input';
 import { formatDateTimeCs } from '../format-date';
 
 describe('parseNumberInput', () => {
@@ -26,6 +26,24 @@ describe('parseNumberInput', () => {
 		expect(parseNumberInput('abc')).toBeUndefined();
 		expect(parseNumberInput('1,2,3')).toBeUndefined();
 		expect(parseNumberInput('Infinity')).toBeUndefined();
+	});
+});
+
+describe('formatNumberInput', () => {
+	it('shows a decimal comma and every digit, never a rounded value', () => {
+		expect(formatNumberInput(3.14159)).toBe('3,14159');
+		expect(formatNumberInput(0.0005)).toBe('0,0005');
+		expect(formatNumberInput(-5)).toBe('-5');
+		expect(formatNumberInput(0)).toBe('0');
+	});
+	it('is empty for no value', () => {
+		expect(formatNumberInput(undefined)).toBeUndefined();
+		expect(formatNumberInput(Number.NaN)).toBeUndefined();
+	});
+	it('reads back to the same number, so leaving a field never changes it', () => {
+		for (const n of [3.14159, -3.14159, 0.0001, 1e-7, 1e21, 123456.789, -0.5, 0]) {
+			expect(parseNumberInput(formatNumberInput(n))).toBe(n);
+		}
 	});
 });
 

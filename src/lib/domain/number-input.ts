@@ -18,3 +18,14 @@ export function parseNumberInput(raw: string | number | undefined | null): numbe
 	const value = Number(text);
 	return Number.isFinite(value) ? value : undefined;
 }
+
+/**
+ * How a stored number is shown in a field a teacher types into: every digit the
+ * document holds, with a decimal comma. Never rounded — a field that showed 3,142 for
+ * 3.14159 wrote 3.142 back the next time it was left. `parseNumberInput` reads every
+ * string this returns back to the same number.
+ */
+export function formatNumberInput(value: number | undefined): string | undefined {
+	if (value === undefined || !Number.isFinite(value)) return undefined;
+	return String(value).replace('.', ',');
+}
