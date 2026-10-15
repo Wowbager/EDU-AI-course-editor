@@ -2479,6 +2479,49 @@ rearranged by dragging (similar to other components)."*
   its arrow keys are the keyboard's way to it.
 
 
+## Round 18 — the round 17 commits reviewed: numbers, the step drag, and CI green again
+
+CI's `e2e-editor` job was red on `main` from `e2230ca` to `3793332` (11 tests). A review
+of the six commits found two defects a teacher hits and three deliberate UI changes
+whose tests had not followed.
+
+- **A numeric answer is shown as the document holds it, and written as it is typed.**
+  `3793332` kept the field's text in `$state` seeded once from the step and wrote it on
+  blur, formatted with `toLocaleString('cs-CZ')`. That rounded to three decimals, and
+  leaving the field again wrote the rounded number back (−3.14159 became −3.142 with no
+  edit); an undo left the old text in the field, and the next blur wrote it back; and a
+  parser of its own read „pět“ as 0. Now the field keeps the teacher's text only while
+  they type ("3," is half a number, not a wrong one), every text that reads as a number
+  is written at once through the shared `parseNumberInput`, and out of the field it
+  shows `formatNumberInput` of the document: a decimal comma and every digit, which
+  `parseNumberInput` reads back to the same number (tested). Text that is no number
+  leaves the answer unset, which the checks then report, like every other number field.
+  `e2e/numeric-answer.spec.ts` covers the four cases; nothing covered numeric questions
+  before. *Rejected:* keeping the write-on-blur — the preview and the checks would lag
+  behind the field, and undo would still need the resync.
+- **The fold a drag starts with is not animated.** `239ac8a` animates a step's height
+  (200ms). `CardEditor`'s `grab` measures how far folding moved the handle right after
+  the fold, and `svelte-dnd-action` builds the carried step and its gap from the list at
+  the first move; mid-animation both were wrong, so the step hung off the pointer and
+  dropped elsewhere, and a drop where it started reordered (`step-list.spec.ts` 85, 231,
+  257). While `stepView.dragging` is on, a step has no height transition and its body no
+  fade-out; folding with the chevron, and opening again after the drop, still animate.
+  *Rejected:* compensating the scroll on every frame of the animation — the library still
+  clones a half-folded step, so the gap and the drop would follow a step of the wrong
+  height.
+- **A lesson moves in the list, not in its settings.** `d9d215e` took „Posunout nahoru /
+  dolů“ out of „Nastavení lekce“ and left the code behind; it is removed. A lesson moves
+  by dragging it in the list, or from the keyboard with the list's own keyboard drag
+  (Space, an arrow, Space), which `crud-column.spec.ts` now tests. `moveLesson` stays in
+  the domain with its tests.
+- **The settings search is open in Učitel too.** `d9d215e` replaced the one faint word
+  that opened the field (Round 13, "Search in every mode") with the field itself. That
+  reverses a recorded decision without saying so; the tests follow the code, and whether
+  it stays is the owner's call.
+- **An answer row has five columns** when its answers can be reordered: the drag handle
+  is the first (Round 17). `feedback-layout.spec.ts` counted four.
+
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

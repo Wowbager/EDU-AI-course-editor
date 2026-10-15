@@ -305,6 +305,13 @@ add `wcag2aa` to its tags. Not caused by the visual editor.
 Entries not reproduced, or reproduced only from the code. They stay until someone sees
 them, or until enough rounds pass that the behaviour would have surfaced.
 
+### 53. A folded step is a fixed 51px tall
+**Not reproduced; read from the code** (Round 18). The fold animation (`239ac8a`) needs a
+height to animate to, so `.collapsed` in `StepEditor.svelte` is `height: 51px` with
+`overflow: hidden`: one header line at the current font. A larger minimum font size in
+the browser, or a header that ever wraps, would clip the folded row. `interpolate-size`
+or measuring the header would remove the number.
+
 ### 7. A possible transition artifact in "Vyzkoušet" — likely fixed (Round 5)
 **Verified: no.** One scripted author flagged it and was explicit about not being sure
 what they saw. Round 5 found three real transition bugs, and any of them would look
