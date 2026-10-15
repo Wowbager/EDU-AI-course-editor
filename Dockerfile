@@ -34,10 +34,15 @@ RUN git clone --no-checkout --filter=blob:none "${PLAYER_REPO}" . \
 
 ARG API_URL=https://app-api.edu-ai.eu
 RUN flutter pub get
+# The player is built from the editor's own entry point, `player/preview_main.dart`:
+# the app's preview page and nothing else, rather than the whole app (router,
+# sign-in, sync) reaching it by a route. The rest of the app is then left out of
+# `main.dart.js`. The file says what it does not do and why.
+COPY player/preview_main.dart lib/preview_main.dart
 # --no-web-resources-cdn: CanvasKit is served from the build, not from gstatic. One
 # aborted or blocked CDN request left the player dead and the preview empty.
 RUN flutter build web --release --base-href /player/ --no-web-resources-cdn \
-    --dart-define=API_URL=${API_URL}
+    -t lib/preview_main.dart --dart-define=API_URL=${API_URL}
 
 # ── Stage 2: the editor ────────────────────────────────────────────────────
 FROM node:22-alpine AS editor
@@ -51,7 +56,9 @@ RUN npm run build && npm prune --omit=dev
 # ── Stage 3: what actually runs ────────────────────────────────────────────
 FROM node:22-alpine
 
-RUN apk add --no-cache nginx gettext
+# nginx-mod-http-brotli: `brotli_static`, which serves the player's precompressed
+# `.br` files (below, and nginx.conf).
+RUN apk add --no-cache nginx nginx-mod-http-brotli gettext
 
 WORKDIR /app
 COPY --from=editor /app/build ./build
@@ -69,6 +76,12 @@ COPY scripts/inject-player-shim.mjs /tmp/inject-player-shim.mjs
 COPY src/lib/preview/player-shim.js /tmp/player-shim.js
 RUN node /tmp/inject-player-shim.mjs /usr/share/nginx/player/index.html /tmp/player-shim.js \
     && rm /tmp/inject-player-shim.mjs /tmp/player-shim.js
+
+# Compressed once here, at the highest levels, so nginx serves `.br` and `.gz` copies
+# as they are instead of gzipping megabytes of JS and wasm per request. After the
+# shim, which rewrites index.html.
+COPY scripts/precompress.mjs /tmp/precompress.mjs
+RUN node /tmp/precompress.mjs /usr/share/nginx/player && rm /tmp/precompress.mjs
 
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY docker-entrypoint.sh /usr/local/bin/

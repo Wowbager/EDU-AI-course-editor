@@ -23,9 +23,9 @@ Three sections hold the *live* list, so that a reader can tell a defect from a d
   entry exists so nobody "fixes" it back. These are decisions wearing a defect's
   clothes, which is why they are not under *Defects*.
 
-**Fixes that live in the app repository** (letters A–F) is a fourth section, and it is
+**Fixes that live in the app repository** (letters A–G) is a fourth section, and it is
 not live either: the player is a repository this project cannot push to, so some fixes
-live there. A and B are done; C–F are recorded for the day they matter.
+live there. A and B are done; C–G are recorded for the day they matter.
 
 **Closed** at the end of the file is not live either. It keeps the entries whose headings
 are cited from `docs/DECISIONS.md`, `docs/spec/COURSE-EDITOR-SPEC.md` or a source comment,
@@ -88,6 +88,20 @@ today (publishing is not wired), recorded for when it is.
 **Verified: yes.** `knihovna_page.dart:466-470` filters out a course whose JSON has
 `private: true`, a key that is in neither spec. Harmless while nothing writes it; the
 editor will not, and uses `status: private` for "PIN only".
+
+### G. The player is still 3 MB to a teacher's first preview — app-side
+**Verified: measured** (Round 19), on the Docker image's player: the preview-only build
+(`player/preview_main.dart`) with brotli. What is left is the app's to cut:
+- `main.dart.js` is 9.2 MB (1.25 MB brotli): the Flutter framework plus every package
+  the preview's widgets import (Markdown, maths, HTML, video). Deferred imports in the
+  app (`import … deferred as`) would load the heavy renderers when a card needs them.
+- The build ships 22 `.ttf` and one `.otf` in `assets/` (KaTeX's among them), and
+  `google_fonts` fetches from Google at run time (#17). Which of them load at start was
+  not measured.
+- `flutter build web --wasm` (the smaller, faster skwasm renderer) fails:
+  `flutter_secure_storage_web` 1.2.1 uses `dart:html`, which wasm builds do not support.
+  Seen on 2026-10-01 at this `PLAYER_REF`, not re-run since. It needs a dependency
+  upgrade in the app.
 
 ---
 

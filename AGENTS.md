@@ -71,7 +71,8 @@ CI runs `check`, `npm test` and `test:e2e -- --project=editor`. The `editor` pro
 no Flutter build, so it is a real gate on every push and PR. CI also starts the editor
 the two ways README gives. `run-dev` starts `npm run dev -- --host` and loads the page in a
 browser (`npm run smoke -- <url>`, `scripts/smoke.mjs`). `run-docker` builds the image
-and only checks with `curl` that it starts and serves the page and the player. Nothing
+and only checks with `curl` that it starts and serves the page and the player, compressed
+and revalidated as `nginx.conf` says. Nothing
 drives the player inside it: the `player`
 project is yours to run, and so is `REQUIRE_PLAYER=1`. When you add a way to run the
 editor, or change how one starts, it gets a job there.
@@ -86,6 +87,11 @@ they stop and say to run `npm install`, instead of serving a 500.
 - Without the Flutter build the `player` project skips. After touching
   `src/lib/preview/`, `vite-plugin-player.ts`, `scripts/inject-player-shim.mjs` or
   `routes/preview-image`, run with `REQUIRE_PLAYER=1` so a missing build fails.
+- The image builds the player from `player/preview_main.dart`, not the app's `main.dart`
+  (README → "Building the image"). After touching that file, or bumping `PLAYER_REF`,
+  build the fork with `-t lib/preview_main.dart` and run the `player` project with
+  `PLAYER_BUILD` pointing at it: the suites otherwise test the whole-app build, which
+  is not what ships.
 - The suite reuses a server already on 5178, so a stale one tests old code.
   `E2E_DEV=1` uses the dev server instead of the build.
 - Open the page with `openEditor(page)`; it waits for hydration and retries one aborted

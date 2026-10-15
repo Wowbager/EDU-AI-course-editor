@@ -2522,6 +2522,47 @@ whose tests had not followed.
   is the first (Round 17). `feedback-layout.spec.ts` counted four.
 
 
+## Round 19 — a smaller first load, in the Docker image
+
+The owner: *"Look at the load size optimization work and add it to the repo when running
+in deployment environment (docker)."* That work was a measurement from 2026-10-01 that
+was never committed. Redone against the current code and measured again:
+
+- **The source field loads only CodeMirror's Markdown parts** (`ui/codemirror.ts`).
+  `markdown()` parses HTML inside Markdown with `lang-html`, which brings the HTML, CSS
+  and JavaScript grammars; the field uses none of them. The page's script went from
+  1.46 MB to 1.28 MB (387 → 329 KB brotli). This one is in every environment, not only
+  the image: it is the same editor, with less in it. An e2e test holds the two things
+  the field does with Markdown (a list continues on Enter, a pasted URL over a word
+  makes a link); it fails without the keymap.
+- **The image builds a preview-only player** (`player/preview_main.dart`): the app's
+  `PreviewPage` in a `MaterialApp` framed as `MyApp` frames it, without the router,
+  sign-in, sync, or the saved theme and language. `main.dart.js` 11.08 → 9.21 MB
+  (1.53 → 1.25 MB brotli). The file lives here and is copied into the app checkout at
+  build time, so the app repository is untouched; a rename there fails the image build
+  at the next `PLAYER_REF` bump. All 16 `player` tests pass against it. *Rejected:* the
+  same for `npm run dev` — the owner asked for the deployment, and a developer's player
+  build stays what the README says; AGENTS.md says when to test the image's instead.
+- **The image precompresses the player** (`scripts/precompress.mjs`, then nginx's
+  `brotli_static` and `gzip_static` from `nginx-mod-http-brotli`). nginx gzipped every
+  request at level 1. In Chrome, the preview's first load (`main.dart.js`, the Chromium
+  CanvasKit wasm, sqlite and the drift worker) goes from about 5.3 MB to 3.2 MB with the
+  preview-only build. It costs about a minute of `docker build`. *Rejected:* dynamic
+  brotli in nginx — the same bytes recompressed per request, at a level low enough to
+  be fast.
+- **Nothing under /player/ is cached without asking.** `nginx.conf` sent CanvasKit's
+  wasm, fonts and images as `immutable` for a year, but no player file has a version in
+  its name; after a `PLAYER_REF` bump that changes the engine, a returning browser
+  would run the new `main.dart.js` on the old CanvasKit. Everything there is `no-cache`
+  now: kept, revalidated, a 304 when unchanged. *Proposed, not built:* the player under
+  `/player/<PLAYER_REF>/`, which could be cached for good, at the cost of teaching the
+  base href and the dev plugin the version.
+- **Checked only by CI.** There is no Docker on the machine this was written on, so the
+  image was not built here. `run-docker` now checks that `main.dart.js` comes as brotli
+  or gzip as asked, the wasm as brotli and still `application/wasm`, and both with
+  `no-cache`. What is left is the app's (OPEN-PROBLEMS G).
+
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

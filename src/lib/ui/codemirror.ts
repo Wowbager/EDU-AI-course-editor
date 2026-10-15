@@ -5,9 +5,9 @@
  * rendered — which also keeps the editor from re-creating it on every keystroke.
  */
 import { EditorView, keymap, placeholder as placeholderExtension } from '@codemirror/view';
-import { EditorState, type Extension } from '@codemirror/state';
+import { EditorState, Prec, type Extension } from '@codemirror/state';
 import { defaultKeymap } from '@codemirror/commands';
-import { markdown } from '@codemirror/lang-markdown';
+import { commonmarkLanguage, markdownKeymap, pasteURLAsLink } from '@codemirror/lang-markdown';
 
 export interface MarkdownEditorOptions {
 	value: string;
@@ -25,6 +25,20 @@ export interface MarkdownEditorOptions {
 	/** The run ends: the editor lost focus or is going away. */
 	onendedit?: () => void;
 }
+
+/**
+ * The Markdown support the fields use: the CommonMark syntax tree, Enter and Backspace
+ * that continue and end a list, and a pasted URL over a selection made a link. Not
+ * `markdown()`: that also parses HTML inside Markdown with `@codemirror/lang-html`,
+ * which brings the HTML, CSS and JavaScript grammars, and wires HTML tag completion
+ * this editor has no autocompletion to show: about 180 KB of the page's script, for
+ * nothing a teacher sees.
+ */
+const markdownSupport: Extension = [
+	commonmarkLanguage.extension,
+	Prec.high(keymap.of(markdownKeymap)),
+	pasteURLAsLink
+];
 
 const theme = EditorView.theme({
 	'&': {
@@ -68,7 +82,7 @@ export function markdownEditor(node: HTMLElement, options: MarkdownEditorOptions
 
 	const extensions: Extension[] = [
 		keymap.of(defaultKeymap),
-		markdown(),
+		markdownSupport,
 		EditorView.lineWrapping,
 		theme,
 		placeholderExtension(current.placeholder ?? ''),

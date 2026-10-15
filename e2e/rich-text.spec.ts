@@ -254,3 +254,23 @@ test.describe('the system clipboard', () => {
 		await expect(help.locator('strong')).toHaveCount(0);
 	});
 });
+
+test('the Markdown source continues a list and makes a pasted URL a link', async ({ page }) => {
+	// The source view has only the Markdown parts of CodeMirror's Markdown support
+	// (`ui/codemirror.ts`); these are the two a teacher uses.
+	await markdownOf(page);
+	const source = page.locator('[data-source] .cm-content').first();
+	await source.click();
+	await page.keyboard.press('Control+a');
+	await page.keyboard.type('- první');
+	await page.keyboard.press('Enter');
+	await page.keyboard.type('druhá');
+	await expect(source.locator('.cm-line')).toHaveText(['- první', '- druhá']);
+
+	await page.keyboard.press('Control+Shift+ArrowLeft');
+	await paste(page, { 'text/plain': 'https://example.com' });
+	await expect(source.locator('.cm-line')).toHaveText([
+		'- první',
+		'- [druhá](https://example.com)'
+	]);
+});
