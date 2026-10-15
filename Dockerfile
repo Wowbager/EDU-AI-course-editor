@@ -34,10 +34,15 @@ RUN git clone --no-checkout --filter=blob:none "${PLAYER_REPO}" . \
 
 ARG API_URL=https://app-api.edu-ai.eu
 RUN flutter pub get
+# The player is built from the editor's own entry point, `player/preview_main.dart`:
+# the app's preview page and nothing else, rather than the whole app (router,
+# sign-in, sync) reaching it by a route. The rest of the app is then left out of
+# `main.dart.js`. The file says what it does not do and why.
+COPY player/preview_main.dart lib/preview_main.dart
 # --no-web-resources-cdn: CanvasKit is served from the build, not from gstatic. One
 # aborted or blocked CDN request left the player dead and the preview empty.
 RUN flutter build web --release --base-href /player/ --no-web-resources-cdn \
-    --dart-define=API_URL=${API_URL}
+    -t lib/preview_main.dart --dart-define=API_URL=${API_URL}
 
 # ── Stage 2: the editor ────────────────────────────────────────────────────
 FROM node:22-alpine AS editor
