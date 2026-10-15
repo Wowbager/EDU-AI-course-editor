@@ -17,7 +17,7 @@
 //
 // Run it after the shim is spliced into index.html and before precompressing.
 import { createHash } from 'node:crypto';
-import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 
 const root = process.argv[2];
@@ -43,7 +43,11 @@ const hash = createHash('sha256');
 for await (const path of files(root)) {
 	const name = relative(root, path).replaceAll('\\', '/');
 	if (name === PAGE) continue;
-	hash.update(name).update('\0').update(await readFile(path)).update('\0');
+	hash
+		.update(name)
+		.update('\0')
+		.update(await readFile(path))
+		.update('\0');
 }
 const version = hash.digest('hex').slice(0, 16);
 
@@ -59,10 +63,25 @@ if (bases.length !== 1) {
 	process.exit(1);
 }
 
+/**
+ * A rename, or a copy and a delete where the filesystem cannot rename: in a Docker
+ * build the player was copied in by an earlier layer, and overlayfs refuses to rename
+ * a directory from a lower layer (EXDEV).
+ */
+async function move(from, to) {
+	try {
+		await rename(from, to);
+	} catch (error) {
+		if (error?.code !== 'EXDEV') throw error;
+		await cp(from, to, { recursive: true, preserveTimestamps: true });
+		await rm(from, { recursive: true });
+	}
+}
+
 await mkdir(join(root, version));
 for (const entry of await readdir(root)) {
 	if (entry === PAGE || entry === version) continue;
-	await rename(join(root, entry), join(root, version, entry));
+	await move(join(root, entry), join(root, version, entry));
 }
 await writeFile(pagePath, page.replace(base, `<base href="/player/${version}/">`));
 console.log(`version-player: ${root} is served from /player/${version}/`);
