@@ -17,8 +17,8 @@
 #
 # `run-dev` and `run-docker` start the editor the two ways README tells people to:
 # the first loads the page in a browser (`scripts/smoke.mjs`), the second only checks
-# that the image starts and serves the page and the player, compressed and
-# revalidated as nginx.conf says (curl). Every other job runs the built
+# that the image starts and serves the page and the player, at its versioned path,
+# compressed and cached as nginx.conf says (curl). Every other job runs the built
 # editor under `vite preview`, which nobody runs for real: a dev server that answers
 # every page with a 500, or an image whose nginx serves the player from the wrong
 # root (OPEN-PROBLEMS #40), passed all of them. A runner always installs from scratch,
@@ -110,29 +110,36 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - run: docker run -d --name editor -p 8080:8080 edu-editor:ci
-      # The page; then the player, which only the image serves through nginx: its index
-      # with the image shim spliced in, and canvaskit.wasm as wasm — the asset nginx once
-      # served from the wrong root (OPEN-PROBLEMS #40).
+      # The page; then the player, which only the image serves through nginx: its page
+      # with the image shim spliced in.
       - name: Smoke test
         run: |
           curl -fsS --retry 30 --retry-delay 1 --retry-all-errors -o page.html http://localhost:8080/
           grep -q 'lang="cs"' page.html
-          curl -fsS http://localhost:8080/player/ | grep -q 'edu-preview-image-shim:start'
-          curl -fsS -o /dev/null -w '%{content_type}' http://localhost:8080/player/canvaskit/canvaskit.wasm | grep -qx 'application/wasm'
-      # The player's files are precompressed when the image is built and served as they
-      # are (brotli_static, gzip_static): brotli or gzip as the browser asks, the wasm
-      # still typed as wasm, and nothing cached without asking, because no player file
-      # has a version in its name (nginx.conf).
-      - name: Player compression and caching
+          curl -fsS http://localhost:8080/player/preview -o player.html
+          grep -q 'edu-preview-image-shim:start' player.html
+      # The player's page names its build (scripts/version-player.mjs): every file but
+      # the page is under /player/<hash>/, kept for good, and precompressed (brotli or
+      # gzip as the browser asks). The page itself is revalidated. canvaskit.wasm is
+      # still typed as wasm, the asset nginx once served from the wrong root
+      # (OPEN-PROBLEMS #40); a file not in the build is a 404, not the page; and the
+      # page loads no sign-in script.
+      - name: Player paths, compression and caching
         run: |
-          headers() { curl -fsS -o /dev/null -D - -H "Accept-Encoding: $1" "http://localhost:8080/player/$2" | tr -d '\r'; }
-          headers 'br, gzip' main.dart.js | tee main.txt
+          base=$(grep -o '<base href="/player/[0-9a-f]\{16\}/">' player.html | cut -d'"' -f2)
+          test -n "$base"
+          echo "player build: $base"
+          headers() { curl -fsS -o /dev/null -D - -H "Accept-Encoding: $1" "http://localhost:8080$2" | tr -d '\r'; }
+          headers 'br, gzip' /player/preview | grep -qix 'cache-control: no-cache'
+          headers 'br, gzip' "${base}main.dart.js" | tee main.txt
           grep -qix 'content-encoding: br' main.txt
-          grep -qix 'cache-control: no-cache' main.txt
-          headers gzip main.dart.js | grep -qix 'content-encoding: gzip'
-          headers 'br, gzip' canvaskit/chromium/canvaskit.wasm | tee wasm.txt
+          grep -qix 'cache-control: public, max-age=31536000, immutable' main.txt
+          headers gzip "${base}main.dart.js" | grep -qix 'content-encoding: gzip'
+          headers 'br, gzip' "${base}canvaskit/chromium/canvaskit.wasm" | tee wasm.txt
           grep -qix 'content-encoding: br' wasm.txt
           grep -qix 'content-type: application/wasm' wasm.txt
-          grep -qix 'cache-control: no-cache' wasm.txt
+          test "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:8080${base}no-such-file.js")" = 404
+          # Not `! grep`: bash -e ignores a failed command negated with `!`.
+          if grep -q 'aad_oauth/assets/msalv2.js"' player.html; then exit 1; fi
       - if: failure()
         run: docker logs editor
