@@ -514,6 +514,7 @@
 	class:invalid={issues.errors.length > 0}
 	class:targeted
 	class:collapsed
+	class:folding-to-drag={stepView.dragging}
 >
 	<header>
 		<button
@@ -608,7 +609,7 @@
 			aria-label="Obsah kroku {position}"
 			onfocusin={focusStep}
 			onpointerdown={focusStep}
-			out:fade={{ duration: 200 }}
+			out:fade={{ duration: stepView.dragging ? 0 : 200 }}
 		>
 			{#if step.type === 'text'}
 				<RichField
@@ -915,6 +916,17 @@
 
 	.collapsed {
 		height: 51px;
+	}
+
+	/*
+	 * The fold a drag starts with is not animated. `CardEditor`'s `grab` measures how
+	 * far the fold moved the handle, and the drag library builds the carried step and
+	 * its gap from the list at the first move; mid-animation both are wrong, and the
+	 * step stays offset from the pointer and lands somewhere else. Folding with the
+	 * chevron, and opening again after the drop, still animate.
+	 */
+	.folding-to-drag {
+		transition: none;
 	}
 
 	.body {
