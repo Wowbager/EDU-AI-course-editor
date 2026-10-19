@@ -2603,6 +2603,58 @@ on a return visit, one revalidated page instead of every player file.
   sign-in client are still fetched by the app's Dart code at run time (#17).
 
 
+## Round 21 — the preview on the 2026-10-15 upstream
+
+The app, API and admin upstreams each got one sync of production on 2026-10-15. The
+preview player was the old upstream plus nine fork commits, so teachers previewed hints,
+open answers and multi-question cards differently from how pupils get them. The fork was
+ported, not rebased: `git merge-tree` conflicted in ten files, the step engine worst.
+
+**What changed in the preview.** Fork branch `preview/upstream-2026-10-15`, commit
+`a8a9528`, is upstream `12ca8ac` plus the preview layer.
+
+| | App (student) | Vyzkoušet | Náhled |
+|---|---|---|---|
+| "?" | `display`: one per step card; question/exercise card: one, for the step the engine is on (`hintForStep`, BR-JHDNB3) | same, the app's mentor sheet without AI | same rule; unreachable text marked |
+| Question card | every step from the start, all questions live; no open question → one tap grades all (BR-E4H835) | same | every step at once |
+| Open answer | graded by the AI first; `correct_answer` (one answer per line) when offline (BR-N26ACB) | compared with `correct_answer`, as offline | — |
+| Where the editor is | — | follows the run; in a `display` card the steps not reached yet are folded | wherever the author is |
+
+- **Dropped from the fork**, because upstream now decides them: the hint fix, revealing
+  questions one at a time (OPEN-PROBLEMS C and C2, closed), and the direct-first image
+  loader. Kept: a step a `go_to` skipped is not drawn as history (`visitedSteps`), now
+  for `display` cards only.
+- **The AI is never asked from the preview.** The page overrides
+  `aiAnswerEvaluatorProvider` with one that is always unavailable, so a teacher's draft
+  never reaches the API and the engine falls back as it does offline. Rejected: letting
+  the whole-app build call the API, which would grade with the production AI under no
+  pupil and differ from the Docker build.
+- **The `/preview` route stays in the app's router.** The image builds from
+  `player/preview_main.dart`, but the whole-app build that README's local setup uses
+  reaches the preview through that route.
+- One e2e test changed with it: a question card in Vyzkoušet reports all four steps and
+  folds none (`preview.spec.ts`, "Vyzkoušet moves the editor…").
+- The fork's `main` still points at the old preview. Moving it means replacing its
+  history and waits for the owner.
+
+**The owner's decisions for the follow-ups** (2026-10-19):
+
+- Questions are split one per card, as before. Only Pokročilý may merge a card's
+  questions; an import always splits.
+- AI grading settings (`ai_evaluation`, `ai_criteria_list`, `ai_guided`) are offered
+  in Pokročilý only.
+- The note in Učitel that a card's questions "se hodnotí jako jedna" goes.
+- Courses already in the editor whose cards an older import kept whole stay as they
+  are.
+
+**Found and left for the next round** (editor side, no player change):
+`app-dialect.ts` mirrors the old Markdown/HTML sniffing; `W_HINT_UNREACHABLE` counts
+every question of a merged card as offering a "?", while the app offers only the first
+and the last; a merged card with no open question ignores its per-question `go_to` and
+nothing warns; `allow_photo`, `fsrs.weight` and `fsrs.skip_condition` are marked unread
+but are read; `E_OPEN_NO_CORRECT_ANSWER` and the open-answer hints describe exact
+matching; `W_ONLY_ONCE_WITH_PRACTICE` warns about something the app no longer does.
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

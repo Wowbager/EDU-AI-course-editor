@@ -118,12 +118,13 @@ Each of these comes from a bug that cost a round.
 4. **Fix the layer that owns the behaviour** — app, bridge, domain or UI — and name it
    before fixing. A fix that makes one symptom go away somewhere else is a bolt-on. A bug
    fix comes with a test that fails without it.
-5. **A card is one graded item in the app** (one score, mark, practice card and ELO
-   update). So every question is its own exported block, and several blocks show as
-   one card on screen (`src/lib/domain/groups.ts`, COURSE-EDITOR-SPEC §6.2a). Only the
-   advanced mode may keep several questions in one block, on purpose. Code that needs
-   the exported course reads `store.source`; code that draws the editor reads
-   `store.doc`.
+5. **A block is one graded item in the app** (one score, mark, practice card and ELO
+   update; a block with several questions and none open is graded in one tap, as the
+   share answered correctly). So every question is its own exported block, and several
+   blocks show as one card on screen (`src/lib/domain/groups.ts`, COURSE-EDITOR-SPEC
+   §6.2a). Only the advanced mode may keep several questions in one block, on purpose.
+   Code that needs the exported course reads `store.source`; code that draws the editor
+   reads `store.doc`.
 6. **The document is what gets exported.** Parsing injects no defaults, unknown keys
    survive, and nothing is converted on the way out. A view (like a card group) is
    derived from the document, never stored beside it.

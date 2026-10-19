@@ -278,8 +278,9 @@ function checkBlocks(
  * step on screen, so its own hint and help are never offered. Its bubble keeps the
  * "?" once it is finished. When text follows the last question, the engine walks
  * past the end on the way out, no step is current, and that "?" opens the card's.
- * Before the fork fixed the engine (editor `OPEN-PROBLEMS.md` C), only the first
- * step's hint was read, and this warned about every other one.
+ * Before the engine read each step's own hint (`hintForStep`, editor
+ * `OPEN-PROBLEMS.md` C), only the first step's was read, and this warned about
+ * every other one.
  */
 function checkHintReach(doc: CourseV2, block: BlockV2, add: Add) {
 	const filled = (text: string | undefined) => (text ?? '').trim() !== '';

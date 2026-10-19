@@ -43,30 +43,9 @@ Where an entry is cited elsewhere, the entry says so.
 ## Fixes that live in the app repository
 
 The player is a repository this project cannot push to, so some fixes had to be written
-there, or recorded for the day they matter. Two of them (A, B) are done and now sit under
-*Closed*; C–F are recorded here and want nothing until the situation they describe
+there, or recorded for the day they matter. A, B, C and C2 are done and now sit under
+*Closed*; D–G are recorded here and want nothing until the situation they describe
 changes.
-
-### C. The app's question mark was always the first step's — fixed in the fork, pending upstream
-**Verified: yes**, read off the code, and the fix is tested
-(`EDU-AI-asistent-APP/test/widgets/block_step_engine_reveal_test.dart`). The upstream code
-on GitHub gated the "?" on `ContentBlock.hasHint`, whose `currentHint` reads the step at
-`currentStepIndex`, and nothing moved that off 0. So every step of a card offered the
-first step's hint, or the card's. The fork's `BlockStepEngine` keeps the index on the
-step it draws, and decides the "?" itself (fork `f90a384`, DECISIONS Round 5). The
-owner says production already runs a newer app with this fixed, and its source lands
-upstream within days. **When it does:** merge it into the fork, keep upstream's version of
-the fix, and rerun that test and `test/preview`. If upstream fixes it differently, the
-editor's `W_HINT_UNREACHABLE` rule (`validate.ts`, `checkHintReach`) and Náhled's
-`_appShowsHint` have to follow.
-
-### C2. A question card's later questions looked answerable and were not — fixed in the fork, pending upstream
-**Verified: yes**, reproduced in Vyzkoušet, and fixed and tested in the same place as C.
-A card of type Otázka or Cvičení is one bubble (`_buildExerciseCard`). Upstream drew
-every step at once, with only the current question taking input, and a field below it
-ignored typing. The owner reported it as "Vyzkoušet joins steps and I cannot continue".
-The fork reveals a question when it is the one to answer, and says "Nejprve napiš
-odpověď" for a typed answer. Same merge note as C.
 
 ### D. API: a status change bumps the version without a new file — API-side
 **Verified: yes**, read off the code. `Course::boot` (`app/Models/Course.php:91-95`)
@@ -110,6 +89,28 @@ editor will not, and uses `status: private` for "PIN only".
 
 Entries where something is wrong and a teacher can hit it. These want fixing. The note at
 the top of this file applies: numbers are a citation key and are never renumbered.
+
+### 54. The editor still describes the app before its 2026-10-15 sync
+**Verified: yes**, read off the new app's code (DECISIONS Round 21); none of it is
+reproduced on screen yet. The preview now runs the new app, but these editor rules
+mirror the old one:
+- `domain/markdown/app-dialect.ts` sniffs Markdown and HTML the old way. The app's
+  `core/utils/content_format.dart` now also takes `- `, `1. `, `> ` and `|` at a line
+  start as Markdown, and wants a real tag for HTML, so `5 < 10 a 20 > 15` is plain
+  text. The editor shows such texts differently from the pupil's app. #47 is mostly
+  fixed by the same change.
+- `W_HINT_UNREACHABLE` counts every question of a merged card as offering a "?". The
+  app offers only the first and the last question's when the card has no open question.
+- A merged card with no open question ignores its per-question `go_to`
+  (`block_step_engine.dart`, `_confirmAllAnswers`), and nothing warns.
+- `allow_photo`, `fsrs.weight` (default 5) and `fsrs.skip_condition`
+  (`GPF_mastery <op> number` only) are marked unread in `ui/fields.ts`, but the app
+  reads them.
+- `E_OPEN_NO_CORRECT_ANSWER` and the "Správná odpověď" hint describe exact matching.
+  Every open answer is now graded by the AI, and `correct_answer` is the offline
+  fallback, one answer per line.
+- `W_ONLY_ONCE_WITH_PRACTICE` warns that an `only_once` course feeds practice. The app
+  no longer creates practice cards for one.
 
 ### 41. Unread fields no longer say so on screen
 **Verified by reading the code** (Round 10). Until Round 10 every field nothing reads
@@ -508,6 +509,24 @@ Headings kept so that a citation from `docs/DECISIONS.md`,
 **Nothing here is open**, and the entries no longer sit in the live list above. The round
 that closed it is named, and the reasoning is in that round's section of
 `docs/DECISIONS.md`.
+
+### C. The app's question mark was always the first step's — closed (fixed upstream, Round 21)
+The upstream engine gated the "?" on `ContentBlock.hasHint`, which read the step at
+`currentStepIndex`, and nothing moved that off 0, so every step offered the first step's
+hint. The fork fixed it (`f90a384`). The 2026-10-15 upstream fixed it its own way
+(BR-JHDNB3): `hintForStep(stepId)`, and `onHintRequested` carries the step. Every step card
+of a `display` block has its own "?"; a question or exercise card has one, for the step
+the engine is on. The fork's fix was dropped when the preview moved onto that upstream
+(fork `a8a9528`, DECISIONS Round 21), and Náhled's markers follow the new rule.
+
+### C2. A question card's later questions looked answerable and were not — closed (upstream chose otherwise, Round 21)
+Upstream drew every step of a question or exercise card at once, and only the current
+question took input. The fork revealed one question at a time. The 2026-10-15 upstream
+went the other way (BR-E4H835): every question is live at once, the check waits until
+all are filled, and a card with no open question is graded in one tap, as the share
+answered correctly. The fork's version was dropped so that Vyzkoušet is the pupil's app
+again (DECISIONS Round 21). In such a card a per-question `go_to` is ignored — recorded
+for the editor's warnings in Round 21's follow-ups.
 
 ### 39. The design brief agents are told to follow is not on `main` — closed (PR #1 merged)
 **Verified by reading the repo.** The standing instructions every agent on this project

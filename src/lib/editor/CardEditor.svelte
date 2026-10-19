@@ -123,9 +123,9 @@
 	 * one thing the two "Otázka" affordances never said. From
 	 * `block_step_engine.dart`: a `display` card draws one step per bubble and only
 	 * as far as `_currentStepIndex`, so a step is a stop the student taps through;
-	 * a `question` or `exercise` card draws `_buildExerciseCard()` — one bubble that
-	 * grows as the student reaches each question (fork fix; it used to draw every
-	 * step at once) — and runs `_skipToNextQuestion()` on mount and after every
+	 * a `question` or `exercise` card draws `_buildExerciseCard()` — one bubble with
+	 * every step in it from the start, its questions live — and runs
+	 * `_skipToNextQuestion()` on mount and after every
 	 * answer, so content steps are passive context and the student starts at the
 	 * question. Branching (`go_to`) is honoured for `question` and ignored for
 	 * `exercise` (`step_navigation.dart`).

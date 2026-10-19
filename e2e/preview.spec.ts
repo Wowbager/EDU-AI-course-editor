@@ -202,17 +202,19 @@ test.describe('live preview', () => {
 		expect(first.blockId).toBe(QUIZ);
 		await expect(page.locator('main .step.targeted')).toHaveCount(1);
 
-		// The quiz card is one bubble that grows question by question: the pupil has
-		// the text before the question and the question, not the text after it. The
-		// step list shows the card the same way — the steps not reached are folded.
-		expect(first).toMatchObject({ stepId: 's2', shownStepIds: ['s1', 's2'] });
-		await waitForPlayer(page, { blockId: QUIZ, stepId: 's2', shownStepIds: ['s1', 's2'] });
+		// The quiz card is one bubble that shows every step from the start, its
+		// question live (BR-E4H835 in the app): the pupil has all four steps, and the
+		// run stands on the question. The step list shows the card the same way, so
+		// nothing of it is folded.
+		expect(first).toMatchObject({ stepId: 's2', shownStepIds: ['s1', 's2', 's3', 's4'] });
+		await waitForPlayer(page, {
+			blockId: QUIZ,
+			stepId: 's2',
+			shownStepIds: ['s1', 's2', 's3', 's4']
+		});
 		const steps = page.locator('main .step');
 		await expect(steps).toHaveCount(4);
-		await expect(steps.nth(0)).not.toHaveClass(/collapsed/);
-		await expect(steps.nth(1)).not.toHaveClass(/collapsed/);
-		await expect(steps.nth(2)).toHaveClass(/collapsed/);
-		await expect(steps.nth(3)).toHaveClass(/collapsed/);
+		await expect(page.locator('main .step.collapsed')).toHaveCount(0);
 
 		// The player is told nothing about focus while it plays: no highlight, and no
 		// setLesson carries a step.

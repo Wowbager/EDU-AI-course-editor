@@ -30,8 +30,10 @@ import 'preview/preview_page.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // No provider is read on the preview's path; the scope is there so that one added
-  // later fails as a missing override, not as a missing ProviderScope.
+  // The engine reads one provider, the AI grader for open answers, and the preview
+  // page overrides it with one that never answers (`preview_answer_evaluator.dart`).
+  // Nothing else is read on the preview's path; the scope is there so that a
+  // provider added later fails as a missing override, not as a missing ProviderScope.
   runApp(const ProviderScope(child: PreviewApp()));
 }
 
