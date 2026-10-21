@@ -757,7 +757,7 @@
 								label="Správná odpověď"
 								value={step.question.correct_answer}
 								multiline
-								emptyText="Každou přijatou odpověď na samostatný řádek. Hodnotí AI; bez ní se porovná s každým řádkem"
+								emptyText="Jedna přijatá odpověď na řádek"
 								ref={{
 									blockId: block.block_id,
 									stepId: step.id,

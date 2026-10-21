@@ -347,7 +347,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Odhad délky',
-		hint: 'Délka uvedená v knihovně u kurzu, který si žák ještě nestáhl; po stažení se spočítá z karet. Bez ní server uvede 15 minut na lekci.'
+		hint: 'Délka v knihovně u kurzu, který si žák ještě nestáhl. Po stažení se spočítá z karet.'
 	},
 	{
 		level: 'course',
@@ -356,7 +356,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'toggle',
 		label: 'Všechny lekce odemčené',
-		hint: 'Žák může otevřít kteroukoli lekci, ne až po dokončení předchozí. Úvodní kvíz a čekající aktualizace kurzu lekce přesto zamknou.'
+		hint: 'Žák může otevřít kteroukoli lekci, ne až po dokončení předchozí.'
 	},
 	{
 		level: 'course',
@@ -375,7 +375,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		kind: 'select',
 		display: 'segmented',
 		label: 'Který pokus se počítá',
-		hint: 'U otevřené otázky, na kterou žák odpoví znovu: počítá se poslední, nebo nejlepší pokus. Bez nastavení poslední.',
+		hint: 'Když žák na otevřenou otázku odpoví znovu. Bez nastavení poslední.',
 		options: [
 			{ value: 'last', label: 'Poslední' },
 			{ value: 'best', label: 'Nejlepší' }
@@ -1225,7 +1225,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'toggle',
 		label: 'Vyhodnocovat odpovědi',
-		hint: 'Vypni pro reflexi a anketu. U výběru jedné odpovědi se pak volba neoznačí jako správná ani chybná; u výběru více odpovědí se jen neukážou přehlédnuté správné. Ano/Ne, číslo a otevřená odpověď se označí dál. Odpověď se vždy vyhodnotí a počítá se do dovedností i opakování.'
+		hint: 'Vypni pro reflexi a anketu: volba jedné odpovědi se pak neoznačí jako správná ani chybná. Vyhodnotí se ale dál.'
 	},
 	{
 		level: 'question',
@@ -1258,7 +1258,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'toggle',
 		label: 'Zpětná vazba od AI',
-		hint: 'Žák po odpovědi uvidí, co k ní napsala AI. Bez toho uvidí jen výsledek a řešení; vyhodnocuje AI vždy. V kurzu typu Test se nezobrazí.'
+		hint: 'Žák po odpovědi uvidí, co k ní napsala AI.'
 	},
 	{
 		level: 'question',
@@ -1267,7 +1267,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'toggle',
 		label: 'Vést žáka k řešení',
-		hint: 'Po chybné odpovědi AI žákovi poradí a nechá ho to zkusit znovu; řešení ukáže, až vyčerpá pokusy. V kurzu typu Test se nepoužije.'
+		hint: 'Po chybné odpovědi AI poradí a žák to zkusí znovu; řešení uvidí, až vyčerpá pokusy.'
 	},
 	{
 		level: 'question',
@@ -1276,7 +1276,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Počet pokusů',
-		hint: 'Kolikrát může žák odpovědět, než uvidí řešení. 1–10, výchozí 3.',
+		hint: 'Kolikrát může žák odpovědět, než uvidí řešení (1–10).',
 		default: '3'
 	},
 	{
@@ -1295,7 +1295,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'custom',
 		label: 'Kritéria hodnocení',
-		hint: 'Nejvýš čtyři body, které má AI ve zpětné vazbě projít; každý s vahou.',
+		hint: 'Až čtyři body, které má AI posoudit. Váha říká, jak moc který bod počítá.',
 		custom: true
 	},
 	{
