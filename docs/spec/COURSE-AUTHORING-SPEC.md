@@ -462,7 +462,7 @@ proxy and CDN.
 |---|---|---|---|---|
 | `type` | `multiple_choice \| true_false \| open \| numeric` | — | Input widget and grading rule. | §8.3. |
 | `options` | `QuestionOption[]` | — | The choices, for MC and True/False. | §8.2. |
-| `correct_answer` | string | — | Expected answer for `open`. | Compared case-insensitively and trimmed. |
+| `correct_answer` | string | — | Expected answer for `open`, one accepted variant per line. | The AI grades every open answer and takes this as the reference; when the AI cannot be reached, the answer is compared with each line, case-insensitively and trimmed. |
 | `correct_number` | number | — | Expected value for `numeric`. | Graded against `tolerance`. |
 | `tolerance` | number | 0 | Accepted ± band for `numeric`. | `0` requires an exact match. This is how you accept `0.33` for ⅓, or a rounded result in a physics calculation. Always set a tolerance when the correct answer is irrational or comes from a multi-step calculation. |
 | `allow_multiple` | bool | false | Multi-select. | Checkboxes instead of radio buttons. Grading is **exact set equality** — the student must select every correct option and no incorrect one. There is no partial credit for a partially correct set, so for "choose all that apply" with many options, consider several True/False questions instead. |
@@ -491,7 +491,7 @@ proxy and CDN.
 |---|---|---|---|
 | `multiple_choice` | radio, or checkboxes with `allow_multiple` | the chosen option is `is_correct`; multi-select requires exact set equality | 3–5 options works best; every distractor should encode a real misconception |
 | `true_false` | two large buttons | as MC with exactly two options | fast to answer, so good for drilling; pairs well with a `feedback` on each side |
-| `open` | text field (+ camera with `allow_photo`) | input matches `correct_answer`, case-insensitive and trimmed, or matches the text of a correct option | only use where the answer is a single unambiguous word or number |
+| `open` | text field (+ camera with `allow_photo`) | the AI's verdict; offline, input matches a line of `correct_answer`, case-insensitive and trimmed, or the text of a correct option | free answers; the comparison fallback suits a word or number |
 | `numeric` | numeric keypad | `\|input − correct_number\| ≤ tolerance` | always set `tolerance` for calculated or irrational answers |
 
 ---
@@ -716,7 +716,7 @@ student. Hints are not free, and that is deliberate.
 | `steps[].hint`, `.help` | per-step `?`, overrides the block level |
 | `steps[].default_practice` | display blocks: enrols the block in Cvičení |
 | `question.type` | input widget and grading rule |
-| `question.correct_answer` | open questions, case-insensitive and trimmed |
+| `question.correct_answer` | open questions: AI reference; offline, any line, case-insensitive and trimmed |
 | `question.correct_number`, `.tolerance` | numeric grading band |
 | `question.allow_multiple` | exact-set grading |
 | `question.show_answers` | false → no options, no marking (reflection prompts) |
@@ -737,7 +737,6 @@ student. Hints are not free, and that is deliberate.
 1. **Structural completeness**
    - display block → at least one `text` step with non-empty content;
    - question / exercise block → at least one `question` step, each with a config;
-   - `open` → non-empty `correct_answer`;
    - `multiple_choice` → ≥ 2 options, ≥ 1 correct, no empty option text;
    - `true_false` → exactly 2 options, exactly 1 correct;
    - `numeric` → `correct_number` present.
@@ -773,6 +772,8 @@ student. Hints are not free, and that is deliberate.
 12. `only_once` combined with `default_practice` — the student will have practice cards for a
     course they can never re-open.
 13. Prerequisites with `min_level ≥ 0.9` — very likely to lock the block permanently.
+14. An `open` question with no `correct_answer` — the AI still grades it, but offline every
+    answer is wrong.
 
 ---
 

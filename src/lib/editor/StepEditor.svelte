@@ -220,7 +220,7 @@
 		{
 			value: 'open',
 			label: 'Otevřená odpověď',
-			title: 'Žák píše odpověď; porovnává se bez ohledu na velikost písmen',
+			title: 'Žák píše odpověď; vyhodnotí ji AI',
 			icon: PencilLine
 		},
 		{
@@ -741,7 +741,8 @@
 							<FocusField
 								label="Správná odpověď"
 								value={step.question.correct_answer}
-								emptyText="Jedno slovo nebo číslo — porovnává se bez ohledu na velikost písmen"
+								multiline
+								emptyText="Každou přijatou odpověď na samostatný řádek. Hodnotí AI; bez ní se porovná s každým řádkem"
 								ref={{
 									blockId: block.block_id,
 									stepId: step.id,

@@ -405,11 +405,14 @@ function checkQuestionShape(block: BlockV2, step: BlockStep, question: QuestionC
 		case 'open': {
 			const answer = question.correct_answer;
 			if (typeof answer !== 'string' || answer.trim() === '') {
+				// Every open answer is graded by the AI first; `correct_answer` is the
+				// comparison it falls back to offline (`block_step_engine.dart`
+				// `_confirmOpenAnswerWithAi`, `expected_answer.dart`, BR-N26ACB).
 				add(
-					'error',
-					'E_OPEN_NO_CORRECT_ANSWER',
+					'warning',
+					'W_OPEN_NO_CORRECT_ANSWER',
 					{ ...ref, field: 'question.correct_answer' },
-					`Otevřená otázka v kroku ${position} nemá zadanou správnou odpověď. Žákovi se každá odpověď vyhodnotí jako chybná.`
+					`Otevřená otázka v kroku ${position} nemá zadanou správnou odpověď. Odpověď vyhodnotí AI, ale žákovi bez připojení se každá odpověď vyhodnotí jako chybná.`
 				);
 			}
 			break;

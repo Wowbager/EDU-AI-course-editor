@@ -1132,7 +1132,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'teacher',
 		kind: 'text',
 		label: 'Správná odpověď',
-		hint: 'Porovnává se bez ohledu na velikost písmen.'
+		hint: 'Každou přijatou odpověď napiš na samostatný řádek. Odpověď hodnotí AI; když není k dispozici, porovná se s každým řádkem bez ohledu na velikost písmen.'
 	},
 	{
 		level: 'question',

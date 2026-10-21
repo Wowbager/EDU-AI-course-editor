@@ -62,7 +62,7 @@ export const TIMING: Record<string, Timing> = {
 	E_DISPLAY_NO_TEXT: 'onLeave',
 	E_QUESTION_NO_QUESTION_STEP: 'onLeave',
 	E_QUESTION_STEP_NO_CONFIG: 'onLeave',
-	E_OPEN_NO_CORRECT_ANSWER: 'onLeave',
+	W_OPEN_NO_CORRECT_ANSWER: 'review',
 	E_NUMERIC_NO_CORRECT_NUMBER: 'onLeave',
 	E_TF_OPTION_COUNT: 'onLeave',
 	E_TF_CORRECT_COUNT: 'onLeave',
