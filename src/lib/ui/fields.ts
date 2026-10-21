@@ -245,7 +245,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'teacher',
 		kind: 'multiline',
 		label: 'Popis',
-		hint: 'Podtitulek dlaždice. Vidí ho i žák, který si kurz ještě nestáhl.'
+		hint: 'Popis na kartě kurzu v knihovně a na stránce kurzu. Vidí ho i žák, který si kurz ještě nestáhl.'
 	},
 	{
 		level: 'course',
@@ -345,7 +345,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Odhad délky',
-		hint: 'Délka uvedená v knihovně. Bez ní se spočítá z lekcí.'
+		hint: 'Délka uvedená v knihovně u kurzu, který si žák ještě nestáhl; po stažení se spočítá z karet. Bez ní server uvede 15 minut na lekci.'
 	},
 	{
 		level: 'course',
@@ -373,7 +373,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'toggle',
 		label: 'Jen jednou',
-		hint: 'Po dokončení se žák do kurzu už nikdy nedostane. Nelze vzít zpět.'
+		hint: 'Po dokončení se žák do kurzu už nikdy nedostane. Nelze vzít zpět. Karty z něj se do cvičení nezařadí.'
 	},
 	{
 		level: 'course',
@@ -400,7 +400,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'toggle',
 		label: 'Vyhodnocovat kvíz',
-		hint: 'Bez toho žák odpovídá naslepo — neuvidí, co měl správně.'
+		hint: 'Ukáže žákovi, jak odpověděl: v kvízu a v kurzu typu Test výsledek i řešení, v ostatních lekcích i u otevřené otázky hodnocené AI. Bez toho odpovídá v kvízu a v Testu naslepo.'
 	},
 	{
 		level: 'course',
@@ -429,7 +429,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'custom',
 		label: 'Obrázek v hlavičce',
-		hint: 'Banner nad kurzem, zhruba 3:1.',
+		hint: 'Obrázek kurzu ve čtverci na stránce kurzu, v kolečku v knihovně a v záhlaví karty kurzu; ořízne se na výšku i šířku. Bez něj se ukáže emoji.',
 		custom: true
 	},
 
@@ -482,7 +482,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'custom',
 		label: 'Obrázek lekce',
-		hint: 'Dnes se nevykresluje — použije se banner kurzu.',
+		hint: 'Aplikace ho dnes nevykresluje.',
 		custom: true
 	},
 
@@ -542,7 +542,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'teacher',
 		kind: 'text',
 		label: 'Délka',
-		hint: 'Například 3 min. Počítá se z toho čas lekce i tempo v opakování.'
+		hint: 'Například 3 min. Počítá se z toho čas lekce.'
 	},
 	{
 		level: 'block',
@@ -867,8 +867,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Počáteční obtížnost',
-		hint: '0–1, výchozí 0,3. Jak těžké je si to udržet.',
-		default: '0,3'
+		hint: '0–1. Jak těžké je si to udržet.'
 	},
 	{
 		level: 'block',
@@ -878,8 +877,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Počáteční stabilita',
-		hint: 'Ve dnech, výchozí 2,5.',
-		default: '2,5 dne'
+		hint: 'Ve dnech: jak dlouho si to žák po prvním úspěšném opakování pamatuje.'
 	},
 	{
 		level: 'block',
@@ -889,8 +887,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Počáteční vybavení',
-		hint: '0–1, výchozí 0,65.',
-		default: '0,65'
+		hint: '0–1: jak pravděpodobně si to žák při prvním opakování vybaví.'
 	},
 	{
 		level: 'block',
@@ -900,8 +897,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Rychlost zapomínání',
-		hint: 'Výchozí 0,25.',
-		default: '0,25'
+		hint: 'Vyšší číslo — karta se vrací dřív.'
 	},
 	{
 		level: 'block',
@@ -917,11 +913,11 @@ export const FIELDS: readonly FieldSpec[] = [
 		level: 'block',
 		path: 'fsrs.weight',
 		section: 'review',
-		unread: true,
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Priorita v opakování',
-		hint: 'přednost karty v nabitém dni opakování.'
+		hint: 'Když má žák v opakování víc karet, než stihne, jdou karty s vyšším číslem dřív. Výchozí 5.',
+		default: '5'
 	},
 	{
 		level: 'block',
@@ -931,8 +927,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Nejkratší odstup',
-		hint: 'Ve dnech, výchozí 1.',
-		default: '1 den'
+		hint: 'Ve dnech: nejkratší doba, než se karta vrátí.'
 	},
 	{
 		level: 'block',
@@ -942,18 +937,16 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Nejdelší odstup',
-		hint: 'Ve dnech, výchozí 90.',
-		default: '90 dní'
+		hint: 'Ve dnech: nejdelší doba, než se karta vrátí.'
 	},
 	{
 		level: 'block',
 		path: 'fsrs.skip_condition',
 		section: 'review',
-		unread: true,
 		mode: 'advanced',
 		kind: 'text',
 		label: 'Podmínka vynechání',
-		hint: 'přestat drilovat, co žák prokazatelně umí — například GPF_mastery > 0.8.'
+		hint: 'Kdy kartu z opakování vynechat, protože ji žák umí. Aplikace zná jen GPF_mastery (zvládnutí dovedností karty, 0–1) porovnané s číslem, například GPF_mastery > 0.8.'
 	},
 	{
 		level: 'block',
@@ -1060,7 +1053,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		kind: 'toggle',
 		label: 'Zařadit do cvičení',
 		gain: 'zařazení do cvičení',
-		hint: 'U výkladu se příznak dává na krok; zařadí se celá karta.'
+		hint: 'Karta se pak ukáže mezi cvičeními kurzu, do denního opakování se ale nezařadí — na to zapni „Zařadit do cvičení“ u celé karty.'
 	},
 
 	{
@@ -1204,11 +1197,10 @@ export const FIELDS: readonly FieldSpec[] = [
 		level: 'question',
 		path: 'allow_photo',
 		section: 'extras',
-		unread: true,
 		mode: 'advanced',
 		kind: 'toggle',
 		label: 'Dovolit odpověď fotkou',
-		hint: 'Zatím nemá v aplikaci žádný účinek.'
+		hint: 'Žák může k otevřené odpovědi přiložit fotku, třeba řešení na papíře. Vyhodnotí ji AI.'
 	},
 	{
 		level: 'question',

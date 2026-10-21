@@ -358,9 +358,10 @@ What the ADM type and editor write (`FSRSParameters`, `DEFAULT_FSRS`):
 `forgetting_rate` (0.25), `repetitions` (0), `weight` (1.0), `min_interval` (1),
 `max_interval` (90), `skip_condition`, `time_limit_sec`.
 
-What the app reads out of `block.fsrs` (`block_model.dart:543-553`, consumed in
-`practice_repository.dart:106-127`): **`stability`, `difficulty`, `reps`, `lapses`,
-`last_review`, `due_date`** — and nothing else.
+What the app reads out of `block.fsrs` (`block_model.dart`, `FsrsParameters.fromJson`,
+consumed in `practice_repository.dart`, `createCardFromBlock`): **`stability`, `difficulty`,
+`reps`, `lapses`, `last_review`, `due_date`**, and since the 2026-10-15 sync **`weight`** and
+**`skip_condition`**.
 
 | Authored key | Read by app? | Effect |
 |---|---|---|
@@ -369,10 +370,10 @@ What the app reads out of `block.fsrs` (`block_model.dart:543-553`, consumed in
 | `initial_recall` | ❌ | none |
 | `forgetting_rate` | ❌ | none |
 | `repetitions` | ❌ | none — the app looks for `reps` |
-| `weight` | ❌ | none. Card weight is a **constant `5.0`** column default (`practice_cards_table.dart`), used for queue priority ordering. |
+| `weight` | ✅ | the practice card's queue priority, higher first; `5.0` when absent (`practice_repository.dart`, `queue_builder.dart`). |
 | `min_interval` | ❌ | none |
 | `max_interval` | ❌ | none — the ceiling comes from the *student's* FSRS profile (`maximumInterval`), not the block |
-| `skip_condition` | ❌ | column exists on `practice_cards`, never written from block JSON, never evaluated |
+| `skip_condition` | ✅ | evaluated before the card is queued (`practice_providers.dart`, `skip_condition_evaluator.dart`). Only `GPF_mastery <op> <number>` with `>` `>=` `<` `<=` `==` `!=`; mastery is the student's mean ELO over the dimensions the block relates to (relation > 0), divided by 10. Anything else, or no data, never skips. A card's own synced condition wins. |
 | `time_limit_sec` | ❌ | absent from the app entirely |
 | `stability`, `difficulty`, `reps`, `lapses`, `last_review`, `due_date` | ✅ | seed values for a newly created practice card |
 
@@ -455,7 +456,7 @@ play/pause/seek.
 | `show_solution` | bool, default true | ✅ | Reveal the solution after answering. | `false` skips the solution state entirely and moves on (`block_step_engine.dart:288-290`). |
 | `solution` | Markdown+LaTeX | ✅ | Worked explanation shown after answering. | Suppressed in `quiz_v2` + `quiz_evaluate:false`, and when `show_solution:false`. |
 | `solution_image` | `{url, alt?, position?}` | ✅ | Image inside the solution. | Rendered with the solution. |
-| `allow_photo` | bool | ⚪ | Intended: answer an open question with a photo. | **Not implemented in the app.** Inert. |
+| `allow_photo` | bool | ✅ | Answer an open question with a photo. | A camera control on open questions; the photo is sent with the answer to the AI (`answer_photo_picker.dart`, `block_step_engine.dart`, `quiz_page.dart`, BR-P745Q8). |
 
 ### 8.2 `QuestionOption`
 
@@ -574,10 +575,8 @@ BR-WR4C8P).
    never dominates;
 5. cap at `dailyReviewLimit − todayReviewCount`.
 
-`weight` is the queue's priority knob — and it is currently a **constant 5.0** for every card
-(`practice_cards_table.dart`). Nothing in the course JSON can raise or lower a block's practice
-priority today. If per-block priority is wanted, wiring `fsrs.weight` → `practice_cards.weight`
-is the change to make, and the editor field already exists.
+`weight` is the queue's priority knob: a new practice card takes the block's `fsrs.weight`,
+`5.0` when absent (`practice_repository.dart`).
 
 ### How a review is graded
 
@@ -636,7 +635,7 @@ These are the traps a new editor should be built around. Every one is verified i
 | `bg_image`, `bg_color` "visual overrides for the block card" | `bg_image` isn't parsed; `bg_color` is parsed and never used. §5 |
 | Lesson `header_image` | Only the course-level header image is parsed. §4 |
 | — (not in the spec) | `emoji` and `estimated_minutes` are real course-JSON fields the API and app both use, and the `CourseV2` type lacks them. §3.1 |
-| — | `ai_context`, `stop_gambling`, `stop_notice`, `allow_photo`, `adaptation`, `d_data`, `l_data`, block `status`, `time_limit_sec`, `skip_condition` are all inert today. |
+| — | `ai_context`, `stop_gambling`, `stop_notice`, `adaptation`, `d_data`, `l_data`, block `status`, `time_limit_sec` are all inert today. |
 
 ---
 
@@ -866,7 +865,8 @@ blocks, question answered correctly first try, no hints), one practice card for
 | `gpf.domain/construct/subconstruct/grade/level/vector/kb_vector` | ⚪ | documentation |
 | `learning.*` (incl. `prerequisites`) | ⚪ | documentation; prerequisites are not enforced |
 | `fsrs.stability/difficulty/reps/lapses/last_review/due_date` | ✅ | seed values for the practice card |
-| `fsrs.initial_*`, `weight`, `*_interval`, `skip_condition`, `time_limit_sec` | ⚪ | **not read** |
+| `fsrs.weight`, `fsrs.skip_condition` | ✅ | queue priority (default 5); skip rule `GPF_mastery <op> n` |
+| `fsrs.initial_*`, `*_interval`, `time_limit_sec` | ⚪ | **not read** |
 | `adaptation` | ⚪ | inert |
 | `steps[].id` | ✅ | `go_to` target and answer key — never reuse or renumber |
 | `steps[].type` | ✅ | renderer |
@@ -880,7 +880,7 @@ blocks, question answered correctly first try, no hints), one practice card for
 | `question.allow_multiple` | ✅ | exact-set grading, no partial credit |
 | `question.show_answers` | ✅ | false → no options, no correct/incorrect marking |
 | `question.show_solution` / `.solution` / `.solution_image` | ✅ | post-answer explanation |
-| `question.allow_photo` | ⚪ | inert |
+| `question.allow_photo` | ✅ | photo answer for open questions |
 | `options[].id` / `.text` / `.is_correct` | ✅ | the answer itself |
 | `options[].feedback` / `.feedback_image` | ✅ | misconception-specific response |
 | `options[].score_koef` | ✅ | partial credit — **only if `is_correct` is true** |

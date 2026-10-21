@@ -122,14 +122,14 @@ Type `CourseV2`.
 | `course_id` | string | Stable business key, unique platform-wide. | Storage path and enrolment key. Immutable after publish. |
 | `version` | int ≥ 1 | Content version. | Storage path; triggers the update flow in the app. §2. |
 | `name` | string ≤ 255 | Course title. | Course card and player header. |
-| `description` | string ≤ 500 | Short blurb. | Course card subtitle — visible in the library **before** the student downloads the course, so write it for a browsing student. |
+| `description` | string ≤ 500 | Short blurb. | Shown on the library card and in the course page's description — visible **before** the student downloads the course, so write it for a browsing student. (The course page's subtitle line is a separate `subtitle` key.) |
 | `language` | string ≤ 10 (`cs`, `en`) | Content language. | Library language filter. Does not switch the app's own UI language. |
 | `author` | string | Author or organisation. | Shown on the course card and detail page. |
 | `updated` | ISO 8601 timestamp | Last edit. | Displayed as "last updated"; set on every save. |
 | `status` | `draft \| private \| locked \| approved \| published` | Editorial workflow state. | Only `published` is visible to students. `draft` = work in progress, `private` = finished but distributed by PIN only, `locked` = frozen for review, `approved` = signed off and awaiting release. §3.5. |
 | `emoji` | string (1 emoji) | Course icon. | The tile icon in the library and dashboard. If omitted the platform picks one from the subject keywords in the name. |
-| `estimated_minutes` | int | Total course length. | Shown on the course card. If omitted it is derived from block durations (§4). Set it explicitly when the derived figure misrepresents the real workload. |
-| `header_image` | `{ url, alt? }` | Course cover. | Banner on the course detail page. `alt` is read by screen readers. Use a wide image (roughly 3:1); it is cropped to the banner. |
+| `estimated_minutes` | int | Total course length. | Shown on the library card of a course not yet downloaded; once downloaded, the app sums the block durations (§4). If omitted, the API lists 15 minutes per lesson. |
+| `header_image` | `{ url, alt? }` | Course cover. | A square tile on the course page, a circle in the library and the header of the course card, each cropped to fill (`CourseCoverImage`, `BoxFit.cover`); the emoji stands in without it. Use a roughly square image with the subject in the middle. |
 
 ### 3.2 Access control
 
@@ -180,7 +180,7 @@ completion state, and what the dashboard counts.
 | `description` | string | One-line summary. | Lesson card subtitle. Write it as a promise of what the student will be able to do. |
 | `order` | int | Position in the course. | Lesson sequence. Keep it dense and 1-based; the editor should renumber on reorder. |
 | `version` | int | Per-lesson revision. | Editorial traceability; the course `version` is what drives distribution. |
-| `header_image` | `{ url, alt? }` | Lesson cover. | Banner at the top of the lesson. Falls back to the course header when absent. |
+| `header_image` | `{ url, alt? }` | Lesson cover. | **Not drawn by the app today.** |
 | `ai_context` | string (Markdown) | Lesson-specific tutor briefing. | Layered **on top of** the course `ai_context` when the student opens chat inside this lesson. Put the course-wide conventions on the course and the lesson-specific misconceptions here. |
 | `blocks` | `LessonBlockBinding[]` | Ordered references into `blocks[]`. | §5. |
 
@@ -294,8 +294,8 @@ the dimension set is versioned per course through the skill configuration.
 | Value | Meaning | Effect |
 |---|---|---|
 | `0` | unrelated | The subconstruct is untouched by this block. |
-| `1` | weak relation | The subconstruct is involved but incidental — it updates with reduced weight, so a student's rating moves slowly here. |
-| `2` | strong relation | The subconstruct is what the block is *about* — it updates at full weight. |
+| `1` | weak relation | The subconstruct is involved but incidental. **The app does not update the rating for it** — only `2` does (`elo_engine.dart`: "Relation is deliberately unweighted"); it still counts for `skip_condition`'s mastery. |
+| `2` | strong relation | The subconstruct is what the block is *about* — the only relation that updates the student's rating. |
 
 Keep it honest and sparse. A block that claims a strong relation to eight subconstructs will
 smear a single result across eight ratings and make the skill profile noisy. Most blocks have
@@ -374,11 +374,11 @@ ordinary content, and most blocks should leave them alone.
 | `initial_recall` | 0.65 | R₀ — assumed recall probability at first review. | Seeds the scheduler before the student has any history with the block. |
 | `forgetting_rate` | 0.25 | λ — how fast retrievability decays. | Higher = reviews come back sooner. |
 | `repetitions` | 0 | Prior review count. | Non-zero only when importing a block with existing history. |
-| `weight` | 1.0 | Priority of this block in the daily queue. | The queue is ordered by weight before due date, so a higher weight pushes a block to the front of a crowded day. Reserve values above 1 for genuinely foundational blocks — if everything is important, nothing is. |
+| `weight` | 5.0 | Priority of this block in the daily queue. | The queue is ordered by weight before due date, so a higher weight pushes a block to the front of a crowded day. The app's default is 5 (`practice_repository.dart`): raise it above 5 only for genuinely foundational blocks, and a value below 5 pushes a block back — if everything is important, nothing is. |
 | `min_interval` | 1 | Floor, in days. | The block will never come back sooner than this, even after a failure. |
 | `max_interval` | 90 | Ceiling, in days. | Caps the interval regardless of how well the student knows it. Lower it for material that must stay fresh for an exam date; raise it for durable knowledge. |
-| `skip_condition` | — | Expression, e.g. `GPF_mastery > 0.8`. | Evaluated before the block is queued: when it holds, the block is dropped from that student's queue. The clean way to stop drilling a student on something they have demonstrably mastered. |
-| `time_limit_sec` | — | Optional time limit for the block. | Shows a countdown and closes the block when it expires. Use for timed assessment only — a timer on teaching content mostly measures anxiety. |
+| `skip_condition` | — | Expression `GPF_mastery <op> <number>`, `<op>` one of `>` `>=` `<` `<=` `==` `!=`, e.g. `GPF_mastery > 0.8`. Mastery is the student's mean rating over the block's skills (relation > 0), 0–1. Any other form is ignored. | Evaluated before the block is queued: when it holds, the block is dropped from that student's queue. The clean way to stop drilling a student on something they have demonstrably mastered. |
+| `time_limit_sec` | — | Optional time limit for the block. | **Not read by the app.** Intended: shows a countdown and closes the block when it expires. Use for timed assessment only — a timer on teaching content mostly measures anxiety. |
 
 The scheduler combines these with the **student's** own FSRS profile (desired retention,
 learning and relearning steps, maximum interval, fuzzing), so the same block will be scheduled
@@ -665,7 +665,7 @@ student. Hints are not free, and that is deliberate.
 | `name`, `description`, `author`, `language` | library card and header |
 | `status` | only `published` reaches students |
 | `emoji`, `estimated_minutes` | course tile icon and advertised length |
-| `header_image` | course banner |
+| `header_image` | course cover (square tile, circle) |
 | `pin` | 6-character enrolment code |
 | `logged_only` | blocks guests |
 | `only_once` | no re-entry after completion; hidden from lists |
@@ -768,8 +768,8 @@ student. Hints are not free, and that is deliberate.
 10. `is_correct: false` combined with `score_koef > 0` — the app scores a wrong answer 0, so the
     share is never used.
 11. A lesson of more than ~12 blocks, or a block of more than ~10 steps — likely wants splitting.
-12. `only_once` combined with `default_practice` — the student will have practice cards for a
-    course they can never re-open.
+12. `only_once` combined with `default_practice` — the app creates no practice card from an
+    `only_once` course, so the flags do nothing.
 13. Prerequisites with `min_level ≥ 0.9` — very likely to lock the block permanently.
 14. An `open` question with no `correct_answer` — the AI still grades it, but offline every
     answer is wrong.

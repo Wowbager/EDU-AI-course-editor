@@ -23,6 +23,7 @@ import { buildIndex, isGoToKeyword, reachableSteps, type DocIndex } from './inde
 import { blockDurationMinutes, isPracticeBlock, optionOutcomesApply } from './derive';
 import { goToIgnored } from './navigation';
 import { mediaHidden } from './media';
+import { skipConditionSupported } from './practice';
 import { dimensionCount, ELO_MAX, ELO_MIN, type SkillConfig } from './skill-config';
 import {
 	blockLabel,
@@ -222,6 +223,16 @@ function checkBlocks(
 
 		checkStructuralCompleteness(doc, block, add);
 		checkVectors(doc, block, skillConfig, add);
+
+		const skip = block.fsrs?.skip_condition;
+		if (typeof skip === 'string' && skip.trim() !== '' && !skipConditionSupported(skip)) {
+			add(
+				'warning',
+				'W_SKIP_CONDITION_UNSUPPORTED',
+				{ ...blockRef, field: 'fsrs.skip_condition' },
+				`Podmínku vynechání karty „${cardName}“ aplikace nepřečte, takže kartu z opakování nikdy nevynechá. Umí jen tvar GPF_mastery > 0.8 (místo > i >=, <, <=, ==, !=).`
+			);
+		}
 
 		if (block.steps.length > 10) {
 			add(
@@ -955,7 +966,8 @@ function checkCourseLevel(doc: CourseV2, index: DocIndex, options: ValidateOptio
 		);
 	}
 
-	// §14 warning 12
+	// §14 warning 12. The app seeds no practice card from an only_once course
+	// (`practice_repository.dart`, BR-E495XK).
 	if (doc.only_once === true) {
 		const practice = doc.blocks.filter((b) =>
 			isPracticeBlock(b, bindingPractice(index, b.block_id))
@@ -965,7 +977,7 @@ function checkCourseLevel(doc: CourseV2, index: DocIndex, options: ValidateOptio
 				'warning',
 				'W_ONLY_ONCE_WITH_PRACTICE',
 				{ field: 'only_once' },
-				`Kurz je nastavený na jediné projití, ale ${practice.length} blok(ů) je zařazeno do cvičení. Žákovi se budou opakovaně nabízet karty z kurzu, který už nemůže otevřít.`
+				`Kurz je nastavený na jediné projití, ale ${practice.length} blok(ů) je zařazeno do cvičení. Z kurzu na jedno projití aplikace do cvičení nic nezařadí, takže se žákovi neukážou.`
 			);
 		}
 	}

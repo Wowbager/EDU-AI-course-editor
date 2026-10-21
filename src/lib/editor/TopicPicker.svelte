@@ -69,7 +69,12 @@
 
 	const RELATIONS = [
 		{ value: '2', label: 'Je o tom', title: 'Karta tuhle dovednost učí' },
-		{ value: '1', label: 'Využívá', title: 'Karta ji potřebuje mimochodem' }
+		{
+			value: '1',
+			label: 'Využívá',
+			title:
+				'Karta ji potřebuje mimochodem. Hodnocení dovednosti žáka se podle ní nemění — to dělá jen „Je o tom“.'
+		}
 	] as const;
 
 	function dimensionAt(index: number): SkillDimension | undefined {

@@ -210,5 +210,6 @@ export function skillConfigFromDimensions(dimensions: SkillDimension[]): SkillCo
 
 /** §6.3 — a student's rating starts here, so it is the neutral default for elo_vector. */
 export const ELO_BASELINE = 6.0;
-export const ELO_MIN = 1.0;
+/** The range the app accepts for a rating (`elo_engine.dart`, `_validateSingleRating`). */
+export const ELO_MIN = 0.0;
 export const ELO_MAX = 10.0;

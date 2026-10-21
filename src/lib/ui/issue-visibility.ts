@@ -45,6 +45,7 @@ export const TIMING: Record<string, Timing> = {
 	E_GOTO_UNRESOLVED: 'immediate',
 	W_GOTO_IN_EXERCISE: 'immediate',
 	W_MEDIA_HIDDEN: 'immediate',
+	W_SKIP_CONDITION_UNSUPPORTED: 'immediate',
 	// The card's choice, not a slip: said at export, where the jump can be removed.
 	W_GOTO_IN_ONE_TAP: 'review',
 	E_PREREQ_UNRESOLVED: 'immediate',
