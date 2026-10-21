@@ -581,7 +581,8 @@ function checkFeedbackQuality(block: BlockV2, step: BlockStep, question: Questio
 		);
 	}
 
-	// §14 warning 10
+	// §14 warning 10. A wrong answer always scores 0 outside AI grading
+	// (`block_step_engine.dart`: `effectiveScoreKoef = isCorrect ? scoreKoef : 0.0`).
 	for (const option of options) {
 		if (
 			option.is_correct !== true &&
@@ -592,7 +593,7 @@ function checkFeedbackQuality(block: BlockV2, step: BlockStep, question: Questio
 				'warning',
 				'W_PARTIAL_CREDIT_ON_WRONG',
 				{ blockId: block.block_id, stepId: step.id, optionId: option.id, field: 'score_koef' },
-				`${capitalize(optionLabel(question, option))} v kroku ${position} je označená jako chybná, ale dává žákovi ${Math.round(option.score_koef * 100)} % bodů. Pokud to tak má být, je to v pořádku — jinak dostane víc XP, než si zaslouží.`
+				`${capitalize(optionLabel(question, option))} v kroku ${position} je označená jako chybná a má podíl bodů ${Math.round(option.score_koef * 100)} %. Za chybnou odpověď aplikace body nedává, takže se podíl nepoužije.`
 			);
 		}
 	}

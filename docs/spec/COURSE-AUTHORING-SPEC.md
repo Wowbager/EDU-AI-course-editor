@@ -466,7 +466,7 @@ proxy and CDN.
 | `correct_number` | number | — | Expected value for `numeric`. | Graded against `tolerance`. |
 | `tolerance` | number | 0 | Accepted ± band for `numeric`. | `0` requires an exact match. This is how you accept `0.33` for ⅓, or a rounded result in a physics calculation. Always set a tolerance when the correct answer is irrational or comes from a multi-step calculation. |
 | `allow_multiple` | bool | false | Multi-select. | Checkboxes instead of radio buttons. Grading is **exact set equality** — the student must select every correct option and no incorrect one. There is no partial credit for a partially correct set, so for "choose all that apply" with many options, consider several True/False questions instead. |
-| `show_answers` | bool | true | Show the option list. | With `false` the options are hidden and the student's response is not marked correct or incorrect; the confirm button reads "Další" rather than "Zkontrolovat". Use for reflection prompts, self-assessment and opinion questions where there is no right answer. |
+| `show_answers` | bool | true | Mark the answer. | With `false` a single-choice pick is not coloured correct or incorrect, and a multi-select does not reveal the correct options the student missed; true/false, numeric and open answers are marked as usual, and every answer is still graded (score, skill rating, practice). The confirm button reads "Další" rather than "Zkontrolovat". Use for reflection prompts, self-assessment and opinion questions where there is no right answer. |
 | `show_solution` | bool | true | Reveal the worked solution after answering. | `false` moves straight on. Turn it off when the solution would spoil the next question. |
 | `solution` | Markdown + LaTeX | — | The worked explanation. | Shown after the student answers. Write it as the *method*, not just the result — this is the highest-traffic teaching text in the whole format. |
 | `solution_image` | `{ url, alt?, position? }` | — | Image in the solution. | A diagram of the method; often more effective than prose. |
@@ -719,7 +719,7 @@ student. Hints are not free, and that is deliberate.
 | `question.correct_answer` | open questions: AI reference; offline, any line, case-insensitive and trimmed |
 | `question.correct_number`, `.tolerance` | numeric grading band |
 | `question.allow_multiple` | exact-set grading |
-| `question.show_answers` | false → no options, no marking (reflection prompts) |
+| `question.show_answers` | false → single choice not coloured, multi-select's missed answers not shown; still graded |
 | `question.show_solution`, `.solution`, `.solution_image` | post-answer teaching |
 | `question.allow_photo` | photo answers for work done on paper |
 | `options[].id`, `.text`, `.is_correct` | the answer itself |
@@ -767,7 +767,8 @@ student. Hints are not free, and that is deliberate.
    subconstructs.
 8. `elo_vector` values far from the course's mean without a corresponding `learning.difficulty`.
 9. A question with no `feedback` on any wrong option — a missed teaching opportunity.
-10. `is_correct: false` combined with `score_koef > 0` — confirm the partial credit is intended.
+10. `is_correct: false` combined with `score_koef > 0` — the app scores a wrong answer 0, so the
+    share is never used.
 11. A lesson of more than ~12 blocks, or a block of more than ~10 steps — likely wants splitting.
 12. `only_once` combined with `default_practice` — the student will have practice cards for a
     course they can never re-open.

@@ -1198,7 +1198,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'toggle',
 		label: 'Vyhodnocovat odpovědi',
-		hint: 'Vypni pro reflexi a anketu — odpověď se neoznačí jako správná ani chybná.'
+		hint: 'Vypni pro reflexi a anketu. U výběru jedné odpovědi se pak volba neoznačí jako správná ani chybná; u výběru více odpovědí se jen neukážou přehlédnuté správné. Ano/Ne, číslo a otevřená odpověď se označí dál. Odpověď se vždy vyhodnotí a počítá se do dovedností i opakování.'
 	},
 	{
 		level: 'question',
