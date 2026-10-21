@@ -21,19 +21,20 @@ export function blockDurationMinutes(block: BlockV2): number | undefined {
 }
 
 /**
- * §10 — what the platform awards when `xp` is omitted: +1 per content step,
- * +8 per question step, never below 1.
+ * §10 — the most XP a block can award, which the app shows as the lesson's reward:
+ * +1 per content step, +8 per question step, never below 1 (`course_model.dart`,
+ * `_calculateBlockMaxXp`; a legacy `evaluation` step counts as a question). A pupil
+ * earns 8 for a question answered right without a hint and 5 otherwise
+ * (`block_step_engine.dart`, `_completeBlock`). An authored `xp` is read by nothing.
  */
 export function derivedBlockXp(block: BlockV2): number {
 	let xp = 0;
-	for (const step of block.steps) xp += step.type === 'question' ? 8 : 1;
+	for (const step of block.steps) {
+		const type: string = step.type;
+		xp += type === 'question' || type === 'evaluation' ? 8 : 1;
+	}
 	if (block.steps.length === 0) xp = block.type === 'display' ? 1 : 8;
 	return Math.max(xp, 1);
-}
-
-/** The XP a block actually awards: authored if present, derived otherwise. */
-export function effectiveBlockXp(block: BlockV2): number {
-	return typeof block.xp === 'number' ? block.xp : derivedBlockXp(block);
 }
 
 export interface LessonTotals {
@@ -57,14 +58,17 @@ export function lessonTotals(lesson: LessonV2, index: DocIndex): LessonTotals {
 
 	for (const binding of lesson.blocks) {
 		const block = index.blocksById.get(binding.block_id);
-		if (block === undefined) continue;
+		if (block === undefined) {
+			xp += 1; // `course_model.dart`: an unknown block gives the minimum
+			continue;
+		}
 		resolved++;
 		const minutes = blockDurationMinutes(block);
 		if (minutes !== undefined && minutes > 0) {
 			total += minutes;
 			withDuration++;
 		}
-		xp += effectiveBlockXp(block);
+		xp += derivedBlockXp(block);
 		questionStepCount += block.steps.filter((s) => s.type === 'question').length;
 	}
 
@@ -76,7 +80,7 @@ export function lessonTotals(lesson: LessonV2, index: DocIndex): LessonTotals {
 		durationMinutes,
 		durationEstimated,
 		durationPartial: withDuration > 0 && withDuration < resolved,
-		xp,
+		xp: Math.max(xp, 1),
 		blockCount,
 		questionStepCount
 	};
@@ -367,17 +371,17 @@ export function blockPreview(block: BlockV2, max = 70, position?: number): strin
  * Whether an answer's own outcome — where it leads (`go_to`) and its grade (`mark`) —
  * counts for this question. It does only when the pupil picks one answer.
  *
- * Mirrors the app: `BlockStepEngine._confirmAnswer` takes its `goToValue` and
+ * Mirrors the app: `BlockStepEngine._evaluateStep` takes its `goToValue` and
  * `markValue` from the chosen option only in the last branch, the single-select /
- * true-false one (`block_step_engine.dart:620-633`). The `allowMultiple` branch above
- * it (`:597-601`) judges the whole set and reads neither, and `numeric` and `open`
- * questions never look at their options' outcomes (`:602-619`). `_continueAfterSolution`
- * likewise follows only `selectedOptionId`, which a multi-select never sets
- * (`:735-747`), and `QuizPage._checkAnswer` (`quiz_page.dart:499-525`) reads no
- * outcome on an option either way. A multi-select question can still branch on the
- * question as a whole (`next_actions`), which is not an option's value.
+ * true-false one (`block_step_engine.dart`). The `allowMultiple` branch above it
+ * judges the whole set and reads neither, and `numeric` and `open` questions never
+ * look at their options' outcomes. `_continueAfterSolution` likewise follows only
+ * `selectedOptionId`, which a multi-select never sets, and `QuizPage._checkAnswer`
+ * (`quiz_page.dart`) reads no outcome on an option either way. A multi-select
+ * question can still branch on the question as a whole (`next_actions`), which is not
+ * an option's value.
  *
- * (`score_koef` is skipped in the multi-select branch too, `:598-601`; that column is
+ * (`score_koef` is skipped in the multi-select branch too; that column is
  * advanced-only and not part of this rule.)
  */
 export function optionOutcomesApply(

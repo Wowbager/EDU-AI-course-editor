@@ -235,7 +235,7 @@ separately, they are two blocks.
 | `author` | string | Who wrote it. | Attribution in the block library. |
 | `updated` | ISO 8601 | Last edit. | Sorting and review in the block library. |
 | `duration` | string, e.g. `"3 min"` | Expected time on task. | Feeds lesson and course duration (§4) and the pacing signal used for the practice grade (§11). Give a realistic figure for an average student; over-optimistic durations make every student look slow. |
-| `xp` | int | XP awarded for completing the block. | The authored reward, scaled by how well the student did — §10. Omit it to let the platform compute a value from the block's step composition. |
+| `xp` | int | XP awarded for completing the block. | **Not read by the app**; XP comes from the block's steps — §10. |
 | `default_practice` | bool | Enrol this block in spaced repetition. | §11. |
 | `hint` | string (Markdown + LaTeX) | Short block-level hint. | Available from the `?` button on any step of the block. Costs score — §12. |
 | `help` | string (Markdown + LaTeX) | Detailed block-level explanation. | The second level of the `?` button. Costs more — §12. |
@@ -544,22 +544,20 @@ orphaned step (§14).
 
 ## 10. XP and progression
 
-XP is the student-facing reward signal. It has one authored input and two guard rails.
+XP is the student-facing reward signal. **The app has no authored input to it:** a block's
+`xp` is parsed and never read.
 
-**Per block:**
+**Per block**, counted over its steps when the block is completed
+(`block_step_engine.dart`, `_completeBlock`):
 
 ```
-earned_xp = block.xp × best_score_koef
++1 per content step
++8 per question answered correctly without a hint (score_koef ≥ 1), +5 per other question
 ```
 
-`best_score_koef` is the best coefficient achieved on the block's questions (§8.2). A perfect
-first-pass answer earns the full `xp`; a partially credited one earns proportionally less; the
-hint and help penalties (§12) reduce it further.
-
-If `xp` is omitted the platform derives it from the block's shape — roughly **+1 per content
-step and +8 per question step** — so a block always carries a sensible reward even before the
-author tunes it. Because of this, the editor should show the **effective** XP for every block
-and lesson live, whether it came from the author or the default.
+The lesson card promises the maximum, +1 per content step and +8 per question step
+(`course_model.dart`, `_calculateBlockMaxXp`), and that is what the editor shows live for every
+block and lesson.
 
 **Then two caps, in order:**
 
@@ -690,7 +688,7 @@ student. Hints are not free, and that is deliberate.
 | `blocks[].type` | display / question (branching) / exercise (linear drill) |
 | `blocks[].status` | draft blocks are skipped inside a published course |
 | `blocks[].duration` | lesson time, course time, and the pacing threshold for the practice grade |
-| `blocks[].xp` | XP awarded, scaled by best score coefficient |
+| `blocks[].xp` | not read; XP comes from the steps (§10) |
 | `blocks[].default_practice` | enrols the block in Cvičení |
 | `blocks[].hint`, `.help` | `?` content; using them caps the score at 0.75 / 0.5 |
 | `gpf.domain/construct/subconstruct/grade/level` | classification and standards alignment |

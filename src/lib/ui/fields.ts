@@ -756,7 +756,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'XP',
-		hint: 'vlastní odměna místo dopočtu z kroků. Aplikace ale XP počítá z kroků vždy.'
+		hint: 'Aplikace tuto hodnotu nečte: XP počítá vždy z kroků.'
 	},
 	{
 		level: 'block',

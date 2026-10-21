@@ -55,7 +55,6 @@
 		blockDurationMinutes,
 		derivedBlockXp,
 		bindingFlagsPractice,
-		effectiveBlockXp,
 		isPracticeBlock
 	} from '$lib/domain/derive';
 	import {
@@ -105,8 +104,7 @@
 	);
 	let showLessonPicker = $state(false);
 	let targetLessonId = $state('');
-	const xp = $derived(effectiveBlockXp(block));
-	const xpIsDerived = $derived(typeof block.xp !== 'number');
+	const xp = $derived(derivedBlockXp(block));
 	const minutes = $derived(blockDurationMinutes(block));
 
 	const set = (field: string, value: unknown) =>
@@ -380,11 +378,9 @@
 
 		<Chip
 			tone="quiet"
-			title={xpIsDerived
-				? `Dopočteno z kroků: 8 XP za každý krok s otázkou, 1 XP za obsahový krok (${derivedBlockXp(block)} XP). Platí hned, i když je karta ještě rozepsaná. Vlastní hodnotu nastavíš v Nastavení karty.`
-				: 'Zadaná odměna'}
+			title={`Nejvýš ${xp} XP: 8 XP za každou otázku zodpovězenou správně bez nápovědy (jinak 5), 1 XP za obsahový krok. Platí hned, i když je karta ještě rozepsaná.`}
 		>
-			{xp} XP{xpIsDerived ? '' : ' · vlastní hodnota'}
+			{xp} XP
 		</Chip>
 
 		<!--

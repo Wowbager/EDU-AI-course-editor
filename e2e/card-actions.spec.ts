@@ -166,24 +166,23 @@ test('an undo notice cannot undo a later content edit', async ({ page }) => {
 	await expect(page.locator('.orphans .tree-card')).toHaveCount(1);
 });
 
-test('automatic XP explains incomplete steps and keeps the existing arithmetic', async ({
-	page
-}) => {
+test('the XP chip is the most the steps can earn, a typed xp included', async ({ page }) => {
 	await openEditor(page);
 	const card = page.locator('main .card');
 	// The explanation is on the chip itself, so it does not take a line on every card.
-	const xpChip = card.getByTitle(/8 XP za každý krok s otázkou, 1 XP za obsahový krok/);
+	const xpChip = card.getByTitle(/8 XP za každou otázku zodpovězenou správně bez nápovědy/);
 	await expect(xpChip).toHaveText('1 XP');
 	await expect(xpChip).toHaveAttribute('title', /i když je karta ještě rozepsaná/);
 	await addStep(page, 'Otázka', card);
 	await expect(xpChip).toHaveText('9 XP');
 	await addStep(page, 'Text', card);
 	await expect(xpChip).toHaveText('10 XP');
+	// The app never reads a card's own `xp`, so a typed one is not shown as its reward.
 	await load(page);
-	const own = card.getByTitle('Zadaná odměna');
-	await expect(own).toHaveText('5 XP · vlastní hodnota');
+	await expect(card.getByText(/vlastní hodnota/)).toHaveCount(0);
+	const before = Number((await xpChip.textContent())!.replace(/\D/g, ''));
 	await addStep(page, 'Text', card);
-	await expect(own).toHaveText('5 XP · vlastní hodnota');
+	await expect(xpChip).toHaveText(`${before + 1} XP`);
 });
 
 test('a card says how long it takes only once someone has said so', async ({ page }) => {
