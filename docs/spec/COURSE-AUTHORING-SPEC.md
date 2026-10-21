@@ -81,11 +81,11 @@ queue if flagged.
 | `export_type` | Mode | Behaviour |
 |---|---|---|
 | `course_v2` | Course | The full experience: hints, help, solutions, per-option feedback, `go_to` branching, XP, practice enrolment. |
-| `exercise_v2` | Exercise / practice | Hints and solutions stay visible, answers are evaluated, but **branching is disabled** — every answer advances linearly. Use for drill sets where the sequence is fixed. |
-| `quiz_v2` | Test | Hints, help, solutions and per-option feedback are suppressed; only the question and its options are shown. Answers are collected and graded via `mark` and score. Turn `quiz_evaluate` on to reveal correct/incorrect and the score at the end. |
+| `exercise_v2` | Exercise / practice | Hints and solutions stay visible, answers are evaluated, but **branching is disabled** — every answer advances linearly. Use for drill sets where the sequence is fixed. **Not implemented in the app:** it behaves as `course_v2`, and the upload route accepts only `course_v2`. Use `exercise` cards for a fixed sequence. |
+| `quiz_v2` | Test | Bookmarks, likes, AI feedback and reworking an answer are dropped; the hint and help stay. With `quiz_evaluate: false` correctness, solutions and per-option feedback are suppressed too. Answers are collected and graded via `mark` and score. Turn `quiz_evaluate` on to reveal correct/incorrect and the score at the end. |
 
-Note the two independent axes: `exercise_v2` disables branching for the **whole course**;
-`type: "exercise"` disables it for **one block** (§6.2). Both exist and the editor should make
+Note the two independent axes: `exercise_v2` is meant to disable branching for the **whole
+course** (not implemented, see above); `type: "exercise"` disables it for **one block** (§6.2). Both exist and the editor should make
 the distinction obvious.
 
 ---
@@ -534,8 +534,8 @@ orphaned step (§14).
 
 ### Rules
 
-* `go_to` is **ignored in `exercise` blocks and throughout `exercise_v2` courses** — flow is
-  always linear there. The editor should hide the control for exercise blocks and warn when an
+* `go_to` is **ignored in `exercise` blocks** — flow is always linear there (the app does not
+  implement the same for `exercise_v2` courses). The editor should hide the control for exercise blocks and warn when an
   imported course has branches inside one.
 * Every non-keyword target must resolve to a step in the same block or a block in the same
   course. Cross-*course* jumps are not supported. The editor must validate this before export.
@@ -759,8 +759,7 @@ student. Hints are not free, and that is deliberate.
 1. `version` not bumped since the last publish.
 2. Partial `duration` coverage within a lesson (some blocks have it, some do not) — the lesson
    time will be wrong.
-3. `go_to` set on options inside an `exercise` block, or anywhere in an `exercise_v2` course —
-   it will be ignored.
+3. `go_to` set on options inside an `exercise` block — it will be ignored.
 4. A step that is unreachable from `s1` and is not the target of any `go_to`.
 5. A block defined but referenced by no lesson and no `go_to`, and not flagged for practice.
 6. `relation_vector` all zero while `elo_vector` is set — the block will never move the skill

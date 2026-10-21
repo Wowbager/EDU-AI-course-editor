@@ -57,10 +57,16 @@
 	/**
 	 * "Cvičení" is also a card type inside a lesson, and the name of the daily
 	 * practice queue a single card can be enrolled in. This one is neither: it is a
-	 * property of the whole document, and it silently disables branching in every
-	 * card at once. The labels and titles say so, because a teacher who has just
-	 * added a Cvičení card has no reason to expect the same word here to mean
-	 * something else.
+	 * property of the whole document. The labels and titles say so, because a teacher
+	 * who has just added a Cvičení card has no reason to expect the same word here to
+	 * mean something else.
+	 *
+	 * What each type does is the app's: `exercise_v2` changes nothing (the app never
+	 * consults `ExportMode.exerciseV2`; branching is ignored only in `exercise` cards,
+	 * `domain/navigation.ts`), and `quiz_v2` drops bookmarks, AI feedback and rework but
+	 * keeps the hint, hiding the verdict and solution only without `quiz_evaluate`
+	 * (`lesson_detail_page.dart`, `block_step_engine.dart`). The API's upload accepts
+	 * only `course_v2` (`UploadCourseRequest`).
 	 */
 	const EXPORT_TYPES: { value: ExportType; label: string; title: string }[] = [
 		{
@@ -75,12 +81,13 @@
 			// untouched — this still writes `exercise_v2`.
 			label: 'Cvičení (celý kurz)',
 			title:
-				'Celý kurz jako drilovací sada: větvení se ignoruje ve všech kartách, žák jde vždy stejným pořadím. Pozor, tohle je nastavení celého kurzu — není to karta typu Cvičení uvnitř lekce ani zařazení karty do denního opakování. V aplikaci se exportuje jako exercise_v2.'
+				'Nastavení celého kurzu — není to karta typu Cvičení uvnitř lekce ani zařazení karty do denního opakování. Aplikace ho dnes zobrazuje stejně jako Kurz: větvení, nápovědy i řešení fungují. Server zatím přijímá jen typ Kurz.'
 		},
 		{
 			value: 'quiz_v2',
 			label: 'Test',
-			title: 'Celý kurz bez nápověd, řešení i zpětné vazby — žák se během něj nedozví, jak si vede.'
+			title:
+				'Celý kurz jako test: žák si karty neukládá, nedostává zpětnou vazbu od AI a nemůže odpověď opravit. Nápověda zůstává. Bez zapnutého vyhodnocení kvízu se nedozví, jak odpověděl, ani řešení. Server zatím přijímá jen typ Kurz.'
 		}
 	];
 </script>

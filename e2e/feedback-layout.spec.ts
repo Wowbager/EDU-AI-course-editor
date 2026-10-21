@@ -8,7 +8,9 @@ async function load(page: Page, marks: boolean, branching: boolean) {
 			'utf8'
 		)
 	);
-	doc.export_type = branching ? 'course_v2' : 'exercise_v2';
+	// Branching is ignored in exercise cards only, whatever the course's export_type.
+	if (!branching)
+		for (const block of doc.blocks) if (block.type === 'question') block.type = 'exercise';
 	doc.quiz_evaluate = marks;
 	// The flag is set at the end of onMount, so it also means the seed has run and
 	// the import handler is wired — unlike counting sections, which SSR can satisfy.

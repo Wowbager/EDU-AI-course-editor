@@ -61,8 +61,8 @@
 	 * appears once the list is long. A card whose name another card shares shows where
 	 * it is.
 	 *
-	 * The picker is hidden entirely for exercise blocks and exercise_v2 courses, where
-	 * the player ignores branching (§9).
+	 * The picker is hidden entirely for exercise blocks, where the player ignores
+	 * branching (`domain/navigation.ts`).
 	 */
 	import { useStore } from '$lib/ui/context';
 	import { allows } from '$lib/ui/fields';

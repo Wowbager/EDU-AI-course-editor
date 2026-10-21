@@ -21,6 +21,7 @@ import type { BlockStep, BlockV2, CourseV2, QuestionConfig } from './schema';
 import type { Ref } from './ref';
 import { buildIndex, isGoToKeyword, reachableSteps, type DocIndex } from './index-doc';
 import { blockDurationMinutes, isPracticeBlock, optionOutcomesApply } from './derive';
+import { goToIgnored } from './navigation';
 import { dimensionCount, ELO_MAX, ELO_MIN, type SkillConfig } from './skill-config';
 import {
 	blockLabel,
@@ -212,7 +213,6 @@ function checkBlocks(
 	skillConfig: SkillConfig | null | undefined,
 	add: Add
 ) {
-	const exerciseCourse = doc.export_type === 'exercise_v2';
 	const courseEloMean = meanElo(doc);
 
 	for (const block of doc.blocks) {
@@ -259,7 +259,7 @@ function checkBlocks(
 			const question = step.question;
 			if (question === undefined) continue;
 
-			checkGoToTargets(index, block, step, question, exerciseCourse, add);
+			checkGoToTargets(index, block, step, question, add);
 			checkFeedbackQuality(block, step, question, add);
 			checkIgnoredOutcomes(block, step, question, add);
 		}
@@ -482,7 +482,6 @@ function checkGoToTargets(
 	block: BlockV2,
 	step: BlockStep,
 	question: QuestionConfig,
-	exerciseCourse: boolean,
 	add: Add
 ) {
 	const ownSteps = index.stepsByBlock.get(block.block_id);
@@ -499,14 +498,12 @@ function checkGoToTargets(
 		};
 		const optionName = capitalize(optionLabel(question, option));
 
-		if (block.type === 'exercise' || exerciseCourse) {
+		if (goToIgnored(block)) {
 			add(
 				'warning',
 				'W_GOTO_IN_EXERCISE',
 				ref,
-				exerciseCourse
-					? `${optionName} v kroku ${position} má nastavené větvení, ale celý kurz je typu cvičení — žák bude vždy pokračovat dál a na připravenou nápravu se nedostane.`
-					: `${optionName} v kroku ${position} má nastavené větvení, ale blok je typu cvičení — žák bude vždy pokračovat dál a na připravenou nápravu se nedostane.`
+				`${optionName} v kroku ${position} má nastavené větvení, ale blok je typu cvičení — žák bude vždy pokračovat dál a na připravenou nápravu se nedostane.`
 			);
 			continue;
 		}

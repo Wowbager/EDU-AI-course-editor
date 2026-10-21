@@ -104,12 +104,12 @@ content is consumed. Keep these four in mind for every field.
 | `export_type` | `ExportMode` | Behaviour |
 |---|---|---|
 | `course_v2` | `courseV2` | Everything on: hints, help, solutions, per-option feedback, `go_to` branching. |
-| `exercise_v2` | `exerciseV2` | Hints/solutions still shown, but **`go_to` is ignored entirely** — every answer advances linearly (`GoToResolver.resolve`, first branch). |
+| `exercise_v2` | `exerciseV2` | **No effect.** Nothing in the app compares against `ExportMode.exerciseV2`; `GoToResolver.resolve` ignores `go_to` only for `BlockType.exercise` (`step_navigation.dart`), so the course behaves as `course_v2`. |
 | `quiz_v2` | `quizV2` | Test mode. Only the hint button survives in the action row (`block_step_engine.dart:1052`, `:1100`); bookmark / like / dislike are hidden. Combined with `quiz_evaluate: false` it also suppresses correct/incorrect marking and solutions (`hideEvaluation`, `lesson_detail_page.dart:1808`). |
 
-Note the separate axis: **`ExportMode.exerciseV2` is a property of the whole course**, while
-**`BlockType.exercise` is a property of one block** and *also* disables `go_to` for that block
-alone. Two different mechanisms, same consequence. The editor must make this non-confusing.
+Note the separate axis: **`ExportMode.exerciseV2` is a property of the whole course** and does
+nothing today, while **`BlockType.exercise` is a property of one block** and disables `go_to`
+for that block alone. The editor must make this non-confusing.
 
 ---
 
@@ -122,7 +122,7 @@ Edited today in `ADM/src/components/editors/CourseV2Editor.tsx`. Type: `CourseV2
 
 | Field | Type | Status | Meaning | Effect on the final practice |
 |---|---|---|---|---|
-| `export_type` | `"course_v2" \| "exercise_v2" \| "quiz_v2"` | ✅ | Package kind. | Selects the rendering mode — see §2. **Required**; the API rejects anything else (`CourseController@store`, rule `in:course_v2,exercise_v2,quiz_v2`). |
+| `export_type` | `"course_v2" \| "exercise_v2" \| "quiz_v2"` | ✅ | Package kind. | Selects the rendering mode — see §2. **Required.** The admin's `CourseController@store` accepts all three, but the editor's publish route `POST /api/courses/upload` accepts only `course_v2` (`UploadCourseRequest`, `in:course_v2`). |
 | `course_id` | string | ✅🟡 | Stable business key. | Part of the R2 path `courses/{course_id}/v{version}.json`. **Unique across the platform** (`unique:courses` on store). Changing it creates a new course, not a new version. |
 | `version` | int ≥ 1 | ✅🟡 | Content version. | Two effects: (a) it is in the R2 file path, so bumping it writes a *new* object rather than overwriting; (b) the app compares versions to decide whether to re-download (`course_repository.dart:494-499`). **An editor that saves without bumping `version` will not reach students who already downloaded the course.** This is the single most common authoring foot-gun. Conversely, a pending update **locks every lesson** behind an update banner until the student downloads it (`course_detail_page.dart:997-1003`, `_hasUpdate`) — so bumping the version mid-term interrupts students. |
 | `name` | string, ≤255 | ✅🟡 | Course title. | Course card and player header. Required by the API. |
@@ -503,7 +503,7 @@ Two rules that matter more than they look:
   (`defaults.ts::validateBlockForExport`). **A new editor should validate every non-keyword
   `go_to` against the union of {step ids in this block} ∪ {block ids in the course} and refuse
   to export dangling references.**
-* **`go_to` is ignored in `exercise` blocks and in `exercise_v2` courses.** Authoring a
+* **`go_to` is ignored in `exercise` blocks** (not in `exercise_v2` courses, see §2). Authoring a
   branching tree inside an exercise block silently produces linear behaviour. The editor should
   hide or disable the `go_to` column for `exercise` blocks (it already gates it with
   `showGoTo = blockType === "question"`) and warn on import when branches exist there.
@@ -885,4 +885,4 @@ blocks, question answered correctly first try, no hints), one practice card for
 | `options[].feedback` / `.feedback_image` | ✅ | misconception-specific response |
 | `options[].score_koef` | ✅ | partial credit — **only if `is_correct` is true** |
 | `options[].mark` | ✅ | Czech grade captured in quiz mode |
-| `options[].go_to` | ✅ | branch; ignored in exercise blocks / exercise_v2 |
+| `options[].go_to` | ✅ | branch; ignored in exercise blocks |

@@ -53,9 +53,9 @@
 	// The app reads an answer's "Kam dál" and grade only when the pupil picks one
 	// answer (`optionOutcomesApply`), so a question with several picks has neither.
 	const outcomes = $derived(optionOutcomesApply(step.question));
-	const branching = $derived(
-		outcomes && block.type === 'question' && doc.export_type !== 'exercise_v2'
-	);
+	// Kam dál is offered on question cards only. An exercise card ignores it
+	// (`domain/navigation.ts`); the course's export_type plays no part.
+	const branching = $derived(outcomes && block.type === 'question');
 	const quizMarks = $derived(
 		outcomes && (doc.export_type === 'quiz_v2' || doc.quiz_evaluate === true)
 	);

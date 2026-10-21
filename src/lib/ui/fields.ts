@@ -289,7 +289,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'teacher',
 		kind: 'custom',
 		label: 'Typ kurzu',
-		hint: 'Platí pro celý kurz, ne pro jednu kartu: Cvičení vypne větvení ve všech lekcích, Test navíc skryje nápovědy a řešení.',
+		hint: 'Platí pro celý kurz, ne pro jednu kartu. Cvičení se v aplikaci chová jako Kurz; Test skryje ukládání karet a zpětnou vazbu od AI, a bez vyhodnocení kvízu i výsledek a řešení.',
 		custom: true
 	},
 	{
