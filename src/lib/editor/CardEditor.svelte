@@ -50,7 +50,11 @@
 	} from '$lib/domain/commands';
 	import { lessonLabel } from '$lib/domain/naming';
 	import { cardActions } from './card-actions';
-	import { togetherChoice } from '$lib/domain/groups';
+	import {
+		checksQuestionsInOneTap,
+		keepsQuestionsTogether,
+		togetherChoice
+	} from '$lib/domain/groups';
 	import {
 		blockDurationMinutes,
 		derivedBlockXp,
@@ -116,7 +120,7 @@
 	const TYPE_TITLE = {
 		display: 'Typ karty: Výklad. Žák prochází kroky po jednom a mezi nimi kliká Pokračovat.',
 		question:
-			'Typ karty: Otázka. Kroky jsou v jedné bublině a žák je rovnou u otázky; další otázka se objeví, až odpoví na předchozí. Podle odpovědi ho lze poslat jinam.',
+			'Typ karty: Otázka. Kroky jsou v jedné bublině a žák je rovnou u otázky. Podle odpovědi ho lze poslat jinam.',
 		exercise:
 			'Typ karty: Cvičení — jedna karta uvnitř lekce. Jako Otázka, ale bez větvení. Nezaměňuj s typem celého kurzu „Cvičení“ v Nastavení kurzu ani se zařazením karty do denního opakování.'
 	} as const;
@@ -133,6 +137,11 @@
 	 * question. Branching (`go_to`) is honoured for `question` and ignored for
 	 * `exercise` (`step_navigation.dart`).
 	 *
+	 * A further question is a card of its own for the pupil, unless the card keeps
+	 * its questions together (`domain/groups.ts`): then they are all in one bubble,
+	 * and without an open one they are checked in one tap, branching between them
+	 * unused (`checksQuestionsInOneTap`).
+	 *
 	 * So the same question is a pause inside a reading in one case and the whole
 	 * point of the card in the other — which is the choice a teacher is making here
 	 * without being told.
@@ -147,9 +156,13 @@
 			? CONTENT_STEP_TITLE
 			: block.type === 'display'
 				? 'Otázka uvnitř výkladu: žák si přečte kroky nad ní, odpoví, a teprve pak se mu ukáže další krok. Slouží ke kontrole čtení. Má-li odpověď rozhodnout, co bude dál, udělej z otázky vlastní kartu typu Otázka — celou ji pak žák vidí jako jednu otázku a podle odpovědi ho lze poslat jinam.'
-				: block.type === 'exercise'
-					? 'Další úloha v téže bublině. Po odpovědi žák pokračuje rovnou na ni; větvení se v kartě typu Cvičení ignoruje, pořadí je vždy stejné.'
-					: 'Další otázka v téže bublině. Po odpovědi žák pokračuje rovnou na ni, nebo tam, kam ho pošle větvení u zvolené možnosti.';
+				: keepsQuestionsTogether(block)
+					? checksQuestionsInOneTap(block)
+						? 'Další otázka v téže bublině. Žák vidí všechny otázky naráz a zkontroluje je jedním tlačítkem; větvení mezi nimi se nepoužije.'
+						: 'Další otázka v téže bublině. Žák vidí všechny otázky naráz a odpovídá na ně postupně.'
+					: block.type === 'exercise'
+						? 'Další úloha. Žák ji dostane jako samostatnou kartu, až odpoví na předchozí; větvení se v kartě typu Cvičení ignoruje. Mají-li být úlohy pohromadě, zapni v nabídce ⋯ „Všechny otázky v jedné kartě“.'
+						: 'Další otázka. Žák ji dostane jako samostatnou kartu, až odpoví na předchozí, nebo tam, kam ho pošle větvení. Mají-li být otázky pohromadě, zapni v nabídce ⋯ „Všechny otázky v jedné kartě“.';
 
 	/**
 	 * Open the card's settings when something outside the editor points at the

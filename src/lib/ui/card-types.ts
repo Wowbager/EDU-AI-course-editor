@@ -20,10 +20,11 @@ export interface CardTypeInfo {
  *
  *  - `display` renders one step per card and only up to `_currentStepIndex`, so
  *    the student is shown a step at a time and taps to continue;
- *  - `question` and `exercise` go through `_buildExerciseCard()` — one bubble
- *    that grows question by question — and `_skipToNextQuestion()` runs on mount and after every
- *    answer, so the cursor lands straight on the question and the text around it
- *    is passive context that is never a stop;
+ *  - `question` and `exercise` go through `_buildExerciseCard()` — one bubble with
+ *    every step drawn from the start and its questions live (BR-E4H835) — and
+ *    `_skipToNextQuestion()` runs on mount and after every answer, so the cursor
+ *    lands straight on the question and the text around it is passive context that
+ *    is never a stop;
  *  - `exercise` additionally has `go_to` ignored (`step_navigation.dart`:
  *    `if (blockType == BlockType.exercise) return nextStep`).
  *
