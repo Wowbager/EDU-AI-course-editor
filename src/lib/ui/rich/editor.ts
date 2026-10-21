@@ -19,7 +19,7 @@ import { Image } from '@tiptap/extension-image';
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table';
 import { Placeholder } from '@tiptap/extensions';
 import { Slice, type Node as PMNode } from '@tiptap/pm/model';
-import { NodeSelection } from '@tiptap/pm/state';
+import { NodeSelection, type Transaction } from '@tiptap/pm/state';
 import {
 	parseMarkdown,
 	serializeMarkdown,
@@ -48,8 +48,8 @@ export interface RichEditorOptions {
 	onimage: () => void;
 	/** Something the field cannot take was pasted or dropped, such as an image file. */
 	onrefused: (message: string) => void;
-	/** Selection or formatting changed: the toolbar redraws. */
-	onstate: () => void;
+	/** Selection or formatting changed: the toolbar redraws, the formula row follows. */
+	onstate: (transaction: Transaction) => void;
 	/** Ctrl+Z / Ctrl+Y: the store undoes, after the run of typing is closed. */
 	onundo: (redo: boolean) => void;
 	/** Escape: whether the field took it (to revert the run of typing). */
@@ -140,7 +140,7 @@ export function createRichEditor(options: RichEditorOptions) {
 			}
 		},
 		onTransaction: ({ transaction }) => {
-			options.onstate();
+			options.onstate(transaction);
 			if (!transaction.docChanged || transaction.getMeta(EXTERNAL)) return;
 			// Only what the teacher did: typing, a toolbar button, a paste or a drop.
 			// A schema fix-up while loading is not an edit, and a text is never rewritten

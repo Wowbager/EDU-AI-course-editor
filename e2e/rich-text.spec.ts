@@ -183,6 +183,48 @@ test('Ctrl+Z in the text undoes the course, not just the field', async ({ page }
 	await expect(text(page).locator('strong')).toHaveText('světe');
 });
 
+test('a click back into the text closes the formula, and typing goes where it landed', async ({
+	page
+}) => {
+	// The row used to close only when focus left the whole field. A click into the
+	// same text left it open, still editing the formula the teacher had walked away from.
+	await text(page).click();
+	await page.keyboard.type('Plocha ');
+	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
+	const latex = page.getByRole('textbox', { name: 'Vzorec v LaTeXu' });
+	await latex.fill('x^2');
+
+	await text(page).click({ position: { x: 2, y: 2 } });
+	await expect(latex).toBeHidden();
+	await expect(toolbar(page)).toBeVisible();
+	await page.keyboard.type('Velká ');
+	await expect(text(page)).toContainText('Velká Plocha');
+	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec x^2');
+});
+
+test('a formula left empty by a click into the text is gone', async ({ page }) => {
+	await text(page).click();
+	await page.keyboard.type('Plocha ');
+	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
+	await expect(page.getByRole('textbox', { name: 'Vzorec v LaTeXu' })).toBeFocused();
+
+	await text(page).click({ position: { x: 2, y: 2 } });
+	await expect(page.getByRole('textbox', { name: 'Vzorec v LaTeXu' })).toBeHidden();
+	await expect(text(page).locator('.math')).toHaveCount(0);
+});
+
+test('undo while a formula is open closes its row with it', async ({ page }) => {
+	await text(page).click();
+	await page.keyboard.type('Plocha ');
+	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
+	const latex = page.getByRole('textbox', { name: 'Vzorec v LaTeXu' });
+	await latex.pressSequentially('x^2');
+	await expect(text(page).locator('.math')).toHaveCount(1);
+
+	await page.keyboard.press('Control+z');
+	await expect(latex).toBeHidden();
+});
+
 test('a formula and an image open from the keyboard, as they do with a click', async ({ page }) => {
 	// Copilot, PR #3: a formula inside the text was a button nobody could reach without
 	// a mouse. The arrows land on it like on a letter; Enter opens it.

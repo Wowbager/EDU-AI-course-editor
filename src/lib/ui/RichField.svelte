@@ -30,6 +30,7 @@
 	} from '@lucide/svelte';
 	import { canEditVisually, type MarkdownDialect } from '$lib/domain/markdown';
 	import type { Ref } from '$lib/domain/ref';
+	import type { Transaction } from '@tiptap/pm/state';
 	import { markdownEditor } from './codemirror';
 	import { useStore } from './context';
 	import Menu from './Menu.svelte';
@@ -118,7 +119,10 @@
 				onmath: openMath,
 				onimage: () => openImage(),
 				onrefused: (message) => (refused = message),
-				onstate: () => tick++,
+				onstate: (transaction) => {
+					tick++;
+					followFormula(transaction);
+				},
 				onundo: (redo) => {
 					// The run ends here; what is typed after the undo is a run of its own.
 					typing.end();
@@ -238,6 +242,8 @@
 
 	// ─── Formula row ────────────────────────────────────────────────────────
 
+	/** Marks the row's own edits, which are not the teacher leaving the formula. */
+	const FORMULA_ROW = 'formula-row';
 	let mathPos = $state<number | null>(null);
 	let mathLatex = $state('');
 	let mathDisplay = $state(false);
@@ -277,19 +283,37 @@
 					display: mathDisplay
 				})
 				.setMeta('teacher', true)
+				.setMeta(FORMULA_ROW, true)
 		);
 	}
 
-	function closeMath() {
+	/**
+	 * `caret`: put the caret back after the formula. Not when the teacher has already
+	 * put it somewhere else — that would undo their click.
+	 */
+	function closeMath(caret = true) {
 		const e = editor();
-		if (e && mathPos !== null) {
-			const node = e.state.doc.nodeAt(mathPos);
-			// An empty formula is no formula.
-			if (node?.type.name === 'math' && String(node.attrs.latex).trim() === '')
-				e.view.dispatch(e.state.tr.delete(mathPos, mathPos + 1).setMeta('teacher', true));
-			else if (node) e.commands.setTextSelection(mathPos + 1);
-		}
+		const pos = mathPos;
+		// Cleared first: what is dispatched below comes back through `followFormula`.
 		mathPos = null;
+		if (!e || pos === null) return;
+		const node = e.state.doc.nodeAt(pos);
+		// An empty formula is no formula.
+		if (node?.type.name === 'math' && String(node.attrs.latex).trim() === '')
+			e.view.dispatch(e.state.tr.delete(pos, pos + 1).setMeta('teacher', true));
+		else if (node && caret) e.commands.setTextSelection(pos + 1);
+	}
+
+	/**
+	 * The row edits one formula while the teacher is on it. A click or an arrow back
+	 * into the text, or a change made elsewhere (undo), is leaving it: focus stays
+	 * inside the field, so `onfocusout` never sees it. The position is mapped first,
+	 * since the text around the formula may have just moved.
+	 */
+	function followFormula(transaction: Transaction) {
+		if (mathPos === null || transaction.getMeta(FORMULA_ROW)) return;
+		mathPos = transaction.mapping.map(mathPos);
+		if (transaction.selectionSet || transaction.docChanged) closeMath(false);
 	}
 
 	function mathKeys(event: KeyboardEvent) {
@@ -451,7 +475,8 @@
 					<button
 						type="button"
 						class="icon-button"
-						onclick={() => window.open('https://katex.org/docs/supported.html', '_blank', 'noopener')}
+						onclick={() =>
+							window.open('https://katex.org/docs/supported.html', '_blank', 'noopener')}
 						title="Nápověda k LaTeXu"
 						aria-label="Nápověda k LaTeXu"
 					>
