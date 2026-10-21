@@ -69,7 +69,7 @@
 	}: Props = $props();
 
 	const store = useStore();
-	// The rows' four actions; the rail has its own copy of these calls (`card-actions.ts`).
+	// The rows' actions; the rail has its own copy of these calls (`card-actions.ts`).
 	const actions = cardActions(store, {
 		onsettings: (blockId) => oncardSettings(blockId),
 		onrepair: (blockId) => onrepairBlock(blockId)

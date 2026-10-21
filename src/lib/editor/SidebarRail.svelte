@@ -6,9 +6,9 @@
 	 * add a card — and drops the text.
 	 *
 	 * A tile is an icon and nothing else. What can be done to a card (settings,
-	 * duplicate, remove from the lesson, delete) is in a panel that opens beside the
-	 * tile on hover or focus (`RailPeek`), the same four actions as the tree's rows
-	 * (`CardActions`). A lesson circle opens a lighter one, with its totals and its
+	 * duplicate, its questions in one card, remove from the lesson, delete) is in a
+	 * panel that opens beside the tile on hover or focus (`RailPeek`), the same actions
+	 * as the tree's rows (`CardActions`). A lesson circle opens a lighter one, with its totals and its
 	 * settings.
 	 *
 	 * The card zone's state (`cards`, the drag handlers and the keys) belongs to

@@ -45,7 +45,7 @@ export function cardActions(store: DocStore, handlers: CardActionHandlers) {
 		 * whole for jumps between its own questions can be split only in Pokročilý,
 		 * which shows what that does to the jumps.
 		 */
-		together(card: BlockV2): { on: boolean } | undefined {
+		together(card: BlockV2): ReturnType<typeof togetherChoice> {
 			const choice = togetherChoice(store.source, card);
 			return choice?.locked && store.mode !== 'advanced' ? undefined : choice;
 		},

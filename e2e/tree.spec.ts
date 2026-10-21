@@ -119,14 +119,14 @@ test('Alt+ArrowUp on the first card changes nothing and is not an edit', async (
 	await expect(undo).toBeDisabled();
 });
 
-/** A row's four actions are its own siblings, faded in on hover and on the selected row. */
+/** A row's actions are its own siblings, faded in on hover and on the selected row. */
 const actionsOf = (page: Page, position: number) =>
 	page
 		.locator('.cards > li')
 		.nth(position - 1)
 		.locator('.tree-actions');
 
-test('a row shows its four actions on hover and on the selected row, and only there', async ({
+test('a row shows its actions on hover and on the selected row, and only there', async ({
 	page
 }) => {
 	await expect(actionsOf(page, 1)).toHaveCSS('opacity', '1');

@@ -283,15 +283,13 @@
 		outline-offset: 1px;
 	}
 
-	/* A toggle that is on: tinted, like a pressed ghost button. */
-	.action[aria-pressed='true'] {
-		background: var(--primary-dark-08);
-		color: var(--e-text);
-		box-shadow: inset 0 0 0 1px var(--primary-dark-16);
-	}
-
+	/* A toggle that is on: filled with the accent, as the rail marks the open card,
+	   so it does not read as the grey of a hover. */
+	.action[aria-pressed='true'],
 	.action[aria-pressed='true']:hover {
-		background: var(--primary-dark-12);
+		background: color-mix(in srgb, var(--primary) 26%, var(--surface));
+		color: var(--e-text);
+		box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 60%, transparent);
 	}
 
 	.rule {
