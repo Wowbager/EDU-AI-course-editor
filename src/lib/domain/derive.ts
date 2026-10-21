@@ -24,7 +24,7 @@ export function blockDurationMinutes(block: BlockV2): number | undefined {
  * §10 — the most XP a block can award, which the app shows as the lesson's reward:
  * +1 per content step, +8 per question step, never below 1 (`course_model.dart`,
  * `_calculateBlockMaxXp`; a legacy `evaluation` step counts as a question). A pupil
- * earns 8 for a question answered right without a hint and 5 otherwise
+ * earns 8 for a question whose score is full (`scoreKoef >= 1`) and 5 otherwise
  * (`block_step_engine.dart`, `_completeBlock`). An authored `xp` is read by nothing.
  */
 export function derivedBlockXp(block: BlockV2): number {

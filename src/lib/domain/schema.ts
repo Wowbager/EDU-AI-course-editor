@@ -44,10 +44,13 @@ export const questionOptionSchema = z.looseObject({
 	go_to: z.string().nullable().optional()
 });
 
-/** One rubric line the app sends to the AI with an open answer (`QuestionCriterion`). */
+/**
+ * One rubric line the app sends to the AI with an open answer (`QuestionCriterion`).
+ * The app reads a missing id or name as empty, so a file without them still loads.
+ */
 export const aiCriterionSchema = z.looseObject({
-	id: z.string(),
-	name: z.string(),
+	id: z.string().optional(),
+	name: z.string().optional(),
 	description: z.string().optional(),
 	weight: z.number().int().optional()
 });

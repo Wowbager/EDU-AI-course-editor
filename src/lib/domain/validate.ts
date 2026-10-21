@@ -22,7 +22,7 @@ import type { Ref } from './ref';
 import { buildIndex, isGoToKeyword, reachableSteps, type DocIndex } from './index-doc';
 import { blockDurationMinutes, isPracticeBlock, optionOutcomesApply } from './derive';
 import { goToIgnored } from './navigation';
-import { mediaHidden } from './media';
+import { mediaHidden, positionField } from './media';
 import { skipConditionSupported } from './practice';
 import { AI_CRITERIA_MAX, GUIDED_ATTEMPTS_MAX, GUIDED_ATTEMPTS_MIN } from './question-settings';
 import { dimensionCount, ELO_MAX, ELO_MIN, type SkillConfig } from './skill-config';
@@ -503,14 +503,16 @@ function checkAiSettings(question: QuestionConfig, ref: Ref, position: number, a
 	if (
 		question.ai_guided === true &&
 		typeof attempts === 'number' &&
-		(attempts < GUIDED_ATTEMPTS_MIN || attempts > GUIDED_ATTEMPTS_MAX)
+		(!Number.isInteger(attempts) ||
+			attempts < GUIDED_ATTEMPTS_MIN ||
+			attempts > GUIDED_ATTEMPTS_MAX)
 	) {
 		const used = Math.min(GUIDED_ATTEMPTS_MAX, Math.max(GUIDED_ATTEMPTS_MIN, Math.trunc(attempts)));
 		add(
 			'warning',
 			'W_GUIDED_ATTEMPTS_RANGE',
 			{ ...ref, field: 'question.ai_guided_attempts' },
-			`Otázka v kroku ${position} dává ${attempts} pokusů; aplikace jich umí ${GUIDED_ATTEMPTS_MIN}–${GUIDED_ATTEMPTS_MAX}, takže žák dostane ${used}.`
+			`Otázka v kroku ${position} dává ${attempts} pokusů; aplikace bere celé číslo ${GUIDED_ATTEMPTS_MIN}–${GUIDED_ATTEMPTS_MAX}, takže žák dostane ${used}.`
 		);
 	}
 	const criteria = question.ai_criteria_list ?? [];
@@ -738,7 +740,7 @@ function checkMedia(block: BlockV2, step: BlockStep, add: Add) {
 		add(
 			'warning',
 			'W_MEDIA_HIDDEN',
-			{ ...ref, field: `${media}.position` },
+			{ ...ref, field: positionField(step) },
 			`${media === 'image' ? 'Obrázek' : 'Video'} v kroku ${position} má umístění, které aplikace neumí vykreslit — žák ho neuvidí. Zvol „Nad textem“ nebo „Pod textem“.`
 		);
 	}
@@ -1019,7 +1021,7 @@ function checkCourseLevel(doc: CourseV2, index: DocIndex, options: ValidateOptio
 				'warning',
 				'W_ONLY_ONCE_WITH_PRACTICE',
 				{ field: 'only_once' },
-				`Kurz je nastavený na jediné projití, ale ${practice.length} blok(ů) je zařazeno do cvičení. Z kurzu na jedno projití aplikace do cvičení nic nezařadí, takže se žákovi neukážou.`
+				`Kurz je nastavený na jediné projití, ale ${practice.length} blok(ů) je zařazeno do cvičení. Z kurzu na jedno projití aplikace nic nezařadí do denního opakování.`
 			);
 		}
 	}

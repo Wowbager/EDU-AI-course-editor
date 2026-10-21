@@ -369,7 +369,7 @@
 
 		<Chip
 			tone="quiet"
-			title={`Nejvýš ${xp} XP: 8 XP za každou otázku zodpovězenou správně bez nápovědy (jinak 5), 1 XP za obsahový krok. Platí hned, i když je karta ještě rozepsaná.`}
+			title={`Nejvýš ${xp} XP: 8 XP za každou otázku zodpovězenou správně za plný počet bodů (jinak 5), 1 XP za obsahový krok. Platí hned, i když je karta ještě rozepsaná.`}
 		>
 			{xp} XP
 		</Chip>

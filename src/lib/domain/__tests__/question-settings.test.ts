@@ -54,6 +54,9 @@ describe('AI settings the app would correct', () => {
 
 	it('says when the attempts are outside 1–10', () => {
 		expect(codes({ ai_guided: true, ai_guided_attempts: 12 })).toContain('W_GUIDED_ATTEMPTS_RANGE');
+		expect(codes({ ai_guided: true, ai_guided_attempts: 2.5 })).toContain(
+			'W_GUIDED_ATTEMPTS_RANGE'
+		);
 		expect(codes({ ai_guided: true, ai_guided_attempts: 5 })).not.toContain(
 			'W_GUIDED_ATTEMPTS_RANGE'
 		);

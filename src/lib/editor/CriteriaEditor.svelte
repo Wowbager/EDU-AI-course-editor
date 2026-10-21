@@ -11,7 +11,8 @@
 	 */
 	import type { AiCriterion } from '$lib/domain/schema';
 	import { AI_CRITERIA_MAX } from '$lib/domain/question-settings';
-	import { parseNumberInput } from '$lib/domain/number-input';
+	import { formatNumberInput, typedNumber } from '$lib/domain/number-input';
+	import { uniqueKeys } from '$lib/ui/keys';
 	import FocusField from '$lib/ui/FocusField.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import { Plus, Trash } from '@lucide/svelte';
@@ -24,6 +25,8 @@
 	let { criteria, hint, onchange }: Props = $props();
 
 	const rows = $derived(criteria ?? []);
+	// An imported list may repeat an id or have none; the keys stay unique anyway.
+	const keys = $derived(uniqueKeys(rows.map((row) => row.id ?? '')));
 	const uid = $props.id();
 
 	function freshId(): string {
@@ -53,7 +56,7 @@
 		<span class="title" id={`${uid}-title`}>Kritéria hodnocení</span>
 		{#if hint}<span class="hint">{hint}</span>{/if}
 	</div>
-	{#each rows as row, i (row.id)}
+	{#each rows as row, i (keys[i])}
 		<div class="row" role="group" aria-label={`Kritérium ${i + 1}`}>
 			<FocusField
 				label={`Název kritéria ${i + 1}`}
@@ -70,12 +73,12 @@
 			<div class="weight">
 				<FocusField
 					label={`Váha kritéria ${i + 1}`}
-					value={row.weight === undefined ? undefined : String(row.weight)}
+					value={formatNumberInput(row.weight)}
 					emptyText="váha"
 					onchange={(v) => {
-						if (v === undefined || v.trim() === '') return update(i, { weight: undefined });
-						const n = parseNumberInput(v);
-						if (n !== undefined) update(i, { weight: Math.round(n) });
+						const typed = typedNumber(v);
+						if (typed === null) return;
+						update(i, { weight: typed.value === undefined ? undefined : Math.round(typed.value) });
 					}}
 				/>
 			</div>

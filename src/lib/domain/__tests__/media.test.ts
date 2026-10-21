@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mediaHidden, mediaPosition, mediaPositionApplies } from '../media';
+import { mediaHidden, mediaPosition, mediaPositionApplies, positionField } from '../media';
 import type { BlockStep } from '../schema';
 
 const step = (fields: Partial<BlockStep> & Record<string, unknown>): BlockStep =>
@@ -27,5 +27,11 @@ describe('media position (block_model.dart, step_content_renderer.dart)', () => 
 		expect(mediaHidden(step({ image: image('above') }), 'image')).toBe(false);
 		expect(mediaHidden(step({ image: image() }), 'image')).toBe(false);
 		expect(mediaHidden(step({ type: 'image', image: image('inline') }), 'image')).toBe(false);
+	});
+
+	it('points a warning at the field the app reads', () => {
+		expect(positionField(step({ position: 'inline', image: image('above') }))).toBe('position');
+		expect(positionField(step({ image: image('inline') }))).toBe('image.position');
+		expect(positionField(step({ video: { url: 'v', position: 'inline' } }))).toBe('video.position');
 	});
 });

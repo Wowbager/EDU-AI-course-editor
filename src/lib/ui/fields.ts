@@ -407,7 +407,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'toggle',
 		label: 'Jen jednou',
-		hint: 'Po dokončení se žák do kurzu už nikdy nedostane. Nelze vzít zpět. Karty z něj se do cvičení nezařadí.'
+		hint: 'Po dokončení se žák do kurzu už nikdy nedostane. Nelze vzít zpět. Karty z něj se nezařadí do denního opakování.'
 	},
 	{
 		level: 'course',
@@ -1295,7 +1295,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'custom',
 		label: 'Kritéria hodnocení',
-		hint: 'Až čtyři body, které má AI posoudit. Váha říká, jak moc který bod počítá.',
+		hint: 'Až čtyři body, které má AI posoudit, každý s celočíselnou vahou.',
 		custom: true
 	},
 	{

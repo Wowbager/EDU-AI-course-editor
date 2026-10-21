@@ -31,3 +31,12 @@ export function mediaHidden(step: BlockStep, media: Media): boolean {
 	const position = mediaPosition(step);
 	return position !== undefined && position !== 'above' && position !== 'below';
 }
+
+/**
+ * The field the app's position is read from, so a warning points where changing it
+ * helps: the step's own `position` wins over the image's, and that over the video's.
+ */
+export function positionField(step: BlockStep): string {
+	if (typeof (step as Record<string, unknown>).position === 'string') return 'position';
+	return typeof step.image?.position === 'string' ? 'image.position' : 'video.position';
+}

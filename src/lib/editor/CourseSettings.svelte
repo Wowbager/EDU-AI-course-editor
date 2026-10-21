@@ -81,13 +81,13 @@
 			// untouched — this still writes `exercise_v2`.
 			label: 'Cvičení (celý kurz)',
 			title:
-				'Nastavení celého kurzu — není to karta typu Cvičení uvnitř lekce ani zařazení karty do denního opakování. Aplikace ho dnes zobrazuje stejně jako Kurz: větvení, nápovědy i řešení fungují. Server zatím přijímá jen typ Kurz.'
+				'Nastavení celého kurzu — není to karta typu Cvičení uvnitř lekce ani zařazení karty do denního opakování. Aplikace ho dnes zobrazuje stejně jako Kurz: větvení, nápovědy i řešení fungují. Nahrání kurzu zatím přijme jen typ Kurz.'
 		},
 		{
 			value: 'quiz_v2',
 			label: 'Test',
 			title:
-				'Celý kurz jako test: žák si karty neukládá, nedostává zpětnou vazbu od AI a nemůže odpověď opravit. Nápověda zůstává. Bez zapnutého vyhodnocení kvízu se nedozví, jak odpověděl, ani řešení. Server zatím přijímá jen typ Kurz.'
+				'Celý kurz jako test: žák si karty neukládá, nedostává zpětnou vazbu od AI a nemůže odpověď opravit. Nápověda zůstává. Bez zapnutého vyhodnocení kvízu se nedozví, jak odpověděl, ani řešení. Nahrání kurzu zatím přijme jen typ Kurz.'
 		}
 	];
 </script>

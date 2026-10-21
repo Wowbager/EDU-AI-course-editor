@@ -552,7 +552,7 @@ XP is the student-facing reward signal. **The app has no authored input to it:**
 
 ```
 +1 per content step
-+8 per question answered correctly without a hint (score_koef ≥ 1), +5 per other question
++8 per question answered with a full score (score_koef ≥ 1), +5 per other question
 ```
 
 The lesson card promises the maximum, +1 per content step and +8 per question step
@@ -768,8 +768,8 @@ student. Hints are not free, and that is deliberate.
 10. `is_correct: false` combined with `score_koef > 0` — the app scores a wrong answer 0, so the
     share is never used.
 11. A lesson of more than ~12 blocks, or a block of more than ~10 steps — likely wants splitting.
-12. `only_once` combined with `default_practice` — the app creates no practice card from an
-    `only_once` course, so the flags do nothing.
+12. `only_once` combined with `default_practice` — the app seeds no spaced-repetition card from
+    an `only_once` course (`seedCardsFromCourse`); the blocks still list in its Cvičení.
 13. Prerequisites with `min_level ≥ 0.9` — very likely to lock the block permanently.
 14. An `open` question with no `correct_answer` — the AI still grades it, but offline every
     answer is wrong.

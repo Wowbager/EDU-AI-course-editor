@@ -170,7 +170,7 @@ test('the XP chip is the most the steps can earn, a typed xp included', async ({
 	await openEditor(page);
 	const card = page.locator('main .card');
 	// The explanation is on the chip itself, so it does not take a line on every card.
-	const xpChip = card.getByTitle(/8 XP za každou otázku zodpovězenou správně bez nápovědy/);
+	const xpChip = card.getByTitle(/8 XP za každou otázku zodpovězenou správně za plný počet bodů/);
 	await expect(xpChip).toHaveText('1 XP');
 	await expect(xpChip).toHaveAttribute('title', /i když je karta ještě rozepsaná/);
 	await addStep(page, 'Otázka', card);

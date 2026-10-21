@@ -113,8 +113,8 @@ case (`onlyBlockMarkers`).
 publish route (`api/client.ts`), validates `export_type` as `in:course_v2` only
 (`UploadCourseRequest`), while the admin's `store` accepts all three. Publishing is not
 wired to a button yet (DECISIONS "Still open" 2); when it is, an `exercise_v2` or
-`quiz_v2` course gets a 422. The course-type titles say "Server zatím přijímá jen typ
-Kurz." Note also that `exercise_v2` has no effect in the app (Round 23).
+`quiz_v2` course gets a 422. The course-type titles say "Nahrání kurzu zatím přijme
+jen typ Kurz." Note also that `exercise_v2` has no effect in the app (Round 23).
 
 ### 57. A step's practice flag lists a card in the course's exercises but seeds no review card — app-side
 **Verified: by reading the code** (Round 23). `Course.getDefaultPracticeBlocks` honours a

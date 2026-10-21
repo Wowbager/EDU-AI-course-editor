@@ -56,3 +56,51 @@ test('the course offers open lessons, shuffling and which attempt counts', async
 	await turnOn(modal, 'Míchat odpovědi');
 	await expect(modal.getByRole('radiogroup', { name: 'Který pokus se počítá' })).toBeVisible();
 });
+
+test('an imported rubric with missing or repeated ids opens, one row per criterion', async ({
+	page
+}) => {
+	await openEditor(page);
+	const doc = {
+		export_type: 'course_v2',
+		course_id: 'c',
+		name: 'Kurz',
+		lessons: [{ lesson_id: 'l', name: 'Lekce', blocks: [{ block_id: 'b' }] }],
+		blocks: [
+			{
+				block_id: 'b',
+				type: 'question',
+				steps: [
+					{
+						id: 's1',
+						type: 'question',
+						content: 'Proč?',
+						question: {
+							type: 'open',
+							correct_answer: 'Protože.',
+							ai_criteria_list: [
+								{ name: 'a' },
+								{ name: 'b' },
+								{ id: 'x', name: 'c' },
+								{ id: 'x', name: 'd' }
+							]
+						}
+					}
+				]
+			}
+		]
+	};
+	await page.setInputFiles('input[type=file]', {
+		name: 'rubric.json',
+		mimeType: 'application/json',
+		buffer: Buffer.from(JSON.stringify(doc))
+	});
+	await page.getByRole('radio', { name: 'Pokročilý' }).click();
+	await page.locator('.tree-card').first().click();
+	const step = page.locator('.step', {
+		has: page.getByRole('radio', { name: 'Otevřená odpověď' })
+	});
+	await openSection(step, 'Další nastavení kroku');
+	for (const n of [1, 2, 3, 4])
+		await expect(step.getByRole('textbox', { name: `Název kritéria ${n}` })).toBeVisible();
+});
