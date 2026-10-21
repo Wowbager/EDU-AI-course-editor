@@ -7,8 +7,9 @@
  * practice card, one ELO update, one entry in Kvíz. A block with two questions is
  * graded as if it had one. So the document keeps every question in its own block, and
  * the blocks that one teacher's card became carry the same `group` key. A card whose
- * questions really belong together (a retry that branches inside the card) is marked
- * `multi_question: true` by the advanced author and stays one block.
+ * questions belong together is marked `multi_question: true` and stays one block: the
+ * teacher asked for it („Všechny otázky v jedné kartě“, `togetherChoice`), or an
+ * imported card branches inside itself.
  *
  * The teacher never sees the split. `toView` merges a group back into one card for the
  * Učitel and Metodik modes, and `fromView` writes an edit of that card back into the
@@ -64,6 +65,17 @@ export const questionCount = (block: BlockV2): number => block.steps.filter(isQu
 
 /** Whether the app would grade this block's questions as one item. */
 export const gradesQuestionsTogether = (block: BlockV2): boolean => questionCount(block) > 1;
+
+/**
+ * Whether the app checks this block's questions in one tap, scoring the share answered
+ * correctly and ignoring every jump to one of the block's own steps
+ * (`block_step_engine.dart` `_isBatchBlock`, `_confirmAllAnswers`). An open answer
+ * goes to the AI one question at a time, so a block holding one is checked as before.
+ */
+export const checksQuestionsInOneTap = (block: BlockV2): boolean =>
+	block.type !== 'display' &&
+	gradesQuestionsTogether(block) &&
+	!block.steps.some((s) => isQuestion(s) && s.question?.type === 'open');
 
 /** The groups of a document: key → its blocks, in document order. */
 export function groupsOf(doc: CourseV2): Map<string, BlockV2[]> {
@@ -550,8 +562,30 @@ export function branchesInside(block: BlockV2): boolean {
 }
 
 /**
- * Merge a group into one block that keeps its questions together (the advanced
- * toggle). The block keeps the group's key as its id when that is still free, so
+ * What „Všechny otázky v jedné kartě“ in a card's ⋯ menu would do, for the card as the
+ * current mode shows it (`card` is a view card, or a block in Pokročilý), against the
+ * exported document. Offered only where there are two questions to put together.
+ * `locked`: the card was kept whole because it jumps between its own questions
+ * (`branchesInside`); split, those jumps would change the path the author built.
+ */
+export function togetherChoice(
+	source: CourseV2,
+	card: BlockV2
+): { on: boolean; key: string; locked: boolean } | undefined {
+	if (keepsQuestionsTogether(card)) {
+		if (questionCount(card) < 2) return undefined;
+		return { on: true, key: card.block_id, locked: branchesInside(card) };
+	}
+	const key = membersOf(card) !== undefined ? card.block_id : groupOf(card);
+	if (key === undefined) return undefined;
+	const members = groupsOf(source).get(key) ?? [];
+	const count = members.reduce((sum, b) => sum + questionCount(b), 0);
+	return count < 2 ? undefined : { on: false, key, locked: false };
+}
+
+/**
+ * Merge a group into one block that keeps its questions together („Všechny otázky
+ * v jedné kartě“). The block keeps the group's key as its id when that is still free, so
  * what pointed at the card still does.
  */
 export function mergeQuestionCard(doc: CourseV2, key: string): CourseV2 {
@@ -619,7 +653,7 @@ export function resplitChanged(
 	return fromView(after, view, edited, reserved);
 }
 
-/** The advanced toggle's other way: split a block kept together into its group. */
+/** „Všechny otázky v jedné kartě“ turned off: split a block kept together into its group. */
 export function splitQuestionCard(
 	doc: CourseV2,
 	blockId: string,

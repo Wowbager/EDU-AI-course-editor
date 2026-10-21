@@ -19,8 +19,6 @@
 	import type { BlockV2, CourseV2, LessonBlockBinding } from '$lib/domain/schema';
 	import Modal from '$lib/ui/Modal.svelte';
 	import Button from '$lib/ui/Button.svelte';
-	import { counted } from '$lib/ui/plural';
-	import Toggle from '$lib/ui/Toggle.svelte';
 	import FieldGroup from '$lib/ui/FieldGroup.svelte';
 	import SettingsNav from '$lib/ui/SettingsNav.svelte';
 	import TopicPicker from './TopicPicker.svelte';
@@ -33,13 +31,6 @@
 	import { SettingsSearch, setSettingsSearch } from '$lib/ui/settings-search.svelte';
 	import { setField, setPractice } from '$lib/domain/commands';
 	import { bindingFlagsPractice, isPracticeBlock } from '$lib/domain/derive';
-	import {
-		groupOf,
-		keepsQuestionsTogether,
-		mergeQuestionCard,
-		questionCount,
-		splitQuestionCard
-	} from '$lib/domain/groups';
 
 	interface Props {
 		doc: CourseV2;
@@ -126,61 +117,12 @@
 	}
 	const readBinding = (path: string): unknown =>
 		(binding as Record<string, unknown> | undefined)?.[path];
-
-	/**
-	 * Whether this card's questions are graded as one item (`domain/groups.ts`). Every
-	 * question is its own card by default; the advanced author may keep a card whole,
-	 * for a retry that branches between its own questions. Offered only where there
-	 * is more than one question to keep together.
-	 */
-	const together = $derived(keepsQuestionsTogether(block));
-	const card = $derived(groupOf(block));
-	const canKeepTogether = $derived(
-		mode === 'advanced' &&
-			block.type !== 'display' &&
-			(together ||
-				(card !== undefined && store.source.blocks.filter((b) => groupOf(b) === card).length > 1))
-	);
-
-	/** What flipping the toggle would do, said before it is flipped. */
-	const togetherConsequence = $derived.by(() => {
-		if (together) {
-			const n = questionCount(block);
-			return `Rozdělí kartu na ${counted(n, 'samostatnou kartu', 'samostatné karty', 'samostatných karet')}.`;
-		}
-		if (card === undefined) return '';
-		const n = store.source.blocks
-			.filter((b) => groupOf(b) === card)
-			.reduce((sum, b) => sum + Math.max(1, questionCount(b)), 0);
-		return `Spojí ${counted(n, 'otázku', 'otázky', 'otázek')} této karty do jedné.`;
-	});
-
-	function keepTogether(on: boolean) {
-		if (on && card !== undefined) {
-			store.applySource((d) => ({
-				doc: mergeQuestionCard(d, card),
-				description: 'Otázky karty spojeny do jedné',
-				ref: { lessonId, blockId: card }
-			}));
-		} else if (!on && together) {
-			store.applySource((d, reserved) => ({
-				doc: splitQuestionCard(d, block.block_id, reserved),
-				description: 'Otázky karty rozděleny do samostatných karet',
-				ref: { lessonId, blockId: block.block_id }
-			}));
-		}
-	}
 </script>
 
 {#snippet pane(id: string)}
 	{#if id === 'main'}
 		<div class="main">
 			<FieldGroup fields={inSection('main')} {read} write={set} />
-			{#if together && questionCount(block) > 1 && mode !== 'advanced'}
-				<p class="note">
-					Otázky této karty se žákovi hodnotí jako jedna (nastaveno v pokročilém režimu).
-				</p>
-			{/if}
 		</div>
 	{:else if id === 'ladder'}
 		<p class="note">Použije se u kroků, které nemají nápovědu vlastní.</p>
@@ -208,15 +150,6 @@
 			<code>{block.block_id}</code>
 		</div>
 		<FieldGroup fields={inSection('meta')} {read} write={set} />
-		{#if canKeepTogether}
-			<Toggle
-				checked={together}
-				label="Více otázek v jedné kartě"
-				hint="Žák dostane otázky v jedné kartě a aplikace je hodnotí jako jednu: nejlepší skóre, poslední známka, jedna karta k procvičování. Vypnuto: každá otázka je vlastní karta."
-				onchange={keepTogether}
-			/>
-			<p class="note" data-testid="together-consequence">{togetherConsequence}</p>
-		{/if}
 	{/if}
 {/snippet}
 

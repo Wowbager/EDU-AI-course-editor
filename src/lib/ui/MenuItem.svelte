@@ -14,9 +14,19 @@
 		disabled?: boolean;
 		/** Removal: the text is the error colour. */
 		danger?: boolean;
+		/** Set for an item that is on or off: it is then a checkbox in the menu. */
+		checked?: boolean;
 		children: Snippet;
 	}
-	let { onclick, icon: Icon, title, disabled = false, danger = false, children }: Props = $props();
+	let {
+		onclick,
+		icon: Icon,
+		title,
+		disabled = false,
+		danger = false,
+		checked,
+		children
+	}: Props = $props();
 
 	const menu = useMenu();
 
@@ -28,7 +38,8 @@
 
 <button
 	type="button"
-	role="menuitem"
+	role={checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
+	aria-checked={checked}
 	tabindex="-1"
 	class="menu-item"
 	class:danger

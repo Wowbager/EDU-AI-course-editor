@@ -11,6 +11,8 @@ import type { DocStore, UndoEntry } from '$lib/state/doc-store.svelte';
 import type { Ref } from '$lib/domain/ref';
 import { deleteBlock, duplicateBlock, unbindBlock } from '$lib/domain/commands';
 import { quickDelete } from '$lib/domain/card-delete';
+import { mergeQuestionCard, splitQuestionCard, togetherChoice } from '$lib/domain/groups';
+import type { BlockV2 } from '$lib/domain/schema';
 import { lessonLabel } from '$lib/domain/naming';
 import { notices } from '$lib/state/notice.svelte';
 
@@ -34,6 +36,29 @@ export function cardActions(store: DocStore, handlers: CardActionHandlers) {
 		/** The copy goes right after the card and is selected. */
 		duplicate(blockId: string, lessonId: string | undefined) {
 			store.apply((d, r) => duplicateBlock(d, blockId, lessonId, r));
+		},
+
+		/**
+		 * „Všechny otázky v jedné kartě“: put the card's questions in one exported block,
+		 * which the pupil checks in one tap, or split them again into one block each.
+		 * One undoable edit; the card stays selected.
+		 */
+		toggleTogether(card: BlockV2, lessonId: string | undefined) {
+			const choice = togetherChoice(store.source, card);
+			if (choice === undefined) return;
+			const { key } = choice;
+			if (choice.on)
+				store.applySource((d, reserved) => ({
+					doc: splitQuestionCard(d, key, reserved),
+					description: 'Otázky karty rozděleny',
+					ref: { lessonId, blockId: key }
+				}));
+			else
+				store.applySource((d) => ({
+					doc: mergeQuestionCard(d, key),
+					description: 'Otázky karty v jedné kartě',
+					ref: { lessonId, blockId: key }
+				}));
 		},
 
 		/**

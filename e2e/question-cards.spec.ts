@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs';
-import { addStep, expect, openEditor, openSection, test, type Page } from './fixtures';
+import { addStep, cardMenu, expect, openEditor, test, type Page } from './fixtures';
 
 /**
  * Every question is its own card in the app, because the app grades a card as one
  * item (`src/lib/domain/groups.ts`). The teacher never sees that: in Učitel and
  * Metodik a card with three questions is one card. Pokročilý shows the cards the
- * course is exported as, and can keep one card's questions together on purpose.
+ * course is exported as. In every mode, the card's ⋯ menu can keep its questions
+ * together in one exported block („Všechny otázky v jedné kartě“).
  *
  * What is exported is read from the draft the editor keeps in the browser, which is
  * the exported document.
@@ -34,6 +35,12 @@ async function exported(page: Page): Promise<Course> {
 }
 
 const questions = (block: Block) => block.steps.filter((s) => s.type === 'question').length;
+
+/** „Všechny otázky v jedné kartě“ in the open card's ⋯ menu, with the menu open. */
+async function togetherItem(page: Page) {
+	const menu = await cardMenu(page);
+	return menu.getByRole('menuitemcheckbox', { name: 'Všechny otázky v jedné kartě' });
+}
 
 test.beforeEach(async ({ page }) => {
 	await openEditor(page);
@@ -92,6 +99,55 @@ test('a second question stays in the teacher’s card, and is its own card for t
 	await expect(page.locator('main .step')).toHaveCount(3);
 });
 
+test('the teacher puts a card’s questions in one card from its ⋯ menu, and splits them again', async ({
+	page
+}) => {
+	await page.locator('.tree-add').getByRole('button', { name: 'Cvičení', exact: true }).click();
+	await expect(page.locator('.tree-card')).toHaveCount(2);
+
+	// One question: nothing to put together, so nothing is offered.
+	await expect(await togetherItem(page)).toHaveCount(0);
+	await page.keyboard.press('Escape');
+
+	await addStep(page, 'Otázka');
+	await expect
+		.poll(async () => (await exported(page)).blocks.filter((b) => b.type === 'exercise').length)
+		.toBe(2);
+
+	const item = await togetherItem(page);
+	await expect(item).toHaveAttribute('aria-checked', 'false');
+	await item.click();
+
+	// Still one card for the teacher, now one block for the pupil.
+	await expect(page.locator('.tree-card')).toHaveCount(2);
+	await expect(page.locator('main .step')).toHaveCount(2);
+	await expect
+		.poll(async () => (await exported(page)).blocks.filter((b) => b.type === 'exercise').length)
+		.toBe(1);
+	const whole = (await exported(page)).blocks.find((b) => b.type === 'exercise')!;
+	expect(whole.multi_question).toBe(true);
+	expect(questions(whole)).toBe(2);
+	await expect(await togetherItem(page)).toHaveAttribute('aria-checked', 'true');
+	await page.keyboard.press('Escape');
+
+	// A question added later joins the card.
+	await addStep(page, 'Otázka');
+	await expect
+		.poll(async () =>
+			(await exported(page)).blocks.filter((b) => b.type === 'exercise').map(questions)
+		)
+		.toEqual([3]);
+
+	// Turned off: one block per question again.
+	await (await togetherItem(page)).click();
+	await expect
+		.poll(async () =>
+			(await exported(page)).blocks.filter((b) => b.type === 'exercise').map(questions)
+		)
+		.toEqual([1, 1, 1]);
+	await expect(page.locator('.tree-card')).toHaveCount(2);
+});
+
 test.describe('a course made elsewhere, with several questions in one block', () => {
 	const file = readFileSync(
 		new URL('../src/lib/domain/__tests__/fixtures/corpus/zlomky-5-trida.json', import.meta.url)
@@ -130,22 +186,13 @@ test.describe('a course made elsewhere, with several questions in one block', ()
 		]);
 	});
 
-	test('in Pokročilý, a card’s questions can be kept together, and split again', async ({
-		page
-	}) => {
+	test('in Pokročilý, a card’s parts can be put in one card, and split again', async ({ page }) => {
 		await page.getByRole('radio', { name: 'Pokročilý' }).click();
 		const lesson = original.lessons[0].blocks.length;
 		await expect(page.locator('.tree-card')).toHaveCount(lesson + 1);
 
 		await page.locator('.tree-card', { hasText: 'část 1/2' }).click();
-		await page.getByRole('button', { name: 'Nastavení karty' }).click();
-		await openSection(page.getByRole('dialog'), 'Údaje o kartě');
-		const together = page.getByRole('checkbox', { name: /Více otázek v jedné kartě/ });
-		// The switch is drawn over a visually hidden checkbox; a person clicks its label.
-		const toggle = page.locator('label.toggle', { hasText: 'Více otázek v jedné kartě' });
-		await expect(together).not.toBeChecked();
-		await toggle.click();
-		await expect(together).toBeChecked();
+		await (await togetherItem(page)).click();
 		await expect(page.locator('.tree-card')).toHaveCount(lesson);
 		await expect
 			.poll(
@@ -154,8 +201,9 @@ test.describe('a course made elsewhere, with several questions in one block', ()
 			)
 			.toBe(true);
 
-		await toggle.click();
-		await expect(together).not.toBeChecked();
+		const item = await togetherItem(page);
+		await expect(item).toHaveAttribute('aria-checked', 'true');
+		await item.click();
 		await expect(page.locator('.tree-card')).toHaveCount(lesson + 1);
 	});
 

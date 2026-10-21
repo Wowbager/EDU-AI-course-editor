@@ -50,6 +50,7 @@
 	} from '$lib/domain/commands';
 	import { lessonLabel } from '$lib/domain/naming';
 	import { cardActions } from './card-actions';
+	import { togetherChoice } from '$lib/domain/groups';
 	import {
 		blockDurationMinutes,
 		derivedBlockXp,
@@ -66,6 +67,8 @@
 		ListX,
 		Plus,
 		Settings,
+		Square,
+		SquareCheck,
 		Trash
 	} from '@lucide/svelte';
 	import { STEP_TYPES } from '$lib/lang';
@@ -286,6 +289,16 @@
 		doc.lessons.find((l) => l.lesson_id === lessonId)?.blocks.length ?? 0
 	);
 
+	/**
+	 * „Všechny otázky v jedné kartě“, offered on a card with two questions or more
+	 * (`domain/groups.ts`). A card kept whole for jumps between its own questions can
+	 * be split only in Pokročilý, which shows what that does to the jumps.
+	 */
+	const together = $derived.by(() => {
+		const choice = togetherChoice(store.source, block);
+		return choice?.locked && store.mode !== 'advanced' ? undefined : choice;
+	});
+
 	function moveCard(delta: -1 | 1) {
 		if (lessonId === undefined) return;
 		const id = lessonId;
@@ -391,6 +404,16 @@
 			<MenuItem icon={Copy} onclick={() => actions.duplicate(block.block_id, lessonId)}>
 				Duplikovat kartu
 			</MenuItem>
+			{#if together !== undefined}
+				<MenuItem
+					icon={together.on ? SquareCheck : Square}
+					checked={together.on}
+					onclick={() => actions.toggleTogether(block, lessonId)}
+					title="Žák dostane otázky pohromadě a zkontroluje je jedním tlačítkem. Karta se hodnotí podílem správných odpovědí. Vypnuto je každá otázka pro žáka samostatná karta."
+				>
+					Všechny otázky v jedné kartě
+				</MenuItem>
+			{/if}
 			{#if sharedWith === 0}
 				<MenuItem
 					icon={ListPlus}

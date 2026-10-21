@@ -30,6 +30,7 @@ import {
 	stepLabel,
 	stepPosition
 } from './naming';
+import { checksQuestionsInOneTap } from './groups';
 
 export type Severity = 'error' | 'warning';
 
@@ -511,7 +512,16 @@ function checkGoToTargets(
 		}
 
 		if (isGoToKeyword(target)) continue;
-		if (ownSteps?.has(target)) continue;
+		if (ownSteps?.has(target)) {
+			if (checksQuestionsInOneTap(block))
+				add(
+					'warning',
+					'W_GOTO_IN_ONE_TAP',
+					ref,
+					`${optionName} v kroku ${position} vede na jiný krok této karty, ale otázky karty žák zkontroluje najednou, takže půjde vždy dál.`
+				);
+			continue;
+		}
 		if (index.blocksById.has(target)) continue;
 
 		// The target itself is what is broken — it names neither a step of this block

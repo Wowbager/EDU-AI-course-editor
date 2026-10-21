@@ -44,6 +44,8 @@ export const TIMING: Record<string, Timing> = {
 	E_BINDING_UNRESOLVED: 'immediate',
 	E_GOTO_UNRESOLVED: 'immediate',
 	W_GOTO_IN_EXERCISE: 'immediate',
+	// The card's choice, not a slip: said at export, where the jump can be removed.
+	W_GOTO_IN_ONE_TAP: 'review',
 	E_PREREQ_UNRESOLVED: 'immediate',
 	E_PREREQ_CYCLE: 'immediate',
 	// A value that is present and wrong.

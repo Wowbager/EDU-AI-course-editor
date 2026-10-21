@@ -1319,7 +1319,7 @@ export const NOT_EDITABLE: Record<string, string> = {
 	'block.group':
 		'Píše ho editor: bloky, na které se rozdělila jedna karta s více otázkami (domain/groups.ts).',
 	'block.multi_question':
-		'Mění se přepínačem „Více otázek v jedné kartě“ v nastavení karty (pokročilý režim), protože zapnutí slučuje bloky karty a vypnutí je rozděluje.',
+		'Mění se položkou „Všechny otázky v jedné kartě“ v nabídce ⋯ karty, protože zapnutí slučuje bloky karty a vypnutí je rozděluje.',
 	'binding.order': 'Přepisuje se přetažením karty.',
 	'step.question':
 		'Otázka má vlastní úroveň v registru — její pole jsou uvedená pod level: question.',

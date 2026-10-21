@@ -86,14 +86,3 @@ test('a new lesson opens with its name selected, so typing renames it', async ({
 	await dialog.getByRole('button', { name: 'Hotovo' }).click();
 	await expect(page.locator('.tree-lesson > button.lesson .name').last()).toHaveText('Moje lekce');
 });
-
-test('Pokročilý says what "Více otázek v jedné kartě" will do before it is switched', async ({
-	page
-}) => {
-	await page.getByRole('radiogroup', { name: 'Režim editoru' }).getByText('Pokročilý').click();
-	await page.locator('.tree-card').filter({ hasText: 'Na talíři' }).click();
-	await page.getByRole('button', { name: 'Nastavení karty' }).click();
-	const dialog = page.getByRole('dialog', { name: 'Nastavení karty' });
-	await dialog.getByText('Údaje o kartě').first().click();
-	await expect(dialog.getByText('Spojí 2 otázky této karty do jedné.')).toBeVisible();
-});

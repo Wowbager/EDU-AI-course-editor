@@ -8,6 +8,7 @@ import {
 	TOGETHER_KEY,
 	blockOfStep,
 	cardIdOf,
+	checksQuestionsInOneTap,
 	fromView,
 	groupOf,
 	groupsOf,
@@ -17,6 +18,7 @@ import {
 	segmentSteps,
 	splitQuestionCard,
 	splitQuestionCards,
+	togetherChoice,
 	toView
 } from '../groups';
 import { buildIndex } from '../index-doc';
@@ -319,7 +321,7 @@ describe('importing a course that has several questions in one block', () => {
 	});
 });
 
-describe('the advanced toggle', () => {
+describe('„Všechny otázky v jedné kartě“', () => {
 	const { doc } = splitQuestionCards(fixture('corpus/zlomky-5-trida.json'));
 
 	it('merges a card into one block that keeps its questions together, and splits it back', () => {
@@ -338,6 +340,33 @@ describe('the advanced toggle', () => {
 				.get('L1_B4_cviceni')
 				?.map((b) => b.block_id)
 		).toEqual(['L1_B4_cviceni', 'L1_B4_cviceni_2']);
+	});
+
+	it('is offered on a card with two questions, as the teacher’s view and Pokročilý show it', () => {
+		const view = toView(doc);
+		const card = view.blocks.find((b) => b.block_id === 'L1_B4_cviceni')!;
+		expect(togetherChoice(doc, card)).toEqual({ on: false, key: 'L1_B4_cviceni', locked: false });
+		// In Pokročilý the card is its blocks; either one stands for the card.
+		const part = doc.blocks.find((b) => b.block_id === 'L1_B4_cviceni_2')!;
+		expect(togetherChoice(doc, part)?.key).toBe('L1_B4_cviceni');
+
+		const merged = mergeQuestionCard(doc, 'L1_B4_cviceni');
+		const whole = merged.blocks.find((b) => b.block_id === 'L1_B4_cviceni')!;
+		expect(togetherChoice(merged, whole)).toEqual({
+			on: true,
+			key: 'L1_B4_cviceni',
+			locked: false
+		});
+	});
+
+	it('is not offered on a card with one question', () => {
+		const one = course([{ block_id: 'B1', type: 'exercise', steps: [text('s1'), question('s2')] }]);
+		expect(togetherChoice(one, one.blocks[0])).toBeUndefined();
+	});
+
+	it('is locked on an imported card that jumps between its own questions', () => {
+		const card = doc.blocks.find((b) => b.block_id === 'L3_B3_mc')!;
+		expect(togetherChoice(doc, card)).toEqual({ on: true, key: 'L3_B3_mc', locked: true });
 	});
 
 	it('leaves a kept-together card whole when the teacher adds a question to it', () => {
@@ -478,5 +507,43 @@ describe('random edits keep the document well-formed', () => {
 		// The run did exercise the interesting cases.
 		expect(toView(doc).blocks.length).toBeGreaterThan(2);
 		expect(groupsOf(doc).size).toBeGreaterThan(0);
+	});
+});
+
+describe('which cards the pupil checks in one tap (`_isBatchBlock`)', () => {
+	const open = (id: string): BlockStep => ({
+		id,
+		type: 'question',
+		question: { type: 'open', correct_answer: 'x' }
+	});
+	const block = (type: BlockV2['type'], steps: BlockStep[]) =>
+		({ block_id: 'B', type, steps }) as BlockV2;
+
+	it('a question or exercise card with two closed questions', () => {
+		expect(checksQuestionsInOneTap(block('exercise', [question('a'), question('b')]))).toBe(true);
+		expect(checksQuestionsInOneTap(block('question', [question('a'), question('b')]))).toBe(true);
+	});
+
+	it('not one question, nor a card holding an open one', () => {
+		expect(checksQuestionsInOneTap(block('exercise', [text('t'), question('a')]))).toBe(false);
+		expect(checksQuestionsInOneTap(block('exercise', [question('a'), open('b')]))).toBe(false);
+	});
+
+	it('warns at export that a jump inside such a card is never taken', () => {
+		const together = course([
+			{
+				block_id: 'B1',
+				type: 'question',
+				multi_question: true,
+				steps: [question('q1', ['t', undefined]), text('t'), question('q2')]
+			} as BlockV2
+		]);
+		const codes = (d: CourseV2) => validate(d).warnings.map((i) => i.code);
+		expect(codes(together)).toContain('W_GOTO_IN_ONE_TAP');
+		const withOpen = {
+			...together,
+			blocks: [{ ...together.blocks[0], steps: [...together.blocks[0].steps, open('q3')] }]
+		};
+		expect(codes(withOpen)).not.toContain('W_GOTO_IN_ONE_TAP');
 	});
 });
