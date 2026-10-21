@@ -19,6 +19,7 @@ import {
 	SNIFFED,
 	looksLikeHtml,
 	looksLikeMarkdown,
+	onlyBlockMarkers,
 	parseMarkdown,
 	sameDoc,
 	serializeMarkdown,
@@ -111,7 +112,11 @@ const inlineNode: fc.Arbitrary<DocNode> = fc.oneof(
 	},
 	{
 		weight: 1,
-		arbitrary: words.map((value) => ({ type: 'text', text: value, marks: [{ type: 'code' as const }] }))
+		arbitrary: words.map((value) => ({
+			type: 'text',
+			text: value,
+			marks: [{ type: 'code' as const }]
+		}))
 	},
 	{
 		weight: 1,
@@ -187,6 +192,12 @@ function roundTrip(input: DocNode, dialect: MarkdownDialect) {
 	return { markdown, read };
 }
 
+/** A plain document's text, as the serializer would write it unescaped. */
+const plainText = (root: DocNode) =>
+	(root.content ?? [])
+		.map((p) => (p.content ?? []).map((n) => (n.type === 'hardBreak' ? '\n' : n.text)).join(''))
+		.join('\n\n');
+
 const isPlain = (root: DocNode) =>
 	(root.content ?? []).every(
 		(block) =>
@@ -197,15 +208,23 @@ const isPlain = (root: DocNode) =>
 	);
 
 /**
- * The app shows a sniffed text as Markdown only when it holds a Markdown character
- * (OPEN-PROBLEMS #47). A formatted text without one — a link alone, a numbered list
- * alone — is plain to the app, and to the editor once reloaded, by design.
+ * The app shows a sniffed text as Markdown only when it holds a Markdown marker
+ * (`looksLikeMarkdown`, ported from `content_format.dart`). A formatted text without
+ * one — a link with no `(`-address, a strikethrough alone — is plain to the app, and
+ * to the editor once reloaded, by design.
  */
 function appReadsIt(input: DocNode, markdown: string, dialect: MarkdownDialect): boolean {
 	if (!dialect.sniffed) return true;
-	// A plain text with `<…>` in it and no Markdown character left once escaped goes
-	// to the app's HTML renderer (`_looksLikeHtml`); the editor opens it as source.
-	if (isPlain(input)) return looksLikeMarkdown(markdown) || !looksLikeHtml(markdown);
+	// A plain text with a tag in it and no Markdown marker left once escaped goes to
+	// the app's HTML renderer (`looksLikeHtml`); the editor opens it as source.
+	if (isPlain(input)) {
+		const typed = plainText(input);
+		if (looksLikeMarkdown(markdown)) return true;
+		// A plain line that starts like a list, heading, quote or number has no form the
+		// app shows as typed (OPEN-PROBLEMS #55), and a typed tag goes to the app's HTML
+		// renderer (`looksLikeHtml`), which the editor opens as source.
+		return !onlyBlockMarkers(typed) && !looksLikeHtml(typed);
+	}
 	return looksLikeMarkdown(markdown);
 }
 

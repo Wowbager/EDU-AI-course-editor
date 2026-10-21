@@ -4,29 +4,45 @@
  * when the app changes, these change with it.
  *
  * - `lib/widgets/markdown_latex_widget.dart` — the Markdown + LaTeX renderer.
- * - `lib/widgets/step_content_renderer.dart` — which renderer a text gets.
+ * - `lib/core/utils/content_format.dart` — which renderer a text gets.
  */
 
 /**
- * Whether the app renders a text as Markdown at all (`_looksLikeMarkdown`). A text
- * step, question, answer, solution or feedback without one of these characters is
- * shown as plain text, exactly as written: `- a` stays a dash, `1. a` stays a number.
- * Hint and help skip this test; they are always Markdown (`hint_sheet.dart`).
+ * The app's guess at a text's format (`lib/core/utils/content_format.dart`), copied
+ * pattern for pattern. A text step, question, answer, solution or feedback that
+ * matches neither is shown as plain text, exactly as written: `Teplota > 30` and
+ * `out-of-the-box` stay as they are. Hint and help skip this test; they are always
+ * Markdown (`hint_sheet.dart`).
+ *
+ * Block markers count only at the start of a line, after up to three spaces, and need
+ * whitespace after them (a quote's `>` needs only a character): a heading, a bullet, a
+ * number, a quote or a table row.
  */
-export function looksLikeMarkdown(text: string): boolean {
-	return (
-		text.includes('*') ||
-		text.includes('__') ||
-		text.includes('##') ||
-		text.includes('```') ||
-		text.includes('$') ||
-		text.includes('![')
-	);
+const MD_BLOCK_MARKERS = /^[ \t]{0,3}(>[ \t]?\S|#{1,6}[ \t]|[-*+][ \t]|\d+\.[ \t]|\|)/m;
+
+/** Inline markers anywhere: `**`, `__`, a backtick, `![`, `[x](`, `$`, and `*` before a character. */
+const MD_INLINE_MARKERS = /(\*\*|__|`|!\[|\[[^\]\n]+\]\(|\$|(?<!\w)\*\S)/;
+
+/** A real tag, name required, so `5 < 10 a 20 > 15` is not mistaken for HTML. */
+const HTML_TAG = /<\s*\/?\s*[a-zA-Z][a-zA-Z0-9-]*(\s[^<>]*)?\/?>/;
+
+/**
+ * Whether only a line's start makes the app read this text as Markdown. A plain text
+ * like that cannot be shown as typed: unescaped it is a list, heading, quote or number,
+ * and escaped it is no longer Markdown, so the app prints the backslash.
+ */
+export function onlyBlockMarkers(text: string): boolean {
+	return MD_BLOCK_MARKERS.test(text) && !MD_INLINE_MARKERS.test(text);
 }
 
-/** Text the app hands to its HTML renderer when it is not Markdown (`_looksLikeHtml`). */
+/** Whether the app renders a text as Markdown at all (`looksLikeMarkdown`). */
+export function looksLikeMarkdown(text: string): boolean {
+	return MD_BLOCK_MARKERS.test(text) || MD_INLINE_MARKERS.test(text);
+}
+
+/** Text the app hands to its HTML renderer when it is not Markdown (`looksLikeHtml`). */
 export function looksLikeHtml(text: string): boolean {
-	return text.includes('<') && text.includes('>');
+	return HTML_TAG.test(text);
 }
 
 /**

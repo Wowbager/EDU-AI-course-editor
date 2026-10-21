@@ -3,9 +3,10 @@
  *
  * - Every line break is a bare newline: the app turns each one into a break itself
  *   (`_addHardLineBreaks`), so no trailing spaces or backslashes.
- * - Bullets are `*` and the toolbar's heading is `##`: both are characters the app
- *   looks for before it renders Markdown at all (`looksLikeMarkdown`), so a list or a
- *   heading is shown as one even in a text with nothing else formatted.
+ * - Bullets are `*` and the toolbar's heading is `##`. A list, a heading, a quote or a
+ *   table at the start of a line is what the app looks for before it renders Markdown
+ *   at all (`looksLikeMarkdown`), so each is shown as one even in a text with nothing
+ *   else formatted.
  * - A text with no formatting, whose words hold none of those characters, is written
  *   exactly as typed. The app shows it as plain text, where a backslash escape would be
  *   printed rather than read.
@@ -47,15 +48,18 @@ export function serializeMarkdown(root: DocNode, dialect: MarkdownDialect): stri
 }
 
 /**
- * The app's Markdown triggers (`looksLikeMarkdown`) as escaping writes them; group 1 is
- * kept, group 2 is written as typed. A run alone on a line, `____`, is a horizontal
- * rule as typed, so it is also tried with its first underscore still escaped.
+ * The app's inline Markdown markers (`looksLikeMarkdown`) that escaping takes away, as
+ * escaping writes them; group 1 is kept, group 2 is written as typed. The others
+ * survive their escape: `\\*a`, `` \\` ``, `\\$` and `\\[a\\](` still match. A line-start
+ * marker never comes back as typed: unescaped it is a list, a heading, a quote or a
+ * number, and `| a` reads back as typed already, as the plain candidate. A run alone
+ * on a line, `____`, is a horizontal rule as typed, so it is also tried with its first
+ * underscore still escaped.
  */
 const TRIGGERS = [
 	/(?<!\\)((?:\\\\)*)((?:\\_){2,})/,
 	/(?<!\\)((?:\\\\)*\\_)((?:\\_){2,})/,
-	/()(!\\\[)/,
-	/(?<!\\)((?:\\\\)*)((?:\\`){3,})/
+	/()(!\\\[)/
 ];
 
 /** Paragraphs of unformatted text and line breaks: what the app could show as plain text. */

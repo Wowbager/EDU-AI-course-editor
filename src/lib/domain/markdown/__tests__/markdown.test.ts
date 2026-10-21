@@ -4,6 +4,7 @@ import {
 	INLINE,
 	SNIFFED,
 	canEditVisually,
+	looksLikeHtml,
 	looksLikeMarkdown,
 	parseMarkdown,
 	serializeMarkdown,
@@ -21,8 +22,25 @@ describe('reading Markdown the way the app does', () => {
 		expect(parse('**a**\nb')).toEqual(p(text('a', [{ type: 'bold' }]), hardBreak(), text('b')));
 	});
 
-	it('shows a text without a Markdown character as written (_looksLikeMarkdown)', () => {
-		expect(parse('- a\n1. b')).toEqual(p(text('- a'), hardBreak(), text('1. b')));
+	it('shows a text with no Markdown marker as written (content_format.dart)', () => {
+		const typed = 'Teplota > 30\nout-of-the-box: 5 * 3 a 1.5 kg';
+		expect(parse(typed)).toEqual(
+			p(text('Teplota > 30'), hardBreak(), text('out-of-the-box: 5 * 3 a 1.5 kg'))
+		);
+	});
+
+	it('reads a list, a number, a quote or a link alone as Markdown, as the app does', () => {
+		expect(parse('- a').content?.[0].type).toBe('bulletList');
+		expect(parse('1. b').content?.[0].type).toBe('orderedList');
+		expect(parse('> c').content?.[0].type).toBe('blockquote');
+		expect(parse('[d](https://example.com)').content?.[0].content?.[0].marks?.[0].type).toBe(
+			'link'
+		);
+	});
+
+	it('takes only a real tag for HTML', () => {
+		expect(looksLikeHtml('5 < 10 a 20 > 15')).toBe(false);
+		expect(looksLikeHtml('a <b>tučně</b>')).toBe(true);
 	});
 
 	it('always reads hint and help as Markdown', () => {
@@ -134,9 +152,11 @@ describe('writing Markdown the app shows the same way', () => {
 		expect(parseMarkdown(md, ALWAYS_MARKDOWN).doc, md).toEqual(typed);
 	});
 
-	it('escapes a typed star once the text is Markdown', () => {
-		expect(serializeMarkdown(p(text('a * b')), SNIFFED)).toBe('a \\* b');
-		expect(looksLikeMarkdown('a \\* b')).toBe(true);
+	it('writes a star between spaces as typed, and escapes one the app reads', () => {
+		// The app takes `*` for Markdown only before a character (`(?<!\w)\*\S`).
+		expect(serializeMarkdown(p(text('a * b')), SNIFFED)).toBe('a * b');
+		expect(serializeMarkdown(p(text('a *b')), SNIFFED)).toBe('a \\*b');
+		expect(looksLikeMarkdown('a \\*b')).toBe(true);
 	});
 
 	it('escapes what would start a block at the start of a line', () => {
