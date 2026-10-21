@@ -148,6 +148,29 @@ test('the teacher puts a card’s questions in one card from its ⋯ menu, and s
 	await expect(page.locator('.tree-card')).toHaveCount(2);
 });
 
+test('the sidebar’s card buttons offer the same choice as the ⋯ menu', async ({ page }) => {
+	await page.locator('.tree-add').getByRole('button', { name: 'Cvičení', exact: true }).click();
+	await expect(page.locator('.tree-card')).toHaveCount(2);
+	const button = page
+		.locator('.tree-actions')
+		.getByRole('button', { name: 'Všechny otázky 2. karty v jedné kartě' });
+	// One question: offered nowhere.
+	await expect(button).toHaveCount(0);
+
+	await addStep(page, 'Otázka');
+	await expect(button).toHaveAttribute('aria-pressed', 'false');
+	await button.click();
+	await expect
+		.poll(async () => (await exported(page)).blocks.filter((b) => b.type === 'exercise').length)
+		.toBe(1);
+	await expect(button).toHaveAttribute('aria-pressed', 'true');
+	await expect(await togetherItem(page)).toHaveAttribute('aria-checked', 'true');
+
+	// Turned off in the menu, off in the sidebar.
+	await (await togetherItem(page)).click();
+	await expect(button).toHaveAttribute('aria-pressed', 'false');
+});
+
 test.describe('a course made elsewhere, with several questions in one block', () => {
 	const file = readFileSync(
 		new URL('../src/lib/domain/__tests__/fixtures/corpus/zlomky-5-trida.json', import.meta.url)

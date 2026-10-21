@@ -419,6 +419,9 @@
 												run(key, () => actions.settings(lesson.lesson_id, block.block_id))}
 											onduplicate={() =>
 												run(key, () => actions.duplicate(block.block_id, lesson.lesson_id))}
+											together={actions.together(block)?.on}
+											ontoggleTogether={() =>
+												run(key, () => actions.toggleTogether(block, lesson.lesson_id))}
 											onremoveFromLesson={() =>
 												run(key, () =>
 													actions.removeFromLesson(lesson.lesson_id, block.block_id, {

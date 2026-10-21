@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { DocStore } from '$lib/state/doc-store.svelte';
 import { notices } from '$lib/state/notice.svelte';
-import { parseCourse } from '$lib/domain/document';
+import { importCourse, parseCourse } from '$lib/domain/document';
+import { splitQuestionCards } from '$lib/domain/groups';
 import { lessonLabel } from '$lib/domain/naming';
 import { cardActions } from './card-actions';
 import { removeLesson } from './lesson-actions';
@@ -168,5 +169,37 @@ describe('deleting a lesson from its settings dialog', () => {
 		removeLesson(store, 'L1_INTRO');
 		expect(store.selection).toEqual({ lessonId: 'L3' });
 		expect(notices.current?.ref).toBeUndefined();
+	});
+});
+
+describe('„Všechny otázky v jedné kartě“, offered alike by the ⋯ menu, the rail and the tree', () => {
+	/** The corpus course as the editor holds it after import: one question per block. */
+	function zlomky() {
+		const store = new DocStore();
+		const file = readFileSync(
+			new URL('../domain/__tests__/fixtures/corpus/zlomky-5-trida.json', import.meta.url),
+			'utf8'
+		);
+		store.load(splitQuestionCards(importCourse(JSON.parse(file)).doc).doc);
+		return { store, actions: cardActions(store, { onsettings: vi.fn(), onrepair: vi.fn() }) };
+	}
+	const card = (store: DocStore, id: string) => store.doc.blocks.find((b) => b.block_id === id)!;
+
+	it('is offered on a card with two questions, and says when it is on', () => {
+		const { store, actions } = zlomky();
+		expect(actions.together(card(store, 'L1_B4_cviceni'))).toEqual({
+			on: false,
+			key: 'L1_B4_cviceni',
+			locked: false
+		});
+		actions.toggleTogether(card(store, 'L1_B4_cviceni'), store.doc.lessons[0].lesson_id);
+		expect(actions.together(card(store, 'L1_B4_cviceni'))?.on).toBe(true);
+	});
+
+	it('a card kept whole for its own jumps is offered only in Pokročilý', () => {
+		const { store, actions } = zlomky();
+		expect(actions.together(card(store, 'L3_B3_mc'))).toBeUndefined();
+		store.mode = 'advanced';
+		expect(actions.together(card(store, 'L3_B3_mc'))?.on).toBe(true);
 	});
 });

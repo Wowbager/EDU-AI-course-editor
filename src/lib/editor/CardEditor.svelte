@@ -50,11 +50,7 @@
 	} from '$lib/domain/commands';
 	import { lessonLabel } from '$lib/domain/naming';
 	import { cardActions } from './card-actions';
-	import {
-		checksQuestionsInOneTap,
-		keepsQuestionsTogether,
-		togetherChoice
-	} from '$lib/domain/groups';
+	import { checksQuestionsInOneTap, keepsQuestionsTogether } from '$lib/domain/groups';
 	import {
 		blockDurationMinutes,
 		derivedBlockXp,
@@ -302,15 +298,8 @@
 		doc.lessons.find((l) => l.lesson_id === lessonId)?.blocks.length ?? 0
 	);
 
-	/**
-	 * „Všechny otázky v jedné kartě“, offered on a card with two questions or more
-	 * (`domain/groups.ts`). A card kept whole for jumps between its own questions can
-	 * be split only in Pokročilý, which shows what that does to the jumps.
-	 */
-	const together = $derived.by(() => {
-		const choice = togetherChoice(store.source, block);
-		return choice?.locked && store.mode !== 'advanced' ? undefined : choice;
-	});
+	/** „Všechny otázky v jedné kartě“, offered where the rail and the tree offer it. */
+	const together = $derived(actions.together(block));
 
 	function moveCard(delta: -1 | 1) {
 		if (lessonId === undefined) return;

@@ -1,9 +1,10 @@
 <script lang="ts">
 	/**
-	 * The four things a card can be told to do, as a row of round buttons. It is the
-	 * body of the rail's peek panel and sits at the right of a tree row, so both say
-	 * the same thing in the same order: Nastavení, Duplikovat, Odebrat z lekce, and,
-	 * behind a hairline, Smazat.
+	 * The things a card can be told to do, as a row of round buttons. It is the body
+	 * of the rail's peek panel and sits at the right of a tree row, so both say the
+	 * same thing in the same order: Nastavení, Duplikovat, on a card with two
+	 * questions or more „Všechny otázky v jedné kartě“ (a toggle, like the ⋯ menu's
+	 * item), Odebrat z lekce, and, behind a hairline, Smazat.
 	 *
 	 * **Smazat takes two clicks.** Hover or focus rings it in red; the first click
 	 * fills the circle (it is armed and says so in its name and in the caption); the
@@ -15,7 +16,7 @@
 	 * The buttons are out of the tab order, like everything inside a card's row: the
 	 * card is the one tab stop, → goes into the actions, ← and Escape come back.
 	 */
-	import { Copy, ListX, Settings, Trash } from '@lucide/svelte';
+	import { Copy, ListChecks, ListX, Settings, Trash } from '@lucide/svelte';
 
 	interface Props {
 		/** The card's 1-based place in its lesson: the number every name here carries. */
@@ -31,6 +32,9 @@
 		caption?: boolean;
 		onsettings: () => void;
 		onduplicate: () => void;
+		/** Whether the card's questions are in one card; absent where that is not offered. */
+		together?: boolean;
+		ontoggleTogether?: () => void;
 		onremoveFromLesson: () => void;
 		onremove: () => void;
 		/** Escape, or ← from the first button: focus goes back to the card. */
@@ -43,6 +47,8 @@
 		caption = false,
 		onsettings,
 		onduplicate,
+		together,
+		ontoggleTogether,
 		onremoveFromLesson,
 		onremove,
 		onexit
@@ -59,6 +65,7 @@
 	const names = $derived({
 		settings: `Nastavení ${position}. karty`,
 		duplicate: `Duplikovat ${position}. kartu`,
+		together: `Všechny otázky ${position}. karty v jedné kartě`,
 		remove: `Odebrat ${position}. kartu z lekce`,
 		delete: `Smazat ${position}. kartu`
 	});
@@ -169,7 +176,7 @@
 			{...label('Nastavení', names.settings)}
 			onclick={onsettings}
 		>
-			<Settings size={size === 's' ? 15 : 16} aria-hidden="true" />
+			<Settings size={size === 's' ? 14 : 16} aria-hidden="true" />
 		</button>
 		<button
 			type="button"
@@ -178,8 +185,20 @@
 			{...label('Duplikovat', names.duplicate)}
 			onclick={onduplicate}
 		>
-			<Copy size={size === 's' ? 15 : 16} aria-hidden="true" />
+			<Copy size={size === 's' ? 14 : 16} aria-hidden="true" />
 		</button>
+		{#if together !== undefined}
+			<button
+				type="button"
+				class="action"
+				tabindex="-1"
+				aria-pressed={together}
+				{...label('Všechny otázky v jedné kartě', names.together)}
+				onclick={ontoggleTogether}
+			>
+				<ListChecks size={size === 's' ? 14 : 16} aria-hidden="true" />
+			</button>
+		{/if}
 		<button
 			type="button"
 			class="action"
@@ -187,7 +206,7 @@
 			{...label('Odebrat z lekce', names.remove)}
 			onclick={onremoveFromLesson}
 		>
-			<ListX size={size === 's' ? 15 : 16} aria-hidden="true" />
+			<ListX size={size === 's' ? 14 : 16} aria-hidden="true" />
 		</button>
 		<span class="rule" aria-hidden="true"></span>
 		<button
@@ -198,7 +217,7 @@
 			{...label('Smazat', deleteName)}
 			onclick={clickDelete}
 		>
-			<Trash size={size === 's' ? 15 : 16} aria-hidden="true" />
+			<Trash size={size === 's' ? 14 : 16} aria-hidden="true" />
 		</button>
 	</div>
 	{#if caption}
@@ -212,8 +231,9 @@
 		--size: 32px;
 	}
 
+	/* Five buttons at this size still leave the middle of a tree row to the card. */
 	.card-actions.small {
-		--size: 28px;
+		--size: 24px;
 	}
 
 	.row {
@@ -229,7 +249,7 @@
 	}
 
 	.small .rule {
-		margin: 0 2px;
+		margin: 0;
 	}
 
 	.action {
@@ -261,6 +281,17 @@
 	.action:focus-visible {
 		outline: 2px solid var(--e-focus-ring);
 		outline-offset: 1px;
+	}
+
+	/* A toggle that is on: tinted, like a pressed ghost button. */
+	.action[aria-pressed='true'] {
+		background: var(--primary-dark-08);
+		color: var(--e-text);
+		box-shadow: inset 0 0 0 1px var(--primary-dark-16);
+	}
+
+	.action[aria-pressed='true']:hover {
+		background: var(--primary-dark-12);
 	}
 
 	.rule {

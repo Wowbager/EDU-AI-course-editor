@@ -1,7 +1,8 @@
 /**
  * What a card can be told to do, in one place. The ⋯ menu in the card's header, the
  * rail's peek panel and the tree's rows all call these, so "Odebrat z lekce" says the
- * same thing and can be undone the same way wherever it was pressed.
+ * same thing and can be undone the same way wherever it was pressed, and a choice is
+ * offered in all three or in none.
  *
  * Every id here is the *view's* card id, as in the rest of the editor: in Učitel and
  * Metodik one card may stand for several exported blocks, and the commands run on the
@@ -36,6 +37,17 @@ export function cardActions(store: DocStore, handlers: CardActionHandlers) {
 		/** The copy goes right after the card and is selected. */
 		duplicate(blockId: string, lessonId: string | undefined) {
 			store.apply((d, r) => duplicateBlock(d, blockId, lessonId, r));
+		},
+
+		/**
+		 * Whether „Všechny otázky v jedné kartě“ is offered on this card, and whether it
+		 * is on: on a card with two questions or more (`togetherChoice`). A card kept
+		 * whole for jumps between its own questions can be split only in Pokročilý,
+		 * which shows what that does to the jumps.
+		 */
+		together(card: BlockV2): { on: boolean } | undefined {
+			const choice = togetherChoice(store.source, card);
+			return choice?.locked && store.mode !== 'advanced' ? undefined : choice;
 		},
 
 		/**

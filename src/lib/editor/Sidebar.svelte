@@ -436,6 +436,8 @@
 												position={position + 1}
 												onsettings={() => actions.settings(lesson.lesson_id, block.block_id)}
 												onduplicate={() => actions.duplicate(block.block_id, lesson.lesson_id)}
+												together={actions.together(block)?.on}
+												ontoggleTogether={() => actions.toggleTogether(block, lesson.lesson_id)}
 												onremoveFromLesson={() =>
 													actions.removeFromLesson(lesson.lesson_id, block.block_id, {
 														follow: false
