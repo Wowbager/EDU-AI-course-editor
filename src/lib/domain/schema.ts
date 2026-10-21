@@ -44,6 +44,14 @@ export const questionOptionSchema = z.looseObject({
 	go_to: z.string().nullable().optional()
 });
 
+/** One rubric line the app sends to the AI with an open answer (`QuestionCriterion`). */
+export const aiCriterionSchema = z.looseObject({
+	id: z.string(),
+	name: z.string(),
+	description: z.string().optional(),
+	weight: z.number().int().optional()
+});
+
 export const questionConfigSchema = z.looseObject({
 	type: z.enum(QUESTION_TYPES),
 	options: z.array(questionOptionSchema).optional(),
@@ -55,7 +63,13 @@ export const questionConfigSchema = z.looseObject({
 	show_solution: z.boolean().optional(),
 	solution: z.string().optional(),
 	solution_image: imageRefSchema.optional(),
-	allow_photo: z.boolean().optional()
+	allow_photo: z.boolean().optional(),
+	shuffle_options: z.boolean().optional(),
+	ai_evaluation: z.boolean().optional(),
+	ai_guided: z.boolean().optional(),
+	ai_guided_attempts: z.number().int().optional(),
+	ai_criteria: z.string().optional(),
+	ai_criteria_list: z.array(aiCriterionSchema).optional()
 });
 
 export const blockStepSchema = z.looseObject({
@@ -205,6 +219,9 @@ export const courseSchema = z.looseObject({
 	only_quiz: z.boolean().optional(),
 	starts_with_quiz: z.boolean().optional(),
 	quiz_evaluate: z.boolean().optional(),
+	open_all_lessons: z.boolean().optional(),
+	shuffle_answers: z.boolean().optional(),
+	open_answer_score: z.string().optional(),
 	max_xp: z.number().int().optional(),
 	stop_gambling: z.boolean().optional(),
 	stop_notice: z.string().optional(),
@@ -228,6 +245,7 @@ export type BlockV2 = z.infer<typeof blockSchema>;
 export type LessonBlockBinding = z.infer<typeof bindingSchema>;
 export type LessonV2 = z.infer<typeof lessonSchema>;
 export type CourseV2 = z.infer<typeof courseSchema>;
+export type AiCriterion = z.infer<typeof aiCriterionSchema>;
 
 export type ExportType = (typeof EXPORT_TYPES)[number];
 export type BlockType = (typeof BLOCK_TYPES)[number];
@@ -259,6 +277,9 @@ export const KEY_ORDER = {
 		'only_quiz',
 		'starts_with_quiz',
 		'quiz_evaluate',
+		'open_all_lessons',
+		'shuffle_answers',
+		'open_answer_score',
 		'max_xp',
 		'stop_gambling',
 		'stop_notice',
@@ -355,7 +376,13 @@ export const KEY_ORDER = {
 		'show_answers',
 		'show_solution',
 		'allow_multiple',
+		'shuffle_options',
 		'allow_photo',
+		'ai_evaluation',
+		'ai_guided',
+		'ai_guided_attempts',
+		'ai_criteria',
+		'ai_criteria_list',
 		'correct_answer',
 		'correct_number',
 		'tolerance',
@@ -363,6 +390,7 @@ export const KEY_ORDER = {
 		'solution_image',
 		'options'
 	],
+	criterion: ['id', 'name', 'description', 'weight'],
 	option: ['id', 'text', 'is_correct', 'score_koef', 'mark', 'feedback', 'feedback_image', 'go_to'],
 	image: ['url', 'alt', 'position'],
 	video: ['url', 'position'],

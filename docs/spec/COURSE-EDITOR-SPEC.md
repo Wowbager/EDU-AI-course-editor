@@ -149,7 +149,10 @@ Edited today in `ADM/src/components/editors/CourseV2Editor.tsx`. Type: `CourseV2
 |---|---|---|---|---|
 | `only_quiz` | bool | ✅🟡 | The course *is* a quiz; no lessons. | Course appears under "Rychlé kvízy" rather than the normal course list (`kurzy_page.dart:159, 278`; `prehled_page.dart:380`). The quiz can be started immediately instead of requiring all lessons complete (`prehled_page.dart:315-316`). The API **forces `starts_with_quiz = true`** whenever `only_quiz` is set (`CourseStorageService.php:124`), and the editor mirrors this by disabling the `starts_with_quiz` toggle. |
 | `starts_with_quiz` | bool | ✅🟡 | Course opens with a diagnostic quiz. | **Every lesson in the course is locked until the entry quiz is completed** (`course_detail_page.dart:64, 997-1003`): lesson cards show a padlock and are untappable, a "Start quiz" card is inserted above them, and the course's primary action button becomes the quiz (`:1172-1173`). Once the quiz is finished the lessons unlock. |
-| `quiz_evaluate` | bool | ✅🟡 | Show correct/incorrect and score in quiz mode. | Drives `hideEvaluation` (`lesson_detail_page.dart:1808`): with `quiz_v2` and `quiz_evaluate: false` the student answers "blind" — no green/red, no solution, no per-option feedback. With it `true`, a quiz behaves like an evaluated test. This is the flag that turns a survey/diagnostic into a graded test. |
+| `quiz_evaluate` | bool | ✅🟡 | Show correct/incorrect and score in quiz mode. | Drives `hideEvaluation` (`lesson_detail_page.dart:1808`): with `quiz_v2` and `quiz_evaluate: false` the student answers "blind" — no green/red, no solution, no per-option feedback. With it `true`, a quiz behaves like an evaluated test. This is the flag that turns a survey/diagnostic into a graded test. In every course it also sets `showAnswerStatus`, the verdict line under an AI-graded open answer (`lesson_detail_page.dart`). |
+| `open_all_lessons` | bool, default false | ✅ | No sequential gate. | Every lesson can be opened in any order (`course_model.dart`, `course_detail_page.dart`); `starts_with_quiz` and a pending course update still lock them. New in the 2026-10-15 sync; the API in this snapshot does not extract it. |
+| `shuffle_answers` | bool, default false | ✅ | Course default for option shuffling. | Each question's options are shuffled unless the question's own `shuffle_options` says otherwise; true/false never shuffles (`resolveShuffleOptions`). |
+| `open_answer_score` | `"last" \| "best"`, default `"last"` | ✅ | Which attempt at an open question counts. | Anything other than `"best"` reads as `"last"` (`course_model.dart`; `block_step_engine.dart`). |
 
 ### 3.4 Gamification & integrity
 
@@ -448,15 +451,21 @@ play/pause/seek.
 |---|---|---|---|---|
 | `type` | `multiple_choice \| true_false \| open \| numeric` | ✅ | Input widget + grading rule. | §8.3. |
 | `options` | `QuestionOption[]` | ✅ | Choices (MC and T/F). | §8.2. |
-| `correct_answer` | string | ✅ | Expected answer for `open`. | Compared **case-insensitively and trimmed**; if no exact match, the app also accepts the text of any option marked `is_correct` (`block_step_engine.dart:520-529`). Matching is exact equality after normalisation — no fuzzy or substring matching — so the expected string must be exactly what you want students to type. |
+| `correct_answer` | string | ✅ | Expected answer for `open`, one accepted variant per line. | Every open answer is graded by the AI first, with this as its reference (BR-N26ACB). When the AI cannot be reached it is compared with each line **case-insensitively and trimmed**, and with the text of any option marked `is_correct` (`expected_answer.dart`, `block_step_engine.dart`). |
 | `correct_number` | number | ✅ | Expected value for `numeric`. | `isCorrect = |input − correct_number| <= tolerance`. |
 | `tolerance` | number, default 0 | ✅ | Accepted ± band for `numeric`. | `0` means exact match. This is how you accept `0.33` for ⅓. |
 | `allow_multiple` | bool, default false | ✅ | Multi-select. | Grading becomes **all-or-nothing set equality**: the selection must contain exactly the correct ids, no more, no fewer (`block_step_engine.dart:506-510`). There is no partial credit for multi-select. |
-| `show_answers` | bool, default true | ✅ | Show the option list. | When `false`, options are not offered and the student's answer is not visually marked correct/incorrect (`step_content_renderer.dart:248-265`); the confirm button label switches from "Zkontrolovat" to "Další" (`block_step_engine.dart:1205-1206`). Use for reflective / survey questions. |
+| `show_answers` | bool, default true | ✅ | Mark the answer. | When `false`, a single-choice pick is not coloured correct/incorrect and a multi-select does not reveal the missed correct options; true/false, numeric and open answers are marked as usual, and the answer is still graded (`step_content_renderer.dart`). The confirm button reads "Další" instead of "Zkontrolovat". |
 | `show_solution` | bool, default true | ✅ | Reveal the solution after answering. | `false` skips the solution state entirely and moves on (`block_step_engine.dart:288-290`). |
 | `solution` | Markdown+LaTeX | ✅ | Worked explanation shown after answering. | Suppressed in `quiz_v2` + `quiz_evaluate:false`, and when `show_solution:false`. |
 | `solution_image` | `{url, alt?, position?}` | ✅ | Image inside the solution. | Rendered with the solution. |
 | `allow_photo` | bool | ✅ | Answer an open question with a photo. | A camera control on open questions; the photo is sent with the answer to the AI (`answer_photo_picker.dart`, `block_step_engine.dart`, `quiz_page.dart`, BR-P745Q8). |
+| `shuffle_options` | bool | ✅ | Shuffle this question's options. | Overrides the course's `shuffle_answers`; true/false never shuffles (`resolveShuffleOptions`). |
+| `ai_evaluation` | bool, default false | ✅ | Show the AI's feedback on an open answer. | Grading is by the AI either way; without it the student sees only the verdict and the solution. Off in `quiz_v2`. |
+| `ai_guided` | bool, default false | ✅ | Guided solving. | With `ai_evaluation`: after a wrong answer the AI's advice stays up and the student tries again; the solution is withheld until the attempts run out (BR-V9TQA7). Off in `quiz_v2`. |
+| `ai_guided_attempts` | int, default 3 | ✅ | Attempts before the solution. | Clamped to 1–10 (`parseGuidedAttempts`). |
+| `ai_criteria` | string | ✅ | Free-text grading notes for the AI. | Sent with the answer (`ai_answer_evaluator.dart`). |
+| `ai_criteria_list` | `{id, name, description?, weight}[]` | ✅ | A rubric. | Unnamed entries dropped, first four kept (`QuestionCriterion.listFromJson`); sent to the AI, scores come back keyed by `id`. The weight's scale is not defined in the code available here. |
 
 ### 8.2 `QuestionOption`
 

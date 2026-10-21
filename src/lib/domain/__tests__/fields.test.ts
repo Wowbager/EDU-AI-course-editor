@@ -228,6 +228,8 @@ describe('segmented selects', () => {
 			'gpf.level',
 			'image.position',
 			'learning.difficulty',
+			'open_answer_score',
+			'shuffle_options',
 			'video.position'
 		]);
 	});

@@ -45,6 +45,10 @@
 	const uid = $props.id();
 	const hintId = (spec: FieldSpec) => `${uid}-${spec.level}-${spec.path}`;
 
+	/** A select's chosen option as the document stores it. */
+	const stored = (spec: FieldSpec, option: string): unknown =>
+		spec.numeric ? Number(option) : spec.boolean ? option === 'true' : option;
+
 	const asText = (value: unknown): string | undefined =>
 		value === undefined || value === null ? undefined : String(value);
 
@@ -95,7 +99,7 @@
 					describedby={hint ? hintId(spec) : undefined}
 					onchange={(v) => {
 						if (v === current) return write(spec.path, undefined);
-						write(spec.path, spec.numeric ? Number(v) : v);
+						write(spec.path, stored(spec, v));
 					}}
 				/>
 			</div>
@@ -114,7 +118,7 @@
 					onchange={(e) => {
 						const raw = e.currentTarget.value;
 						if (raw === '') return write(spec.path, undefined);
-						write(spec.path, spec.numeric ? Number(raw) : raw);
+						write(spec.path, stored(spec, raw));
 					}}
 				>
 					<option value="">— nenastaveno —</option>

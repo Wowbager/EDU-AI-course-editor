@@ -24,6 +24,7 @@ import { blockDurationMinutes, isPracticeBlock, optionOutcomesApply } from './de
 import { goToIgnored } from './navigation';
 import { mediaHidden } from './media';
 import { skipConditionSupported } from './practice';
+import { AI_CRITERIA_MAX, GUIDED_ATTEMPTS_MAX, GUIDED_ATTEMPTS_MIN } from './question-settings';
 import { dimensionCount, ELO_MAX, ELO_MIN, type SkillConfig } from './skill-config';
 import {
 	blockLabel,
@@ -427,6 +428,7 @@ function checkQuestionShape(block: BlockV2, step: BlockStep, question: QuestionC
 					`Otevřená otázka v kroku ${position} nemá zadanou správnou odpověď. Odpověď vyhodnotí AI, ale žákovi bez připojení se každá odpověď vyhodnotí jako chybná.`
 				);
 			}
+			checkAiSettings(question, { ...ref }, position, add);
 			break;
 		}
 		case 'numeric': {
@@ -488,6 +490,46 @@ function checkQuestionShape(block: BlockV2, step: BlockStep, question: QuestionC
 			}
 			break;
 		}
+	}
+}
+
+/**
+ * What the app does with an open question's AI settings (`block_model.dart`):
+ * `parseGuidedAttempts` clamps the attempts to 1–10, and `QuestionCriterion.listFromJson`
+ * drops unnamed criteria and keeps the first four.
+ */
+function checkAiSettings(question: QuestionConfig, ref: Ref, position: number, add: Add) {
+	const attempts = question.ai_guided_attempts;
+	if (
+		question.ai_guided === true &&
+		typeof attempts === 'number' &&
+		(attempts < GUIDED_ATTEMPTS_MIN || attempts > GUIDED_ATTEMPTS_MAX)
+	) {
+		const used = Math.min(GUIDED_ATTEMPTS_MAX, Math.max(GUIDED_ATTEMPTS_MIN, Math.trunc(attempts)));
+		add(
+			'warning',
+			'W_GUIDED_ATTEMPTS_RANGE',
+			{ ...ref, field: 'question.ai_guided_attempts' },
+			`Otázka v kroku ${position} dává ${attempts} pokusů; aplikace jich umí ${GUIDED_ATTEMPTS_MIN}–${GUIDED_ATTEMPTS_MAX}, takže žák dostane ${used}.`
+		);
+	}
+	const criteria = question.ai_criteria_list ?? [];
+	const named = criteria.filter((c) => (c.name ?? '').trim() !== '');
+	if (named.length < criteria.length) {
+		add(
+			'warning',
+			'W_AI_CRITERION_NO_NAME',
+			{ ...ref, field: 'question.ai_criteria_list' },
+			`Kritérium hodnocení u otázky v kroku ${position} nemá název, a tak ho AI nedostane.`
+		);
+	}
+	if (named.length > AI_CRITERIA_MAX) {
+		add(
+			'warning',
+			'W_AI_CRITERIA_TOO_MANY',
+			{ ...ref, field: 'question.ai_criteria_list' },
+			`Otázka v kroku ${position} má ${named.length} kritérií hodnocení; AI dostane jen první ${AI_CRITERIA_MAX}.`
+		);
 	}
 }
 

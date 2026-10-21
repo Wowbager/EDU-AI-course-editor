@@ -85,6 +85,8 @@ export interface FieldSpec {
 	options?: readonly { value: string; label: string }[];
 	/** For `select`: the document stores the chosen option as a number, not a string. */
 	numeric?: true;
+	/** For `select`: the options are `'true'` / `'false'`, stored as booleans. */
+	boolean?: true;
 	/** Set when a hand-written component owns this field rather than `FieldGroup`. */
 	custom?: true;
 	/**
@@ -346,6 +348,38 @@ export const FIELDS: readonly FieldSpec[] = [
 		kind: 'number',
 		label: 'Odhad délky',
 		hint: 'Délka uvedená v knihovně u kurzu, který si žák ještě nestáhl; po stažení se spočítá z karet. Bez ní server uvede 15 minut na lekci.'
+	},
+	{
+		level: 'course',
+		path: 'open_all_lessons',
+		section: 'run',
+		mode: 'advanced',
+		kind: 'toggle',
+		label: 'Všechny lekce odemčené',
+		hint: 'Žák může otevřít kteroukoli lekci, ne až po dokončení předchozí. Úvodní kvíz a čekající aktualizace kurzu lekce přesto zamknou.'
+	},
+	{
+		level: 'course',
+		path: 'shuffle_answers',
+		section: 'run',
+		mode: 'advanced',
+		kind: 'toggle',
+		label: 'Míchat odpovědi',
+		hint: 'Možnosti u otázek s výběrem se každému žákovi zamíchají. Ano/Ne se nemíchá a otázka si to může nastavit sama.'
+	},
+	{
+		level: 'course',
+		path: 'open_answer_score',
+		section: 'run',
+		mode: 'advanced',
+		kind: 'select',
+		display: 'segmented',
+		label: 'Který pokus se počítá',
+		hint: 'U otevřené otázky, na kterou žák odpoví znovu: počítá se poslední, nebo nejlepší pokus. Bez nastavení poslední.',
+		options: [
+			{ value: 'last', label: 'Poslední' },
+			{ value: 'best', label: 'Nejlepší' }
+		]
 	},
 	{
 		level: 'course',
@@ -1204,6 +1238,68 @@ export const FIELDS: readonly FieldSpec[] = [
 	},
 	{
 		level: 'question',
+		path: 'shuffle_options',
+		section: 'extras',
+		mode: 'advanced',
+		kind: 'select',
+		display: 'segmented',
+		boolean: true,
+		label: 'Míchat odpovědi',
+		hint: 'Zamíchá možnosti každému žákovi jinak. Bez nastavení platí nastavení kurzu.',
+		options: [
+			{ value: 'true', label: 'Míchat' },
+			{ value: 'false', label: 'Nemíchat' }
+		]
+	},
+	{
+		level: 'question',
+		path: 'ai_evaluation',
+		section: 'extras',
+		mode: 'advanced',
+		kind: 'toggle',
+		label: 'Zpětná vazba od AI',
+		hint: 'Žák po odpovědi uvidí, co k ní napsala AI. Bez toho uvidí jen výsledek a řešení; vyhodnocuje AI vždy. V kurzu typu Test se nezobrazí.'
+	},
+	{
+		level: 'question',
+		path: 'ai_guided',
+		section: 'extras',
+		mode: 'advanced',
+		kind: 'toggle',
+		label: 'Vést žáka k řešení',
+		hint: 'Po chybné odpovědi AI žákovi poradí a nechá ho to zkusit znovu; řešení ukáže, až vyčerpá pokusy. V kurzu typu Test se nepoužije.'
+	},
+	{
+		level: 'question',
+		path: 'ai_guided_attempts',
+		section: 'extras',
+		mode: 'advanced',
+		kind: 'number',
+		label: 'Počet pokusů',
+		hint: 'Kolikrát může žák odpovědět, než uvidí řešení. 1–10, výchozí 3.',
+		default: '3'
+	},
+	{
+		level: 'question',
+		path: 'ai_criteria',
+		section: 'extras',
+		mode: 'advanced',
+		kind: 'multiline',
+		label: 'Na co má AI dbát',
+		hint: 'Volným textem, co má AI při hodnocení a ve zpětné vazbě sledovat. Správná odpověď zůstává hlavním vodítkem.'
+	},
+	{
+		level: 'question',
+		path: 'ai_criteria_list',
+		section: 'extras',
+		mode: 'advanced',
+		kind: 'custom',
+		label: 'Kritéria hodnocení',
+		hint: 'Nejvýš čtyři body, které má AI ve zpětné vazbě projít; každý s vahou.',
+		custom: true
+	},
+	{
+		level: 'question',
 		path: 'solution_image',
 		section: 'main',
 		feedback: true,
@@ -1313,6 +1409,11 @@ export const NOT_EDITABLE: Record<string, string> = {
 	'block.multi_question':
 		'Mění se položkou „Všechny otázky v jedné kartě“ v nabídce ⋯ karty, protože zapnutí slučuje bloky karty a vypnutí je rozděluje.',
 	'binding.order': 'Přepisuje se přetažením karty.',
+	'criterion.id':
+		'Kritérium se edituje v seznamu „Kritéria hodnocení“ u otevřené otázky; identifikátor doplní editor sám.',
+	'criterion.name': 'Edituje se v seznamu „Kritéria hodnocení“ u otevřené otázky.',
+	'criterion.description': 'Edituje se v seznamu „Kritéria hodnocení“ u otevřené otázky.',
+	'criterion.weight': 'Edituje se v seznamu „Kritéria hodnocení“ u otevřené otázky.',
 	'step.question':
 		'Otázka má vlastní úroveň v registru — její pole jsou uvedená pod level: question.',
 	'block.steps': 'Struktura, ne pole — kroky se přidávají tlačítkem v kartě.',

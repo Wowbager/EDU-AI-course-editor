@@ -20,11 +20,13 @@
 	import Modal from '$lib/ui/Modal.svelte';
 	import AnswerTable from './AnswerTable.svelte';
 	import FieldGroup from '$lib/ui/FieldGroup.svelte';
+	import CriteriaEditor from './CriteriaEditor.svelte';
 	import { useStepView, useStore } from '$lib/ui/context';
 	import { dragHandle } from 'svelte-dnd-action';
 	import { tick, untrack } from 'svelte';
 	import { refKey } from '$lib/domain/ref';
 	import { mediaPositionApplies } from '$lib/domain/media';
+	import { questionSettingApplies } from '$lib/domain/question-settings';
 	import Button from '$lib/ui/Button.svelte';
 	import { allows, fieldSpec, fieldsFor } from '$lib/ui/fields';
 	import { answersCount } from '$lib/ui/plural';
@@ -177,7 +179,18 @@
 		})
 	);
 	const questionExtras = $derived(
-		fieldsFor('question', mode, feedbackOn).filter((f) => !INLINE_QUESTION.includes(f.path))
+		fieldsFor('question', mode, feedbackOn).filter(
+			(f) =>
+				!INLINE_QUESTION.includes(f.path) &&
+				(step.question === undefined || questionSettingApplies(step.question, f.path))
+		)
+	);
+
+	const criteriaSpec = fieldSpec('question', 'ai_criteria_list');
+	const criteriaShown = $derived(
+		step.question !== undefined &&
+			allows('question', 'ai_criteria_list', mode) &&
+			questionSettingApplies(step.question, 'ai_criteria_list')
 	);
 
 	const hintSpec = fieldSpec('step', 'hint');
@@ -873,6 +886,13 @@
 							<FieldGroup fields={extraFields} {read} write={set} />
 							{#if step.type === 'question' && questionExtras.length > 0}
 								<FieldGroup fields={questionExtras} read={readQuestion} write={setQuestion} />
+							{/if}
+							{#if criteriaShown && step.question}
+								<CriteriaEditor
+									criteria={step.question.ai_criteria_list}
+									hint={criteriaSpec?.hint}
+									onchange={(v) => setQuestion('ai_criteria_list', v)}
+								/>
 							{/if}
 						</div>
 					</SettingsSection>

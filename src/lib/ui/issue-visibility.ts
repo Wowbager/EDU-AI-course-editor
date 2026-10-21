@@ -46,6 +46,9 @@ export const TIMING: Record<string, Timing> = {
 	W_GOTO_IN_EXERCISE: 'immediate',
 	W_MEDIA_HIDDEN: 'immediate',
 	W_SKIP_CONDITION_UNSUPPORTED: 'immediate',
+	W_GUIDED_ATTEMPTS_RANGE: 'immediate',
+	W_AI_CRITERION_NO_NAME: 'onLeave',
+	W_AI_CRITERIA_TOO_MANY: 'immediate',
 	// The card's choice, not a slip: said at export, where the jump can be removed.
 	W_GOTO_IN_ONE_TAP: 'review',
 	E_PREREQ_UNRESOLVED: 'immediate',
