@@ -3,8 +3,8 @@
 	 * `question.ai_criteria_list` — the rubric the app sends to the AI with an open
 	 * answer (`QuestionCriterion`, BR-P745Q8): a name, an optional description and a
 	 * whole-number weight per line. The app keeps the first four named lines
-	 * (`listFromJson`), so the list stops at four. Each line carries an id because the
-	 * AI's scores come back keyed by it; the teacher never sees it.
+	 * (`listFromJson`), so the list stops at four. A line the editor adds gets an id,
+	 * because the AI's scores come back keyed by it; the teacher never sees it.
 	 *
 	 * The weight's scale is not defined in the app or the API this editor can read, so
 	 * the field says only that it is relative.

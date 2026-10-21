@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { questionSettingApplies } from '../question-settings';
 import { validate } from '../validate';
+import { parseCourse } from '../document';
 import { QUESTION_TYPES, type CourseV2, type QuestionConfig } from '../schema';
 
 describe('which question settings the app uses (block_model.dart, block_step_engine.dart)', () => {
@@ -68,5 +69,35 @@ describe('AI settings the app would correct', () => {
 			'W_AI_CRITERIA_TOO_MANY'
 		);
 		expect(codes({ ai_criteria_list: ['a', 'b'].map(c) })).toEqual([]);
+	});
+});
+
+describe('a rubric the app accepts loads', () => {
+	it('without ids or names, and with a fractional weight or attempt count', () => {
+		const raw = {
+			export_type: 'course_v2',
+			course_id: 'c',
+			name: 'Kurz',
+			lessons: [],
+			blocks: [
+				{
+					block_id: 'b',
+					type: 'question',
+					steps: [
+						{
+							id: 's1',
+							type: 'question',
+							content: 'Proč?',
+							question: {
+								type: 'open',
+								ai_guided_attempts: 2.5,
+								ai_criteria_list: [{ weight: 1.5 }, { name: 'b' }]
+							}
+						}
+					]
+				}
+			]
+		};
+		expect(() => parseCourse(raw)).not.toThrow();
 	});
 });

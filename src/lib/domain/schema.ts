@@ -52,7 +52,8 @@ export const aiCriterionSchema = z.looseObject({
 	id: z.string().optional(),
 	name: z.string().optional(),
 	description: z.string().optional(),
-	weight: z.number().int().optional()
+	// The app truncates (`toInt()`), so a fractional value still loads.
+	weight: z.number().optional()
 });
 
 export const questionConfigSchema = z.looseObject({
@@ -70,7 +71,7 @@ export const questionConfigSchema = z.looseObject({
 	shuffle_options: z.boolean().optional(),
 	ai_evaluation: z.boolean().optional(),
 	ai_guided: z.boolean().optional(),
-	ai_guided_attempts: z.number().int().optional(),
+	ai_guided_attempts: z.number().optional(),
 	ai_criteria: z.string().optional(),
 	ai_criteria_list: z.array(aiCriterionSchema).optional()
 });
