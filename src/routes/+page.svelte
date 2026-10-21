@@ -652,11 +652,16 @@
 		transition: none;
 	}
 
+	/*
+	 * The scrollbar's room is always kept, so the card does not shift sideways when a
+	 * change makes the column tall enough to scroll, or short enough not to.
+	 */
 	.editor {
 		flex: 1;
 		min-width: 0;
 		padding: var(--e-gutter);
 		overflow-y: auto;
+		scrollbar-gutter: stable;
 	}
 
 	/*
