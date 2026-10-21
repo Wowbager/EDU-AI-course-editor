@@ -326,4 +326,22 @@ test.describe('the player on a plain page open', () => {
 		const state = await inspect(page);
 		expect(['none', 'block']).toContain(state.content);
 	});
+
+	test('shows the card of a restored draft, not the placeholder', async ({ page }) => {
+		// Typing into a step makes the draft remember that step, so after a reload the
+		// outline goes out while the card is still queued — and used to cancel it.
+		await openEditor(page);
+		await page.locator('.rich-content').first().click();
+		await page.keyboard.type('Rozepsaný text');
+		await expect(
+			page.getByRole('button', { name: /^Koncept uložen v tomto prohlížeči\./ })
+		).toBeVisible();
+
+		await page.reload();
+		await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
+		await expect(page.locator('aside.preview')).toHaveAttribute('data-player', 'ready', {
+			timeout: 60_000
+		});
+		await waitForPlayer(page, { content: 'block' });
+	});
 });

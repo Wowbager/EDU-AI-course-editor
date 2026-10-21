@@ -348,7 +348,10 @@ export class PreviewBridge {
 			if (message.type === 'setBlock' || message.type === 'setLesson') this.#pending = message;
 			return;
 		}
-		this.#pending = null;
+		// Only content takes the queued content's place. A highlight or a `back` sent
+		// while a card waits out the debounce used to clear it, and the card never
+		// went: a restored draft's outline did that on every reload.
+		if (message.type === 'setBlock' || message.type === 'setLesson') this.#pending = null;
 		// Both directions carry JSON strings. Structured clone would work for the
 		// editor → player leg, but Dart hands a cloned object back as an opaque JS
 		// value, so one encoding for both sides is the thing that stays debuggable.
