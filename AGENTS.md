@@ -122,7 +122,8 @@ Each of these comes from a bug that cost a round.
    update; a block with several questions and none open is graded in one tap, as the
    share answered correctly). So every question is its own exported block, and several
    blocks show as one card on screen (`src/lib/domain/groups.ts`, COURSE-EDITOR-SPEC
-   §6.2a). Only the advanced mode may keep several questions in one block, on purpose.
+   §6.2a). Several questions stay in one block only when the card says so
+   („Všechny otázky v jedné kartě“, `multi_question`).
    Code that needs the exported course reads `store.source`; code that draws the editor
    reads `store.doc`.
 6. **The document is what gets exported.** Parsing injects no defaults, unknown keys

@@ -2651,9 +2651,32 @@ ported, not rebased: `git merge-tree` conflicted in ten files, the step engine w
 `app-dialect.ts` mirrors the old Markdown/HTML sniffing; `W_HINT_UNREACHABLE` counts
 every question of a merged card as offering a "?", while the app offers only the first
 and the last; a merged card with no open question ignores its per-question `go_to` and
-nothing warns; `allow_photo`, `fsrs.weight` and `fsrs.skip_condition` are marked unread
+nothing warns (warned since round 22); `allow_photo`, `fsrs.weight` and `fsrs.skip_condition` are marked unread
 but are read; `E_OPEN_NO_CORRECT_ANSWER` and the open-answer hints describe exact
 matching; `W_ONLY_ONCE_WITH_PRACTICE` warns about something the app no longer does.
+
+## Round 22 — a card's questions together, from its ⋯ menu; Náhled joins a card as the app does
+
+The owner: "In preview the steps aren't joined as they are in the app, splitting. Some
+teachers want work with multiple questions on one card more, so there should be some
+easy way to work with this … it shouldn't change the way the editor works now much and
+it must be easy to use. The current setting is too hidden and isn't intuitive to use."
+This reverses the 2026-10-19 decision that only Pokročilý may merge a card's questions.
+
+**„Všechny otázky v jedné kartě“ is a checkbox in the card's ⋯ menu, in every mode.**
+Offered only on a card with two questions or more (`togetherChoice`); one undoable
+edit; the card stays one card in the tree either way. The switch in Nastavení karty →
+Údaje o kartě, its consequence line and the Učitel note are gone. Splitting stays the
+default. *Rejected:* a „zvlášť | naráz“ control under the card title once a second
+question exists — easier to find, but one more element on every multi-question card;
+the owner chose the menu after a walkthrough. *Rejected:* making "together" the
+default (not asked).
+
+- A card an import kept whole because it jumps between its own questions can be split
+  only in Pokročilý, which shows the blocks the jumps would land on (OPEN-PROBLEMS #20).
+- **The app ignores those jumps anyway** when the card has no open question
+  (`_confirmAllAnswers`, BR-E4H835), which round 21 left unwarned. `W_GOTO_IN_ONE_TAP`
+  now says so at export (timing `review`). It fires on the corpus's two imported cards.
 
 ## Still open
 

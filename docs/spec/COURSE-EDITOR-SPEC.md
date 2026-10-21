@@ -230,7 +230,7 @@ Type `BlockV2`. Edited across `BlockV2Editor.tsx` and `editors/block-v2/*`.
 | `help` | string (Markdown+LaTeX) | ✅ | Long block-level explanation. | Second-level help, costs more score than a hint — §12. |
 | `steps` | `BlockStep[]` | ✅ | **The content.** | §7. |
 | `group` | string | ⚪ | The teacher's card this block is part of — the editor's own key (§6.2a). | None in the app; the editor merges the blocks sharing it into one card in Učitel and Metodik. Written by the editor, never typed. |
-| `multi_question` | bool | ⚪ | The advanced author keeps this block's questions together on purpose (§6.2a). | None in the app. The block is graded as one item, as the app always grades a block. Set by "Více otázek v jedné kartě" in Pokročilý. |
+| `multi_question` | bool | ⚪ | The teacher keeps this block's questions together on purpose (§6.2a). | None in the app. The block is graded as one item, as the app always grades a block. Set by „Všechny otázky v jedné kartě“ in the card's ⋯ menu, in every mode. |
 
 **Legacy flat fields** — `content`, `image`, `video`, `question` directly on the block — are
 still parsed by the app when `steps` is absent (`block_model.dart:1195-1245`), and the ADM has
@@ -283,8 +283,15 @@ merges the blocks back (`group`) when it shows the card (`src/lib/domain/groups.
 An imported course is split the same way, as one undoable edit. A block that branches to
 one of its own steps, or ends (`END`) before its last question, is kept whole and marked
 `multi_question`, since splitting it would change the path the author built. Pokročilý
-shows the blocks as they are exported and can merge a card into one block kept together,
-or split it again.
+shows the blocks as they are exported.
+
+In every mode, a card with two questions or more offers „Všechny otázky v jedné kartě“
+in its ⋯ menu (`togetherChoice`). On, the card is one block marked `multi_question`: the
+pupil gets the questions in one bubble and, when none is open, checks them in one tap,
+scored as the share answered correctly (`checksQuestionsInOneTap`, the app's
+`_isBatchBlock`). A jump between such a card's own steps is then never taken, which
+`W_GOTO_IN_ONE_TAP` says at export. Off, it is split again. A card kept whole on import
+for its jumps can be split only in Pokročilý.
 
 ### 6.3 GPF — `gpf` object
 
