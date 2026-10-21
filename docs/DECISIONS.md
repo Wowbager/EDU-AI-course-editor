@@ -2678,6 +2678,57 @@ default (not asked).
   (`_confirmAllAnswers`, BR-E4H835), which round 21 left unwarned. `W_GOTO_IN_ONE_TAP`
   now says so at export (timing `review`). It fires on the corpus's two imported cards.
 
+## Round 23 — the editor's settings and texts checked against the app after its sync
+
+The owner asked for every setting, option, default and line of help to be checked
+against the schema and against what the app does with it, and for the recent bug fixes
+to be checked for root cause. Export validity was not the question: the app accepting a
+file says nothing about whether a label is true. Ground truth was the upstream app's
+`origin/main`, fork code left out.
+
+**What the app does, now said.**
+- `exercise_v2` has no effect: `ExportMode.exerciseV2` is never consulted, and
+  `GoToResolver` ignores `go_to` only in an `exercise` block. Kam dál shows again in such
+  a course; `domain/navigation.ts` holds the rule. *Owner:* keep all three course types
+  and tell the truth. *Rejected:* hiding Cvičení (celý kurz).
+- A Test keeps its hint; it hides verdict and solution only without `quiz_evaluate`.
+- An open answer is graded by the AI; `correct_answer` is the offline fallback, several
+  lines allowed. The missing answer is a review warning, not an export-blocking error.
+- „V textu“ is gone: the app never draws an `inline` image. Position fields show only on
+  a text step carrying media (`domain/media.ts`). *Rejected:* rewriting `inline` to
+  `below` on import (rule 6).
+- A wrong answer always scores 0; `show_answers` uncolours single-choice only.
+- XP is the steps' maximum everywhere (#15 closed). *Rejected:* showing a typed `xp`
+  crossed out, as #15 suggested: the app never reads it.
+- `fsrs.weight` (default 5) and `skip_condition` (`GPF_mastery <op> n`, checked by
+  `W_SKIP_CONDITION_UNSUPPORTED`) and `allow_photo` are read. *Owner:* keep the spec's
+  FSRS names and drop the defaults the app never applies. *Rejected:* writing the app's
+  `stability`/`difficulty` (another scale, and a migration).
+- The Markdown and HTML sniffing is ported from `content_format.dart` (#54, #47); a
+  plain line starting like a list has no faithful form now (#55).
+- Smaller hints: `header_image` is a square cover, `description` is not the subtitle,
+  `estimated_minutes` is for courses not yet downloaded, relation 1 never moves the
+  rating, an `elo_vector` value from 0 is valid.
+
+**Built in Pokročilý** (*owner*, reversing the plan to list them as proposed): the
+settings the sync added — `open_all_lessons`, `shuffle_answers`, `open_answer_score`,
+`shuffle_options`, `ai_evaluation`, `ai_guided` with its attempts, `ai_criteria` and
+`ai_criteria_list`. This builds the Round 21 decision to offer AI grading in Pokročilý.
+`domain/question-settings.ts` says where each applies. The criteria weight's scale is
+defined in no code available here, so the field calls it a weight and nothing more.
+
+**From the commit review.** Fixes that patched one place where the rule lives elsewhere
+were moved to the rule: the card-type chip titles into `ui/card-types.ts` (`da30c47`);
+one write rule for every number field (`typedNumber`, `5d0e468`'s siblings). That
+reverses one tested choice: unreadable text in Správný výsledek now keeps the number
+instead of clearing it, as every other number field did. `b85b960` was built on the
+stale sniffer; its triggers follow the port. Leftovers not reproduced: #58–#60.
+
+**Proposed, not built.** `subtitle` and `badge` course fields (read by the app, absent
+here); branching on Výklad cards (the app honours `go_to` there); a script that lists
+the keys the app parses at `PLAYER_REF`, so `unread` flags are checked against the app
+rather than against hand-kept spec markers.
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today
@@ -2730,14 +2781,16 @@ citation still resolves. `0` is one of the numbers, not a placeholder.
 6. **`W_DUPLICATE_OPTION_ID`** — *question for the owner.* A check §14 does not list,
    added as a warning rather than an error to avoid inventing a blocking rule. Confirm
    which it should be.
-7. **`relation_vector: 1` is inert in the app** — *fork.* The authoring spec defines it
+7. **`relation_vector: 1` is inert in the app** — *settled in Round 23:* the editor
+   and both specs now say so; the old text follows. The authoring spec defines it
    as a reduced-weight update (`elo_engine.dart:122`); the engine does not read it.
    Either the engine should honour it or the spec should drop it; until then the editor
    offers it without comment. This is the same disagreement as `OPEN-PROBLEMS.md` 14
    (FSRS keys) and 15 (authored XP), seen from the other side: where the app and the
    spec disagree, the editor writes what the spec says and this list carries the
    question.
-8. **The app's lesson card always derives XP.** `_calculateBlockMaxXp` in
+8. **The app's lesson card always derives XP.** *Settled in Round 23:* the editor shows
+   the derived figure everywhere, and the spec says `xp` is not read. `_calculateBlockMaxXp` in
    `course_model.dart` ignores an authored `blocks[].xp` when computing the lesson's
    advertised reward, while §10 says the authored value is the reward. The editor
    follows the spec and shows the derived figure with an asterisk. Worth reconciling —
