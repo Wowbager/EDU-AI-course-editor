@@ -24,6 +24,7 @@
 	import { dragHandle } from 'svelte-dnd-action';
 	import { tick, untrack } from 'svelte';
 	import { refKey } from '$lib/domain/ref';
+	import { mediaPositionApplies } from '$lib/domain/media';
 	import Button from '$lib/ui/Button.svelte';
 	import { allows, fieldSpec, fieldsFor } from '$lib/ui/fields';
 	import { answersCount } from '$lib/ui/plural';
@@ -163,9 +164,9 @@
 				!INLINE_STEP.includes(f.path) &&
 				// The step's switch only duplicates the card's own when the card is in practice.
 				(f.path !== 'default_practice' || stepPracticeOffered(doc, block, step)) &&
-				// Where a picture or video sits matters only on a step that has one.
-				(f.path !== 'image.position' || step.type === 'image' || step.image !== undefined) &&
-				(f.path !== 'video.position' || step.type === 'video' || step.video !== undefined)
+				// Where a picture or video sits matters only around a text step's text.
+				(f.path !== 'image.position' || mediaPositionApplies(step, 'image')) &&
+				(f.path !== 'video.position' || mediaPositionApplies(step, 'video'))
 		)
 	);
 	// A selection or a visible issue that points into the fold opens it.

@@ -224,8 +224,7 @@ export const STATUS_OPTIONS = [
 
 const POSITION_OPTIONS = [
 	{ value: 'above', label: 'Nad textem' },
-	{ value: 'below', label: 'Pod textem' },
-	{ value: 'inline', label: 'V textu' }
+	{ value: 'below', label: 'Pod textem' }
 ] as const;
 
 export const FIELDS: readonly FieldSpec[] = [
@@ -1112,6 +1111,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		kind: 'select',
 		display: 'segmented',
 		label: 'Umístění videa',
+		hint: 'Má-li krok i obrázek s nastaveným umístěním, video se řídí jím.',
 		options: POSITION_OPTIONS
 	},
 

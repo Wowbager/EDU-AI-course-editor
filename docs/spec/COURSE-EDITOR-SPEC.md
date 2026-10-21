@@ -427,7 +427,7 @@ block `$$…$$` math, and raw HTML. Two behaviours an editor should surface:
   Practical rule for authors: **images must be public HTTPS URLs under 10 MB**, ideally
   uploaded through the admin asset manager (`POST /api/admin/assets/upload`).
 
-**`image`** — `{url, alt?, position?}`. `position` is `above | below | inline`.
+**`image`** — `{url, alt?, position?}`. `position` is `above | below | inline`. The app reads one position per step (the step's, else the image's, else the video's) and uses it only on a `text` step carrying media: `above` (the default) or `below` the text; `inline` is not drawn at all, and an image or video step always shows its media first.
 `alt` is authored for accessibility.
 
 **`video`** — `{url, position?}`. **Direct MP4 URL, not a YouTube link.** Standard player with

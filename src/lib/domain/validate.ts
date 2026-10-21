@@ -22,6 +22,7 @@ import type { Ref } from './ref';
 import { buildIndex, isGoToKeyword, reachableSteps, type DocIndex } from './index-doc';
 import { blockDurationMinutes, isPracticeBlock, optionOutcomesApply } from './derive';
 import { goToIgnored } from './navigation';
+import { mediaHidden } from './media';
 import { dimensionCount, ELO_MAX, ELO_MIN, type SkillConfig } from './skill-config';
 import {
 	blockLabel,
@@ -676,6 +677,16 @@ function checkMedia(block: BlockV2, step: BlockStep, add: Add) {
 				`Obrázek v kroku ${position} nemá popis. Žák, který používá čtečku obrazovky, se nedozví, co je na něm — a stejný text se ukáže, když se obrázek nenačte.`
 			);
 		}
+	}
+
+	for (const media of ['image', 'video'] as const) {
+		if (!mediaHidden(step, media)) continue;
+		add(
+			'warning',
+			'W_MEDIA_HIDDEN',
+			{ ...ref, field: `${media}.position` },
+			`${media === 'image' ? 'Obrázek' : 'Video'} v kroku ${position} má umístění, které aplikace neumí vykreslit — žák ho neuvidí. Zvol „Nad textem“ nebo „Pod textem“.`
+		);
 	}
 }
 

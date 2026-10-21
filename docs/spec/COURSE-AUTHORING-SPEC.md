@@ -437,7 +437,7 @@ Two behaviours to design content around:
   CORS problems. Images must be **public HTTPS URLs**; anything behind auth or on a private
   host will not render. Keep files under ~10 MB.
 
-**`image`** — `{ url, alt?, position? }` where `position` is `above | below | inline`.
+**`image`** — `{ url, alt?, position? }` where `position` is `above | below | inline`. The app reads one position per step (the step's, else the image's, else the video's) and uses it only on a `text` step carrying media: `above` (the default) or `below` the text; `inline` is not drawn at all, and an image or video step always shows its media first.
 Always write `alt`: it is read aloud by screen readers and shown when the image fails to load.
 
 **`video`** — `{ url, position? }`. A **direct MP4 URL**, not a YouTube or Vimeo link. Standard
