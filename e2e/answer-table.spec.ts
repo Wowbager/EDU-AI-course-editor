@@ -49,9 +49,34 @@ async function loadCourse(page: Page, edit: (doc: ReturnType<typeof fixture>) =>
 }
 
 test.beforeEach(async ({ page }) => {
-	// Wide enough for the table's own columns; below 760px it stacks and has no heading.
+	// Wide enough for the table's own columns; below 760px the feedback goes under the
+	// answer and the heading goes.
 	await page.setViewportSize({ width: 2200, height: 1100 });
 	await openEditor(page);
+});
+
+test('on a desktop with both side columns open, an answer is still one line', async ({ page }) => {
+	// The narrow table used to put the handle, the mark, the text and the actions each
+	// on a line of their own: four lines for one answer, at an ordinary 1440 px.
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await addQuestionCard(page);
+	const middle = async (name: string | RegExp, role: 'button' | 'textbox' = 'button') => {
+		const box = (await page.getByRole(role, { name }).first().boundingBox())!;
+		return box.y + box.height / 2;
+	};
+	const text = (await page.getByRole('textbox', { name: 'Text odpovědi' }).first().boundingBox())!;
+	const inLine = (y: number) => y > text.y && y < text.y + text.height;
+
+	expect(inLine(await middle(/^Přesunout odpověď/))).toBe(true);
+	expect(inLine(await middle(/^Správná odpověď/))).toBe(true);
+	expect(inLine(await middle(/^Podrobnosti odpovědi/))).toBe(true);
+	// The feedback is under the answer, not beside it.
+	const feedback = (await page
+		.getByRole('textbox', { name: 'Zpětná vazba k této odpovědi' })
+		.first()
+		.boundingBox())!;
+	expect(feedback.y).toBeGreaterThan(text.y + text.height);
+	expect(Math.abs(feedback.x - text.x)).toBeLessThan(2);
 });
 
 test('the trash of an answer is faintly there, full when its row is pointed at, and red only under the pointer', async ({

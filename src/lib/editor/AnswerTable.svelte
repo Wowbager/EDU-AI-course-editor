@@ -201,16 +201,19 @@
 		})
 	);
 	// Shared, content-independent tracks keep headings and all rows aligned. The grip
-	// track is only there when answers can be reordered.
-	const tracks = $derived(
+	// track is only there when answers can be reordered. A narrow table has no
+	// feedback track: the feedback goes under the answer, in the answer's column.
+	const trackList = (withFeedback: boolean) =>
 		[
 			...(movable ? ['1.25rem'] : []),
 			'36px',
 			'minmax(0, 1.4fr)',
-			...(feedback ? ['minmax(0, 1.6fr)'] : []),
-			detailOffered ? '4.25rem' : '2rem'
-		].join(' ')
-	);
+			...(withFeedback ? ['minmax(0, 1.6fr)'] : []),
+			// The arrow and the trash side by side: 28 + 6 + 36 px.
+			detailOffered ? '4.5rem' : '2rem'
+		].join(' ');
+	const tracks = $derived(trackList(feedback));
+	const narrowTracks = $derived(trackList(false));
 
 	const ref = (optionId: string, field: string) => ({
 		blockId: block.block_id,
@@ -344,7 +347,13 @@
 	</p>
 {/snippet}
 
-<div class="answers" class:bare={!headed} style:--answer-tracks={tracks}>
+<div
+	class="answers"
+	class:bare={!headed}
+	style:--answer-tracks={tracks}
+	style:--answer-tracks-narrow={narrowTracks}
+	style:--answer-text-column={movable ? 3 : 2}
+>
 	{#if headed}
 		<div class="head" aria-hidden="true">
 			{#if movable}<span></span>{/if}
@@ -843,7 +852,12 @@
 		font: var(--type-chip-label);
 	}
 
-	/* The editor can be narrow even on a desktop with both sidebars open. */
+	/*
+	 * The editor is narrow on an ordinary desktop with both side columns open. An
+	 * answer stays one line there — handle, mark, text, actions — and only its
+	 * feedback moves under the text, captioned since the heading above is gone.
+	 * Everything stacked used to put each of those on a line of its own.
+	 */
 	@container answers (max-width: 760px) {
 		.head {
 			display: none;
@@ -854,31 +868,27 @@
 		}
 
 		.row {
-			grid-template-columns: minmax(0, 1fr);
-			gap: 10px;
+			grid-template-columns: var(--answer-tracks-narrow);
+			row-gap: 6px;
 			border-bottom: 1px solid var(--e-border);
 		}
 
-		.cell::before {
+		/* Placed first, so the cells before it fill the first line in order. */
+		.actions {
+			grid-row: 1;
+			grid-column: -2;
+		}
+
+		.feedback {
+			grid-column: var(--answer-text-column) / -2;
+		}
+
+		.feedback::before {
+			content: 'Co se žák dozví';
 			display: block;
 			margin-bottom: 4px;
 			color: var(--e-text-faint);
 			font: var(--type-chip-label);
-		}
-
-		.text::before {
-			content: 'Odpověď';
-		}
-		.bare .text::before {
-			display: none;
-		}
-		.feedback::before {
-			content: 'Co se žák dozví';
-		}
-
-		/* The handle is not a field: no caption line above it. */
-		.grip-cell::before {
-			display: none;
 		}
 	}
 

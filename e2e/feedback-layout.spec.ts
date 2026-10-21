@@ -82,7 +82,14 @@ for (const marks of [false, true]) {
 				node.style.width = '420px';
 			});
 			await expect(head).toBeHidden();
-			expect((await feedback.boundingBox())!.width).toBeGreaterThan(380);
+			// The feedback moves under its answer, as wide as the answer, which keeps its
+			// line beside the mark and the row's actions.
+			const text = (await answers.locator('.text').first().boundingBox())!;
+			const under = (await feedback.boundingBox())!;
+			expect(under.y).toBeGreaterThan(text.y + text.height - 1);
+			expect(under.x).toBeCloseTo(text.x, 0);
+			expect(under.width).toBeCloseTo(text.width, 0);
+			expect(under.width).toBeGreaterThan(200);
 			await noOverflow(answers.locator('.row, .cell, .detail'));
 		});
 	}
