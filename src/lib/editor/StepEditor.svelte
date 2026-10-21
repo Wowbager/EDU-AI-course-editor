@@ -63,7 +63,7 @@
 	import Menu from '$lib/ui/Menu.svelte';
 	import MenuItem from '$lib/ui/MenuItem.svelte';
 	import { fade } from 'svelte/transition';
-	import { formatNumberInput, parseNumberInput } from '$lib/domain/number-input';
+	import { formatNumberInput, typedNumber } from '$lib/domain/number-input';
 
 	interface Props {
 		doc: CourseV2;
@@ -513,15 +513,16 @@
 	 * what the course really holds, and leaving it never rewrites the number.
 	 */
 	type NumberField = 'correct_number' | 'tolerance';
-	let typedNumber = $state<Partial<Record<NumberField, string | undefined>>>({});
+	let typedText = $state<Partial<Record<NumberField, string | undefined>>>({});
 	const numberText = (field: NumberField) =>
-		field in typedNumber ? typedNumber[field] : formatNumberInput(step.question?.[field]);
+		field in typedText ? typedText[field] : formatNumberInput(step.question?.[field]);
 	function typeNumber(field: NumberField, text: string | undefined) {
-		typedNumber[field] = text;
-		set(`question.${field}`, parseNumberInput(text));
+		typedText[field] = text;
+		const typed = typedNumber(text);
+		if (typed !== null) set(`question.${field}`, typed.value);
 	}
 	function leaveNumber(field: NumberField) {
-		delete typedNumber[field];
+		delete typedText[field];
 	}
 </script>
 

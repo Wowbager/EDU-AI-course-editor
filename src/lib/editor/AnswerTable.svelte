@@ -17,7 +17,7 @@
 	 * way to it says so once under that answer, with "Vrátit zpět" (`madeUnreachable`),
 	 * and says nothing after the next edit.
 	 */
-	import { parseNumberInput } from '$lib/domain/number-input';
+	import { formatNumberInput, typedNumber } from '$lib/domain/number-input';
 	import { tick, untrack } from 'svelte';
 	import type { BlockStep, BlockV2, CourseV2 } from '$lib/domain/schema';
 	import FocusField from '$lib/ui/FocusField.svelte';
@@ -536,15 +536,13 @@
 								<span class="label">Podíl bodů</span>
 								<FocusField
 									label="Podíl bodů za tuto odpověď"
-									value={option.score_koef === undefined ? undefined : String(option.score_koef)}
-									emptyText="1.0"
+									value={formatNumberInput(option.score_koef)}
+									emptyText="1,0"
 									monospace
 									ref={ref(option.id, 'score_koef')}
 									onchange={(v) => {
-										// Empty is unset; a comma is a decimal; text is not written.
-										const value = parseNumberInput(v);
-										if (v === undefined || v.trim() === '' || value !== undefined)
-											set(option.id, 'score_koef', value);
+										const typed = typedNumber(v);
+										if (typed !== null) set(option.id, 'score_koef', typed.value);
 									}}
 								/>
 							</div>

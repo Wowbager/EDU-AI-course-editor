@@ -24,7 +24,7 @@
 	import { ALWAYS_MARKDOWN, SNIFFED } from '$lib/domain/markdown';
 	import Toggle from './Toggle.svelte';
 	import Segmented from './Segmented.svelte';
-	import { parseNumberInput } from '$lib/domain/number-input';
+	import { formatNumberInput, typedNumber } from '$lib/domain/number-input';
 	import { formatDateTimeCs } from '$lib/domain/format-date';
 	import { hintFor, type FieldSpec } from './fields';
 	import { useSettingsSearch } from './settings-search.svelte';
@@ -53,12 +53,8 @@
 		value === undefined || value === null ? undefined : String(value);
 
 	function writeNumber(path: string, raw: string | undefined) {
-		if (raw === undefined || raw.trim() === '') return write(path, undefined);
-		const value = parseNumberInput(raw);
-		// Text that is not a number is not written: NaN would serialise as null and fail
-		// validation somewhere far from here. Empty above is "not set", never 0.
-		if (value === undefined) return;
-		write(path, value);
+		const typed = typedNumber(raw);
+		if (typed !== null) write(path, typed.value);
 	}
 </script>
 
@@ -163,7 +159,9 @@
 				{:else}
 					<FocusField
 						label={spec.label}
-						value={asText(value)}
+						value={spec.kind === 'number' && typeof value === 'number'
+							? formatNumberInput(value)
+							: asText(value)}
 						multiline={spec.kind === 'multiline'}
 						monospace={spec.kind === 'number'}
 						emptyText={spec.default === undefined ? 'nevyplněno' : `výchozí ${spec.default}`}

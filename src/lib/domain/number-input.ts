@@ -29,3 +29,15 @@ export function formatNumberInput(value: number | undefined): string | undefined
 	if (value === undefined || !Number.isFinite(value)) return undefined;
 	return String(value).replace('.', ',');
 }
+
+/**
+ * What a number field a teacher types into writes, the same in every such field: an
+ * emptied field clears the value, a readable number is written, and text that is not
+ * a number writes nothing, so the stored value stays and shows again when the field
+ * is left. `null` means "write nothing".
+ */
+export function typedNumber(raw: string | undefined): { value: number | undefined } | null {
+	if (raw === undefined || raw.trim() === '') return { value: undefined };
+	const value = parseNumberInput(raw);
+	return value === undefined ? null : { value };
+}
