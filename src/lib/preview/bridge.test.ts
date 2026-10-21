@@ -215,4 +215,34 @@ describe('a player that announces itself again', () => {
 			vi.useRealTimers();
 		}
 	});
+
+	it('still gets the card when a jump goes out while the card waits out the debounce', () => {
+		// A restored draft remembers a step, so the outline goes out the moment the
+		// player is up, while the card is still queued. The outline used to empty the
+		// queue: the preview sat on its placeholder until the next keystroke.
+		vi.useFakeTimers();
+		const posted: string[] = [];
+		const frame = {
+			contentWindow: { postMessage: (data: string) => posted.push(data) }
+		} as unknown as HTMLIFrameElement;
+		const original = (globalThis as { window?: unknown }).window;
+		(globalThis as { window?: unknown }).window = {
+			addEventListener: () => {},
+			removeEventListener: () => {},
+			location: { origin: 'http://localhost' }
+		};
+		try {
+			const bridge = new PreviewBridge();
+			bridge.attach(frame);
+			bridge.receive({ type: 'ready' });
+			bridge.showBlock(card('s1'), 'course_v2', asIs, 'expanded', 's1');
+			bridge.highlight({ blockId: 'B1', stepId: 's1' });
+			vi.advanceTimersByTime(300);
+
+			expect(posted.map((m) => JSON.parse(m).type)).toEqual(['highlight', 'setBlock']);
+		} finally {
+			(globalThis as { window?: unknown }).window = original;
+			vi.useRealTimers();
+		}
+	});
 });
