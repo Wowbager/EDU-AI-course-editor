@@ -189,7 +189,7 @@ test('a card says how long it takes only once someone has said so', async ({ pag
 	await openEditor(page);
 	const card = page.locator('main .card');
 	const length = card.getByTitle('Očekávaný čas na kartu');
-	await expect(card.getByTitle(/8 XP za každý krok/)).toBeVisible();
+	await expect(card.getByTitle(/8 XP za každou otázku/)).toBeVisible();
 	await expect(length).toHaveCount(0);
 	await expect(card).not.toContainText('odhadem');
 	await load(page);
