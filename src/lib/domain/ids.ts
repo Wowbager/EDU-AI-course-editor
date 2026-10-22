@@ -1,7 +1,7 @@
 /**
  * Id minting. §3 invariants 1, 2 and 4 live here.
  *
- * Step ids are `s{max+1}` and are never reused or renumbered — a `go_to` target and
+ * Step ids are `s` + random digits and are never reused or renumbered — a `go_to` target and
  * every saved student answer is keyed by them. Reordering rewrites `order` only.
  */
 import type { BlockStep, BlockV2, CourseV2, QuestionOption } from './schema';
@@ -31,33 +31,26 @@ export const stepReservation = (blockId: string, stepId: string) => `${blockId}/
 const isTakenStep = (blockId: string, stepId: string, reserved?: Reservations) =>
 	reserved?.steps.has(stepReservation(blockId, stepId)) === true;
 
-/** The next free step id in a block: `s{max+1}` over ids ever seen, never a gap-fill. */
+/**
+ * A fresh step id: `s` + six random digits (DECISIONS "Still open" 5). A sequential
+ * `s{max+1}` re-minted a deleted step's id after the course was reopened, and a pupil's
+ * saved answer is keyed by `(block_id, step id)`. Still matches `STEP_ID`. The app only
+ * compares step ids as strings (`s.stepId == stepId`), never as numbers.
+ * Loops on a collision with the block's steps and the session's reservations.
+ */
 export function nextStepId(
 	steps: readonly Pick<BlockStep, 'id'>[],
 	blockId?: string,
-	reserved?: Reservations
+	reserved?: Reservations,
+	random: () => number = Math.random
 ): string {
-	let max = 0;
-	for (const step of steps) {
-		const m = STEP_ID.exec(step.id);
-		if (m) max = Math.max(max, Number(m[1]));
+	const taken = new Set(steps.map((s) => s.id));
+	for (;;) {
+		const candidate = `s${100000 + Math.floor(random() * 900000)}`;
+		if (taken.has(candidate)) continue;
+		if (blockId !== undefined && isTakenStep(blockId, candidate, reserved)) continue;
+		return candidate;
 	}
-	if (blockId !== undefined && reserved !== undefined) {
-		for (const key of reserved.steps) {
-			const [ownerBlockId, stepId] = splitReservation(key);
-			if (ownerBlockId !== blockId) continue;
-			const m = STEP_ID.exec(stepId);
-			if (m) max = Math.max(max, Number(m[1]));
-		}
-	}
-	let candidate = max + 1;
-	while (blockId !== undefined && isTakenStep(blockId, `s${candidate}`, reserved)) candidate++;
-	return `s${candidate}`;
-}
-
-function splitReservation(key: string): [string, string] {
-	const at = key.lastIndexOf('/');
-	return [key.slice(0, at), key.slice(at + 1)];
 }
 
 /** Mint `count` fresh step ids at once, without colliding with each other. */
@@ -65,12 +58,13 @@ export function nextStepIds(
 	steps: readonly Pick<BlockStep, 'id'>[],
 	count: number,
 	blockId?: string,
-	reserved?: Reservations
+	reserved?: Reservations,
+	random: () => number = Math.random
 ): string[] {
 	const out: string[] = [];
 	const seen = [...steps];
 	for (let i = 0; i < count; i++) {
-		const id = nextStepId(seen, blockId, reserved);
+		const id = nextStepId(seen, blockId, reserved, random);
 		out.push(id);
 		seen.push({ id });
 	}
