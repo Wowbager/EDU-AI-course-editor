@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BlockV2, CourseV2 } from '../schema';
-import { endsRun, lessonBlocks, runBlocks, runMaxXp, runTally } from '../run';
+import { completedBlock, endsRun, lessonBlocks, runBlocks, runMaxXp, runTally } from '../run';
 
 const text = { id: 's', type: 'text' as const, content: 'a' };
 const ask = { id: 'q', type: 'question' as const, content: 'b' };
@@ -56,5 +56,24 @@ describe('what a run earned', () => {
 		results.set('B', { xp: 9, scoreKoef: 1 });
 		expect(runTally(results)).toEqual({ xp: 10, share: 1 });
 		expect(runTally(new Map())).toEqual({ xp: 0, share: 0 });
+	});
+});
+
+describe('which block a completion belongs to', () => {
+	it('is the block the player last reported', () => {
+		expect(completedBlock(doc, 'L', 'A', 'B', 'A')).toBe('B');
+	});
+	it('is the block after the last completed one when the player reported nothing new', () => {
+		// A block with no steps sends no position: its completion follows A's.
+		expect(completedBlock(doc, 'L', 'A', undefined, 'A')).toBe('B');
+		expect(completedBlock(doc, 'L', 'A', undefined, 'B')).toBe('C');
+	});
+	it('is the first block of the run before anything was completed', () => {
+		expect(completedBlock(doc, 'L', 'B', undefined, undefined)).toBe('B');
+		expect(completedBlock(doc, 'L', undefined, undefined, undefined)).toBe('A');
+	});
+	it('is nothing once the lesson has no block after the last completed one', () => {
+		expect(completedBlock(doc, 'L', 'A', undefined, 'C')).toBeUndefined();
+		expect(completedBlock(doc, 'nope', undefined, undefined, undefined)).toBeUndefined();
 	});
 });

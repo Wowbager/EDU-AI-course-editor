@@ -32,33 +32,31 @@
 	}
 </script>
 
-<section class="summary" aria-label="Shrnutí zkoušky" bind:this={root}>
+<section class="summary" aria-label="Shrnutí vyzkoušení" bind:this={root}>
 	<div class="text">
 		<strong>Hotovo</strong>
 		<span class="numbers">
-			{xp} z {maxXp} XP · úspěšnost {percent} %{mark !== undefined ? ` · známka ${mark}` : ''}
+			<span>{xp} / {maxXp} XP</span>
+			<span>úspěšnost {percent} %</span>
+			{#if mark !== undefined}<span>známka {mark}</span>{/if}
 		</span>
 	</div>
-	<Button variant="secondary" size="s" onclick={onretry}>Zkusit znovu</Button>
+	<Button variant="ghost" size="s" onclick={onretry}>Od začátku</Button>
 	<Button variant="ghost" size="s" ariaLabel="Zavřít" title="Zavřít (Esc)" onclick={onclose}>
 		<X size={16}></X>
 	</Button>
 </section>
 
 <style>
+	/* Below the player, not over it: the pupil's last card stays readable. */
 	.summary {
-		position: absolute;
-		right: 12px;
-		bottom: 12px;
-		left: 12px;
 		display: flex;
+		flex: none;
 		align-items: center;
 		gap: 8px;
-		padding: 10px 8px 10px 14px;
-		border: 1px solid var(--e-border);
-		border-radius: var(--radius-l);
+		padding: 8px 8px 8px 14px;
+		border-top: 1px solid var(--e-border);
 		background: var(--surface);
-		box-shadow: var(--shadow-strong);
 	}
 
 	.text {
@@ -74,7 +72,15 @@
 	}
 
 	.numbers {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0 12px;
 		font: var(--type-caption);
-		color: var(--e-text-muted);
+		/* --e-text-muted is 4.0:1 on white; this is 5.0:1. */
+		color: color-mix(in srgb, var(--primary-dark) 72%, transparent);
+	}
+
+	.numbers span {
+		white-space: nowrap;
 	}
 </style>

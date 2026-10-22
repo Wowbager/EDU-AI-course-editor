@@ -36,7 +36,14 @@
 	import { useStepView, useStore } from '$lib/ui/context';
 	import { allows } from '$lib/ui/fields';
 	import { blockPreview, derivedBlockXp } from '$lib/domain/derive';
-	import { endsRun, runMaxXp, runTally, type BlockResult } from '$lib/domain/run';
+	import {
+		completedBlock,
+		endsRun,
+		runBlocks,
+		runMaxXp,
+		runTally,
+		type BlockResult
+	} from '$lib/domain/run';
 	import { groupOf, groupsOf } from '$lib/domain/groups';
 
 	interface Props {
@@ -199,12 +206,17 @@
 
 	/**
 	 * What the current run earned, by block (see `runTally`), and how it ended. The
-	 * run's last `stepChanged` names the block a `completed` belongs to: the player
-	 * sends `completed` before it moves on, and says nothing of its own at the end.
+	 * player's `completed` names no block, so `completedBlock` works out whose it is
+	 * from the last position reported (`seen`) and the last block credited (`credited`).
+	 * The player sends `completed` before it moves on, and says nothing of its own at
+	 * the end.
 	 */
 	let results = $state<ReadonlyMap<string, BlockResult>>(new Map());
 	let finished = $state<{ xp: number; share: number; mark?: string } | null>(null);
-	let runBlockId = '';
+	let seen: string | undefined;
+	let credited: string | undefined;
+	/** Zpět was pressed: the next position is a block being played again. */
+	let wentBack = false;
 	let summary = $state<ReturnType<typeof RunSummary>>();
 	const earned = $derived(runTally(results).xp);
 	const maxXp = $derived(runMaxXp(source, playLessonId, playStart));
@@ -218,7 +230,8 @@
 	function startRun() {
 		results = new Map();
 		finished = null;
-		runBlockId = '';
+		seen = credited = undefined;
+		wentBack = false;
 		canGoBack = false;
 	}
 
@@ -228,15 +241,37 @@
 		if (hadFocus) frame?.focus();
 	}
 
+	/** An open dialog or popover, or a field being typed in, has its own use for Escape. */
+	function ownsEscape() {
+		if (document.querySelector('dialog[open], :popover-open') !== null) return true;
+		const at = document.activeElement;
+		return (
+			at instanceof HTMLElement &&
+			(at.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(at.tagName))
+		);
+	}
+
 	function restart() {
 		startRun();
 		bridge.restart();
 	}
 
-	// An edit makes the summary stale: it is about a course that no longer exists.
+	// An edit makes the summary stale: it is about a course that no longer exists. What
+	// was earned stays, but only for blocks the run still plays, so it cannot pass the max.
 	$effect(() => {
-		void source;
-		untrack(() => (finished = null));
+		const playing = new Set(runBlocks(source, playLessonId, playStart).map((b) => b.block_id));
+		untrack(() => {
+			finished = null;
+			if ([...results.keys()].some((id) => !playing.has(id)))
+				results = new Map([...results].filter(([id]) => playing.has(id)));
+		});
+	});
+
+	// A player that boots again (a retry) starts its run afresh; a `completed` still on
+	// its way from the old one must not be counted.
+	$effect(() => {
+		void attempt;
+		untrack(startRun);
 	});
 
 	const bridge = new PreviewBridge({
@@ -254,8 +289,12 @@
 		},
 		oncompleted: (result) => {
 			if (view !== 'play') return;
-			results = new Map(results).set(runBlockId, result);
-			if (!endsRun(source, playLessonId, runBlockId)) return;
+			const id = completedBlock(source, playLessonId, playStart, seen, credited);
+			seen = undefined;
+			if (id === undefined) return;
+			credited = id;
+			results = new Map(results).set(id, result);
+			if (!endsRun(source, playLessonId, id)) return;
 			const { xp, share } = runTally(results);
 			const focusWasHere = document.activeElement === frame;
 			finished = { xp, share, mark: result.mark };
@@ -264,10 +303,19 @@
 			if (focusWasHere) tick().then(() => summary?.focusClose());
 		},
 		onstepChanged: (stepId, blockId, shownStepIds) => {
-			runBlockId = blockId;
+			seen = blockId;
 			// Only a played run reports positions; one arriving after the author
 			// switched back to Náhled is from a run that is over.
 			if (view !== 'play') return;
+			if (wentBack) {
+				// Playing a block again: what it earned before no longer counts.
+				wentBack = false;
+				if (results.has(blockId)) {
+					const next = new Map(results);
+					next.delete(blockId);
+					results = next;
+				}
+			}
 			// Folding first, so the step list never draws the new card fully open.
 			const card = store.toView({ blockId }).blockId!;
 			stepView.followRun(card, reachedSteps(blockId, shownStepIds));
@@ -378,7 +426,8 @@
 
 <svelte:window
 	onkeydown={(event) => {
-		if (event.key === 'Escape' && finished !== null && !event.defaultPrevented) closeSummary();
+		if (event.key === 'Escape' && finished !== null && !event.defaultPrevented && !ownsEscape())
+			closeSummary();
 	}}
 />
 
@@ -430,10 +479,9 @@
 				<!-- A number, not a verdict: the card's worth in Náhled, the run's score in Vyzkoušet. -->
 				<span
 					class="xp"
-					role="img"
-					aria-label={view === 'play'
-						? `Získáno ${earned} z ${maxXp} XP`
-						: `Karta je za nejvýš ${cardXp} XP`}
+					title={view === 'play'
+						? 'Kolik XP jsi ve zkoušeném průchodu získal/a z toho, co od této karty nabízí'
+						: 'Nejvíc XP, které žák za tuto kartu dostane'}
 				>
 					{view === 'play' ? `${earned} / ${maxXp} XP` : `${cardXp} XP`}
 				</span>
@@ -455,6 +503,7 @@
 					title="O krok zpět — můžeš zkusit jinou odpověď"
 					onclick={() => {
 						finished = null;
+						wentBack = true;
 						bridge.back();
 					}}
 				>
@@ -499,18 +548,18 @@
 					<iframe bind:this={frame} src={PLAYER_URL} title="Náhled kurzu očima žáka"></iframe>
 				{/key}
 			{/if}
-			{#if view === 'play' && finished !== null}
-				<RunSummary
-					bind:this={summary}
-					xp={finished.xp}
-					{maxXp}
-					share={finished.share}
-					mark={finished.mark}
-					onretry={restart}
-					onclose={closeSummary}
-				/>
-			{/if}
 		</div>
+		{#if view === 'play' && finished !== null}
+			<RunSummary
+				bind:this={summary}
+				xp={finished.xp}
+				{maxXp}
+				share={finished.share}
+				mark={finished.mark}
+				onretry={restart}
+				onclose={closeSummary}
+			/>
+		{/if}
 	</div>
 
 	{#if collapsed === true}
@@ -595,7 +644,8 @@
 	.xp {
 		font: var(--type-caption);
 		font-variant-numeric: tabular-nums;
-		color: var(--e-text-muted);
+		/* --e-text-muted is 4.0:1 on white; this is 5.0:1. */
+		color: color-mix(in srgb, var(--primary-dark) 72%, transparent);
 		white-space: nowrap;
 	}
 

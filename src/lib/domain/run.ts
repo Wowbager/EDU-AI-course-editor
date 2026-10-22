@@ -72,3 +72,30 @@ export function runTally(results: ReadonlyMap<string, BlockResult>): {
 	}
 	return { xp, share: results.size === 0 ? 0 : koef / results.size };
 }
+
+/**
+ * Which block a `completed` belongs to. The message carries no block id, so it is
+ * worked out from what the player reported before it.
+ *
+ * The player sends `stepChanged` for every card it shows, but a block with no steps
+ * has none, so "the last block reported" would credit its `completed` to the card
+ * before. The player moves on by one block after a completion (`_advance`) and by
+ * `stepChanged` for any jump, so:
+ *  - a position reported since the last completion is where the pupil is (`seen`);
+ *  - with none, the pupil is on the block after the one last completed
+ *    (`previous`), or on the run's first block when nothing was completed yet.
+ *
+ * Undefined when the run has no such block (the run is over, or the lesson is empty).
+ */
+export function completedBlock(
+	doc: CourseV2,
+	lessonId: string | undefined,
+	startBlockId: string | undefined,
+	seen: string | undefined,
+	previous: string | undefined
+): string | undefined {
+	if (seen !== undefined) return seen;
+	if (previous === undefined) return runBlocks(doc, lessonId, startBlockId)[0]?.block_id;
+	const blocks = lessonBlocks(doc, lessonId);
+	return blocks[blocks.findIndex((b) => b.block_id === previous) + 1]?.block_id;
+}
