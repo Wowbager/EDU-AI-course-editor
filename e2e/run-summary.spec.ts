@@ -141,3 +141,31 @@ test('the overview does not take focus from the field being typed in', async ({ 
 	await expect(summary(page)).toBeVisible();
 	await expect(field).toBeFocused();
 });
+
+test('the counter sits right beside the mode switch in both modes, and wraps at 360 px', async ({
+	page
+}) => {
+	const group = page.getByRole('radiogroup', { name: 'Co je v náhledu' });
+	const beside = async (name: string) => {
+		const g = (await group.boundingBox())!;
+		const c = (await counter(page, name).boundingBox())!;
+		expect(Math.abs(c.y + c.height / 2 - (g.y + g.height / 2))).toBeLessThan(g.height / 2);
+		expect(c.x).toBeGreaterThanOrEqual(g.x + g.width);
+		expect(c.x - (g.x + g.width)).toBeLessThan(24);
+	};
+	await beside('Získáno 0 z 14 XP');
+	const back = page.locator('aside.preview').getByRole('button', { name: 'Zpět', exact: true });
+	expect((await back.boundingBox())!.x).toBeGreaterThan(
+		(await counter(page, 'Získáno 0 z 14 XP').boundingBox())!.x
+	);
+	await page.getByRole('radio', { name: 'Náhled' }).click();
+	await beside('Karta je za nejvýš 2 XP');
+
+	// A narrow column wraps the buttons below instead of overflowing.
+	await page.addStyleTag({ content: ':root { --e-preview-width: 360px !important; }' });
+	await page.getByRole('radio', { name: 'Vyzkoušet' }).click();
+	await beside('Získáno 0 z 14 XP');
+	const header = (await page.locator('aside.preview header').boundingBox())!;
+	const right = (await page.getByRole('button', { name: 'Od začátku' }).boundingBox())!;
+	expect(right.x + right.width).toBeLessThanOrEqual(header.x + header.width);
+});

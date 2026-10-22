@@ -426,6 +426,19 @@
 					view = next;
 				}}
 			/>
+			{#if view === 'play' ? booted && playLessonId !== undefined : cardXp !== undefined}
+				<!-- A number, not a verdict: the card's worth in Náhled, the run's score in Vyzkoušet. -->
+				<span
+					class="xp"
+					role="img"
+					aria-label={view === 'play'
+						? `Získáno ${earned} z ${maxXp} XP`
+						: `Karta je za nejvýš ${cardXp} XP`}
+				>
+					{view === 'play' ? `${earned} / ${maxXp} XP` : `${cardXp} XP`}
+				</span>
+			{/if}
+
 			<!-- Running has no chip: only the two states a teacher has to wait out or act on. -->
 			{#if !booted && failed}
 				<Chip tone="warning">přehrávač neběží</Chip>
@@ -457,19 +470,6 @@
 					<RotateCcw size={16}></RotateCcw>
 					Od začátku
 				</Button>
-			{/if}
-
-			{#if view === 'play' ? booted && playLessonId !== undefined : cardXp !== undefined}
-				<!-- A number, not a verdict: the card's worth in Náhled, the run's score in Vyzkoušet. -->
-				<span
-					class="xp"
-					role="img"
-					aria-label={view === 'play'
-						? `Získáno ${earned} z ${maxXp} XP`
-						: `Karta je za nejvýš ${cardXp} XP`}
-				>
-					{view === 'play' ? `${earned} / ${maxXp} XP` : `${cardXp} XP`}
-				</span>
 			{/if}
 		</header>
 
@@ -593,7 +593,6 @@
 	}
 
 	.xp {
-		margin-left: auto;
 		font: var(--type-caption);
 		font-variant-numeric: tabular-nums;
 		color: var(--e-text-muted);
