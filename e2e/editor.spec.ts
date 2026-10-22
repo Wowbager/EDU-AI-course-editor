@@ -138,12 +138,13 @@ test("the card dialog lists its sections by name, shows one at a time, and alway
 	const stability = review.getByRole('textbox', { name: 'Počáteční stabilita' });
 	// The hint is a line under the field's name, on screen before and while it has focus.
 	const hint = review.getByText(
-		'Ve dnech: jak dlouho si to žák po prvním úspěšném opakování pamatuje.'
+		'Počet dní do prvního vrácení karty po úspěšném opakování. Čím víc dní, tím později se karta vrátí. Aplikace tuto hodnotu zatím nepoužívá.'
 	);
 	await expect(hint).toBeVisible();
 	await stability.focus();
 	await expect(hint).toBeVisible();
-	// A field nothing reads yet no longer says so.
+	// A field nothing reads yet says so, in its hint, and the ones the app reads do not.
+	await expect(hint).toContainText('Aplikace tuto hodnotu zatím nepoužívá.');
 	await expect(dialog).not.toContainText('Zatím bez účinku');
 
 	// The arrow keys go down the list.

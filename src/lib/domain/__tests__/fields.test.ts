@@ -310,10 +310,21 @@ describe('every offered field has a consumer, or says it has none', async () => 
 		expect(FIELDS.filter((f) => f.mode === 'teacher' && f.unread).map(key)).toEqual([]);
 	});
 
-	it('does not say so on screen: an inert field is offered as if it worked', () => {
-		// The owner plans to make them take effect (OPEN-PROBLEMS #41), so the line
-		// under them is the hint like any other's. The flag stays, and so does the
-		// spec cross-check above.
+	it('says so at the end of the hint on the Opakování fields (#41, #44)', () => {
+		// The owner keeps the fields for when the app reads them. Until then the hint
+		// ends with a short note, and the fields the app does read carry none.
+		const fsrs = FIELDS.filter((f) => f.path.startsWith('fsrs.'));
+		expect(fsrs.length).toBeGreaterThan(0);
+		for (const f of fsrs) {
+			const note = /Aplikace tuto hodnotu zatím nepoužívá\.$/;
+			if (f.unread) expect(f.hint, key(f)).toMatch(note);
+			else expect(f.hint, key(f)).not.toMatch(/nepoužívá/);
+			// Short, as a teacher reads them: at most three sentences with the note.
+			expect(f.hint!.split(/\.\s/).length, key(f)).toBeLessThanOrEqual(3);
+		}
+	});
+
+	it("shows an inert field's hint as written", () => {
 		for (const f of FIELDS.filter((f) => f.unread)) {
 			expect(hintFor(f), key(f)).toBe(f.hint);
 			expect(hintFor(f) ?? '', key(f)).not.toMatch(/Zatím bez účinku/);
