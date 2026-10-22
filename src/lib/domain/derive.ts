@@ -6,6 +6,7 @@
  */
 import type { BlockStep, BlockV2, CourseV2, LessonV2, QuestionConfig } from './schema';
 import type { DocIndex } from './index-doc';
+import { looksLikeMarkdown, unescapePlainLines } from './markdown';
 import { plainMath } from './plain-math';
 
 /** `"3 min"` / `"3"` / `3` → 3. Undefined when the block declares no duration. */
@@ -228,6 +229,17 @@ export function derivedBlockName(block: BlockV2, max = 70, position?: number): s
  * the two never disagree about what the author wrote.
  */
 export function plainFirstLine(markdown: string): string {
+	// A plain text is stored with a backslash before a line that starts like a list
+	// (OPEN-PROBLEMS #55); the author wrote none, and every other backslash is theirs.
+	if (!looksLikeMarkdown(markdown)) {
+		return (
+			unescapePlainLines(markdown)
+				.split('\n')
+				.map((line) => line.trim())
+				.find((line) => line !== '')
+				?.replace(/\s+/g, ' ') ?? ''
+		);
+	}
 	const escaped: string[] = [];
 	const line =
 		plainMath(

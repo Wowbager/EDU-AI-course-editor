@@ -316,3 +316,35 @@ test('the Markdown source continues a list and makes a pasted URL a link', async
 		'- [druhá](https://example.com)'
 	]);
 });
+
+// OPEN-PROBLEMS #55: the app reads a line starting `- ` as a list, so a plain text is
+// stored with a backslash before it. The editor shows, copies and re-imports what the
+// teacher typed; only the file (and the app's preview) carry the backslash.
+test('a plain line starting with a dash is shown as typed after reload and re-import', async ({
+	page
+}) => {
+	await text(page).click();
+	// `- ` turns into a list as it is typed; Backspace takes the list back, leaving a dash.
+	await page.keyboard.type('- ');
+	await expect(text(page).locator('ul')).toHaveCount(1);
+	await page.keyboard.press('Backspace');
+	await page.keyboard.type('a');
+	await expect(text(page)).toHaveText('- a');
+	await expect(text(page).locator('ul')).toHaveCount(0);
+	await page.getByRole('heading', { level: 1 }).click();
+
+	const download = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'Stáhnout', exact: true }).click();
+	const anyway = page.getByRole('button', { name: 'Stáhnout i tak' });
+	if (await anyway.isVisible()) await anyway.click();
+	const file = await (await download).path();
+	const json = readFileSync(file, 'utf8');
+	expect(json).toContain('"\\\\- a"');
+
+	await page.reload();
+	await expect(text(page)).toHaveText('- a');
+
+	await page.setInputFiles('input[type=file]', file);
+	await expect(text(page)).toHaveText('- a');
+	await expect(text(page).locator('ul')).toHaveCount(0);
+});

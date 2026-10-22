@@ -14,7 +14,8 @@ import {
 	isolateBlockMath,
 	looksLikeHtml,
 	looksLikeMarkdown,
-	promoteBlockEnvironments
+	promoteBlockEnvironments,
+	unescapePlainLines
 } from './app-dialect';
 import {
 	doc,
@@ -71,7 +72,7 @@ export function parseMarkdown(markdown: string, dialect: MarkdownDialect): Parse
 
 	if (dialect.sniffed && !looksLikeMarkdown(markdown)) {
 		if (looksLikeHtml(markdown)) unsupported.push('html');
-		const parsed = { doc: parsePlainText(markdown), unsupported };
+		const parsed = { doc: parsePlainText(unescapePlainLines(markdown)), unsupported };
 		return dialect.inline ? inlineOnly(parsed) : parsed;
 	}
 
