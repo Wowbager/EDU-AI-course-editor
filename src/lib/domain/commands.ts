@@ -25,7 +25,13 @@ import type { Ref } from './ref';
 import { lessonLabel } from './naming';
 import { deepCopy } from './clone';
 import { ELO_BASELINE } from './skill-config';
-import { buildIndex, referencesToBlock, referencesToStep, type Reference } from './index-doc';
+import {
+	buildIndex,
+	isGoToKeyword,
+	referencesToBlock,
+	referencesToStep,
+	type Reference
+} from './index-doc';
 import {
 	duplicateBlockValue,
 	newBlockId,
@@ -238,6 +244,34 @@ export function addLesson(doc: CourseV2, name?: string, reserved?: Reservations)
 	};
 }
 
+/** Rewrite a block's cross-block `go_to` targets and prerequisite blocks. */
+function retargetBlockRefs(block: BlockV2, to: (value: string) => string): BlockV2 {
+	const steps = block.steps.map((step) => {
+		const options = step.question?.options;
+		if (options === undefined) return step;
+		return {
+			...step,
+			question: {
+				...step.question!,
+				options: options.map((o) =>
+					typeof o.go_to === 'string' && !isGoToKeyword(o.go_to) ? { ...o, go_to: to(o.go_to) } : o
+				)
+			}
+		};
+	});
+	const rules = block.learning?.prerequisites;
+	const learning =
+		rules === undefined
+			? block.learning
+			: {
+					...block.learning!,
+					prerequisites: rules.map((r) =>
+						typeof r.block_id === 'string' ? { ...r, block_id: to(r.block_id) } : r
+					)
+				};
+	return { ...block, steps, ...(learning === undefined ? {} : { learning }) };
+}
+
 export function duplicateLesson(
 	doc: CourseV2,
 	lessonId: string,
@@ -245,20 +279,39 @@ export function duplicateLesson(
 ): CommandResult {
 	const lesson = requireLesson(doc, lessonId);
 	const copyId = nextLessonId(lessonId, doc, reserved);
-	// Bindings are copied as-is: the blocks themselves stay shared, which is the
-	// behaviour the format is built for (§5).
+	// The duplicate owns copies of its cards (OPEN-PROBLEMS #4): editing it never changes
+	// the original. A card bound twice in the lesson is copied once and bound twice, so
+	// sharing *inside* the lesson stays as it was.
+	const copyOf = new Map<string, string>();
+	const copies: BlockV2[] = [];
+	for (const binding of lesson.blocks) {
+		if (copyOf.has(binding.block_id)) continue;
+		const original = doc.blocks.find((b) => b.block_id === binding.block_id);
+		if (original === undefined) continue; // dangling binding: kept as it is
+		const id = nextBlockId(binding.block_id, { blocks: [...doc.blocks, ...copies] }, reserved);
+		copyOf.set(binding.block_id, id);
+		copies.push(duplicateBlockValue(original, id));
+	}
+	// A jump or prerequisite from one copied card to another card of the lesson follows
+	// the copies; one that leaves the lesson still points at the original.
+	const follow = (value: string) => copyOf.get(value) ?? value;
+	const blocks = copies.map((block) => retargetBlockRefs(block, follow));
 	const copy: LessonV2 = {
 		...lesson,
 		lesson_id: copyId,
-		name: `${lessonLabel(doc, lesson)} (kopie)`
+		name: `${lessonLabel(doc, lesson)} (kopie)`,
+		blocks: lesson.blocks.map((binding) => ({
+			...binding,
+			block_id: copyOf.get(binding.block_id) ?? binding.block_id
+		}))
 	};
 	const at = doc.lessons.findIndex((l) => l.lesson_id === lessonId);
 	const lessons = [...doc.lessons];
 	lessons.splice(at + 1, 0, copy);
 	return {
-		doc: { ...doc, lessons: renumberOrder(lessons) },
+		doc: { ...doc, blocks: [...doc.blocks, ...blocks], lessons: renumberOrder(lessons) },
 		ref: { lessonId: copyId },
-		description: `Duplikována lekce „${lessonLabel(doc, lesson)}“`
+		description: `Duplikována lekce „${lessonLabel(doc, lesson)}“ i s kopiemi karet`
 	};
 }
 

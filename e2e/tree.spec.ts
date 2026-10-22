@@ -271,3 +271,34 @@ test('a lesson without a name reads "Lekce 1" in the tree and the rail, never it
 	await expect(panel.getByRole('button', { name: 'Nastavení lekce Lekce 1' })).toBeVisible();
 	await expect(panel).not.toContainText(id);
 });
+
+/** „Duplikovat“ on a lesson makes cards of its own: editing the copy leaves the original. */
+test('a duplicated lesson has its own cards: editing one leaves the original, and none is Sdílený', async ({
+	page
+}) => {
+	const rows = page.locator('.tree-lesson > button.lesson');
+	await expect(rows).toHaveCount(1);
+	const firstText = (await cards(page).nth(0).locator('.snippet').textContent())!.trim();
+
+	await page.getByRole('button', { name: 'Nastavení lekce Co je zlomek?' }).click();
+	await page.getByRole('button', { name: 'Duplikovat lekci' }).click();
+	await expect(rows).toHaveCount(2);
+	await expect(rows.nth(1)).toHaveText(/\(kopie\)/);
+
+	// Into the copy, its first card, and type in it.
+	await rows.nth(1).click();
+	await cards(page).nth(0).click();
+	await expect(page.getByText(/^Sdílený/)).toHaveCount(0);
+	const field = page.locator('.rich-content').first();
+	await field.click();
+	await page.keyboard.press('Control+End');
+	await page.keyboard.type(' ZMĚNĚNO V KOPII');
+	await expect(field).toContainText('ZMĚNĚNO V KOPII');
+
+	// Back in the original lesson the same card reads as before.
+	await rows.nth(0).click();
+	await cards(page).nth(0).click();
+	await expect(page.locator('.rich-content').first()).not.toContainText('ZMĚNĚNO V KOPII');
+	await expect(cards(page).nth(0).locator('.snippet')).toHaveText(firstText);
+	await expect(page.getByText(/^Sdílený/)).toHaveCount(0);
+});

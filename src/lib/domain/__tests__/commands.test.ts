@@ -278,6 +278,110 @@ describe('moving a card with the keyboard', () => {
 	});
 });
 
+describe('duplicating a lesson', () => {
+	const withTwoLessons = () => {
+		const doc = base();
+		const lesson = doc.lessons[0];
+		// L1_B3_poznej jumps to L1_B2_casti (same lesson) and requires it; point one more
+		// option outside the lesson to prove an outside target is kept.
+		return {
+			doc: {
+				...doc,
+				lessons: [
+					lesson,
+					{ lesson_id: 'L2', version: 1, name: 'Druhá', blocks: [{ block_id: 'L1_B3_poznej' }] }
+				]
+			},
+			lessonId: lesson.lesson_id
+		};
+	};
+
+	it('gives the duplicate its own copies of the cards, bound with the same settings', () => {
+		const doc = base();
+		const lessonId = 'L1_INTRO';
+		const before = doc.lessons[0];
+		const next = duplicateLesson(doc, lessonId).doc;
+		const copy = next.lessons[1];
+		expect(copy.blocks).toHaveLength(before.blocks.length);
+		copy.blocks.forEach((binding, i) => {
+			expect(binding.block_id).toBe(`${before.blocks[i].block_id}_copy`);
+			expect(next.blocks.some((b) => b.block_id === binding.block_id)).toBe(true);
+			expect({ ...binding, block_id: '' }).toEqual({ ...before.blocks[i], block_id: '' });
+		});
+		expect(next.lessons[0]).toEqual(before);
+		expectUniqueIds(next);
+		expectNoDanglingGoTo(next);
+	});
+
+	it('leaves the original untouched when a copied card is edited', () => {
+		const { doc, lessonId } = withTwoLessons();
+		const next = duplicateLesson(doc, lessonId).doc;
+		const edited = setField(
+			next,
+			{ blockId: 'L1_B1_uvod_copy', stepId: 's1', field: 'text' },
+			'Změněno'
+		).doc;
+		const original = edited.blocks.find((b) => b.block_id === 'L1_B1_uvod')!;
+		expect(original).toEqual(doc.blocks.find((b) => b.block_id === 'L1_B1_uvod'));
+		expect(edited.blocks.find((b) => b.block_id === 'L1_B1_uvod_copy')!.steps[0].text).toBe(
+			'Změněno'
+		);
+	});
+
+	it('remaps go_to and prerequisites inside the lesson, keeps those that leave it', () => {
+		const { doc, lessonId } = withTwoLessons();
+		const next = duplicateLesson(doc, lessonId).doc;
+		const copy = next.blocks.find((b) => b.block_id === 'L1_B3_poznej_copy')!;
+		const goTos = copy.steps.flatMap((s) => s.question?.options ?? []).map((o) => o.go_to);
+		expect(goTos).toContain('L1_B2_casti_copy');
+		expect(goTos).not.toContain('L1_B2_casti');
+		expect(copy.learning?.prerequisites?.[0].block_id).toBe('L1_B2_casti_copy');
+
+		// Only the first of the lesson's cards is in it: a target outside stays.
+		const lone = {
+			...doc,
+			lessons: [{ ...doc.lessons[0], blocks: [{ block_id: 'L1_B3_poznej' }] }, doc.lessons[1]]
+		};
+		const kept = duplicateLesson(lone, lessonId).doc.blocks.find(
+			(b) => b.block_id === 'L1_B3_poznej_copy'
+		)!;
+		const keptGoTos = kept.steps.flatMap((s) => s.question?.options ?? []).map((o) => o.go_to);
+		expect(keptGoTos).toContain('L1_B2_casti');
+		expect(kept.learning?.prerequisites?.[0].block_id).toBe('L1_B2_casti');
+	});
+
+	it('copies a card bound twice once, and binds the copy twice', () => {
+		const { doc, lessonId } = withTwoLessons();
+		const twice = {
+			...doc,
+			lessons: [
+				{ ...doc.lessons[0], blocks: [{ block_id: 'L1_B1_uvod' }, { block_id: 'L1_B1_uvod' }] },
+				doc.lessons[1]
+			]
+		};
+		const next = duplicateLesson(twice, lessonId).doc;
+		expect(next.lessons[1].blocks.map((b) => b.block_id)).toEqual([
+			'L1_B1_uvod_copy',
+			'L1_B1_uvod_copy'
+		]);
+		expect(next.blocks.filter((b) => b.block_id === 'L1_B1_uvod_copy')).toHaveLength(1);
+	});
+
+	it('mints ids that avoid existing and reserved ones, and leaves the input course as it was (undo is a snapshot)', () => {
+		const { doc, lessonId } = withTwoLessons();
+		const reserved: Reservations = {
+			steps: new Set(),
+			blocks: new Set(['L1_B1_uvod_copy']),
+			lessons: new Set()
+		};
+		const next = duplicateLesson(doc, lessonId, reserved).doc;
+		expect(next.lessons[1].blocks[0].block_id).toBe('L1_B1_uvod_copy2');
+		expectUniqueIds(next);
+
+		expect(doc).toEqual(withTwoLessons().doc);
+	});
+});
+
 describe('duplicating a block', () => {
 	it('mints a fresh id, restarts step ids and drops inward `go_to`', () => {
 		const doc = duplicateBlock(base(), 'L1_B3_poznej', 'L1_INTRO').doc;
@@ -950,7 +1054,7 @@ describe('a lesson without a name is never called by its id', () => {
 	it('so does duplicating it, and the copy is called by the same name, not by an id', () => {
 		const { doc, lessonId } = unnamed();
 		const result = duplicateLesson(doc, lessonId);
-		expect(result.description).toBe('Duplikována lekce „Lekce 1“');
+		expect(result.description).toBe('Duplikována lekce „Lekce 1“ i s kopiemi karet');
 		expect(result.doc.lessons[1].name).toBe('Lekce 1 (kopie)');
 	});
 
