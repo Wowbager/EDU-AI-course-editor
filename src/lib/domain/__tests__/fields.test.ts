@@ -658,3 +658,17 @@ describe('what a higher mode adds', () => {
 		expect(matchHigherModes(['block'], '  ', 'teacher')).toEqual([]);
 	});
 });
+
+describe('course subtitle and badge', () => {
+	it('are typed fields, offered in Pokročilý, under Údaje o kurzu', () => {
+		expect(specOf({ field: 'subtitle' })?.mode).toBe('advanced');
+		expect(specOf({ field: 'badge' })?.mode).toBe('advanced');
+		expect(KEY_ORDER.course).toContain('subtitle');
+		expect(KEY_ORDER.course).toContain('badge');
+	});
+
+	it('keep the description and the subtitle apart in their hints', () => {
+		expect(specOf({ field: 'description' })?.hint).toMatch(/kart/);
+		expect(specOf({ field: 'subtitle' })?.hint).toMatch(/Není to popis/);
+	});
+});

@@ -252,12 +252,30 @@ export const FIELDS: readonly FieldSpec[] = [
 	},
 	{
 		level: 'course',
+		path: 'subtitle',
+		section: 'meta',
+		mode: 'advanced',
+		kind: 'text',
+		label: 'Podtitul',
+		hint: 'Krátký řádek pod názvem na stránce kurzu. Není to popis z karty v knihovně.'
+	},
+	{
+		level: 'course',
 		path: 'emoji',
 		section: 'main',
 		mode: 'teacher',
 		kind: 'text',
 		label: 'Emoji',
 		hint: 'Ikona dlaždice. Když ji nevyplníš, odhadne ji server z názvu.'
+	},
+	{
+		level: 'course',
+		path: 'badge',
+		section: 'meta',
+		mode: 'advanced',
+		kind: 'text',
+		label: 'Štítek',
+		hint: 'Krátký text, třeba „BIO“, v rohu karty kurzu v knihovně a vedle názvu na stránce kurzu.'
 	},
 	{
 		level: 'course',
