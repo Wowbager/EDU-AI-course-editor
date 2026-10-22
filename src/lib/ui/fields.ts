@@ -257,7 +257,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'text',
 		label: 'Podtitul',
-		hint: 'Krátký řádek pod názvem na stránce kurzu. Není to popis z karty v knihovně.'
+		hint: 'Krátký řádek pod názvem kurzu na jeho stránce. Není to popis z karty v knihovně.'
 	},
 	{
 		level: 'course',
@@ -920,7 +920,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Počáteční obtížnost',
-		hint: 'Od 0 do 1. Čím vyšší číslo, tím hůř si žák kartu pamatuje a tím pomaleji se prodlužují pauzy mezi opakováními. Aplikace tuto hodnotu zatím nepoužívá.'
+		hint: 'Od 0 do 1. Čím vyšší číslo, tím těžší je pro žáka si kartu udržet v hlavě.'
 	},
 	{
 		level: 'block',
@@ -930,7 +930,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Počáteční stabilita',
-		hint: 'Počet dní do prvního vrácení karty po úspěšném opakování. Čím víc dní, tím později se karta vrátí. Aplikace tuto hodnotu zatím nepoužívá.'
+		hint: 'Počet dní do prvního vrácení karty po úspěšném opakování. Čím víc dní, tím později se karta vrátí.'
 	},
 	{
 		level: 'block',
@@ -940,7 +940,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Počáteční vybavení',
-		hint: 'Od 0 do 1: odhad, s jakou pravděpodobností si žák při prvním opakování kartu vybaví. Například 0,65 je asi dvakrát ze tří. Aplikace tuto hodnotu zatím nepoužívá.'
+		hint: 'Od 0 do 1: jak jistě si žák při prvním opakování kartu vybaví. Například 0,65 je asi dvakrát ze tří.'
 	},
 	{
 		level: 'block',
@@ -950,7 +950,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Rychlost zapomínání',
-		hint: 'Čím vyšší číslo, tím rychleji žák podle odhadu zapomíná, a karta se proto vrací dřív. Aplikace tuto hodnotu zatím nepoužívá.'
+		hint: 'Čím vyšší číslo, tím rychleji žák podle odhadu zapomíná a karta se proto vrací dřív.'
 	},
 	{
 		level: 'block',
@@ -960,7 +960,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Počet opakování',
-		hint: 'Kolikrát už žák kartu úspěšně zopakoval. Vyplň jen u obsahu, který se procvičoval už dřív; jinak nech prázdné. Aplikace tuto hodnotu zatím nepoužívá.'
+		hint: 'Kolikrát už byla karta procvičena, než ji žák dostal. Obvykle nech prázdné.'
 	},
 	{
 		level: 'block',
@@ -980,7 +980,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Nejkratší odstup',
-		hint: 'Nejméně tolik dní musí uplynout, než se karta vrátí, ať žák odpověděl jakkoli. Aplikace tuto hodnotu zatím nepoužívá.'
+		hint: 'Nejméně tolik dní musí uplynout, než se karta vrátí, ať žák odpověděl jakkoli.'
 	},
 	{
 		level: 'block',
@@ -990,7 +990,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Nejdelší odstup',
-		hint: 'Nejvýš tolik dní smí uplynout, než se karta vrátí, ať žák odpověděl jakkoli. Aplikace tuto hodnotu zatím nepoužívá.'
+		hint: 'Nejvýš tolik dní smí uplynout, než se karta vrátí, ať žák odpověděl jakkoli.'
 	},
 	{
 		level: 'block',
@@ -1009,7 +1009,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Časový limit',
-		hint: 'Kolik sekund má žák na kartu. Po uplynutí limitu by se karta zavřela. Aplikace tuto hodnotu zatím nepoužívá.'
+		hint: 'Kolik sekund má žák na kartu.'
 	},
 	{
 		level: 'block',

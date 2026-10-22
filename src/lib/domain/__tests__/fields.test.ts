@@ -310,16 +310,17 @@ describe('every offered field has a consumer, or says it has none', async () => 
 		expect(FIELDS.filter((f) => f.mode === 'teacher' && f.unread).map(key)).toEqual([]);
 	});
 
-	it('says so at the end of the hint on the Opakování fields (#41, #44)', () => {
-		// The owner keeps the fields for when the app reads them. Until then the hint
-		// ends with a short note, and the fields the app does read carry none.
+	it('says that the app ignores a value once per section, not in every hint (#41, #44)', () => {
+		// The Opakování section names the fields the app reads, from the `unread` flag
+		// (`CardSettings`), so the hints themselves carry no such note and stay short.
 		const fsrs = FIELDS.filter((f) => f.path.startsWith('fsrs.'));
-		expect(fsrs.length).toBeGreaterThan(0);
+		expect(fsrs.filter((f) => !f.unread).map(key)).toEqual([
+			'block.fsrs.weight',
+			'block.fsrs.skip_condition'
+		]);
 		for (const f of fsrs) {
-			const note = /Aplikace tuto hodnotu zatím nepoužívá\.$/;
-			if (f.unread) expect(f.hint, key(f)).toMatch(note);
-			else expect(f.hint, key(f)).not.toMatch(/nepoužívá/);
-			// Short, as a teacher reads them: at most three sentences with the note.
+			expect(f.hint, key(f)).not.toMatch(/nepoužívá/);
+			// Short, as a teacher reads them.
 			expect(f.hint!.split(/\.\s/).length, key(f)).toBeLessThanOrEqual(3);
 		}
 	});

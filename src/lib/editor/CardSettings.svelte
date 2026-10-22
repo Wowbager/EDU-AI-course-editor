@@ -75,6 +75,20 @@
 			.sort((a, b) => Number(GAPS_FIRST.includes(b.path)) - Number(GAPS_FIRST.includes(a.path)))
 	);
 
+	/**
+	 * Said once for the whole section, from the same `unread` flag the spec check holds:
+	 * the fields the app reads today, named, so the line cannot go stale.
+	 */
+	const reviewNote = $derived.by(() => {
+		const fields = inSection('review');
+		if (!fields.some((f) => f.unread)) return undefined;
+		const used = fields.filter((f) => !f.unread).map((f) => `„${f.label}“`);
+		const names = used.length > 1 ? `${used.slice(0, -1).join(', ')} a ${used.at(-1)}` : used[0];
+		return used.length === 0
+			? 'Aplikace zatím nepoužívá žádnou z těchto hodnot.'
+			: `Aplikace zatím používá jen ${names}.`;
+	});
+
 	const levelOf = (id: string): FieldLevel => (id === 'lesson' ? 'binding' : 'block');
 	const scope = $derived({ blockId: block.block_id });
 	const targeted = (id: string) => sectionTargeted(store, [levelOf(id)], id, scope);
@@ -135,6 +149,7 @@
 		<CompetencyEditor {block} />
 		<FieldGroup fields={inSection('topics')} {read} write={set} />
 	{:else if id === 'review'}
+		{#if reviewNote}<p class="note">{reviewNote}</p>{/if}
 		<h4>Kdy se karta vrací</h4>
 		<FieldGroup fields={reviewPlan} {read} write={set} />
 		<h4 class="apart">Výchozí odhad paměti</h4>
