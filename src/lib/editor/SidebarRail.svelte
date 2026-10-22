@@ -253,7 +253,13 @@
 		closePeek();
 		if (!inside) return;
 		void tick().then(() => {
-			if (document.querySelector('dialog[open]') === null) anchors[key]?.focus();
+			if (document.querySelector('dialog[open]') !== null) return;
+			// An action that renumbers the card's blocks (issue #8: „Všechny otázky v jedné
+			// kartě“ in Pokročilý) leaves the tile it came from gone: the selected one is it.
+			const tile = anchors[key]?.isConnected
+				? anchors[key]
+				: document.querySelector<HTMLElement>('.rail-tile[aria-current="true"]');
+			tile?.focus();
 		});
 	}
 

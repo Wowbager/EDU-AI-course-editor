@@ -260,6 +260,20 @@
 		if (lessonId !== undefined) onlessonSettings(lessonId, { focusName: true });
 	}
 
+	/**
+	 * „Všechny otázky v jedné kartě“ can take its own button away (a card left with
+	 * fewer than two questions no longer offers it), and with it the focus. Focus that
+	 * was on the card's buttons then goes to the card's row (issue #8).
+	 */
+	async function toggleTogether(block: BlockV2, lessonId: string) {
+		const inside = document.activeElement?.closest('.tree-actions') != null;
+		actions.toggleTogether(block, lessonId);
+		await tick();
+		if (!inside || (document.activeElement !== document.body && document.activeElement !== null))
+			return;
+		document.querySelector<HTMLElement>('.tree-card.selected')?.focus();
+	}
+
 	function backToRow() {
 		document.activeElement
 			?.closest('li')
@@ -437,7 +451,7 @@
 												onsettings={() => actions.settings(lesson.lesson_id, block.block_id)}
 												onduplicate={() => actions.duplicate(block.block_id, lesson.lesson_id)}
 												together={actions.together(block)?.on}
-												ontoggleTogether={() => actions.toggleTogether(block, lesson.lesson_id)}
+												ontoggleTogether={() => toggleTogether(block, lesson.lesson_id)}
 												onremoveFromLesson={() =>
 													actions.removeFromLesson(lesson.lesson_id, block.block_id, {
 														follow: false
