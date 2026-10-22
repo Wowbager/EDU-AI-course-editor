@@ -30,11 +30,13 @@
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import Chip from '$lib/ui/Chip.svelte';
 	import Button from '$lib/ui/Button.svelte';
+	import RunSummary from './RunSummary.svelte';
 	import { PreviewBridge, type PreviewView } from '$lib/preview/bridge';
 	import { serialise } from '$lib/domain/document';
 	import { useStepView, useStore } from '$lib/ui/context';
 	import { allows } from '$lib/ui/fields';
-	import { blockPreview } from '$lib/domain/derive';
+	import { blockPreview, derivedBlockXp } from '$lib/domain/derive';
+	import { endsRun, runMaxXp, runTally, type BlockResult } from '$lib/domain/run';
 	import { groupOf, groupsOf } from '$lib/domain/groups';
 
 	interface Props {
@@ -80,6 +82,7 @@
 	/** Which load of the frame this is. Bumped to load it again. */
 	let attempt = $state(0);
 	let canGoBack = $state(false);
+
 	/** Undecided until the player URL has been probed — see below. */
 	let available = $state<boolean | null>(null);
 
@@ -194,6 +197,48 @@
 		return owners[0];
 	}
 
+	/**
+	 * What the current run earned, by block (see `runTally`), and how it ended. The
+	 * run's last `stepChanged` names the block a `completed` belongs to: the player
+	 * sends `completed` before it moves on, and says nothing of its own at the end.
+	 */
+	let results = $state<ReadonlyMap<string, BlockResult>>(new Map());
+	let finished = $state<{ xp: number; share: number; mark?: string } | null>(null);
+	let runBlockId = '';
+	let summary = $state<ReturnType<typeof RunSummary>>();
+	const earned = $derived(runTally(results).xp);
+	const maxXp = $derived(runMaxXp(source, playLessonId, playStart));
+	/** Náhled: what the card on screen is worth, as the pupil's app counts it. */
+	const cardXp = $derived(
+		block === undefined
+			? undefined
+			: blocksOfCard(block.block_id).reduce((sum, b) => sum + derivedBlockXp(b), 0)
+	);
+
+	function startRun() {
+		results = new Map();
+		finished = null;
+		runBlockId = '';
+		canGoBack = false;
+	}
+
+	function closeSummary() {
+		const hadFocus = summary?.hasFocus() ?? false;
+		finished = null;
+		if (hadFocus) frame?.focus();
+	}
+
+	function restart() {
+		startRun();
+		bridge.restart();
+	}
+
+	// An edit makes the summary stale: it is about a course that no longer exists.
+	$effect(() => {
+		void source;
+		untrack(() => (finished = null));
+	});
+
 	const bridge = new PreviewBridge({
 		onready: () => {
 			booted = true;
@@ -207,7 +252,19 @@
 			const owner = view === 'play' ? lessonOf(shown.blockId) : (ref.lessonId ?? lessonId);
 			store.revealAt({ ...shown, lessonId: owner });
 		},
+		oncompleted: (result) => {
+			if (view !== 'play') return;
+			results = new Map(results).set(runBlockId, result);
+			if (!endsRun(source, playLessonId, runBlockId)) return;
+			const { xp, share } = runTally(results);
+			const focusWasHere = document.activeElement === frame;
+			finished = { xp, share, mark: result.mark };
+			// Only when the teacher was playing: a summary must not take the focus
+			// from a field they are typing in.
+			if (focusWasHere) tick().then(() => summary?.focusClose());
+		},
 		onstepChanged: (stepId, blockId, shownStepIds) => {
+			runBlockId = blockId;
 			// Only a played run reports positions; one arriving after the author
 			// switched back to Náhled is from a run that is over.
 			if (view !== 'play') return;
@@ -319,6 +376,12 @@
 	});
 </script>
 
+<svelte:window
+	onkeydown={(event) => {
+		if (event.key === 'Escape' && finished !== null && !event.defaultPrevented) closeSummary();
+	}}
+/>
+
 <aside class="preview" class:collapsed data-player={playerState} aria-label="Náhled pro žáka">
 	<div class="inner" inert={collapsed === true}>
 		<header>
@@ -355,9 +418,10 @@
 					if (next === 'play') {
 						playStart = block === undefined ? undefined : blocksOfCard(block.block_id)[0]?.block_id;
 						playLessonId = lessonId;
-						canGoBack = false;
+						startRun();
 					} else {
 						stepView.endRun();
+						finished = null;
 					}
 					view = next;
 				}}
@@ -376,7 +440,10 @@
 					size="s"
 					disabled={!canGoBack}
 					title="O krok zpět — můžeš zkusit jinou odpověď"
-					onclick={() => bridge.back()}
+					onclick={() => {
+						finished = null;
+						bridge.back();
+					}}
 				>
 					<ArrowLeft size={16}></ArrowLeft>
 					Zpět
@@ -385,14 +452,24 @@
 					variant="ghost"
 					size="s"
 					title="Znovu od karty, u které jsi začal/a"
-					onclick={() => {
-						canGoBack = false;
-						bridge.restart();
-					}}
+					onclick={restart}
 				>
 					<RotateCcw size={16}></RotateCcw>
 					Od začátku
 				</Button>
+			{/if}
+
+			{#if view === 'play' ? booted && playLessonId !== undefined : cardXp !== undefined}
+				<!-- A number, not a verdict: the card's worth in Náhled, the run's score in Vyzkoušet. -->
+				<span
+					class="xp"
+					role="img"
+					aria-label={view === 'play'
+						? `Získáno ${earned} z ${maxXp} XP`
+						: `Karta je za nejvýš ${cardXp} XP`}
+				>
+					{view === 'play' ? `${earned} / ${maxXp} XP` : `${cardXp} XP`}
+				</span>
 			{/if}
 		</header>
 
@@ -421,6 +498,17 @@
 				{#key attempt}
 					<iframe bind:this={frame} src={PLAYER_URL} title="Náhled kurzu očima žáka"></iframe>
 				{/key}
+			{/if}
+			{#if view === 'play' && finished !== null}
+				<RunSummary
+					bind:this={summary}
+					xp={finished.xp}
+					{maxXp}
+					share={finished.share}
+					mark={finished.mark}
+					onretry={restart}
+					onclose={closeSummary}
+				/>
 			{/if}
 		</div>
 	</div>
@@ -502,6 +590,14 @@
 
 	.spacer {
 		flex: 1;
+	}
+
+	.xp {
+		margin-left: auto;
+		font: var(--type-caption);
+		font-variant-numeric: tabular-nums;
+		color: var(--e-text-muted);
+		white-space: nowrap;
 	}
 
 	.frame {
