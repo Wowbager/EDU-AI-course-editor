@@ -1,10 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import { mediaHidden, mediaPosition, mediaPositionApplies, positionField } from '../media';
-import type { BlockStep } from '../schema';
+import type { BlockStep, CourseV2 } from '../schema';
+import { validate } from '../validate';
 
 const step = (fields: Partial<BlockStep> & Record<string, unknown>): BlockStep =>
 	({ id: 's1', type: 'text', content: 'Text', ...fields }) as BlockStep;
 const image = (position?: 'above' | 'below' | 'inline') => ({ url: 'https://x/a.png', position });
+
+describe('W_MEDIA_HIDDEN', () => {
+	it('is one warning for an image and a video placed inline together', () => {
+		const doc = {
+			export_type: 'course_v2',
+			course_id: 'c',
+			name: 'Kurz',
+			lessons: [{ lesson_id: 'l', name: 'Lekce', blocks: [{ block_id: 'b' }] }],
+			blocks: [
+				{
+					block_id: 'b',
+					type: 'display',
+					steps: [step({ image: image('inline'), video: { url: 'https://x/v.mp4' } })]
+				}
+			]
+		} as unknown as CourseV2;
+		const hidden = validate(doc).warnings.filter((i) => i.code === 'W_MEDIA_HIDDEN');
+		expect(hidden).toHaveLength(1);
+		expect(hidden[0].message).toMatch(/^Obrázek a video/);
+	});
+});
 
 describe('media position (block_model.dart, step_content_renderer.dart)', () => {
 	it("reads the step's position, then the image's, then the video's", () => {

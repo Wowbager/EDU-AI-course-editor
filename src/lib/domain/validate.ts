@@ -24,7 +24,12 @@ import { blockDurationMinutes, isPracticeBlock, optionOutcomesApply } from './de
 import { goToIgnored } from './navigation';
 import { mediaHidden, positionField } from './media';
 import { skipConditionSupported } from './practice';
-import { AI_CRITERIA_MAX, GUIDED_ATTEMPTS_MAX, GUIDED_ATTEMPTS_MIN } from './question-settings';
+import {
+	AI_CRITERIA_MAX,
+	GUIDED_ATTEMPTS_MAX,
+	GUIDED_ATTEMPTS_MIN,
+	questionSettingApplies
+} from './question-settings';
 import { dimensionCount, ELO_MAX, ELO_MIN, type SkillConfig } from './skill-config';
 import {
 	blockLabel,
@@ -496,12 +501,14 @@ function checkQuestionShape(block: BlockV2, step: BlockStep, question: QuestionC
 /**
  * What the app does with an open question's AI settings (`block_model.dart`):
  * `parseGuidedAttempts` clamps the attempts to 1–10, and `QuestionCriterion.listFromJson`
- * drops unnamed criteria and keeps the first four.
+ * drops unnamed criteria and keeps the first four. A setting the app ignores here (the
+ * same rule that hides its control) is not checked: a stored value it never uses is
+ * no problem.
  */
 function checkAiSettings(question: QuestionConfig, ref: Ref, position: number, add: Add) {
 	const attempts = question.ai_guided_attempts;
 	if (
-		question.ai_guided === true &&
+		questionSettingApplies(question, 'ai_guided_attempts') &&
 		typeof attempts === 'number' &&
 		(!Number.isInteger(attempts) ||
 			attempts < GUIDED_ATTEMPTS_MIN ||
@@ -515,6 +522,7 @@ function checkAiSettings(question: QuestionConfig, ref: Ref, position: number, a
 			`Otázka v kroku ${position} dává ${attempts} pokusů; aplikace bere celé číslo ${GUIDED_ATTEMPTS_MIN}–${GUIDED_ATTEMPTS_MAX}, takže žák dostane ${used}.`
 		);
 	}
+	if (!questionSettingApplies(question, 'ai_criteria_list')) return;
 	const criteria = question.ai_criteria_list ?? [];
 	const named = criteria.filter((c) => (c.name ?? '').trim() !== '');
 	if (named.length < criteria.length) {
@@ -735,13 +743,16 @@ function checkMedia(block: BlockV2, step: BlockStep, add: Add) {
 		}
 	}
 
-	for (const media of ['image', 'video'] as const) {
-		if (!mediaHidden(step, media)) continue;
+	// The image and the video share one position, so one warning covers both.
+	const hidden = (['image', 'video'] as const).filter((media) => mediaHidden(step, media));
+	if (hidden.length > 0) {
+		const what = hidden.length === 2 ? 'Obrázek a video' : hidden[0] === 'image' ? 'Obrázek' : 'Video';
+		const them = hidden.length === 2 ? 'je' : 'ho';
 		add(
 			'warning',
 			'W_MEDIA_HIDDEN',
 			{ ...ref, field: positionField(step) },
-			`${media === 'image' ? 'Obrázek' : 'Video'} v kroku ${position} má umístění, které aplikace neumí vykreslit — žák ho neuvidí. Zvol „Nad textem“ nebo „Pod textem“.`
+			`${what} v kroku ${position} ${hidden.length === 2 ? 'mají' : 'má'} umístění, které aplikace neumí vykreslit — žák ${them} neuvidí. Zvol „Nad textem“ nebo „Pod textem“.`
 		);
 	}
 }

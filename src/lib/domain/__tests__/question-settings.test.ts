@@ -54,11 +54,16 @@ describe('AI settings the app would correct', () => {
 	const codes = (q: Partial<QuestionConfig>) => validate(doc(q)).warnings.map((i) => i.code);
 
 	it('says when the attempts are outside 1–10', () => {
-		expect(codes({ ai_guided: true, ai_guided_attempts: 12 })).toContain('W_GUIDED_ATTEMPTS_RANGE');
-		expect(codes({ ai_guided: true, ai_guided_attempts: 2.5 })).toContain(
+		const guided = { ai_evaluation: true, ai_guided: true };
+		expect(codes({ ...guided, ai_guided_attempts: 12 })).toContain('W_GUIDED_ATTEMPTS_RANGE');
+		expect(codes({ ...guided, ai_guided_attempts: 2.5 })).toContain('W_GUIDED_ATTEMPTS_RANGE');
+		expect(codes({ ...guided, ai_guided_attempts: 5 })).not.toContain('W_GUIDED_ATTEMPTS_RANGE');
+	});
+	it('says nothing about attempts the app does not use', () => {
+		expect(codes({ ai_guided: true, ai_guided_attempts: 12 })).not.toContain(
 			'W_GUIDED_ATTEMPTS_RANGE'
 		);
-		expect(codes({ ai_guided: true, ai_guided_attempts: 5 })).not.toContain(
+		expect(codes({ ai_evaluation: true, ai_guided_attempts: 12 })).not.toContain(
 			'W_GUIDED_ATTEMPTS_RANGE'
 		);
 	});
