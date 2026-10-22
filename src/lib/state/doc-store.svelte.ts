@@ -35,7 +35,8 @@ import {
 import type { SkillConfig } from '$lib/domain/skill-config';
 import type { CommandResult } from '$lib/domain/commands';
 import type { Mode } from '$lib/ui/fields';
-import { isFeedbackRef } from '$lib/ui/fields';
+import { fieldOf, isFeedbackRef } from '$lib/ui/fields';
+import { appReadsField } from '$lib/domain/course-feedback';
 import { fieldKey, heldBack, isVisible, issueKey } from '$lib/ui/issue-visibility';
 import type { Issue } from '$lib/domain/validate';
 
@@ -441,6 +442,17 @@ export class DocStore {
 	 * there. Following a played run does not.
 	 */
 	revealAt(ref: Ref) {
+		// A field the app does not read in this course is not drawn whatever the toggle
+		// says, so the jump lands on its step instead.
+		const field = fieldOf(ref);
+		if (field !== null && !appReadsField(this.doc, field.level, field.path)) {
+			const { field: _field, optionId: _option, ...step } = ref;
+			void _field;
+			void _option;
+			this.selection = step;
+			this.reveal++;
+			return;
+		}
 		if (!this.#showFeedback && isFeedbackRef(ref)) this.#showFeedback = true;
 		this.selection = ref;
 		this.reveal++;

@@ -403,7 +403,7 @@ steps is a migration artefact.
 
 | Field | Type | Status | Meaning | Effect |
 |---|---|---|---|---|
-| `id` | string, `"s1"`, `"s2"`… | ✅ | Stable within the block. | **`go_to` targets and per-step answer state are keyed by it.** The editor generates `s{max+1}` (`generateStepId`) so ids are never reused. Renumbering steps on reorder would break every `go_to` — the current editor deliberately keeps ids stable and only rewrites `order`. A new editor must preserve that invariant, and must rewrite `go_to` references when a step is deleted. |
+| `id` | string, `"s1"`, `"s2"`… | ✅ | Stable within the block. | **`go_to` targets and per-step answer state are keyed by it.** The editor mints `s` + six random digits so ids are never reused. Renumbering steps on reorder would break every `go_to` — the current editor deliberately keeps ids stable and only rewrites `order`. A new editor must preserve that invariant, and must rewrite `go_to` references when a step is deleted. |
 | `type` | `text \| image \| video \| audio \| question` | ✅ | Renderer selection. | §7.1. |
 | `order` | int, 1-based | ✅ | Position. | Should match array position; the engine iterates the array. |
 | `content` | Markdown+LaTeX | ✅ | Text step body. | §7.1. |

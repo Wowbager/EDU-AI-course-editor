@@ -36,7 +36,7 @@ import {
 	type Repair
 } from '../commands';
 import { bindingFlagsPractice, isPracticeBlock } from '../derive';
-import { stepReservation, type Reservations } from '../ids';
+import { nextStepId, nextStepIds, stepReservation, type Reservations } from '../ids';
 
 const fixture = (name: string): unknown =>
 	JSON.parse(readFileSync(fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url)), 'utf8'));
@@ -97,40 +97,43 @@ function reservations() {
 // ────────────────────────────────── unit behaviour ──────────────────────────────────
 
 describe('step ids', () => {
-	it('are minted as s{max+1} and never reuse a deleted id', () => {
+	it('are minted as s + random digits and never reuse a deleted id', () => {
 		const reserved = reservations();
 		let doc = base();
 		reserved.record(doc);
 		const blockId = 'L1_B1_uvod';
+		const ids = () => doc.blocks.find((b) => b.block_id === blockId)!.steps.map((s) => s.id);
 
-		doc = addStep(doc, blockId, 'text', undefined, reserved.value).doc; // s3
-		reserved.record(doc);
-		expect(doc.blocks.find((b) => b.block_id === blockId)!.steps.map((s) => s.id)).toEqual([
-			's1',
-			's2',
-			's3'
-		]);
-
-		doc = deleteStep(doc, blockId, 's3').doc;
 		doc = addStep(doc, blockId, 'text', undefined, reserved.value).doc;
-		// s3 is gone for good: the next id is s4, not a reused s3. A student's saved
-		// answer is keyed by (block_id, step id), so a reused id would inherit it.
-		expect(doc.blocks.find((b) => b.block_id === blockId)!.steps.map((s) => s.id)).toEqual([
-			's1',
-			's2',
-			's4'
-		]);
+		reserved.record(doc);
+		const added = ids()[2];
+		expect(added).toMatch(/^s\d{6}$/);
+
+		doc = deleteStep(doc, blockId, added).doc;
+		doc = addStep(doc, blockId, 'text', undefined, reserved.value).doc;
+		expect(ids()).toHaveLength(3);
+		expect(ids()[2]).not.toBe(added);
 	});
 
-	it('do not restart even when every step of a block is deleted', () => {
-		const reserved = reservations();
-		let doc = base();
-		reserved.record(doc);
-		const blockId = 'L1_B1_uvod';
-
-		for (const stepId of ['s1', 's2']) doc = deleteStep(doc, blockId, stepId).doc;
-		doc = addStep(doc, blockId, 'text', undefined, reserved.value).doc;
-		expect(doc.blocks.find((b) => b.block_id === blockId)!.steps.map((s) => s.id)).toEqual(['s3']);
+	it('loop on a collision with existing steps and reservations', () => {
+		const draws = [0, 0, 0.5];
+		const random = () => draws.shift() ?? 0.9;
+		const reserved = {
+			steps: new Set(['B/s100000']),
+			blocks: new Set<string>(),
+			lessons: new Set<string>()
+		};
+		// 0 -> s100000 (reserved), 0 -> s100000 again, 0.5 -> s550000
+		expect(nextStepId([], 'B', reserved, random)).toBe('s550000');
+		const again = [0, 0, 0.5];
+		expect(nextStepId([{ id: 's100000' }], undefined, undefined, () => again.shift() ?? 0.9)).toBe(
+			's550000'
+		);
+		const many = [0, 0, 0.1];
+		expect(nextStepIds([], 2, undefined, undefined, () => many.shift() ?? 0.9)).toEqual([
+			's100000',
+			's190000'
+		]);
 	});
 
 	it('survive a reorder untouched — only `order` moves', () => {
@@ -299,15 +302,16 @@ describe('duplicating a block', () => {
 		let doc = base();
 		// Point an option at a step id that exists in the original but will not exist
 		// in a copy whose ids restart at s1: add s5, then point at it, then trim.
-		doc = addStep(doc, 'L1_B3_poznej', 'text').doc; // s5
+		doc = addStep(doc, 'L1_B3_poznej', 'text').doc;
+		const extra = doc.blocks.find((b) => b.block_id === 'L1_B3_poznej')!.steps.at(-1)!.id;
 		doc = setField(
 			doc,
 			{ blockId: 'L1_B3_poznej', stepId: 's2', optionId: 'd', field: 'go_to' },
-			's5'
+			extra
 		).doc;
-		doc = deleteStep(doc, 'L1_B3_poznej', 's5', [
+		doc = deleteStep(doc, 'L1_B3_poznej', extra, [
 			{
-				reference: planDeleteStep(doc, 'L1_B3_poznej', 's5')[0],
+				reference: planDeleteStep(doc, 'L1_B3_poznej', extra)[0],
 				action: 'clear'
 			}
 		]).doc;

@@ -98,12 +98,14 @@ describe('a second question makes the card two blocks, and the teacher still see
 		const withText = addStep(v, 'B1', 'text').doc;
 		return addStep(withText, 'B1', 'question').doc;
 	});
+	// Minted ids are random: the added text and question, in card order.
+	const [addedText, addedQuestion] = after.blocks[1].steps.map((s) => s.id);
 
 	it('writes one block per question, in the card order', () => {
 		expect(after.blocks.map((b) => b.block_id)).toEqual(['B1', 'B1_2', 'B2']);
 		expect(after.blocks.slice(0, 2).map(questionCount)).toEqual([1, 1]);
 		expect(stepIds(after.blocks[0])).toEqual(['s1', 's2']);
-		expect(stepIds(after.blocks[1])).toEqual(['s3', 's4']);
+		expect(stepIds(after.blocks[1])).toEqual([addedText, addedQuestion]);
 	});
 
 	it('marks both as one card, and gives each the card’s settings', () => {
@@ -129,7 +131,7 @@ describe('a second question makes the card two blocks, and the teacher still see
 	it('shows the teacher the one card they edited', () => {
 		const view = toView(after);
 		expect(view.blocks.map((b) => b.block_id)).toEqual(['B1', 'B2']);
-		expect(stepIds(view.blocks[0])).toEqual(['s1', 's2', 's3', 's4']);
+		expect(stepIds(view.blocks[0])).toEqual(['s1', 's2', addedText, addedQuestion]);
 		expect(lesson(view)).toEqual(['B1', 'B2']);
 		expect(membersOfView(view, 'B1')).toEqual(['B1', 'B1_2']);
 	});
@@ -383,9 +385,15 @@ describe('an edit made on the document itself (Pokročilý)', () => {
 	it('splits a block that was given a second question', () => {
 		// Its answers jump to its own feedback texts (s3, s4), and a jump lands on a
 		// block's first step, so those start blocks: the wrong-answer text on its own.
-		const after = resplitChanged(doc, addStep(doc, 'L1_B3_poznej', 'question').doc);
+		const added = addStep(doc, 'L1_B3_poznej', 'question').doc;
+		const addedId = added.blocks.find((b) => b.block_id === 'L1_B3_poznej')!.steps.at(-1)!.id;
+		const after = resplitChanged(doc, added);
 		const card = groupsOf(after).get('L1_B3_poznej')!;
-		expect(card.map((b) => b.steps.map((s) => s.id))).toEqual([['s1', 's2'], ['s3'], ['s4', 's5']]);
+		expect(card.map((b) => b.steps.map((s) => s.id))).toEqual([
+			['s1', 's2'],
+			['s3'],
+			['s4', addedId]
+		]);
 		expect(card.map((b) => b.type)).toEqual(['question', 'display', 'question']);
 		expect(card[0].steps[1].question!.options!.map((o) => o.go_to)).toEqual([
 			card[2].block_id,
@@ -545,5 +553,34 @@ describe('which cards the pupil checks in one tap (`_isBatchBlock`)', () => {
 			blocks: [{ ...together.blocks[0], steps: [...together.blocks[0].steps, open('q3')] }]
 		};
 		expect(codes(withOpen)).not.toContain('W_GOTO_IN_ONE_TAP');
+	});
+});
+
+describe('which hints the "?" opens, through the teacher’s view (issue 12)', () => {
+	const three = () =>
+		course([
+			{
+				block_id: 'B1',
+				type: 'exercise',
+				steps: [question('q1'), { ...question('q2'), hint: 'K prostřední' }, question('q3')]
+			}
+		]);
+	const unreachable = (doc: CourseV2) =>
+		validate(doc)
+			.warnings.filter((w) => w.code === 'W_HINT_UNREACHABLE')
+			.map((w) => w.ref.stepId);
+
+	it('offers every question of a card split into one block per question', () => {
+		const { doc } = splitQuestionCards(three());
+		expect(doc.blocks).toHaveLength(3);
+		const view = toView(doc);
+		expect(view.blocks).toHaveLength(1);
+		expect(unreachable(view)).toEqual([]);
+	});
+
+	it('offers only the first and last question of a card kept together', () => {
+		const { doc } = splitQuestionCards(three());
+		const together = mergeQuestionCard(doc, 'B1');
+		expect(unreachable(toView(together))).toEqual(['q2']);
 	});
 });

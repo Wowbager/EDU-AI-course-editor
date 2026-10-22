@@ -15,6 +15,7 @@
  */
 
 import type { Ref } from '$lib/domain/ref';
+import { EVALUATION_ONLY_FIELDS } from '$lib/domain/course-feedback';
 
 /**
  * The three editing modes, in increasing order of exposure. They are cumulative:
@@ -1500,14 +1501,35 @@ export const NOT_EDITABLE: Record<string, string> = {
 /**
  * Cumulative: a field shows in its own mode and every mode above it. A `feedback`
  * field also needs `feedback` (the Zpětná vazba toggle) to be on.
+ *
+ * `graded` (false: the app shows no evaluation, `appShowsFeedback`) matters only to
+ * question and option fields. The section and settings-count helpers below leave it out
+ * because they serve the card, binding, lesson and course dialogs, which hold none
+ * (`course-feedback.test.ts` checks it).
  */
-export const visible = (spec: FieldSpec, mode: Mode, feedback: boolean = true): boolean =>
-	MODE_RANK[mode] >= MODE_RANK[spec.mode] && (feedback || spec.feedback !== true);
+export const visible = (
+	spec: FieldSpec,
+	mode: Mode,
+	feedback: boolean = true,
+	graded: boolean = true
+): boolean =>
+	MODE_RANK[mode] >= MODE_RANK[spec.mode] &&
+	(feedback || spec.feedback !== true) &&
+	(graded || EVALUATION_ONLY_FIELDS.includes(`${spec.level}.${spec.path}`) === false);
 
-/** The fields of one level that `mode` may edit, minus the hand-written ones. */
-export function fieldsFor(level: FieldLevel, mode: Mode, feedback: boolean = true): FieldSpec[] {
+/**
+ * The fields of one level that `mode` may edit, minus the hand-written ones. `graded`
+ * is false in a course whose app shows no evaluation (`appShowsFeedback`): the fields
+ * the app then never reads are left out.
+ */
+export function fieldsFor(
+	level: FieldLevel,
+	mode: Mode,
+	feedback: boolean = true,
+	graded: boolean = true
+): FieldSpec[] {
 	return FIELDS.filter(
-		(spec) => spec.level === level && spec.custom !== true && visible(spec, mode, feedback)
+		(spec) => spec.level === level && spec.custom !== true && visible(spec, mode, feedback, graded)
 	);
 }
 
@@ -1734,10 +1756,11 @@ export function allows(
 	level: FieldLevel,
 	path: string,
 	mode: Mode,
-	feedback: boolean = true
+	feedback: boolean = true,
+	graded: boolean = true
 ): boolean {
 	const spec = fieldSpec(level, path);
-	return spec === undefined ? true : visible(spec, mode, feedback);
+	return spec === undefined ? true : visible(spec, mode, feedback, graded);
 }
 
 /**
