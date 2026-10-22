@@ -6,7 +6,7 @@ const text = (id: string): BlockStep => ({ id, order: 1, type: 'text', content: 
 const question = (id: string, type = 'multiple_choice'): BlockStep =>
 	({ id, order: 1, type: 'question', question: { type, options: [] } }) as unknown as BlockStep;
 const ids = (type: BlockV2['type'], steps: BlockStep[]) =>
-	hintOfferedSteps({ type, steps }).map((s) => s.id);
+	hintOfferedSteps({ block_id: 'B', type, steps } as BlockV2).map((s) => s.id);
 
 describe('the steps the "?" opens (BR-E4H835)', () => {
 	it('offers every step of a display card', () => {

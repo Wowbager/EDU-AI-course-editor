@@ -555,3 +555,32 @@ describe('which cards the pupil checks in one tap (`_isBatchBlock`)', () => {
 		expect(codes(withOpen)).not.toContain('W_GOTO_IN_ONE_TAP');
 	});
 });
+
+describe('which hints the "?" opens, through the teacher’s view (issue 12)', () => {
+	const three = () =>
+		course([
+			{
+				block_id: 'B1',
+				type: 'exercise',
+				steps: [question('q1'), { ...question('q2'), hint: 'K prostřední' }, question('q3')]
+			}
+		]);
+	const unreachable = (doc: CourseV2) =>
+		validate(doc)
+			.warnings.filter((w) => w.code === 'W_HINT_UNREACHABLE')
+			.map((w) => w.ref.stepId);
+
+	it('offers every question of a card split into one block per question', () => {
+		const { doc } = splitQuestionCards(three());
+		expect(doc.blocks).toHaveLength(3);
+		const view = toView(doc);
+		expect(view.blocks).toHaveLength(1);
+		expect(unreachable(view)).toEqual([]);
+	});
+
+	it('offers only the first and last question of a card kept together', () => {
+		const { doc } = splitQuestionCards(three());
+		const together = mergeQuestionCard(doc, 'B1');
+		expect(unreachable(toView(together))).toEqual(['q2']);
+	});
+});
