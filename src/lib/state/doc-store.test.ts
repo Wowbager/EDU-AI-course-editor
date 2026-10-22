@@ -177,6 +177,10 @@ describe('warnings about hidden feedback fields', () => {
 		// An issue coming or going brings every dismissed warning back.
 		store.apply((d) => addBlock(d, 'L1', 'question'));
 		expect(store.dismissedWarnings.size).toBe(0);
+
+		// ...and they do not come back when the set later returns to what it was.
+		store.undo();
+		expect(store.dismissedWarnings.size).toBe(0);
 	});
 
 	it('never hold back an error', () => {

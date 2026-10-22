@@ -171,6 +171,13 @@ export class DocStore {
 		return d !== null && d.signature === this.#signature ? d.keys : new Set();
 	}
 
+	/** Forget the hidden warnings once the set of issues differs, for good (called after every edit). */
+	#pruneDismissal() {
+		if (this.#dismissal !== null && this.#dismissal.signature !== this.#signature) {
+			this.#dismissal = null;
+		}
+	}
+
 	dismissWarning(issue: Issue) {
 		this.#dismissal = {
 			signature: this.#signature,
@@ -253,6 +260,7 @@ export class DocStore {
 	load(doc: CourseV2, options: { published?: { version: number; doc: CourseV2 } } = {}) {
 		this.endEdit();
 		this.source = doc;
+		this.#dismissal = null;
 		this.#undo = [];
 		this.#redo = [];
 		this.#reservedBlocks = new Set();
@@ -358,6 +366,7 @@ export class DocStore {
 		const before = this.source;
 		if (next === before) return result;
 		this.source = next;
+		this.#pruneDismissal();
 		this.#reserve(next);
 		const last = this.#undo.at(-1);
 		if (this.#edit?.entry && last === this.#edit.entry) {
@@ -405,6 +414,7 @@ export class DocStore {
 		this.#undo = this.#undo.slice(0, -1);
 		this.#redo = [...this.#redo, entry];
 		this.source = entry.before;
+		this.#pruneDismissal();
 		this.dirty = true;
 		if (entry.ref !== undefined) this.selection = this.#inSameLesson(entry.ref);
 	}
@@ -416,6 +426,7 @@ export class DocStore {
 		this.#redo = this.#redo.slice(0, -1);
 		this.#undo = [...this.#undo, entry];
 		this.source = entry.after;
+		this.#pruneDismissal();
 		this.#reserve(entry.after);
 		this.dirty = true;
 		if (entry.ref !== undefined) this.selection = this.#inSameLesson(entry.ref);

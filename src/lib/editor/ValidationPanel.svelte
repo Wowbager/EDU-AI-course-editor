@@ -12,6 +12,7 @@
 	import Button from '$lib/ui/Button.svelte';
 	import { CircleX, X } from '@lucide/svelte';
 	import Crumbs from '$lib/ui/Crumbs.svelte';
+	import { overlayOpen } from '$lib/ui/overlay';
 	import { plural } from '$lib/ui/plural';
 
 	interface Props {
@@ -52,7 +53,9 @@
 	const where = (issue: Issue): string[] => issuePlace(store.doc, issue.ref);
 </script>
 
-<svelte:window onkeydown={(e) => e.key === 'Escape' && !e.defaultPrevented && onclose()} />
+<svelte:window
+	onkeydown={(e) => e.key === 'Escape' && !e.defaultPrevented && !overlayOpen() && onclose()}
+/>
 
 <aside class="panel" aria-label="Kontrola kurzu">
 	<header>
@@ -63,7 +66,7 @@
 	</header>
 
 	{#if store.listed.errors.length === 0 && warnings.length === 0}
-		<p class="clean">Kurz je v pořádku. Můžeš zveřejnit.</p>
+		<p class="clean">Kurz je v pořádku, můžeš ho zveřejnit.</p>
 	{/if}
 
 	{#if store.listed.errors.length > 0}
