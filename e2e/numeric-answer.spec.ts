@@ -5,7 +5,8 @@ import { expect, openEditor, test, type Page } from './fixtures';
  * teacher types while they type, and shows the document's number otherwise. It used
  * to round what it showed to three decimals and write that back when it was next
  * left, to keep its own text after an undo, and to save text that is not a number
- * as 0.
+ * as 0. Text that is not a number now writes nothing, as in every other number field
+ * (`typedNumber`).
  *
  * What is exported is read from the draft the editor keeps in the browser.
  */
@@ -85,10 +86,13 @@ test('undo shows the number the course holds again', async ({ page }) => {
 	expect((await question(page))?.correct_number).toBe(3);
 });
 
-test('text that is not a number is not saved as 0', async ({ page }) => {
+test('text that is not a number changes nothing, as in every number field', async ({ page }) => {
 	await enter(page, answer(page), '7');
 	await expect.poll(async () => (await question(page))?.correct_number).toBe(7);
 	await enter(page, answer(page), 'pět');
+	// Left, the field shows the number the course still holds; emptying it clears it.
+	await expect(answer(page)).toHaveValue('7');
+	expect((await question(page))?.correct_number).toBe(7);
+	await enter(page, answer(page), '');
 	await expect.poll(async () => (await question(page))?.correct_number).toBeUndefined();
-	await expect(answer(page)).toHaveValue('');
 });

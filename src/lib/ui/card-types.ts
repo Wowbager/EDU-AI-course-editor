@@ -7,6 +7,8 @@ export interface CardTypeInfo {
 	icon: typeof BookOpenText;
 	/** What choosing this type means for the student, for the "add card" button. */
 	title: string;
+	/** The same, shorter, on the type chip of a card that already has it. */
+	chipTitle: string;
 }
 
 /**
@@ -37,21 +39,26 @@ export const CARD_TYPES: readonly CardTypeInfo[] = [
 		label: 'Výklad',
 		icon: BookOpenText,
 		title:
-			'Karta typu Výklad — čtení po krocích. Žák vidí jeden krok, klikne Pokračovat a teprve pak se objeví další; hotové kroky mu zůstanou nad tím. Otázka vložená dovnitř výkladu je zastávka: dokud na ni neodpoví, další krok neuvidí.'
+			'Karta typu Výklad — čtení po krocích. Žák vidí jeden krok, klikne Pokračovat a teprve pak se objeví další; hotové kroky mu zůstanou nad tím. Otázka vložená dovnitř výkladu je zastávka: dokud na ni neodpoví, další krok neuvidí.',
+		chipTitle: 'Typ karty: Výklad. Žák prochází kroky po jednom a mezi nimi kliká Pokračovat.'
 	},
 	{
 		type: 'question',
 		label: 'Otázka',
 		icon: MessageCircleQuestionMark,
 		title:
-			'Karta typu Otázka — jedna bublina, ve které je žák rovnou u otázky. Text, který napíšeš před ni, čte jako zadání, ne jako samostatnou zastávku. Podle zvolené odpovědi ho umí poslat na jiný krok nebo na jinou kartu. Použij, když má odpověď rozhodnout, co bude dál.'
+			'Karta typu Otázka — jedna bublina, ve které je žák rovnou u otázky. Text, který napíšeš před ni, čte jako zadání, ne jako samostatnou zastávku. Podle zvolené odpovědi ho umí poslat na jiný krok nebo na jinou kartu. Použij, když má odpověď rozhodnout, co bude dál.',
+		chipTitle:
+			'Typ karty: Otázka. Kroky jsou v jedné bublině a žák je rovnou u otázky. Podle odpovědi ho lze poslat jinam.'
 	},
 	{
 		type: 'exercise',
 		label: 'Cvičení',
 		icon: Dumbbell,
 		title:
-			'Karta typu Cvičení (jedna karta v lekci — ne typ celého kurzu v Nastavení kurzu ani zařazení do denního opakování). Chová se jako Otázka, ale větvení se ignoruje: žák projde úlohy vždy ve stejném pořadí. Pro drilování postupu, který už zná.'
+			'Karta typu Cvičení (jedna karta v lekci — ne typ celého kurzu v Nastavení kurzu ani zařazení do denního opakování). Chová se jako Otázka, ale větvení se ignoruje: žák projde úlohy vždy ve stejném pořadí. Pro drilování postupu, který už zná.',
+		chipTitle:
+			'Typ karty: Cvičení — jedna karta uvnitř lekce. Jako Otázka, ale bez větvení. Nezaměňuj s typem celého kurzu „Cvičení“ v Nastavení kurzu ani se zařazením karty do denního opakování.'
 	}
 ];
 
@@ -59,3 +66,4 @@ const byType = new Map(CARD_TYPES.map((info) => [info.type, info]));
 
 export const cardTypeLabel = (type: BlockType): string => byType.get(type)!.label;
 export const cardTypeIcon = (type: BlockType) => byType.get(type)!.icon;
+export const cardTypeChipTitle = (type: BlockType): string => byType.get(type)!.chipTitle;

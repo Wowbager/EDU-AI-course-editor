@@ -21,6 +21,15 @@ import type { BlockStep, BlockV2, CourseV2, QuestionConfig } from './schema';
 import type { Ref } from './ref';
 import { buildIndex, isGoToKeyword, reachableSteps, type DocIndex } from './index-doc';
 import { blockDurationMinutes, isPracticeBlock, optionOutcomesApply } from './derive';
+import { goToIgnored } from './navigation';
+import { mediaHidden, positionField } from './media';
+import { skipConditionSupported } from './practice';
+import {
+	AI_CRITERIA_MAX,
+	GUIDED_ATTEMPTS_MAX,
+	GUIDED_ATTEMPTS_MIN,
+	questionSettingApplies
+} from './question-settings';
 import { dimensionCount, ELO_MAX, ELO_MIN, type SkillConfig } from './skill-config';
 import {
 	blockLabel,
@@ -212,7 +221,6 @@ function checkBlocks(
 	skillConfig: SkillConfig | null | undefined,
 	add: Add
 ) {
-	const exerciseCourse = doc.export_type === 'exercise_v2';
 	const courseEloMean = meanElo(doc);
 
 	for (const block of doc.blocks) {
@@ -221,6 +229,16 @@ function checkBlocks(
 
 		checkStructuralCompleteness(doc, block, add);
 		checkVectors(doc, block, skillConfig, add);
+
+		const skip = block.fsrs?.skip_condition;
+		if (typeof skip === 'string' && skip.trim() !== '' && !skipConditionSupported(skip)) {
+			add(
+				'warning',
+				'W_SKIP_CONDITION_UNSUPPORTED',
+				{ ...blockRef, field: 'fsrs.skip_condition' },
+				`Podmínku vynechání karty „${cardName}“ aplikace nepřečte, takže kartu z opakování nikdy nevynechá. Umí jen tvar GPF_mastery > 0.8 (místo > i >=, <, <=, ==, !=).`
+			);
+		}
 
 		if (block.steps.length > 10) {
 			add(
@@ -259,7 +277,7 @@ function checkBlocks(
 			const question = step.question;
 			if (question === undefined) continue;
 
-			checkGoToTargets(index, block, step, question, exerciseCourse, add);
+			checkGoToTargets(index, block, step, question, add);
 			checkFeedbackQuality(block, step, question, add);
 			checkIgnoredOutcomes(block, step, question, add);
 		}
@@ -405,13 +423,17 @@ function checkQuestionShape(block: BlockV2, step: BlockStep, question: QuestionC
 		case 'open': {
 			const answer = question.correct_answer;
 			if (typeof answer !== 'string' || answer.trim() === '') {
+				// Every open answer is graded by the AI first; `correct_answer` is the
+				// comparison it falls back to offline (`block_step_engine.dart`
+				// `_confirmOpenAnswerWithAi`, `expected_answer.dart`, BR-N26ACB).
 				add(
-					'error',
-					'E_OPEN_NO_CORRECT_ANSWER',
+					'warning',
+					'W_OPEN_NO_CORRECT_ANSWER',
 					{ ...ref, field: 'question.correct_answer' },
-					`Otevřená otázka v kroku ${position} nemá zadanou správnou odpověď. Žákovi se každá odpověď vyhodnotí jako chybná.`
+					`Otevřená otázka v kroku ${position} nemá zadanou správnou odpověď. Odpověď vyhodnotí AI, ale žákovi bez připojení se každá odpověď vyhodnotí jako chybná.`
 				);
 			}
+			checkAiSettings(question, { ...ref }, position, add);
 			break;
 		}
 		case 'numeric': {
@@ -476,13 +498,57 @@ function checkQuestionShape(block: BlockV2, step: BlockStep, question: QuestionC
 	}
 }
 
+/**
+ * What the app does with an open question's AI settings (`block_model.dart`):
+ * `parseGuidedAttempts` clamps the attempts to 1–10, and `QuestionCriterion.listFromJson`
+ * drops unnamed criteria and keeps the first four. A setting the app ignores here (the
+ * same rule that hides its control) is not checked: a stored value it never uses is
+ * no problem.
+ */
+function checkAiSettings(question: QuestionConfig, ref: Ref, position: number, add: Add) {
+	const attempts = question.ai_guided_attempts;
+	if (
+		questionSettingApplies(question, 'ai_guided_attempts') &&
+		typeof attempts === 'number' &&
+		(!Number.isInteger(attempts) ||
+			attempts < GUIDED_ATTEMPTS_MIN ||
+			attempts > GUIDED_ATTEMPTS_MAX)
+	) {
+		const used = Math.min(GUIDED_ATTEMPTS_MAX, Math.max(GUIDED_ATTEMPTS_MIN, Math.trunc(attempts)));
+		add(
+			'warning',
+			'W_GUIDED_ATTEMPTS_RANGE',
+			{ ...ref, field: 'question.ai_guided_attempts' },
+			`Otázka v kroku ${position} dává ${attempts} pokusů; aplikace bere celé číslo ${GUIDED_ATTEMPTS_MIN}–${GUIDED_ATTEMPTS_MAX}, takže žák dostane ${used}.`
+		);
+	}
+	if (!questionSettingApplies(question, 'ai_criteria_list')) return;
+	const criteria = question.ai_criteria_list ?? [];
+	const named = criteria.filter((c) => (c.name ?? '').trim() !== '');
+	if (named.length < criteria.length) {
+		add(
+			'warning',
+			'W_AI_CRITERION_NO_NAME',
+			{ ...ref, field: 'question.ai_criteria_list' },
+			`Kritérium hodnocení u otázky v kroku ${position} nemá název, a tak ho AI nedostane.`
+		);
+	}
+	if (named.length > AI_CRITERIA_MAX) {
+		add(
+			'warning',
+			'W_AI_CRITERIA_TOO_MANY',
+			{ ...ref, field: 'question.ai_criteria_list' },
+			`Otázka v kroku ${position} má ${named.length} kritérií hodnocení; AI dostane jen první ${AI_CRITERIA_MAX}.`
+		);
+	}
+}
+
 /** §14.2 — every `go_to` resolves; §14 warning 3 — branching inside a drill is ignored. */
 function checkGoToTargets(
 	index: DocIndex,
 	block: BlockV2,
 	step: BlockStep,
 	question: QuestionConfig,
-	exerciseCourse: boolean,
 	add: Add
 ) {
 	const ownSteps = index.stepsByBlock.get(block.block_id);
@@ -499,14 +565,12 @@ function checkGoToTargets(
 		};
 		const optionName = capitalize(optionLabel(question, option));
 
-		if (block.type === 'exercise' || exerciseCourse) {
+		if (goToIgnored(block)) {
 			add(
 				'warning',
 				'W_GOTO_IN_EXERCISE',
 				ref,
-				exerciseCourse
-					? `${optionName} v kroku ${position} má nastavené větvení, ale celý kurz je typu cvičení — žák bude vždy pokračovat dál a na připravenou nápravu se nedostane.`
-					: `${optionName} v kroku ${position} má nastavené větvení, ale blok je typu cvičení — žák bude vždy pokračovat dál a na připravenou nápravu se nedostane.`
+				`${optionName} v kroku ${position} má nastavené větvení, ale blok je typu cvičení — žák bude vždy pokračovat dál a na připravenou nápravu se nedostane.`
 			);
 			continue;
 		}
@@ -580,7 +644,8 @@ function checkFeedbackQuality(block: BlockV2, step: BlockStep, question: Questio
 		);
 	}
 
-	// §14 warning 10
+	// §14 warning 10. A wrong answer always scores 0 outside AI grading
+	// (`block_step_engine.dart`: `effectiveScoreKoef = isCorrect ? scoreKoef : 0.0`).
 	for (const option of options) {
 		if (
 			option.is_correct !== true &&
@@ -591,7 +656,7 @@ function checkFeedbackQuality(block: BlockV2, step: BlockStep, question: Questio
 				'warning',
 				'W_PARTIAL_CREDIT_ON_WRONG',
 				{ blockId: block.block_id, stepId: step.id, optionId: option.id, field: 'score_koef' },
-				`${capitalize(optionLabel(question, option))} v kroku ${position} je označená jako chybná, ale dává žákovi ${Math.round(option.score_koef * 100)} % bodů. Pokud to tak má být, je to v pořádku — jinak dostane víc XP, než si zaslouží.`
+				`${capitalize(optionLabel(question, option))} v kroku ${position} je označená jako chybná a má podíl bodů ${Math.round(option.score_koef * 100)} %. Za chybnou odpověď aplikace body nedává, takže se podíl nepoužije.`
 			);
 		}
 	}
@@ -676,6 +741,20 @@ function checkMedia(block: BlockV2, step: BlockStep, add: Add) {
 				`Obrázek v kroku ${position} nemá popis. Žák, který používá čtečku obrazovky, se nedozví, co je na něm — a stejný text se ukáže, když se obrázek nenačte.`
 			);
 		}
+	}
+
+	// The image and the video share one position, so one warning covers both.
+	const hidden = (['image', 'video'] as const).filter((media) => mediaHidden(step, media));
+	if (hidden.length > 0) {
+		const what =
+			hidden.length === 2 ? 'Obrázek a video' : hidden[0] === 'image' ? 'Obrázek' : 'Video';
+		const them = hidden.length === 2 ? 'je' : 'ho';
+		add(
+			'warning',
+			'W_MEDIA_HIDDEN',
+			{ ...ref, field: positionField(step) },
+			`${what} v kroku ${position} ${hidden.length === 2 ? 'mají' : 'má'} umístění, které aplikace neumí vykreslit — žák ${them} neuvidí. Zvol „Nad textem“ nebo „Pod textem“.`
+		);
 	}
 }
 
@@ -943,7 +1022,8 @@ function checkCourseLevel(doc: CourseV2, index: DocIndex, options: ValidateOptio
 		);
 	}
 
-	// §14 warning 12
+	// §14 warning 12. The app seeds no practice card from an only_once course
+	// (`practice_repository.dart`, BR-E495XK).
 	if (doc.only_once === true) {
 		const practice = doc.blocks.filter((b) =>
 			isPracticeBlock(b, bindingPractice(index, b.block_id))
@@ -953,7 +1033,7 @@ function checkCourseLevel(doc: CourseV2, index: DocIndex, options: ValidateOptio
 				'warning',
 				'W_ONLY_ONCE_WITH_PRACTICE',
 				{ field: 'only_once' },
-				`Kurz je nastavený na jediné projití, ale ${practice.length} blok(ů) je zařazeno do cvičení. Žákovi se budou opakovaně nabízet karty z kurzu, který už nemůže otevřít.`
+				`Kurz je nastavený na jediné projití, ale ${practice.length} blok(ů) je zařazeno do cvičení. Z kurzu na jedno projití aplikace nic nezařadí do denního opakování.`
 			);
 		}
 	}

@@ -12,6 +12,7 @@
 		QuestionType
 	} from '$lib/domain/schema';
 	import FocusField from '$lib/ui/FocusField.svelte';
+	import NumberField from '$lib/ui/NumberField.svelte';
 	import RichField from '$lib/ui/RichField.svelte';
 	import { ALWAYS_MARKDOWN, SNIFFED } from '$lib/domain/markdown';
 	import Chip from '$lib/ui/Chip.svelte';
@@ -20,10 +21,13 @@
 	import Modal from '$lib/ui/Modal.svelte';
 	import AnswerTable from './AnswerTable.svelte';
 	import FieldGroup from '$lib/ui/FieldGroup.svelte';
+	import CriteriaEditor from './CriteriaEditor.svelte';
 	import { useStepView, useStore } from '$lib/ui/context';
 	import { dragHandle } from 'svelte-dnd-action';
 	import { tick, untrack } from 'svelte';
 	import { refKey } from '$lib/domain/ref';
+	import { mediaPositionApplies } from '$lib/domain/media';
+	import { questionSettingApplies } from '$lib/domain/question-settings';
 	import Button from '$lib/ui/Button.svelte';
 	import { allows, fieldSpec, fieldsFor } from '$lib/ui/fields';
 	import { answersCount } from '$lib/ui/plural';
@@ -60,7 +64,6 @@
 	import Menu from '$lib/ui/Menu.svelte';
 	import MenuItem from '$lib/ui/MenuItem.svelte';
 	import { fade } from 'svelte/transition';
-	import { formatNumberInput, parseNumberInput } from '$lib/domain/number-input';
 
 	interface Props {
 		doc: CourseV2;
@@ -163,9 +166,9 @@
 				!INLINE_STEP.includes(f.path) &&
 				// The step's switch only duplicates the card's own when the card is in practice.
 				(f.path !== 'default_practice' || stepPracticeOffered(doc, block, step)) &&
-				// Where a picture or video sits matters only on a step that has one.
-				(f.path !== 'image.position' || step.type === 'image' || step.image !== undefined) &&
-				(f.path !== 'video.position' || step.type === 'video' || step.video !== undefined)
+				// Where a picture or video sits matters only around a text step's text.
+				(f.path !== 'image.position' || mediaPositionApplies(step, 'image')) &&
+				(f.path !== 'video.position' || mediaPositionApplies(step, 'video'))
 		)
 	);
 	// A selection or a visible issue that points into the fold opens it.
@@ -176,7 +179,18 @@
 		})
 	);
 	const questionExtras = $derived(
-		fieldsFor('question', mode, feedbackOn).filter((f) => !INLINE_QUESTION.includes(f.path))
+		fieldsFor('question', mode, feedbackOn).filter(
+			(f) =>
+				!INLINE_QUESTION.includes(f.path) &&
+				(step.question === undefined || questionSettingApplies(step.question, f.path))
+		)
+	);
+
+	const criteriaSpec = fieldSpec('question', 'ai_criteria_list');
+	const criteriaShown = $derived(
+		step.question !== undefined &&
+			allows('question', 'ai_criteria_list', mode) &&
+			questionSettingApplies(step.question, 'ai_criteria_list')
 	);
 
 	const hintSpec = fieldSpec('step', 'hint');
@@ -220,7 +234,7 @@
 		{
 			value: 'open',
 			label: 'Otevřená odpověď',
-			title: 'Žák píše odpověď; porovnává se bez ohledu na velikost písmen',
+			title: 'Žák píše odpověď; vyhodnotí ji AI',
 			icon: PencilLine
 		},
 		{
@@ -490,25 +504,6 @@
 			stepId: step.id
 		};
 	}
-
-	/**
-	 * The two number fields of a numeric question. While the teacher types, the field
-	 * keeps their text ("3," or "-" is half a number, not a wrong one) and every text
-	 * that reads as a number is written at once, so the preview and the checks follow.
-	 * Out of the field it shows the document's value, so undo, redo and import show
-	 * what the course really holds, and leaving it never rewrites the number.
-	 */
-	type NumberField = 'correct_number' | 'tolerance';
-	let typedNumber = $state<Partial<Record<NumberField, string | undefined>>>({});
-	const numberText = (field: NumberField) =>
-		field in typedNumber ? typedNumber[field] : formatNumberInput(step.question?.[field]);
-	function typeNumber(field: NumberField, text: string | undefined) {
-		typedNumber[field] = text;
-		set(`question.${field}`, parseNumberInput(text));
-	}
-	function leaveNumber(field: NumberField) {
-		delete typedNumber[field];
-	}
 </script>
 
 <article
@@ -741,7 +736,8 @@
 							<FocusField
 								label="Správná odpověď"
 								value={step.question.correct_answer}
-								emptyText="Jedno slovo nebo číslo — porovnává se bez ohledu na velikost písmen"
+								multiline
+								emptyText="Jedna přijatá odpověď na řádek"
 								ref={{
 									blockId: block.block_id,
 									stepId: step.id,
@@ -753,9 +749,9 @@
 					{:else if step.question?.type === 'numeric'}
 						<div class="field-row">
 							<span class="field-label">Správný výsledek</span>
-							<FocusField
+							<NumberField
 								label="Správný výsledek"
-								value={numberText('correct_number')}
+								value={step.question?.correct_number}
 								emptyText="Číslo"
 								monospace
 								ref={{
@@ -763,15 +759,14 @@
 									stepId: step.id,
 									field: 'question.correct_number'
 								}}
-								onblur={() => leaveNumber('correct_number')}
-								onchange={(v) => typeNumber('correct_number', v)}
+								onchange={(v) => set('question.correct_number', v)}
 							/>
 						</div>
 						<div class="field-row">
 							<span class="field-label">Tolerance ±</span>
-							<FocusField
+							<NumberField
 								label="Tolerance"
-								value={numberText('tolerance')}
+								value={step.question?.tolerance}
 								emptyText="0 — vyžaduje přesnou shodu"
 								monospace
 								ref={{
@@ -779,8 +774,7 @@
 									stepId: step.id,
 									field: 'question.tolerance'
 								}}
-								onblur={() => leaveNumber('tolerance')}
-								onchange={(v) => typeNumber('tolerance', v)}
+								onchange={(v) => set('question.tolerance', v)}
 							/>
 						</div>
 					{:else}
@@ -871,6 +865,18 @@
 							<FieldGroup fields={extraFields} {read} write={set} />
 							{#if step.type === 'question' && questionExtras.length > 0}
 								<FieldGroup fields={questionExtras} read={readQuestion} write={setQuestion} />
+							{/if}
+							{#if criteriaShown && step.question}
+								<CriteriaEditor
+									criteria={step.question.ai_criteria_list}
+									hint={criteriaSpec?.hint}
+									ref={{
+										blockId: block.block_id,
+										stepId: step.id,
+										field: 'question.ai_criteria_list'
+									}}
+									onchange={(v) => setQuestion('ai_criteria_list', v)}
+								/>
 							{/if}
 						</div>
 					</SettingsSection>

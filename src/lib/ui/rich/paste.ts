@@ -131,8 +131,8 @@ function rename(el: Element, tag: string): void {
 
 /**
  * Plain text that is meant as Markdown: copied from another field, a chat, a text
- * editor. The app's own test, plus the line starts any Markdown writer uses.
+ * editor. The app's own test, which takes the line starts any Markdown writer uses.
  */
 export function pastedTextIsMarkdown(text: string): boolean {
-	return looksLikeMarkdown(text) || /^(#{1,3} |[-*+] |\d+\. |> |\|.*\|\s*$)/m.test(text);
+	return looksLikeMarkdown(text);
 }

@@ -20,11 +20,11 @@
 	 * offered as its first option stays reachable without an extra button.
 	 */
 	import FocusField from './FocusField.svelte';
+	import NumberField from './NumberField.svelte';
 	import RichField from './RichField.svelte';
 	import { ALWAYS_MARKDOWN, SNIFFED } from '$lib/domain/markdown';
 	import Toggle from './Toggle.svelte';
 	import Segmented from './Segmented.svelte';
-	import { parseNumberInput } from '$lib/domain/number-input';
 	import { formatDateTimeCs } from '$lib/domain/format-date';
 	import { hintFor, type FieldSpec } from './fields';
 	import { useSettingsSearch } from './settings-search.svelte';
@@ -45,17 +45,12 @@
 	const uid = $props.id();
 	const hintId = (spec: FieldSpec) => `${uid}-${spec.level}-${spec.path}`;
 
+	/** A select's chosen option as the document stores it. */
+	const stored = (spec: FieldSpec, option: string): unknown =>
+		spec.numeric ? Number(option) : spec.boolean ? option === 'true' : option;
+
 	const asText = (value: unknown): string | undefined =>
 		value === undefined || value === null ? undefined : String(value);
-
-	function writeNumber(path: string, raw: string | undefined) {
-		if (raw === undefined || raw.trim() === '') return write(path, undefined);
-		const value = parseNumberInput(raw);
-		// Text that is not a number is not written: NaN would serialise as null and fail
-		// validation somewhere far from here. Empty above is "not set", never 0.
-		if (value === undefined) return;
-		write(path, value);
-	}
 </script>
 
 {#each fields as spec (spec.level + spec.path)}
@@ -95,7 +90,7 @@
 					describedby={hint ? hintId(spec) : undefined}
 					onchange={(v) => {
 						if (v === current) return write(spec.path, undefined);
-						write(spec.path, spec.numeric ? Number(v) : v);
+						write(spec.path, stored(spec, v));
 					}}
 				/>
 			</div>
@@ -114,7 +109,7 @@
 					onchange={(e) => {
 						const raw = e.currentTarget.value;
 						if (raw === '') return write(spec.path, undefined);
-						write(spec.path, spec.numeric ? Number(raw) : raw);
+						write(spec.path, stored(spec, raw));
 					}}
 				>
 					<option value="">— nenastaveno —</option>
@@ -156,18 +151,27 @@
 						invalid={invalid?.(spec.path) === true}
 						onchange={(v) => write(spec.path, v)}
 					/>
+				{:else if spec.kind === 'number'}
+					<NumberField
+						label={spec.label}
+						value={typeof value === 'number' || typeof value === 'string' ? value : asText(value)}
+						monospace
+						emptyText={spec.default === undefined ? 'nevyplněno' : `výchozí ${spec.default}`}
+						ref={spec.ref}
+						describedby={hint ? hintId(spec) : undefined}
+						invalid={invalid?.(spec.path) === true}
+						onchange={(v) => write(spec.path, v)}
+					/>
 				{:else}
 					<FocusField
 						label={spec.label}
 						value={asText(value)}
 						multiline={spec.kind === 'multiline'}
-						monospace={spec.kind === 'number'}
 						emptyText={spec.default === undefined ? 'nevyplněno' : `výchozí ${spec.default}`}
 						ref={spec.ref}
 						describedby={hint ? hintId(spec) : undefined}
 						invalid={invalid?.(spec.path) === true}
-						onchange={(v) =>
-							spec.kind === 'number' ? writeNumber(spec.path, v) : write(spec.path, v)}
+						onchange={(v) => write(spec.path, v)}
 					/>
 				{/if}
 			</div>

@@ -88,8 +88,13 @@ const image = (v: unknown) => ordered(v, 'image');
 const video = (v: unknown) => ordered(v, 'video');
 const audio = (v: unknown) => ordered(v, 'audio');
 const option = (v: unknown) => ordered(v, 'option', { feedback_image: image });
+const criterion = (v: unknown) => ordered(v, 'criterion');
 const question = (v: unknown) =>
-	ordered(v, 'question', { solution_image: image, options: mapArray(option) });
+	ordered(v, 'question', {
+		solution_image: image,
+		ai_criteria_list: mapArray(criterion),
+		options: mapArray(option)
+	});
 const step = (v: unknown) => ordered(v, 'step', { image, video, audio, question });
 const prerequisite = (v: unknown) => ordered(v, 'prerequisite');
 const learning = (v: unknown) => ordered(v, 'learning', { prerequisites: mapArray(prerequisite) });

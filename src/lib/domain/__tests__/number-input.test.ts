@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatNumberInput, parseNumberInput } from '../number-input';
+import { formatNumberInput, parseNumberInput, typedNumber } from '../number-input';
 import { formatDateTimeCs } from '../format-date';
 
 describe('parseNumberInput', () => {
@@ -59,5 +59,15 @@ describe('formatDateTimeCs', () => {
 	it('shows what is not a date as it is', () => {
 		expect(formatDateTimeCs('včera')).toBe('včera');
 		expect(formatDateTimeCs('')).toBe('');
+	});
+});
+
+describe('typedNumber: what every number field writes', () => {
+	it('clears when emptied, writes a number, and writes nothing for text', () => {
+		expect(typedNumber(undefined)).toEqual({ value: undefined });
+		expect(typedNumber('  ')).toEqual({ value: undefined });
+		expect(typedNumber('2,5')).toEqual({ value: 2.5 });
+		expect(typedNumber('0')).toEqual({ value: 0 });
+		expect(typedNumber('pět')).toBeNull();
 	});
 });

@@ -17,10 +17,10 @@
 	 * way to it says so once under that answer, with "Vrátit zpět" (`madeUnreachable`),
 	 * and says nothing after the next edit.
 	 */
-	import { parseNumberInput } from '$lib/domain/number-input';
 	import { tick, untrack } from 'svelte';
 	import type { BlockStep, BlockV2, CourseV2 } from '$lib/domain/schema';
 	import FocusField from '$lib/ui/FocusField.svelte';
+	import NumberField from '$lib/ui/NumberField.svelte';
 	import RichField from '$lib/ui/RichField.svelte';
 	import { INLINE, SNIFFED } from '$lib/domain/markdown';
 	import Button from '$lib/ui/Button.svelte';
@@ -53,9 +53,9 @@
 	// The app reads an answer's "Kam dál" and grade only when the pupil picks one
 	// answer (`optionOutcomesApply`), so a question with several picks has neither.
 	const outcomes = $derived(optionOutcomesApply(step.question));
-	const branching = $derived(
-		outcomes && block.type === 'question' && doc.export_type !== 'exercise_v2'
-	);
+	// Kam dál is offered on question cards only. An exercise card ignores it
+	// (`domain/navigation.ts`); the course's export_type plays no part.
+	const branching = $derived(outcomes && block.type === 'question');
 	const quizMarks = $derived(
 		outcomes && (doc.export_type === 'quiz_v2' || doc.quiz_evaluate === true)
 	);
@@ -534,18 +534,13 @@
 						{#if advanced}
 							<div class="field score">
 								<span class="label">Podíl bodů</span>
-								<FocusField
+								<NumberField
 									label="Podíl bodů za tuto odpověď"
-									value={option.score_koef === undefined ? undefined : String(option.score_koef)}
-									emptyText="1.0"
+									value={option.score_koef}
+									emptyText="1,0"
 									monospace
 									ref={ref(option.id, 'score_koef')}
-									onchange={(v) => {
-										// Empty is unset; a comma is a decimal; text is not written.
-										const value = parseNumberInput(v);
-										if (v === undefined || v.trim() === '' || value !== undefined)
-											set(option.id, 'score_koef', value);
-									}}
+									onchange={(v) => set(option.id, 'score_koef', v)}
 								/>
 							</div>
 						{/if}

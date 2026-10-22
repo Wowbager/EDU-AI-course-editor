@@ -81,11 +81,11 @@ queue if flagged.
 | `export_type` | Mode | Behaviour |
 |---|---|---|
 | `course_v2` | Course | The full experience: hints, help, solutions, per-option feedback, `go_to` branching, XP, practice enrolment. |
-| `exercise_v2` | Exercise / practice | Hints and solutions stay visible, answers are evaluated, but **branching is disabled** — every answer advances linearly. Use for drill sets where the sequence is fixed. |
-| `quiz_v2` | Test | Hints, help, solutions and per-option feedback are suppressed; only the question and its options are shown. Answers are collected and graded via `mark` and score. Turn `quiz_evaluate` on to reveal correct/incorrect and the score at the end. |
+| `exercise_v2` | Exercise / practice | Hints and solutions stay visible, answers are evaluated, but **branching is disabled** — every answer advances linearly. Use for drill sets where the sequence is fixed. **Not implemented in the app:** it behaves as `course_v2`, and the upload route accepts only `course_v2`. Use `exercise` cards for a fixed sequence. |
+| `quiz_v2` | Test | Bookmarks, likes, AI feedback and reworking an answer are dropped; the hint and help stay. With `quiz_evaluate: false` correctness, solutions and per-option feedback are suppressed too. Answers are collected and graded via `mark` and score. Turn `quiz_evaluate` on to reveal correct/incorrect and the score at the end. |
 
-Note the two independent axes: `exercise_v2` disables branching for the **whole course**;
-`type: "exercise"` disables it for **one block** (§6.2). Both exist and the editor should make
+Note the two independent axes: `exercise_v2` is meant to disable branching for the **whole
+course** (not implemented, see above); `type: "exercise"` disables it for **one block** (§6.2). Both exist and the editor should make
 the distinction obvious.
 
 ---
@@ -122,14 +122,14 @@ Type `CourseV2`.
 | `course_id` | string | Stable business key, unique platform-wide. | Storage path and enrolment key. Immutable after publish. |
 | `version` | int ≥ 1 | Content version. | Storage path; triggers the update flow in the app. §2. |
 | `name` | string ≤ 255 | Course title. | Course card and player header. |
-| `description` | string ≤ 500 | Short blurb. | Course card subtitle — visible in the library **before** the student downloads the course, so write it for a browsing student. |
+| `description` | string ≤ 500 | Short blurb. | Shown on the library card and in the course page's description — visible **before** the student downloads the course, so write it for a browsing student. (The course page's subtitle line is a separate `subtitle` key.) |
 | `language` | string ≤ 10 (`cs`, `en`) | Content language. | Library language filter. Does not switch the app's own UI language. |
 | `author` | string | Author or organisation. | Shown on the course card and detail page. |
 | `updated` | ISO 8601 timestamp | Last edit. | Displayed as "last updated"; set on every save. |
 | `status` | `draft \| private \| locked \| approved \| published` | Editorial workflow state. | Only `published` is visible to students. `draft` = work in progress, `private` = finished but distributed by PIN only, `locked` = frozen for review, `approved` = signed off and awaiting release. §3.5. |
 | `emoji` | string (1 emoji) | Course icon. | The tile icon in the library and dashboard. If omitted the platform picks one from the subject keywords in the name. |
-| `estimated_minutes` | int | Total course length. | Shown on the course card. If omitted it is derived from block durations (§4). Set it explicitly when the derived figure misrepresents the real workload. |
-| `header_image` | `{ url, alt? }` | Course cover. | Banner on the course detail page. `alt` is read by screen readers. Use a wide image (roughly 3:1); it is cropped to the banner. |
+| `estimated_minutes` | int | Total course length. | Shown on the library card of a course not yet downloaded; once downloaded, the app sums the block durations (§4). If omitted, the API lists 15 minutes per lesson. |
+| `header_image` | `{ url, alt? }` | Course cover. | A square tile on the course page, a circle in the library and the header of the course card, each cropped to fill (`CourseCoverImage`, `BoxFit.cover`); the emoji stands in without it. Use a roughly square image with the subject in the middle. |
 
 ### 3.2 Access control
 
@@ -180,7 +180,7 @@ completion state, and what the dashboard counts.
 | `description` | string | One-line summary. | Lesson card subtitle. Write it as a promise of what the student will be able to do. |
 | `order` | int | Position in the course. | Lesson sequence. Keep it dense and 1-based; the editor should renumber on reorder. |
 | `version` | int | Per-lesson revision. | Editorial traceability; the course `version` is what drives distribution. |
-| `header_image` | `{ url, alt? }` | Lesson cover. | Banner at the top of the lesson. Falls back to the course header when absent. |
+| `header_image` | `{ url, alt? }` | Lesson cover. | **Not drawn by the app today.** |
 | `ai_context` | string (Markdown) | Lesson-specific tutor briefing. | Layered **on top of** the course `ai_context` when the student opens chat inside this lesson. Put the course-wide conventions on the course and the lesson-specific misconceptions here. |
 | `blocks` | `LessonBlockBinding[]` | Ordered references into `blocks[]`. | §5. |
 
@@ -235,7 +235,7 @@ separately, they are two blocks.
 | `author` | string | Who wrote it. | Attribution in the block library. |
 | `updated` | ISO 8601 | Last edit. | Sorting and review in the block library. |
 | `duration` | string, e.g. `"3 min"` | Expected time on task. | Feeds lesson and course duration (§4) and the pacing signal used for the practice grade (§11). Give a realistic figure for an average student; over-optimistic durations make every student look slow. |
-| `xp` | int | XP awarded for completing the block. | The authored reward, scaled by how well the student did — §10. Omit it to let the platform compute a value from the block's step composition. |
+| `xp` | int | XP awarded for completing the block. | **Not read by the app**; XP comes from the block's steps — §10. |
 | `default_practice` | bool | Enrol this block in spaced repetition. | §11. |
 | `hint` | string (Markdown + LaTeX) | Short block-level hint. | Available from the `?` button on any step of the block. Costs score — §12. |
 | `help` | string (Markdown + LaTeX) | Detailed block-level explanation. | The second level of the `?` button. Costs more — §12. |
@@ -294,8 +294,8 @@ the dimension set is versioned per course through the skill configuration.
 | Value | Meaning | Effect |
 |---|---|---|
 | `0` | unrelated | The subconstruct is untouched by this block. |
-| `1` | weak relation | The subconstruct is involved but incidental — it updates with reduced weight, so a student's rating moves slowly here. |
-| `2` | strong relation | The subconstruct is what the block is *about* — it updates at full weight. |
+| `1` | weak relation | The subconstruct is involved but incidental. **The app does not update the rating for it** — only `2` does (`elo_engine.dart`: "Relation is deliberately unweighted"); it still counts for `skip_condition`'s mastery. |
+| `2` | strong relation | The subconstruct is what the block is *about* — the only relation that updates the student's rating. |
 
 Keep it honest and sparse. A block that claims a strong relation to eight subconstructs will
 smear a single result across eight ratings and make the skill profile noisy. Most blocks have
@@ -374,11 +374,11 @@ ordinary content, and most blocks should leave them alone.
 | `initial_recall` | 0.65 | R₀ — assumed recall probability at first review. | Seeds the scheduler before the student has any history with the block. |
 | `forgetting_rate` | 0.25 | λ — how fast retrievability decays. | Higher = reviews come back sooner. |
 | `repetitions` | 0 | Prior review count. | Non-zero only when importing a block with existing history. |
-| `weight` | 1.0 | Priority of this block in the daily queue. | The queue is ordered by weight before due date, so a higher weight pushes a block to the front of a crowded day. Reserve values above 1 for genuinely foundational blocks — if everything is important, nothing is. |
+| `weight` | 5.0 | Priority of this block in the daily queue. | The queue is ordered by weight before due date, so a higher weight pushes a block to the front of a crowded day. The app's default is 5 (`practice_repository.dart`): raise it above 5 only for genuinely foundational blocks, and a value below 5 pushes a block back — if everything is important, nothing is. |
 | `min_interval` | 1 | Floor, in days. | The block will never come back sooner than this, even after a failure. |
 | `max_interval` | 90 | Ceiling, in days. | Caps the interval regardless of how well the student knows it. Lower it for material that must stay fresh for an exam date; raise it for durable knowledge. |
-| `skip_condition` | — | Expression, e.g. `GPF_mastery > 0.8`. | Evaluated before the block is queued: when it holds, the block is dropped from that student's queue. The clean way to stop drilling a student on something they have demonstrably mastered. |
-| `time_limit_sec` | — | Optional time limit for the block. | Shows a countdown and closes the block when it expires. Use for timed assessment only — a timer on teaching content mostly measures anxiety. |
+| `skip_condition` | — | Expression `GPF_mastery <op> <number>`, `<op>` one of `>` `>=` `<` `<=` `==` `!=`, e.g. `GPF_mastery > 0.8`. Mastery is the student's mean rating over the block's skills (relation > 0), 0–1. Any other form is ignored. | Evaluated before the block is queued: when it holds, the block is dropped from that student's queue. The clean way to stop drilling a student on something they have demonstrably mastered. |
+| `time_limit_sec` | — | Optional time limit for the block. | **Not read by the app.** Intended: shows a countdown and closes the block when it expires. Use for timed assessment only — a timer on teaching content mostly measures anxiety. |
 
 The scheduler combines these with the **student's** own FSRS profile (desired retention,
 learning and relearning steps, maximum interval, fuzzing), so the same block will be scheduled
@@ -437,7 +437,7 @@ Two behaviours to design content around:
   CORS problems. Images must be **public HTTPS URLs**; anything behind auth or on a private
   host will not render. Keep files under ~10 MB.
 
-**`image`** — `{ url, alt?, position? }` where `position` is `above | below | inline`.
+**`image`** — `{ url, alt?, position? }` where `position` is `above | below | inline`. The app reads one position per step (the step's, else the image's, else the video's) and uses it only on a `text` step carrying media: `above` (the default) or `below` the text; `inline` is not drawn at all, and an image or video step always shows its media first.
 Always write `alt`: it is read aloud by screen readers and shown when the image fails to load.
 
 **`video`** — `{ url, position? }`. A **direct MP4 URL**, not a YouTube or Vimeo link. Standard
@@ -462,11 +462,11 @@ proxy and CDN.
 |---|---|---|---|---|
 | `type` | `multiple_choice \| true_false \| open \| numeric` | — | Input widget and grading rule. | §8.3. |
 | `options` | `QuestionOption[]` | — | The choices, for MC and True/False. | §8.2. |
-| `correct_answer` | string | — | Expected answer for `open`. | Compared case-insensitively and trimmed. |
+| `correct_answer` | string | — | Expected answer for `open`, one accepted variant per line. | The AI grades every open answer and takes this as the reference; when the AI cannot be reached, the answer is compared with each line, case-insensitively and trimmed. |
 | `correct_number` | number | — | Expected value for `numeric`. | Graded against `tolerance`. |
 | `tolerance` | number | 0 | Accepted ± band for `numeric`. | `0` requires an exact match. This is how you accept `0.33` for ⅓, or a rounded result in a physics calculation. Always set a tolerance when the correct answer is irrational or comes from a multi-step calculation. |
 | `allow_multiple` | bool | false | Multi-select. | Checkboxes instead of radio buttons. Grading is **exact set equality** — the student must select every correct option and no incorrect one. There is no partial credit for a partially correct set, so for "choose all that apply" with many options, consider several True/False questions instead. |
-| `show_answers` | bool | true | Show the option list. | With `false` the options are hidden and the student's response is not marked correct or incorrect; the confirm button reads "Další" rather than "Zkontrolovat". Use for reflection prompts, self-assessment and opinion questions where there is no right answer. |
+| `show_answers` | bool | true | Mark the answer. | With `false` a single-choice pick is not coloured correct or incorrect, and a multi-select does not reveal the correct options the student missed; true/false, numeric and open answers are marked as usual, and every answer is still graded (score, skill rating, practice). The confirm button reads "Další" rather than "Zkontrolovat". Use for reflection prompts, self-assessment and opinion questions where there is no right answer. |
 | `show_solution` | bool | true | Reveal the worked solution after answering. | `false` moves straight on. Turn it off when the solution would spoil the next question. |
 | `solution` | Markdown + LaTeX | — | The worked explanation. | Shown after the student answers. Write it as the *method*, not just the result — this is the highest-traffic teaching text in the whole format. |
 | `solution_image` | `{ url, alt?, position? }` | — | Image in the solution. | A diagram of the method; often more effective than prose. |
@@ -491,7 +491,7 @@ proxy and CDN.
 |---|---|---|---|
 | `multiple_choice` | radio, or checkboxes with `allow_multiple` | the chosen option is `is_correct`; multi-select requires exact set equality | 3–5 options works best; every distractor should encode a real misconception |
 | `true_false` | two large buttons | as MC with exactly two options | fast to answer, so good for drilling; pairs well with a `feedback` on each side |
-| `open` | text field (+ camera with `allow_photo`) | input matches `correct_answer`, case-insensitive and trimmed, or matches the text of a correct option | only use where the answer is a single unambiguous word or number |
+| `open` | text field (+ camera with `allow_photo`) | the AI's verdict; offline, input matches a line of `correct_answer`, case-insensitive and trimmed, or the text of a correct option | free answers; the comparison fallback suits a word or number |
 | `numeric` | numeric keypad | `\|input − correct_number\| ≤ tolerance` | always set `tolerance` for calculated or irrational answers |
 
 ---
@@ -534,8 +534,8 @@ orphaned step (§14).
 
 ### Rules
 
-* `go_to` is **ignored in `exercise` blocks and throughout `exercise_v2` courses** — flow is
-  always linear there. The editor should hide the control for exercise blocks and warn when an
+* `go_to` is **ignored in `exercise` blocks** — flow is always linear there (the app does not
+  implement the same for `exercise_v2` courses). The editor should hide the control for exercise blocks and warn when an
   imported course has branches inside one.
 * Every non-keyword target must resolve to a step in the same block or a block in the same
   course. Cross-*course* jumps are not supported. The editor must validate this before export.
@@ -544,22 +544,20 @@ orphaned step (§14).
 
 ## 10. XP and progression
 
-XP is the student-facing reward signal. It has one authored input and two guard rails.
+XP is the student-facing reward signal. **The app has no authored input to it:** a block's
+`xp` is parsed and never read.
 
-**Per block:**
+**Per block**, counted over its steps when the block is completed
+(`block_step_engine.dart`, `_completeBlock`):
 
 ```
-earned_xp = block.xp × best_score_koef
++1 per content step
++8 per question answered with a full score (score_koef ≥ 1), +5 per other question
 ```
 
-`best_score_koef` is the best coefficient achieved on the block's questions (§8.2). A perfect
-first-pass answer earns the full `xp`; a partially credited one earns proportionally less; the
-hint and help penalties (§12) reduce it further.
-
-If `xp` is omitted the platform derives it from the block's shape — roughly **+1 per content
-step and +8 per question step** — so a block always carries a sensible reward even before the
-author tunes it. Because of this, the editor should show the **effective** XP for every block
-and lesson live, whether it came from the author or the default.
+The lesson card promises the maximum, +1 per content step and +8 per question step
+(`course_model.dart`, `_calculateBlockMaxXp`), and that is what the editor shows live for every
+block and lesson.
 
 **Then two caps, in order:**
 
@@ -667,7 +665,7 @@ student. Hints are not free, and that is deliberate.
 | `name`, `description`, `author`, `language` | library card and header |
 | `status` | only `published` reaches students |
 | `emoji`, `estimated_minutes` | course tile icon and advertised length |
-| `header_image` | course banner |
+| `header_image` | course cover (square tile, circle) |
 | `pin` | 6-character enrolment code |
 | `logged_only` | blocks guests |
 | `only_once` | no re-entry after completion; hidden from lists |
@@ -690,7 +688,7 @@ student. Hints are not free, and that is deliberate.
 | `blocks[].type` | display / question (branching) / exercise (linear drill) |
 | `blocks[].status` | draft blocks are skipped inside a published course |
 | `blocks[].duration` | lesson time, course time, and the pacing threshold for the practice grade |
-| `blocks[].xp` | XP awarded, scaled by best score coefficient |
+| `blocks[].xp` | not read; XP comes from the steps (§10) |
 | `blocks[].default_practice` | enrols the block in Cvičení |
 | `blocks[].hint`, `.help` | `?` content; using them caps the score at 0.75 / 0.5 |
 | `gpf.domain/construct/subconstruct/grade/level` | classification and standards alignment |
@@ -716,10 +714,10 @@ student. Hints are not free, and that is deliberate.
 | `steps[].hint`, `.help` | per-step `?`, overrides the block level |
 | `steps[].default_practice` | display blocks: enrols the block in Cvičení |
 | `question.type` | input widget and grading rule |
-| `question.correct_answer` | open questions, case-insensitive and trimmed |
+| `question.correct_answer` | open questions: AI reference; offline, any line, case-insensitive and trimmed |
 | `question.correct_number`, `.tolerance` | numeric grading band |
 | `question.allow_multiple` | exact-set grading |
-| `question.show_answers` | false → no options, no marking (reflection prompts) |
+| `question.show_answers` | false → single choice not coloured, multi-select's missed answers not shown; still graded |
 | `question.show_solution`, `.solution`, `.solution_image` | post-answer teaching |
 | `question.allow_photo` | photo answers for work done on paper |
 | `options[].id`, `.text`, `.is_correct` | the answer itself |
@@ -737,7 +735,6 @@ student. Hints are not free, and that is deliberate.
 1. **Structural completeness**
    - display block → at least one `text` step with non-empty content;
    - question / exercise block → at least one `question` step, each with a config;
-   - `open` → non-empty `correct_answer`;
    - `multiple_choice` → ≥ 2 options, ≥ 1 correct, no empty option text;
    - `true_false` → exactly 2 options, exactly 1 correct;
    - `numeric` → `correct_number` present.
@@ -759,8 +756,7 @@ student. Hints are not free, and that is deliberate.
 1. `version` not bumped since the last publish.
 2. Partial `duration` coverage within a lesson (some blocks have it, some do not) — the lesson
    time will be wrong.
-3. `go_to` set on options inside an `exercise` block, or anywhere in an `exercise_v2` course —
-   it will be ignored.
+3. `go_to` set on options inside an `exercise` block — it will be ignored.
 4. A step that is unreachable from `s1` and is not the target of any `go_to`.
 5. A block defined but referenced by no lesson and no `go_to`, and not flagged for practice.
 6. `relation_vector` all zero while `elo_vector` is set — the block will never move the skill
@@ -769,11 +765,14 @@ student. Hints are not free, and that is deliberate.
    subconstructs.
 8. `elo_vector` values far from the course's mean without a corresponding `learning.difficulty`.
 9. A question with no `feedback` on any wrong option — a missed teaching opportunity.
-10. `is_correct: false` combined with `score_koef > 0` — confirm the partial credit is intended.
+10. `is_correct: false` combined with `score_koef > 0` — the app scores a wrong answer 0, so the
+    share is never used.
 11. A lesson of more than ~12 blocks, or a block of more than ~10 steps — likely wants splitting.
-12. `only_once` combined with `default_practice` — the student will have practice cards for a
-    course they can never re-open.
+12. `only_once` combined with `default_practice` — the app seeds no spaced-repetition card from
+    an `only_once` course (`seedCardsFromCourse`); the blocks still list in its Cvičení.
 13. Prerequisites with `min_level ≥ 0.9` — very likely to lock the block permanently.
+14. An `open` question with no `correct_answer` — the AI still grades it, but offline every
+    answer is wrong.
 
 ---
 

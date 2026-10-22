@@ -55,7 +55,6 @@
 		blockDurationMinutes,
 		derivedBlockXp,
 		bindingFlagsPractice,
-		effectiveBlockXp,
 		isPracticeBlock
 	} from '$lib/domain/derive';
 	import {
@@ -72,7 +71,7 @@
 		Trash
 	} from '@lucide/svelte';
 	import { STEP_TYPES } from '$lib/lang';
-	import { cardTypeIcon, cardTypeLabel } from '$lib/ui/card-types';
+	import { cardTypeChipTitle, cardTypeIcon, cardTypeLabel } from '$lib/ui/card-types';
 
 	interface Props {
 		doc: CourseV2;
@@ -105,21 +104,11 @@
 	);
 	let showLessonPicker = $state(false);
 	let targetLessonId = $state('');
-	const xp = $derived(effectiveBlockXp(block));
-	const xpIsDerived = $derived(typeof block.xp !== 'number');
+	const xp = $derived(derivedBlockXp(block));
 	const minutes = $derived(blockDurationMinutes(block));
 
 	const set = (field: string, value: unknown) =>
 		store.apply((d) => setField(d, { blockId: block.block_id, field }, value));
-
-	/** What this card's type does to the student — see `stepTitle` below for why. */
-	const TYPE_TITLE = {
-		display: 'Typ karty: Výklad. Žák prochází kroky po jednom a mezi nimi kliká Pokračovat.',
-		question:
-			'Typ karty: Otázka. Kroky jsou v jedné bublině a žák je rovnou u otázky. Podle odpovědi ho lze poslat jinam.',
-		exercise:
-			'Typ karty: Cvičení — jedna karta uvnitř lekce. Jako Otázka, ale bez větvení. Nezaměňuj s typem celého kurzu „Cvičení“ v Nastavení kurzu ani se zařazením karty do denního opakování.'
-	} as const;
 
 	/**
 	 * What a step does to the student depends on the card it is in, and that is the
@@ -339,7 +328,7 @@
 
 <Card tone={binding?.bg_color}>
 	<header>
-		<Chip tone="accent" title={TYPE_TITLE[block.type]}>
+		<Chip tone="accent" title={cardTypeChipTitle(block.type)}>
 			{@const Icon = cardTypeIcon(block.type)}
 			<Icon size={16}></Icon>
 			{cardTypeLabel(block.type)}
@@ -380,11 +369,9 @@
 
 		<Chip
 			tone="quiet"
-			title={xpIsDerived
-				? `Dopočteno z kroků: 8 XP za každý krok s otázkou, 1 XP za obsahový krok (${derivedBlockXp(block)} XP). Platí hned, i když je karta ještě rozepsaná. Vlastní hodnotu nastavíš v Nastavení karty.`
-				: 'Zadaná odměna'}
+			title={`Nejvýš ${xp} XP: 8 XP za každou otázku zodpovězenou správně za plný počet bodů (jinak 5), 1 XP za obsahový krok. Platí hned, i když je karta ještě rozepsaná.`}
 		>
-			{xp} XP{xpIsDerived ? '' : ' · vlastní hodnota'}
+			{xp} XP
 		</Chip>
 
 		<!--

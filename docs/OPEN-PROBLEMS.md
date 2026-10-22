@@ -91,26 +91,37 @@ Entries where something is wrong and a teacher can hit it. These want fixing. Th
 the top of this file applies: numbers are a citation key and are never renumbered.
 
 ### 54. The editor still describes the app before its 2026-10-15 sync
-**Verified: yes**, read off the new app's code (DECISIONS Round 21); none of it is
-reproduced on screen yet. The preview now runs the new app, but these editor rules
-mirror the old one:
-- `domain/markdown/app-dialect.ts` sniffs Markdown and HTML the old way. The app's
-  `core/utils/content_format.dart` now also takes `- `, `1. `, `> ` and `|` at a line
-  start as Markdown, and wants a real tag for HTML, so `5 < 10 a 20 > 15` is plain
-  text. The editor shows such texts differently from the pupil's app. #47 is mostly
-  fixed by the same change.
+**Verified: yes**, read off the new app's code (DECISIONS Round 21). Round 23 fixed the
+rest of this list (the Markdown and HTML sniffing, `allow_photo`, `fsrs.weight` and
+`skip_condition`, open-answer grading, `only_once` and practice). Left:
 - `W_HINT_UNREACHABLE` counts every question of a merged card as offering a "?". The
   app offers only the first and the last question's when the card has no open question.
-- A merged card with no open question ignores its per-question `go_to`
-  (`block_step_engine.dart`, `_confirmAllAnswers`), and nothing warns.
-- `allow_photo`, `fsrs.weight` (default 5) and `fsrs.skip_condition`
-  (`GPF_mastery <op> number` only) are marked unread in `ui/fields.ts`, but the app
-  reads them.
-- `E_OPEN_NO_CORRECT_ANSWER` and the "Správná odpověď" hint describe exact matching.
-  Every open answer is now graded by the AI, and `correct_answer` is the offline
-  fallback, one answer per line.
-- `W_ONLY_ONCE_WITH_PRACTICE` warns that an `only_once` course feeds practice. The app
-  no longer creates practice cards for one.
+
+### 55. A plain line that starts like a list, quote, heading or number cannot be shown as typed — app-side
+**Verified: by reading the code** (Round 23). Since its 2026-10-15 sync the app reads a
+text step, question, answer, solution or feedback as Markdown when a line starts with
+`- `, `1. `, `> `, `# ` or `|` (`content_format.dart`). A teacher's plain `- a`, `>2)` or
+`1. krok`, with nothing else formatted, then has no form the app shows as typed:
+unescaped it becomes a list or a quote, and escaped (`\- a`) it is no longer Markdown,
+so the app prints the backslash. The editor writes the escaped form and, reloaded, shows
+the backslash too, as the pupil sees it. The fix is app-side (render these fields as
+Markdown always, as hints already are). The editor's property tests skip exactly this
+case (`onlyBlockMarkers`).
+
+### 56. Publishing a Cvičení or Test course would be refused — API-side
+**Verified: by reading the code** (Round 23). `POST /api/courses/upload`, the editor's
+publish route (`api/client.ts`), validates `export_type` as `in:course_v2` only
+(`UploadCourseRequest`), while the admin's `store` accepts all three. Publishing is not
+wired to a button yet (DECISIONS "Still open" 2); when it is, an `exercise_v2` or
+`quiz_v2` course gets a 422. The course-type titles say "Nahrání kurzu zatím přijme
+jen typ Kurz." Note also that `exercise_v2` has no effect in the app (Round 23).
+
+### 57. A step's practice flag lists a card in the course's exercises but seeds no review card — app-side
+**Verified: by reading the code** (Round 23). `Course.getDefaultPracticeBlocks` honours a
+step's `default_practice` (`course_model.dart`), so the card shows among the course's
+exercises. Both paths that create FSRS practice cards (`createCardsFromLesson`, also used
+by `seedCardsFromCourse`) read only `ContentBlock.defaultPractice`, the block's or the
+binding's flag. The step's switch says so; the fix is app-side.
 
 ### 41. Unread fields no longer say so on screen
 **Verified by reading the code** (Round 10). Until Round 10 every field nothing reads
@@ -134,17 +145,10 @@ Related: #14, #15.
 (see #41), and now sit unmarked in „Opakování“. Which side is wrong is a spec question for the owner; the editor writes what the authoring
 spec says.
 
-### 15. A card's own XP is shown as its reward, and the app ignores it
-**Verified: yes**, per the spec (§6.1 `xp` ⚠️ Inert) and "Still open" 8. The field is
-marked unread now, but the card header still says "N XP · vlastní hodnota" when one is
-typed (and just "N XP" when it is derived, since Round 8 dropped "· automaticky"). Worth
-showing the derived figure with the authored one crossed out, or not offering the field.
-
-Since Round 7 it also makes the totals differ between modes. A card with its own XP
-keeps it on its first block only, so the view shows the card's 20 XP while Pokročilý
-adds the derived XP of the card's other blocks: the admin's test course reads 335 XP in
-Učitel and 380 XP in Pokročilý. What the app awards is neither: it counts steps, which
-the split does not change. Showing the derived figure everywhere would fix both.
+Round 23: the 2026-10-15 app reads `fsrs.weight` and `fsrs.skip_condition` (no longer
+flagged unread) and still reads `stability`, `difficulty`, `reps`, on FSRS's own scale
+(difficulty 1–10, not the spec's 0–1). The owner kept the spec's names; the fields no
+longer show defaults the app never applies.
 
 ### 17. The player still talks to other origins while it runs — app-side
 **Verified: yes.** Google Fonts (the app's `google_fonts`) and `accounts.google.com`
@@ -186,9 +190,9 @@ the question's own block, and the pupil goes on to the card's next question, so 
 teacher it does what "Pokračovat dál" does. The option is not relabelled. An imported
 card with such an `END` is kept whole.
 
-### 25. In quiz_v2 courses the app shows no hints, help, solution or feedback, but the editor still asks for them
-**Not reproduced in the editor; read from the spec.** COURSE-EDITOR-SPEC §2 says a
-`quiz_v2` course keeps only the hint button, and with `quiz_evaluate: false` it also
+### 25. In quiz_v2 courses the app shows no solution or feedback, but the editor still asks for them
+**Verified by reading the code** (Round 23). A `quiz_v2` course keeps the hint button
+(Round 23 corrected the texts that said otherwise), and with `quiz_evaluate: false` it
 drops solutions and per-option feedback, so a teacher writing a test is asked for text
 the pupil never sees (and `W_NO_WRONG_OPTION_FEEDBACK` says the pupil "will not learn"
 what the app does not tell). The Zpětná vazba switch is the teacher's, not a rule. A
@@ -272,17 +276,6 @@ per player boot (page load, and the reload of a player that did not start). Not 
 the visual editor; found while testing it. An editor-side fix is possible (give focus back
 when the preview takes it without a click in it), not done here.
 
-### 47. A text with formatting but no `*`, `__`, `##`, ``` ``` ```, `$` or `![` is shown raw by the app
-**Reproduced by reading the app** (`step_content_renderer.dart` `_looksLikeMarkdown`). The
-app renders a text step, question, answer, solution or feedback as Markdown only if it
-contains one of those characters; otherwise it prints it as typed. The visual editor
-writes bullets as `*` and the toolbar's heading as `##` so that a list or a heading alone
-still counts. What it cannot help: a text whose only formatting is a numbered list, a
-quote, a table, a link or a `# ` heading typed by hand prints as `1. …`, `> …`, `| … |`.
-Reloaded, the editor then shows that text plainly too, matching the app. The fix is
-app-side (render these fields as Markdown always, as hints already are); the editor may
-not write `expected_output_format`, which is a legacy key (spec §3 invariant 7).
-
 ### 48. Teachers cannot upload an image; the visual editor takes web addresses only
 **Verified by reading the API.** The only upload is `POST /api/admin/assets/upload`
 (S3, public URL), and it is admin-only. So an image in a text, like an image step, is a
@@ -320,6 +313,25 @@ add `wcag2aa` to its tags. Not caused by the visual editor.
 
 Entries not reproduced, or reproduced only from the code. They stay until someone sees
 them, or until enough rounds pass that the behaviour would have surfaced.
+
+### 58. The image row may stay open after a click back into the text
+**Not reproduced; read from the code** (Round 23, review of `9e708b3`). The formula row
+now closes on any transaction that moves away from it (`followFormula`, `RichField`),
+but the image row (`imagePanel`) still closes only on Escape and its own buttons. If a
+click into the text leaves it open, the fix is the same rule for any open inline row.
+
+### 59. Two lists of image extensions decide how a picture is fetched
+**Not reproduced; read from the code** (Round 23, review of `a6c66d7`). The player shim
+(`player-shim.js`) and the paste rule (`rich/paste.ts`) each keep their own extension
+list, and they differ by `bmp`. An address with no extension (`…/photo?id=3`) is fetched
+directly in Náhled and fails without CORS headers. One rule, or routing by the
+response's type, would close it.
+
+### 60. A card named from its text loses underscores and stars inside words
+**Not reproduced; read from the code** (Round 23, review of `1961208`). `plainFirstLine`
+(`derive.ts`) strips Markdown with regexes, a third copy of the serializer's escaping,
+and removes every `*`, `_` and backtick, so `snake_case` reads `snakecase`. Deriving the
+text from `parseMarkdown`'s document would make it the one reading.
 
 ### 53. A folded step is a fixed 51px tall
 **Not reproduced; read from the code** (Round 18). The fold animation (`239ac8a`) needs a
@@ -471,7 +483,9 @@ To check against the newer app when it lands: in the public code (`block_model.d
 `FsrsParameters.fromJson`) the app reads `block.fsrs.stability`, `difficulty`, `reps`,
 `lapses`, `last_review` and `due_date`, while the editor writes the format's
 `initial_stability`, `initial_difficulty`, `repetitions` and the rest. If the newer app
-keeps those names, one side has to change before any of these fields does anything.
+keeps those names, one side has to change before any of these fields does anything. **The newer app has landed (2026-10-15) and kept
+them** (#14); `weight` and `skip_condition` are read and say how, the rest wait for that
+decision.
 
 ### 45. What the Round 12 teacher test found and left
 **Found by an agent doing six teacher tasks by reading only the screen. Mostly fixed in
@@ -509,6 +523,16 @@ Headings kept so that a citation from `docs/DECISIONS.md`,
 **Nothing here is open**, and the entries no longer sit in the live list above. The round
 that closed it is named, and the reasoning is in that round's section of
 `docs/DECISIONS.md`.
+
+### 15. A card's own XP is shown as its reward, and the app ignores it — fixed (Round 23)
+The card chip and the lesson and course totals show the most the steps can earn, the
+figure the app's lesson card promises (`_calculateBlockMaxXp`), whatever `xp` says. The
+modes no longer disagree.
+
+### 47. A text with formatting but no `*`, `__`, `##`, ``` ``` ```, `$` or `![` is shown raw by the app — mostly fixed upstream (Round 23)
+The 2026-10-15 app also reads a list, number, quote, table, `#` heading or link as
+Markdown, and the editor now asks the same rule (`content_format.dart`). A strikethrough
+alone is still shown raw. The reverse limit is #55.
 
 ### C. The app's question mark was always the first step's — closed (fixed upstream, Round 21)
 The upstream engine gated the "?" on `ContentBlock.hasHint`, which read the step at

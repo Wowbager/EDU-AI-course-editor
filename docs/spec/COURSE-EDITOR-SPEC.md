@@ -104,12 +104,12 @@ content is consumed. Keep these four in mind for every field.
 | `export_type` | `ExportMode` | Behaviour |
 |---|---|---|
 | `course_v2` | `courseV2` | Everything on: hints, help, solutions, per-option feedback, `go_to` branching. |
-| `exercise_v2` | `exerciseV2` | Hints/solutions still shown, but **`go_to` is ignored entirely** — every answer advances linearly (`GoToResolver.resolve`, first branch). |
+| `exercise_v2` | `exerciseV2` | **No effect.** Nothing in the app compares against `ExportMode.exerciseV2`; `GoToResolver.resolve` ignores `go_to` only for `BlockType.exercise` (`step_navigation.dart`), so the course behaves as `course_v2`. |
 | `quiz_v2` | `quizV2` | Test mode. Only the hint button survives in the action row (`block_step_engine.dart:1052`, `:1100`); bookmark / like / dislike are hidden. Combined with `quiz_evaluate: false` it also suppresses correct/incorrect marking and solutions (`hideEvaluation`, `lesson_detail_page.dart:1808`). |
 
-Note the separate axis: **`ExportMode.exerciseV2` is a property of the whole course**, while
-**`BlockType.exercise` is a property of one block** and *also* disables `go_to` for that block
-alone. Two different mechanisms, same consequence. The editor must make this non-confusing.
+Note the separate axis: **`ExportMode.exerciseV2` is a property of the whole course** and does
+nothing today, while **`BlockType.exercise` is a property of one block** and disables `go_to`
+for that block alone. The editor must make this non-confusing.
 
 ---
 
@@ -122,7 +122,7 @@ Edited today in `ADM/src/components/editors/CourseV2Editor.tsx`. Type: `CourseV2
 
 | Field | Type | Status | Meaning | Effect on the final practice |
 |---|---|---|---|---|
-| `export_type` | `"course_v2" \| "exercise_v2" \| "quiz_v2"` | ✅ | Package kind. | Selects the rendering mode — see §2. **Required**; the API rejects anything else (`CourseController@store`, rule `in:course_v2,exercise_v2,quiz_v2`). |
+| `export_type` | `"course_v2" \| "exercise_v2" \| "quiz_v2"` | ✅ | Package kind. | Selects the rendering mode — see §2. **Required.** The admin's `CourseController@store` accepts all three, but the editor's publish route `POST /api/courses/upload` accepts only `course_v2` (`UploadCourseRequest`, `in:course_v2`). |
 | `course_id` | string | ✅🟡 | Stable business key. | Part of the R2 path `courses/{course_id}/v{version}.json`. **Unique across the platform** (`unique:courses` on store). Changing it creates a new course, not a new version. |
 | `version` | int ≥ 1 | ✅🟡 | Content version. | Two effects: (a) it is in the R2 file path, so bumping it writes a *new* object rather than overwriting; (b) the app compares versions to decide whether to re-download (`course_repository.dart:494-499`). **An editor that saves without bumping `version` will not reach students who already downloaded the course.** This is the single most common authoring foot-gun. Conversely, a pending update **locks every lesson** behind an update banner until the student downloads it (`course_detail_page.dart:997-1003`, `_hasUpdate`) — so bumping the version mid-term interrupts students. |
 | `name` | string, ≤255 | ✅🟡 | Course title. | Course card and player header. Required by the API. |
@@ -149,7 +149,10 @@ Edited today in `ADM/src/components/editors/CourseV2Editor.tsx`. Type: `CourseV2
 |---|---|---|---|---|
 | `only_quiz` | bool | ✅🟡 | The course *is* a quiz; no lessons. | Course appears under "Rychlé kvízy" rather than the normal course list (`kurzy_page.dart:159, 278`; `prehled_page.dart:380`). The quiz can be started immediately instead of requiring all lessons complete (`prehled_page.dart:315-316`). The API **forces `starts_with_quiz = true`** whenever `only_quiz` is set (`CourseStorageService.php:124`), and the editor mirrors this by disabling the `starts_with_quiz` toggle. |
 | `starts_with_quiz` | bool | ✅🟡 | Course opens with a diagnostic quiz. | **Every lesson in the course is locked until the entry quiz is completed** (`course_detail_page.dart:64, 997-1003`): lesson cards show a padlock and are untappable, a "Start quiz" card is inserted above them, and the course's primary action button becomes the quiz (`:1172-1173`). Once the quiz is finished the lessons unlock. |
-| `quiz_evaluate` | bool | ✅🟡 | Show correct/incorrect and score in quiz mode. | Drives `hideEvaluation` (`lesson_detail_page.dart:1808`): with `quiz_v2` and `quiz_evaluate: false` the student answers "blind" — no green/red, no solution, no per-option feedback. With it `true`, a quiz behaves like an evaluated test. This is the flag that turns a survey/diagnostic into a graded test. |
+| `quiz_evaluate` | bool | ✅🟡 | Show correct/incorrect and score in quiz mode. | Drives `hideEvaluation` (`lesson_detail_page.dart:1808`): with `quiz_v2` and `quiz_evaluate: false` the student answers "blind" — no green/red, no solution, no per-option feedback. With it `true`, a quiz behaves like an evaluated test. This is the flag that turns a survey/diagnostic into a graded test. In every course it also sets `showAnswerStatus`, the verdict line under an AI-graded open answer (`lesson_detail_page.dart`). |
+| `open_all_lessons` | bool, default false | ✅ | No sequential gate. | Every lesson can be opened in any order (`course_model.dart`, `course_detail_page.dart`); `starts_with_quiz` and a pending course update still lock them. New in the 2026-10-15 sync; the API in this snapshot does not extract it. |
+| `shuffle_answers` | bool, default false | ✅ | Course default for option shuffling. | Each question's options are shuffled unless the question's own `shuffle_options` says otherwise; true/false never shuffles (`resolveShuffleOptions`). |
+| `open_answer_score` | `"last" \| "best"`, default `"last"` | ✅ | Which attempt at an open question counts. | Anything other than `"best"` reads as `"last"` (`course_model.dart`; `block_step_engine.dart`). |
 
 ### 3.4 Gamification & integrity
 
@@ -358,9 +361,10 @@ What the ADM type and editor write (`FSRSParameters`, `DEFAULT_FSRS`):
 `forgetting_rate` (0.25), `repetitions` (0), `weight` (1.0), `min_interval` (1),
 `max_interval` (90), `skip_condition`, `time_limit_sec`.
 
-What the app reads out of `block.fsrs` (`block_model.dart:543-553`, consumed in
-`practice_repository.dart:106-127`): **`stability`, `difficulty`, `reps`, `lapses`,
-`last_review`, `due_date`** — and nothing else.
+What the app reads out of `block.fsrs` (`block_model.dart`, `FsrsParameters.fromJson`,
+consumed in `practice_repository.dart`, `createCardFromBlock`): **`stability`, `difficulty`,
+`reps`, `lapses`, `last_review`, `due_date`**, and since the 2026-10-15 sync **`weight`** and
+**`skip_condition`**.
 
 | Authored key | Read by app? | Effect |
 |---|---|---|
@@ -369,10 +373,10 @@ What the app reads out of `block.fsrs` (`block_model.dart:543-553`, consumed in
 | `initial_recall` | ❌ | none |
 | `forgetting_rate` | ❌ | none |
 | `repetitions` | ❌ | none — the app looks for `reps` |
-| `weight` | ❌ | none. Card weight is a **constant `5.0`** column default (`practice_cards_table.dart`), used for queue priority ordering. |
+| `weight` | ✅ | the practice card's queue priority, higher first; `5.0` when absent (`practice_repository.dart`, `queue_builder.dart`). |
 | `min_interval` | ❌ | none |
 | `max_interval` | ❌ | none — the ceiling comes from the *student's* FSRS profile (`maximumInterval`), not the block |
-| `skip_condition` | ❌ | column exists on `practice_cards`, never written from block JSON, never evaluated |
+| `skip_condition` | ✅ | evaluated before the card is queued (`practice_providers.dart`, `skip_condition_evaluator.dart`). Only `GPF_mastery <op> <number>` with `>` `>=` `<` `<=` `==` `!=`; mastery is the student's mean ELO over the dimensions the block relates to (relation > 0), divided by 10. Anything else, or no data, never skips. A card's own synced condition wins. |
 | `time_limit_sec` | ❌ | absent from the app entirely |
 | `stability`, `difficulty`, `reps`, `lapses`, `last_review`, `due_date` | ✅ | seed values for a newly created practice card |
 
@@ -427,7 +431,7 @@ block `$$…$$` math, and raw HTML. Two behaviours an editor should surface:
   Practical rule for authors: **images must be public HTTPS URLs under 10 MB**, ideally
   uploaded through the admin asset manager (`POST /api/admin/assets/upload`).
 
-**`image`** — `{url, alt?, position?}`. `position` is `above | below | inline`.
+**`image`** — `{url, alt?, position?}`. `position` is `above | below | inline`. The app reads one position per step (the step's, else the image's, else the video's) and uses it only on a `text` step carrying media: `above` (the default) or `below` the text; `inline` is not drawn at all, and an image or video step always shows its media first.
 `alt` is authored for accessibility.
 
 **`video`** — `{url, position?}`. **Direct MP4 URL, not a YouTube link.** Standard player with
@@ -447,15 +451,21 @@ play/pause/seek.
 |---|---|---|---|---|
 | `type` | `multiple_choice \| true_false \| open \| numeric` | ✅ | Input widget + grading rule. | §8.3. |
 | `options` | `QuestionOption[]` | ✅ | Choices (MC and T/F). | §8.2. |
-| `correct_answer` | string | ✅ | Expected answer for `open`. | Compared **case-insensitively and trimmed**; if no exact match, the app also accepts the text of any option marked `is_correct` (`block_step_engine.dart:520-529`). Matching is exact equality after normalisation — no fuzzy or substring matching — so the expected string must be exactly what you want students to type. |
+| `correct_answer` | string | ✅ | Expected answer for `open`, one accepted variant per line. | Every open answer is graded by the AI first, with this as its reference (BR-N26ACB). When the AI cannot be reached it is compared with each line **case-insensitively and trimmed**, and with the text of any option marked `is_correct` (`expected_answer.dart`, `block_step_engine.dart`). |
 | `correct_number` | number | ✅ | Expected value for `numeric`. | `isCorrect = |input − correct_number| <= tolerance`. |
 | `tolerance` | number, default 0 | ✅ | Accepted ± band for `numeric`. | `0` means exact match. This is how you accept `0.33` for ⅓. |
 | `allow_multiple` | bool, default false | ✅ | Multi-select. | Grading becomes **all-or-nothing set equality**: the selection must contain exactly the correct ids, no more, no fewer (`block_step_engine.dart:506-510`). There is no partial credit for multi-select. |
-| `show_answers` | bool, default true | ✅ | Show the option list. | When `false`, options are not offered and the student's answer is not visually marked correct/incorrect (`step_content_renderer.dart:248-265`); the confirm button label switches from "Zkontrolovat" to "Další" (`block_step_engine.dart:1205-1206`). Use for reflective / survey questions. |
+| `show_answers` | bool, default true | ✅ | Mark the answer. | When `false`, a single-choice pick is not coloured correct/incorrect and a multi-select does not reveal the missed correct options; true/false, numeric and open answers are marked as usual, and the answer is still graded (`step_content_renderer.dart`). The confirm button reads "Další" instead of "Zkontrolovat". |
 | `show_solution` | bool, default true | ✅ | Reveal the solution after answering. | `false` skips the solution state entirely and moves on (`block_step_engine.dart:288-290`). |
 | `solution` | Markdown+LaTeX | ✅ | Worked explanation shown after answering. | Suppressed in `quiz_v2` + `quiz_evaluate:false`, and when `show_solution:false`. |
 | `solution_image` | `{url, alt?, position?}` | ✅ | Image inside the solution. | Rendered with the solution. |
-| `allow_photo` | bool | ⚪ | Intended: answer an open question with a photo. | **Not implemented in the app.** Inert. |
+| `allow_photo` | bool | ✅ | Answer an open question with a photo. | A camera control on open questions; the photo is sent with the answer to the AI (`answer_photo_picker.dart`, `block_step_engine.dart`, `quiz_page.dart`, BR-P745Q8). |
+| `shuffle_options` | bool | ✅ | Shuffle this question's options. | Overrides the course's `shuffle_answers`; true/false never shuffles (`resolveShuffleOptions`). |
+| `ai_evaluation` | bool, default false | ✅ | Show the AI's feedback on an open answer. | Grading is by the AI either way; without it the student sees only the verdict and the solution. Off in `quiz_v2`. |
+| `ai_guided` | bool, default false | ✅ | Guided solving. | With `ai_evaluation`: after a wrong answer the AI's advice stays up and the student tries again; the solution is withheld until the attempts run out (BR-V9TQA7). Off in `quiz_v2`. |
+| `ai_guided_attempts` | int, default 3 | ✅ | Attempts before the solution. | Clamped to 1–10 (`parseGuidedAttempts`). |
+| `ai_criteria` | string | ✅ | Free-text grading notes for the AI. | Sent with the answer (`ai_answer_evaluator.dart`). |
+| `ai_criteria_list` | `{id, name, description?, weight}[]` | ✅ | A rubric. | Unnamed entries dropped, first four kept (`QuestionCriterion.listFromJson`); sent to the AI, scores come back keyed by `id`. The weight's scale is not defined in the code available here. |
 
 ### 8.2 `QuestionOption`
 
@@ -503,7 +513,7 @@ Two rules that matter more than they look:
   (`defaults.ts::validateBlockForExport`). **A new editor should validate every non-keyword
   `go_to` against the union of {step ids in this block} ∪ {block ids in the course} and refuse
   to export dangling references.**
-* **`go_to` is ignored in `exercise` blocks and in `exercise_v2` courses.** Authoring a
+* **`go_to` is ignored in `exercise` blocks** (not in `exercise_v2` courses, see §2). Authoring a
   branching tree inside an exercise block silently produces linear behaviour. The editor should
   hide or disable the `go_to` column for `exercise` blocks (it already gates it with
   `showGoTo = blockType === "question"`) and warn on import when branches exist there.
@@ -574,10 +584,8 @@ BR-WR4C8P).
    never dominates;
 5. cap at `dailyReviewLimit − todayReviewCount`.
 
-`weight` is the queue's priority knob — and it is currently a **constant 5.0** for every card
-(`practice_cards_table.dart`). Nothing in the course JSON can raise or lower a block's practice
-priority today. If per-block priority is wanted, wiring `fsrs.weight` → `practice_cards.weight`
-is the change to make, and the editor field already exists.
+`weight` is the queue's priority knob: a new practice card takes the block's `fsrs.weight`,
+`5.0` when absent (`practice_repository.dart`).
 
 ### How a review is graded
 
@@ -636,7 +644,7 @@ These are the traps a new editor should be built around. Every one is verified i
 | `bg_image`, `bg_color` "visual overrides for the block card" | `bg_image` isn't parsed; `bg_color` is parsed and never used. §5 |
 | Lesson `header_image` | Only the course-level header image is parsed. §4 |
 | — (not in the spec) | `emoji` and `estimated_minutes` are real course-JSON fields the API and app both use, and the `CourseV2` type lacks them. §3.1 |
-| — | `ai_context`, `stop_gambling`, `stop_notice`, `allow_photo`, `adaptation`, `d_data`, `l_data`, block `status`, `time_limit_sec`, `skip_condition` are all inert today. |
+| — | `ai_context`, `stop_gambling`, `stop_notice`, `adaptation`, `d_data`, `l_data`, block `status`, `time_limit_sec` are all inert today. |
 
 ---
 
@@ -866,7 +874,8 @@ blocks, question answered correctly first try, no hints), one practice card for
 | `gpf.domain/construct/subconstruct/grade/level/vector/kb_vector` | ⚪ | documentation |
 | `learning.*` (incl. `prerequisites`) | ⚪ | documentation; prerequisites are not enforced |
 | `fsrs.stability/difficulty/reps/lapses/last_review/due_date` | ✅ | seed values for the practice card |
-| `fsrs.initial_*`, `weight`, `*_interval`, `skip_condition`, `time_limit_sec` | ⚪ | **not read** |
+| `fsrs.weight`, `fsrs.skip_condition` | ✅ | queue priority (default 5); skip rule `GPF_mastery <op> n` |
+| `fsrs.initial_*`, `*_interval`, `time_limit_sec` | ⚪ | **not read** |
 | `adaptation` | ⚪ | inert |
 | `steps[].id` | ✅ | `go_to` target and answer key — never reuse or renumber |
 | `steps[].type` | ✅ | renderer |
@@ -880,9 +889,9 @@ blocks, question answered correctly first try, no hints), one practice card for
 | `question.allow_multiple` | ✅ | exact-set grading, no partial credit |
 | `question.show_answers` | ✅ | false → no options, no correct/incorrect marking |
 | `question.show_solution` / `.solution` / `.solution_image` | ✅ | post-answer explanation |
-| `question.allow_photo` | ⚪ | inert |
+| `question.allow_photo` | ✅ | photo answer for open questions |
 | `options[].id` / `.text` / `.is_correct` | ✅ | the answer itself |
 | `options[].feedback` / `.feedback_image` | ✅ | misconception-specific response |
 | `options[].score_koef` | ✅ | partial credit — **only if `is_correct` is true** |
 | `options[].mark` | ✅ | Czech grade captured in quiz mode |
-| `options[].go_to` | ✅ | branch; ignored in exercise blocks / exercise_v2 |
+| `options[].go_to` | ✅ | branch; ignored in exercise blocks |

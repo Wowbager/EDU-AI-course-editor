@@ -7,9 +7,12 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { BlockV2, CourseV2 } from '../schema';
+import { buildIndex } from '../index-doc';
 import {
 	blockPreview,
 	derivedBlockName,
+	derivedBlockXp,
+	lessonTotals,
 	mediaFileName,
 	optionOutcomesApply,
 	stepPracticeOffered,
@@ -201,7 +204,7 @@ describe('the line a folded step shows', () => {
 
 describe('when an answer’s own outcome counts', () => {
 	// The app reads an option's go_to and mark only for a single pick
-	// (block_step_engine.dart:620-633); the rule is in derive.ts.
+	// (block_step_engine.dart, _evaluateStep); the rule is in derive.ts.
 	it('counts for a single pick and a yes/no question', () => {
 		expect(optionOutcomesApply({ type: 'multiple_choice' })).toBe(true);
 		expect(optionOutcomesApply({ type: 'multiple_choice', allow_multiple: false })).toBe(true);
@@ -248,5 +251,26 @@ describe('stepPracticeOffered', () => {
 		const on = { ...step, default_practice: true };
 		const b = block({ default_practice: true, steps: [on] });
 		expect(stepPracticeOffered(course({ default_practice: true }), b, on)).toBe(true);
+	});
+});
+
+describe('XP (course_model.dart _calculateBlockMaxXp)', () => {
+	const steps = [
+		{ id: 's1', type: 'text' as const, content: 'a' },
+		{ id: 's2', type: 'question' as const, content: 'b' }
+	];
+	it('is 1 per content step and 8 per question, whatever xp the card says', () => {
+		expect(derivedBlockXp(block({ steps }))).toBe(9);
+		expect(derivedBlockXp(block({ steps, xp: 50 }))).toBe(9);
+		expect(derivedBlockXp(block({ type: 'question' }))).toBe(8);
+		expect(derivedBlockXp(block())).toBe(1);
+	});
+	it('sums a lesson from the steps, an unknown card giving 1', () => {
+		const doc = {
+			export_type: 'course_v2',
+			lessons: [{ lesson_id: 'L', blocks: [{ block_id: 'B1' }, { block_id: 'gone' }] }],
+			blocks: [block({ steps, xp: 50 })]
+		} as unknown as CourseV2;
+		expect(lessonTotals(doc.lessons[0], buildIndex(doc)).xp).toBe(10);
 	});
 });
