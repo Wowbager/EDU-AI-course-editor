@@ -17,6 +17,7 @@
  * and has to stay on screen, alongside a human name so the teacher can find the
  * place.
  */
+import { appShowsFeedback } from './course-feedback';
 import { hintOfferedSteps } from './hint-reach';
 import type { BlockStep, BlockV2, CourseV2, QuestionConfig } from './schema';
 import type { Ref } from './ref';
@@ -223,6 +224,7 @@ function checkBlocks(
 	add: Add
 ) {
 	const courseEloMean = meanElo(doc);
+	const graded = appShowsFeedback(doc);
 
 	for (const block of doc.blocks) {
 		const blockRef: Ref = { blockId: block.block_id };
@@ -264,7 +266,7 @@ function checkBlocks(
 		const reachable = reachableSteps(block);
 		for (const step of block.steps) {
 			const stepRef: Ref = { blockId: block.block_id, stepId: step.id };
-			checkMedia(block, step, add);
+			checkMedia(block, step, add, graded);
 
 			if (!reachable.has(step.id)) {
 				add(
@@ -279,7 +281,7 @@ function checkBlocks(
 			if (question === undefined) continue;
 
 			checkGoToTargets(index, block, step, question, add);
-			checkFeedbackQuality(block, step, question, add);
+			if (graded) checkFeedbackQuality(block, step, question, add);
 			checkIgnoredOutcomes(block, step, question, add);
 		}
 
@@ -664,7 +666,7 @@ function checkFeedbackQuality(block: BlockV2, step: BlockStep, question: Questio
 }
 
 /** §14.5 — media must be playable for the student. */
-function checkMedia(block: BlockV2, step: BlockStep, add: Add) {
+function checkMedia(block: BlockV2, step: BlockStep, add: Add, graded: boolean) {
 	const ref: Ref = { blockId: block.block_id, stepId: step.id };
 	const position = stepPosition(block, step);
 
@@ -721,7 +723,7 @@ function checkMedia(block: BlockV2, step: BlockStep, add: Add) {
 		checkHttps(audio, { ...ref, field: 'audio.url' }, `Zvuk v kroku ${position}`, add);
 	}
 	const solutionImage = step.question?.solution_image?.url;
-	if (typeof solutionImage === 'string' && solutionImage !== '') {
+	if (graded && typeof solutionImage === 'string' && solutionImage !== '') {
 		checkHttps(
 			solutionImage,
 			{ ...ref, field: 'question.solution_image.url' },

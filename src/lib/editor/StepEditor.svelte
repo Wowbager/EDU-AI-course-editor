@@ -56,6 +56,7 @@
 		Trash
 	} from '@lucide/svelte';
 	import type { Component } from 'svelte';
+	import { appShowsFeedback } from '$lib/domain/course-feedback';
 	import { hintOfferedSteps } from '$lib/domain/hint-reach';
 	import { stepPracticeOffered, stepSummary } from '$lib/domain/derive';
 	import SettingsSection from '$lib/ui/SettingsSection.svelte';
@@ -96,7 +97,9 @@
 	 * would add of the same kind — is not drawn while it is off.
 	 */
 	const feedbackOn = $derived(store.showFeedback);
-	const showSolution = $derived(allows('question', 'solution', mode, feedbackOn));
+	/** A test course without evaluation: the app drops the solution and the answers' feedback. */
+	const graded = $derived(appShowsFeedback(doc));
+	const showSolution = $derived(allows('question', 'solution', mode, feedbackOn, graded));
 	const showLadder = $derived(allows('step', 'hint', mode, feedbackOn));
 	const issues = $derived(store.issuesAt({ blockId: block?.block_id, stepId: step?.id }));
 	/**
@@ -162,7 +165,7 @@
 	 * empty, which is the point — nothing in this editor needs expanding to be found.
 	 */
 	const extraFields = $derived(
-		fieldsFor('step', mode, feedbackOn).filter(
+		fieldsFor('step', mode, feedbackOn, graded).filter(
 			(f) =>
 				!INLINE_STEP.includes(f.path) &&
 				// The step's switch only duplicates the card's own when the card is in practice.
@@ -180,7 +183,7 @@
 		})
 	);
 	const questionExtras = $derived(
-		fieldsFor('question', mode, feedbackOn).filter(
+		fieldsFor('question', mode, feedbackOn, graded).filter(
 			(f) =>
 				!INLINE_QUESTION.includes(f.path) &&
 				(step.question === undefined || questionSettingApplies(step.question, f.path))

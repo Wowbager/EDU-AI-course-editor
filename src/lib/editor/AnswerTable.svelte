@@ -34,6 +34,7 @@
 	import type { UndoEntry } from '$lib/state/doc-store.svelte';
 	import { addOption, deleteOption, reorderOptions, setField } from '$lib/domain/commands';
 	import { optionOutcomesApply } from '$lib/domain/derive';
+	import { appShowsFeedback } from '$lib/domain/course-feedback';
 	import { MIN_CHOICE_OPTIONS } from '$lib/domain/validate';
 	import { Check, ChevronRight, CornerDownRight, GripVertical, Plus, Trash } from '@lucide/svelte';
 	import { withUndoNotice } from './undo-notice';
@@ -63,7 +64,9 @@
 	const advanced = $derived(allows('option', 'score_koef', store.mode));
 	// Zpětná vazba off: the column that tells the pupil what went wrong goes, and its
 	// track with it — the rest of the row keeps its alignment.
-	const feedback = $derived(allows('option', 'feedback', store.mode, store.showFeedback));
+	const feedback = $derived(
+		allows('option', 'feedback', store.mode, store.showFeedback, appShowsFeedback(store.doc))
+	);
 	const fixedOptions = $derived(step.question?.type === 'true_false');
 	// "Odpověď" alone is not worth a heading: the column is the only one there is.
 	const headed = $derived(feedback);
