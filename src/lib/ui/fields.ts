@@ -222,7 +222,7 @@ export const STATUS_OPTIONS = [
 	{ value: 'private', label: 'Soukromé' },
 	{ value: 'locked', label: 'Uzamčeno' },
 	{ value: 'approved', label: 'Schváleno' },
-	{ value: 'published', label: 'Publikováno' }
+	{ value: 'published', label: 'Zveřejněno' }
 ] as const;
 
 const POSITION_OPTIONS = [
@@ -788,7 +788,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'custom',
 		label: 'Identifikátor',
-		hint: 'Klíč, na který jsou navázané odpovědi žáků. Po publikaci se nemění.',
+		hint: 'Klíč, na který jsou navázané odpovědi žáků. Po zveřejnění se nemění.',
 		custom: true
 	},
 	{
@@ -1419,7 +1419,7 @@ export const NOT_EDITABLE: Record<string, string> = {
 	'course.course_id': 'Klíč úložiště a zápisu žáka. Po založení se nemění (§3 invariant 1).',
 	'course.lessons': 'Struktura, ne pole — přidává se a přesouvá v postranním panelu.',
 	'course.blocks': 'Struktura, ne pole — karty se přidávají v lekci.',
-	'lesson.lesson_id': 'Klíč postupu žáka. Po publikaci se nemění (§3 invariant 1).',
+	'lesson.lesson_id': 'Klíč postupu žáka. Po zveřejnění se nemění (§3 invariant 1).',
 	'lesson.order': 'Přepisuje se přetažením lekce; ruční zápis by rozbil hustotu pořadí.',
 	'lesson.blocks': 'Struktura, ne pole — vazby se přidávají přetažením karty do lekce.',
 	'binding.block_id': 'Odkaz na kartu; mění se přesunem karty, ne přepsáním.',

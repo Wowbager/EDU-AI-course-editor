@@ -1021,7 +1021,7 @@ function checkCourseLevel(doc: CourseV2, index: DocIndex, options: ValidateOptio
 			'warning',
 			'W_VERSION_NOT_BUMPED',
 			{ field: 'version' },
-			`Verze kurzu je stále ${doc.version}, stejně jako u poslední publikace. Žáci, kteří kurz už mají stažený, novou verzi nedostanou.`
+			`Verze kurzu je stále ${doc.version}, stejně jako u posledního zveřejnění. Žáci, kteří kurz už mají stažený, novou verzi nedostanou.`
 		);
 	}
 

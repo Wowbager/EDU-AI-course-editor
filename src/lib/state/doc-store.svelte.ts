@@ -157,6 +157,27 @@ export class DocStore {
 	 */
 	#reviewed = $state<ReadonlySet<string> | null>(null);
 
+	/**
+	 * Warnings the author hid in the validation panel, valid for exactly the set of issues
+	 * they were hidden against (OPEN-PROBLEMS #32). Any issue appearing or going away
+	 * brings them all back; closing the panel or a validation run that finds the same
+	 * issues does not.
+	 */
+	#dismissal = $state<{ signature: string; keys: ReadonlySet<string> } | null>(null);
+
+	/** The `issueKey`s of the warnings the panel currently leaves out. */
+	get dismissedWarnings(): ReadonlySet<string> {
+		const d = this.#dismissal;
+		return d !== null && d.signature === this.#signature ? d.keys : new Set();
+	}
+
+	dismissWarning(issue: Issue) {
+		this.#dismissal = {
+			signature: this.#signature,
+			keys: new Set([...this.dismissedWarnings, issueKey(issue)])
+		};
+	}
+
 	/** Whether the author has looked at the review and not yet exported. */
 	get reviewing(): boolean {
 		return this.#reviewed !== null;
@@ -200,6 +221,10 @@ export class DocStore {
 	);
 	totals = $derived<CourseTotals>(courseTotals(this.doc, this.index));
 	/** Errors block export; warnings never do (§3 invariant 5). */
+	#signature = $derived(
+		[...this.validation.errors, ...this.validation.warnings].map(issueKey).sort().join('\n')
+	);
+
 	canPublish = $derived(this.validation.errors.length === 0);
 
 	get undoStack(): readonly UndoEntry[] {

@@ -163,6 +163,22 @@ describe('warnings about hidden feedback fields', () => {
 		expect(store.issuesAt(stepRef).warnings).toEqual([]);
 	});
 
+	it('stay dismissed until the set of issues changes (#32)', () => {
+		const { store, stepRef } = withUnreachableHelp();
+		const warning = store.listed.warnings.find((i) => i.code === 'W_HINT_UNREACHABLE')!;
+		expect(store.dismissedWarnings.size).toBe(0);
+		store.dismissWarning(warning);
+		expect(store.dismissedWarnings.size).toBe(1);
+
+		// An edit that leaves the same issues (a validation run) keeps the dismissal.
+		store.apply((d) => setField(d, stepRef, 'Nakresli si to jinak.'));
+		expect(store.dismissedWarnings.size).toBe(1);
+
+		// An issue coming or going brings every dismissed warning back.
+		store.apply((d) => addBlock(d, 'L1', 'question'));
+		expect(store.dismissedWarnings.size).toBe(0);
+	});
+
 	it('never hold back an error', () => {
 		const { store } = withUnreachableHelp();
 		const before = store.listed.errors.map((i) => i.code);

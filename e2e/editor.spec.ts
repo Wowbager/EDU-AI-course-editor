@@ -137,7 +137,9 @@ test("the card dialog lists its sections by name, shows one at a time, and alway
 	await expect(dialog.getByRole('textbox', { name: 'Délka' })).toHaveCount(0);
 	const stability = review.getByRole('textbox', { name: 'Počáteční stabilita' });
 	// The hint is a line under the field's name, on screen before and while it has focus.
-	const hint = review.getByText('Ve dnech: jak dlouho si to žák po prvním úspěšném opakování pamatuje.');
+	const hint = review.getByText(
+		'Ve dnech: jak dlouho si to žák po prvním úspěšném opakování pamatuje.'
+	);
 	await expect(hint).toBeVisible();
 	await stability.focus();
 	await expect(hint).toBeVisible();
@@ -344,6 +346,34 @@ test('the validation panel jumps to the field that needs fixing', async ({ page 
 	// genuinely in the tree twice, which is the thing the panel is complaining about.
 	expect(await page.locator('.tree-card.selected').count()).toBeGreaterThan(0);
 	await expect(page.locator('main .card')).toHaveCount(1);
+});
+
+test('the validation panel closes on Escape and remembers a hidden warning (#32)', async ({
+	page
+}) => {
+	await importCourse(page, 'spec-16-course.json');
+	const panel = page.getByRole('complementary', { name: 'Kontrola kurzu' });
+	await page
+		.getByRole('textbox', { name: 'Podrobná pomoc', exact: true })
+		.first()
+		.fill('Nakresli si to.');
+	const chip = page.getByRole('button', { name: 'Kontrola kurzu: 1 upozornění' });
+
+	await chip.click();
+	await expect(panel).toContainText('zveřejnění nebrání');
+	await page.keyboard.press('Escape');
+	await expect(panel).toBeHidden();
+
+	await chip.click();
+	await panel.getByRole('button', { name: 'Skrýt upozornění' }).click();
+	await expect(panel).toContainText('Kurz je v pořádku. Můžeš zveřejnit.');
+	await page.keyboard.press('Escape');
+	await expect(panel).toBeHidden();
+
+	// Closed and opened again, the hidden warning stays hidden.
+	await chip.click();
+	await expect(panel).toContainText('Kurz je v pořádku. Můžeš zveřejnit.');
+	await expect(panel).not.toContainText('podrobnou pomoc');
 });
 
 test('the spec course imports clean and publishes', async ({ page }) => {
