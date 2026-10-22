@@ -48,7 +48,7 @@
 	const store = useStore();
 	const uid = $props.id();
 	const options = $derived(step.question?.options ?? []);
-	// Duplicate option ids are a warning (`W_DUPLICATE_OPTION_ID`), not a crash.
+	// Duplicate option ids are an error that blocks export (`E_DUPLICATE_OPTION_ID`), not a crash.
 	const optionKeys = $derived(uniqueKeys(options.map((o) => o.id)));
 	// The app reads an answer's "Kam dál" and grade only when the pupil picks one
 	// answer (`optionOutcomesApply`), so a question with several picks has neither.

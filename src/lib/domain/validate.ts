@@ -142,8 +142,8 @@ function checkUniqueIds(doc: CourseV2, add: Add) {
 				if (seenOptions.has(option.id)) {
 					const first = (step.question?.options ?? []).find((o) => o.id === option.id)!;
 					add(
-						'warning',
-						'W_DUPLICATE_OPTION_ID',
+						'error',
+						'E_DUPLICATE_OPTION_ID',
 						{ blockId: block.block_id, stepId: step.id, optionId: option.id, field: 'id' },
 						`V bloku „${blockLabel(doc, block)}“ (${stepLabel(block, step)}) mají dvě odpovědi stejné id „${option.id}“ — ${optionLabel(step.question, first)} a ${optionLabel(step.question, option)}. Žákova volba se může uložit k té druhé a vyhodnotit se jinak, než čekáš.`
 					);

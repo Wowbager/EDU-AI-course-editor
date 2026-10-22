@@ -61,6 +61,7 @@ describe('the broken variant', () => {
 			E_DUPLICATE_LESSON_ID: 1,
 			E_DUPLICATE_BLOCK_ID: 1,
 			E_DUPLICATE_STEP_ID: 1,
+			E_DUPLICATE_OPTION_ID: 1,
 			// relation_vector and elo_vector are both the wrong length in that block.
 			E_VECTOR_LENGTH: 2,
 			E_RELATION_VECTOR_VALUE: 1,
@@ -89,7 +90,6 @@ describe('the broken variant', () => {
 			W_BLOCK_TOO_MANY_STEPS: 1,
 			W_ONLY_ONCE_WITH_PRACTICE: 1,
 			W_PREREQ_MIN_LEVEL_HIGH: 1,
-			W_DUPLICATE_OPTION_ID: 1,
 			W_IMAGE_NO_ALT: 1
 		});
 	});
@@ -208,7 +208,7 @@ describe('no raw id ever reaches a message (problem 2)', () => {
 							type: 'multiple_choice',
 							options: [
 								{ id: 'op1', text: 'Ano' },
-								// A duplicate option id — W_DUPLICATE_OPTION_ID is exempt below.
+								// A duplicate option id — E_DUPLICATE_OPTION_ID is exempt below.
 								{ id: 'op1', text: 'Ne' }
 							]
 						}
@@ -225,7 +225,7 @@ describe('no raw id ever reaches a message (problem 2)', () => {
 		'E_DUPLICATE_LESSON_ID',
 		'E_DUPLICATE_BLOCK_ID',
 		'E_DUPLICATE_STEP_ID',
-		'W_DUPLICATE_OPTION_ID'
+		'E_DUPLICATE_OPTION_ID'
 	]);
 
 	it('produces a useful spread of issues to check', () => {
