@@ -12,7 +12,8 @@
 	import type { Ref } from '$lib/domain/ref';
 
 	interface Props {
-		value: number | undefined;
+		/** A string only when an import put one here; it shows as it is until replaced. */
+		value: number | string | undefined;
 		label: string;
 		emptyText?: string;
 		monospace?: boolean;
@@ -26,7 +27,9 @@
 
 	/** The teacher's text while they type; `null` when they are not typing. */
 	let typed = $state<string | undefined | null>(null);
-	const shown = $derived(typed !== null ? typed : formatNumberInput(value));
+	const shown = $derived(
+		typed !== null ? typed : typeof value === 'string' ? value : formatNumberInput(value)
+	);
 
 	function type(text: string | undefined) {
 		typed = text;

@@ -75,6 +75,16 @@ describe('AI settings the app would correct', () => {
 		);
 		expect(codes({ ai_criteria_list: ['a', 'b'].map(c) })).toEqual([]);
 	});
+	it('says nothing about a rubric on a question the AI does not grade', () => {
+		const c = (name: string, i: number) => ({ id: `k${i}`, name });
+		const numeric = { type: 'numeric', correct_number: 1 } as Partial<QuestionConfig>;
+		expect(codes({ ...numeric, ai_criteria_list: [c('', 1)] })).not.toContain(
+			'W_AI_CRITERION_NO_NAME'
+		);
+		expect(codes({ ...numeric, ai_criteria_list: ['a', 'b', 'c', 'd', 'e'].map(c) })).not.toContain(
+			'W_AI_CRITERIA_TOO_MANY'
+		);
+	});
 });
 
 describe('a rubric the app accepts loads', () => {

@@ -25,7 +25,6 @@
 	import { ALWAYS_MARKDOWN, SNIFFED } from '$lib/domain/markdown';
 	import Toggle from './Toggle.svelte';
 	import Segmented from './Segmented.svelte';
-	import { typedNumber } from '$lib/domain/number-input';
 	import { formatDateTimeCs } from '$lib/domain/format-date';
 	import { hintFor, type FieldSpec } from './fields';
 	import { useSettingsSearch } from './settings-search.svelte';
@@ -52,12 +51,6 @@
 
 	const asText = (value: unknown): string | undefined =>
 		value === undefined || value === null ? undefined : String(value);
-
-	/** A number field an import filled with something else: typing a number replaces it. */
-	function writeNumber(path: string, raw: string | undefined) {
-		const typed = typedNumber(raw);
-		if (typed !== null) write(path, typed.value);
-	}
 </script>
 
 {#each fields as spec (spec.level + spec.path)}
@@ -158,10 +151,10 @@
 						invalid={invalid?.(spec.path) === true}
 						onchange={(v) => write(spec.path, v)}
 					/>
-				{:else if spec.kind === 'number' && (value === undefined || typeof value === 'number')}
+				{:else if spec.kind === 'number'}
 					<NumberField
 						label={spec.label}
-						{value}
+						value={typeof value === 'number' || typeof value === 'string' ? value : asText(value)}
 						monospace
 						emptyText={spec.default === undefined ? 'nevyplněno' : `výchozí ${spec.default}`}
 						ref={spec.ref}
@@ -174,13 +167,11 @@
 						label={spec.label}
 						value={asText(value)}
 						multiline={spec.kind === 'multiline'}
-						monospace={spec.kind === 'number'}
 						emptyText={spec.default === undefined ? 'nevyplněno' : `výchozí ${spec.default}`}
 						ref={spec.ref}
 						describedby={hint ? hintId(spec) : undefined}
 						invalid={invalid?.(spec.path) === true}
-						onchange={(v) =>
-							spec.kind === 'number' ? writeNumber(spec.path, v) : write(spec.path, v)}
+						onchange={(v) => write(spec.path, v)}
 					/>
 				{/if}
 			</div>
