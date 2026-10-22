@@ -16,6 +16,7 @@
 	 * per card: enough to see where you are, jump, reorder and add.
 	 */
 	import { tick } from 'svelte';
+	import { countOf, focusAfterDelete, focusSelectedCard } from '$lib/ui/focus-after';
 	import { dndzone, type DndEvent } from 'svelte-dnd-action';
 	import type { BlockV2, CourseV2, LessonBlockBinding, LessonV2 } from '$lib/domain/schema';
 	import Chip from '$lib/ui/Chip.svelte';
@@ -274,6 +275,23 @@
 		document.querySelector<HTMLElement>('.tree-card.selected')?.focus();
 	}
 
+	/**
+	 * A card's row is about to go (deleted, or taken out of the lesson): focus moves to
+	 * the next row, else the previous one, else the lesson's „Přidat kartu“.
+	 */
+	function leaveRow(change: () => void) {
+		const row = document.activeElement?.closest('ul.cards > li') ?? null;
+		const list = row?.parentElement ?? null;
+		const index = row === null || list === null ? -1 : [...list.children].indexOf(row);
+		const before = countOf(list, ROWS);
+		change();
+		if (list !== null)
+			void focusAfterDelete(list, ROWS, index, before, () =>
+				list.closest('li')?.querySelector<HTMLElement>('.tree-add button')
+			);
+	}
+	const ROWS = ':scope > li';
+
 	function backToRow() {
 		document.activeElement
 			?.closest('li')
@@ -449,14 +467,20 @@
 												size="s"
 												position={position + 1}
 												onsettings={() => actions.settings(lesson.lesson_id, block.block_id)}
-												onduplicate={() => actions.duplicate(block.block_id, lesson.lesson_id)}
+												onduplicate={() => {
+													actions.duplicate(block.block_id, lesson.lesson_id);
+													void focusSelectedCard();
+												}}
 												together={actions.together(block)?.on}
 												ontoggleTogether={() => toggleTogether(block, lesson.lesson_id)}
 												onremoveFromLesson={() =>
-													actions.removeFromLesson(lesson.lesson_id, block.block_id, {
-														follow: false
-													})}
-												onremove={() => actions.remove(block.block_id, lesson.lesson_id)}
+													leaveRow(() =>
+														actions.removeFromLesson(lesson.lesson_id, block.block_id, {
+															follow: false
+														})
+													)}
+												onremove={() =>
+													leaveRow(() => actions.remove(block.block_id, lesson.lesson_id))}
 												onexit={backToRow}
 											/>
 										</div>
@@ -472,8 +496,10 @@
 									variant="secondary"
 									size="s"
 									title={option.title}
-									onclick={() =>
-										store.apply((d, r) => addBlock(d, lesson.lesson_id, option.type, undefined, r))}
+									onclick={() => {
+										store.apply((d, r) => addBlock(d, lesson.lesson_id, option.type, undefined, r));
+										void focusSelectedCard();
+									}}
 								>
 									{@const Icon = option.icon}
 									<Icon size={16}></Icon>

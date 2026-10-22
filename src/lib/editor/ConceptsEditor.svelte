@@ -18,6 +18,7 @@
 	import Button from '$lib/ui/Button.svelte';
 	import { useStore } from '$lib/ui/context';
 	import { setField } from '$lib/domain/commands';
+	import { countOf, focusAfterDelete } from '$lib/ui/focus-after';
 
 	interface Props {
 		block: BlockV2;
@@ -93,16 +94,24 @@
 		if (refused.length === 0 || next.length !== concepts.length) draft = refused.join(', ');
 	}
 
+	let section = $state<HTMLElement | null>(null);
+	const TERMS = ':scope > ul > li';
+
 	function remove(term: string) {
 		problem = '';
+		const before = countOf(section, TERMS);
+		const index = concepts.indexOf(term);
 		withUndoNotice(store, 'Pojem odebrán.', () => write(concepts.filter((c) => c !== term)), {
 			lessonId: store.selection?.lessonId,
 			blockId: block.block_id
 		});
+		void focusAfterDelete(section, TERMS, index, before, () =>
+			section?.querySelector<HTMLElement>('input[aria-label="Nový pojem"]')
+		);
 	}
 </script>
 
-<section class="concepts">
+<section class="concepts" bind:this={section}>
 	<header>
 		<span class="title">Pojmy</span>
 		<span class="note">Klíčové pojmy, o kterých karta je.</span>
@@ -185,8 +194,14 @@
 				</ul>
 			{/if}
 		</div>
-		<Button variant="secondary" size="s" ariaLabel="Přidat pojem" onclick={() => add(draft)}
-			>Přidat</Button
+		<Button
+			variant="secondary"
+			size="s"
+			ariaLabel="Přidat pojem"
+			onclick={() => {
+				add(draft);
+				section?.querySelector<HTMLElement>('input[aria-label="Nový pojem"]')?.focus();
+			}}>Přidat</Button
 		>
 	</div>
 	{#if problem !== ''}

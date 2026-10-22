@@ -21,6 +21,7 @@
 	import NumberField from '$lib/ui/NumberField.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import { Plus, Trash } from '@lucide/svelte';
+	import { countOf, focusAdded, focusAfterDelete } from '$lib/ui/focus-after';
 
 	interface Props {
 		criteria: AiCriterion[] | undefined;
@@ -46,6 +47,22 @@
 		return `k${n}`;
 	}
 
+	let section = $state<HTMLElement | null>(null);
+	const ROWS = ':scope > .row';
+
+	function add() {
+		write([...rows, { id: freshId(), name: '' }]);
+		void focusAdded(section, ROWS, -1);
+	}
+
+	function removeAt(index: number) {
+		const before = countOf(section, ROWS);
+		write(rows.filter((_, j) => j !== index));
+		void focusAfterDelete(section, ROWS, index, before, () =>
+			section?.querySelector<HTMLElement>(':scope > button')
+		);
+	}
+
 	const write = (next: AiCriterion[]) => onchange(next.length === 0 ? undefined : next);
 
 	function update(index: number, patch: Partial<AiCriterion>) {
@@ -61,7 +78,7 @@
 	}
 </script>
 
-<section class="criteria" aria-labelledby={`${uid}-title`}>
+<section class="criteria" bind:this={section} aria-labelledby={`${uid}-title`}>
 	<div class="head">
 		<span class="title" id={`${uid}-title`}>Kritéria hodnocení</span>
 		{#if hint}<span class="hint">{hint}</span>{/if}
@@ -94,7 +111,7 @@
 				size="s"
 				ariaLabel={`Odebrat kritérium ${i + 1}`}
 				title="Odebrat kritérium"
-				onclick={() => write(rows.filter((_, j) => j !== i))}
+				onclick={() => removeAt(i)}
 			>
 				<Trash size={14} aria-hidden="true" />
 			</Button>
@@ -104,11 +121,7 @@
 		<p class="note">{warning.message}</p>
 	{/each}
 	{#if rows.length < AI_CRITERIA_MAX}
-		<Button
-			variant="secondary"
-			size="s"
-			onclick={() => write([...rows, { id: freshId(), name: '' }])}
-		>
+		<Button variant="secondary" size="s" onclick={add}>
 			<Plus size={14} aria-hidden="true" /> Přidat kritérium
 		</Button>
 	{/if}

@@ -16,6 +16,7 @@
 	 * whichever of the two is showing.
 	 */
 	import { tick } from 'svelte';
+	import { focusSelectedCard } from '$lib/ui/focus-after';
 	import { dndzone, type DndEvent } from 'svelte-dnd-action';
 	import { Plus, Settings } from '@lucide/svelte';
 	import type { CourseV2, LessonBlockBinding } from '$lib/domain/schema';
@@ -423,8 +424,10 @@
 											caption
 											onsettings={() =>
 												run(key, () => actions.settings(lesson.lesson_id, block.block_id))}
-											onduplicate={() =>
-												run(key, () => actions.duplicate(block.block_id, lesson.lesson_id))}
+											onduplicate={() => {
+												run(key, () => actions.duplicate(block.block_id, lesson.lesson_id));
+												void focusSelectedCard();
+											}}
 											together={actions.together(block)?.on}
 											ontoggleTogether={() =>
 												run(key, () => actions.toggleTogether(block, lesson.lesson_id))}
@@ -450,8 +453,10 @@
 						<MenuItem
 							icon={option.icon}
 							title={option.title}
-							onclick={() =>
-								store.apply((d, r) => addBlock(d, lesson.lesson_id, option.type, undefined, r))}
+							onclick={() => {
+								store.apply((d, r) => addBlock(d, lesson.lesson_id, option.type, undefined, r));
+								void focusSelectedCard();
+							}}
 						>
 							{option.label}
 						</MenuItem>

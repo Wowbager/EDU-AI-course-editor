@@ -12,6 +12,7 @@
 		QuestionType
 	} from '$lib/domain/schema';
 	import FocusField from '$lib/ui/FocusField.svelte';
+	import { countOf, focusAdded, focusAfterDelete } from '$lib/ui/focus-after';
 	import NumberField from '$lib/ui/NumberField.svelte';
 	import RichField from '$lib/ui/RichField.svelte';
 	import { ALWAYS_MARKDOWN, SNIFFED } from '$lib/domain/markdown';
@@ -398,7 +399,13 @@
 	const VIDEO_PAGE_URL = /youtube\.com|youtu\.be|vimeo\.com/i;
 	const videoIsPageLink = $derived(VIDEO_PAGE_URL.test(step.video?.url ?? ''));
 
+	/** The card's list of steps, as `CardEditor` draws it. */
+	const STEPS = ':scope > .step-wrap';
+
 	function remove() {
+		const list = root?.closest('.steps') ?? null;
+		const before = countOf(list, STEPS);
+		const at = place;
 		try {
 			withUndoNotice(
 				store,
@@ -406,10 +413,20 @@
 				() => store.apply((d) => deleteStep(d, block.block_id, step.id)),
 				{ lessonId: store.selection?.lessonId, blockId: block.block_id, stepId: step.id }
 			);
+			void focusAfterDelete(list, STEPS, at, before, () =>
+				list?.parentElement?.querySelector<HTMLElement>('.add-step button')
+			);
 		} catch (error) {
 			if (error instanceof CommandError) onrepair(block.block_id, step.id);
 			else throw error;
 		}
+	}
+
+	function duplicate() {
+		const list = root?.closest('.steps') ?? null;
+		const at = place + 1;
+		store.apply((d, r) => duplicateStep(d, block.block_id, step.id, r));
+		void focusAdded(list, STEPS, at);
 	}
 
 	const inboundBranches = $derived(planDeleteStep(doc, block.block_id, step.id).length);
@@ -582,7 +599,7 @@
 			<Button
 				variant="ghost"
 				size="s"
-				onclick={() => store.apply((d, r) => duplicateStep(d, block.block_id, step.id, r))}
+				onclick={duplicate}
 				title="Duplikovat krok"
 				ariaLabel="Duplikovat krok"
 			>

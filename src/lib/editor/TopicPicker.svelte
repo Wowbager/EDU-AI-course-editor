@@ -36,6 +36,7 @@
 		type SkillTreeSkill
 	} from '$lib/domain/skill-config';
 	import { ChevronLeft, Pencil, Plus, Trash2 } from '@lucide/svelte';
+	import { countOf, focusAfterDelete } from '$lib/ui/focus-after';
 
 	interface Props {
 		block: BlockV2;
@@ -119,13 +120,20 @@
 	}
 
 	/** Like a removed step or answer, a removed skill says so and offers its undo. */
-	const remove = (index: number) =>
+	function remove(index: number) {
+		const chosen = list;
+		const at = topics.findIndex((t) => t.dimensionIndex === index);
+		const before = countOf(chosen, ':scope > li');
 		withUndoNotice(
 			store,
 			'Dovednost odebrána.',
 			() => commit(topics.filter((t) => t.dimensionIndex !== index)),
 			{ lessonId: store.selection?.lessonId, blockId: block.block_id }
 		);
+		void focusAfterDelete(chosen, ':scope > li', at, before, () =>
+			wrapper?.querySelector<HTMLElement>('.add-trigger')
+		);
+	}
 
 	const setRelation = (index: number, relation: 1 | 2) =>
 		commit(topics.map((t) => (t.dimensionIndex === index ? { ...t, relation } : t)));

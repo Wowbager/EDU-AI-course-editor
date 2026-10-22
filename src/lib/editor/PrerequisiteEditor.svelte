@@ -30,6 +30,7 @@
 	import { cardsWaitingFor } from '$lib/domain/validate';
 	import { skillTree } from '$lib/domain/skill-config';
 	import { Plus, Trash2 } from '@lucide/svelte';
+	import { countOf, focusAfterDelete } from '$lib/ui/focus-after';
 
 	interface Props {
 		doc: CourseV2;
@@ -89,11 +90,19 @@
 		);
 	}
 
-	const remove = (index: number) =>
+	let section = $state<HTMLElement | null>(null);
+	const RULES = ':scope > .rule';
+
+	function remove(index: number) {
+		const before = countOf(section, RULES);
 		withUndoNotice(store, 'Předpoklad odebrán.', () => write(rules.filter((_, i) => i !== index)), {
 			lessonId: store.selection?.lessonId,
 			blockId: block.block_id
 		});
+		void focusAfterDelete(section, RULES, index, before, () =>
+			section?.querySelector<HTMLElement>('.add-trigger')
+		);
+	}
 
 	/** The stored 0–1 as a whole percentage. */
 	const percent = (level: number) => Math.round(level * 100);
@@ -226,7 +235,7 @@
 	}
 </script>
 
-<section class="prerequisites">
+<section class="prerequisites" bind:this={section}>
 	<header>
 		<span class="title">Předpoklady</span>
 		<span class="note">Aplikace je zatím nevynucuje — slouží jako dokumentace návaznosti.</span>

@@ -53,6 +53,8 @@
 		onchange: (value: string | undefined) => void;
 		/** The teacher left the field. */
 		onblur?: () => void;
+		/** Enter in a one-line field, after it has ended the edit (the field blurs first). */
+		onenter?: () => void;
 		ref?: Ref;
 		describedby?: string;
 	}
@@ -66,6 +68,7 @@
 		invalid = false,
 		onchange,
 		onblur,
+		onenter,
 		ref,
 		describedby
 	}: Props = $props();
@@ -130,7 +133,10 @@
 					else store.undo();
 				},
 				onescape: revert,
-				onenter: () => rich?.editor.commands.blur()
+				onenter: () => {
+					rich?.editor.commands.blur();
+					onenter?.();
+				}
 			});
 			ready = true;
 		});
