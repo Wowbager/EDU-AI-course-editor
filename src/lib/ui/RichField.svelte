@@ -461,6 +461,7 @@
 						bind:value={mathLatex}
 						rows={mathDisplay ? 2 : 1}
 						spellcheck="false"
+						data-undo="course"
 						oninput={updateMath}
 						onkeydown={mathKeys}></textarea>
 				</label>
