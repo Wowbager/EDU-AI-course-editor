@@ -8,8 +8,13 @@
 	 *
 	 * The weight's scale is not defined in the app or the API this editor can read, so
 	 * the field says only that it is relative.
+	 *
+	 * The list's warnings (a criterion with no name, more than four) are drawn once,
+	 * under the rows; leaving a name field is leaving the list.
 	 */
 	import type { AiCriterion } from '$lib/domain/schema';
+	import type { Ref } from '$lib/domain/ref';
+	import { useStore } from '$lib/ui/context';
 	import { AI_CRITERIA_MAX } from '$lib/domain/question-settings';
 	import { uniqueKeys } from '$lib/ui/keys';
 	import FocusField from '$lib/ui/FocusField.svelte';
@@ -20,9 +25,14 @@
 	interface Props {
 		criteria: AiCriterion[] | undefined;
 		hint: string | undefined;
+		/** Where the list's warnings point: the step's `question.ai_criteria_list`. */
+		ref: Ref;
 		onchange: (next: AiCriterion[] | undefined) => void;
 	}
-	let { criteria, hint, onchange }: Props = $props();
+	let { criteria, hint, ref, onchange }: Props = $props();
+
+	const store = useStore();
+	const warnings = $derived(store.issuesAt(ref).warnings);
 
 	const rows = $derived(criteria ?? []);
 	// An imported list may repeat an id or have none; the keys stay unique anyway.
@@ -62,6 +72,7 @@
 				label={`Název kritéria ${i + 1}`}
 				value={row.name}
 				emptyText="např. Postup"
+				onblur={() => store.touchField(ref)}
 				onchange={(v) => update(i, { name: v ?? '' })}
 			/>
 			<FocusField
@@ -88,6 +99,9 @@
 				<Trash size={14} aria-hidden="true" />
 			</Button>
 		</div>
+	{/each}
+	{#each warnings as warning, i (i)}
+		<p class="note">{warning.message}</p>
 	{/each}
 	{#if rows.length < AI_CRITERIA_MAX}
 		<Button
@@ -122,6 +136,15 @@
 	.hint {
 		color: var(--e-text-faint);
 		font-size: var(--text-xs);
+	}
+
+	/* As under a field (`FocusField`): a line that explains, not an alarm. */
+	.note {
+		margin: 0;
+		padding-left: 8px;
+		color: var(--e-warning);
+		font-size: var(--text-xs);
+		line-height: 1.45;
 	}
 
 	.row {

@@ -870,6 +870,11 @@
 								<CriteriaEditor
 									criteria={step.question.ai_criteria_list}
 									hint={criteriaSpec?.hint}
+									ref={{
+										blockId: block.block_id,
+										stepId: step.id,
+										field: 'question.ai_criteria_list'
+									}}
 									onchange={(v) => setQuestion('ai_criteria_list', v)}
 								/>
 							{/if}
