@@ -98,3 +98,13 @@ test('a rubric weight drops text that is not a number', async ({ page }) => {
 	await expect(weight).toHaveValue('2');
 	expect((await question(page))?.ai_criteria_list?.[0]?.weight).toBe(2);
 });
+
+test('spaces alone in an empty number field are gone once it is left', async ({ page }) => {
+	const step = await addQuestion(page);
+	await makeOpen(page, step);
+	await step.getByRole('button', { name: 'Přidat kritérium' }).click();
+	const weight = step.getByRole('textbox', { name: 'Váha kritéria 1' });
+
+	await enter(weight, '   ');
+	await expect(weight).toHaveValue('');
+});
