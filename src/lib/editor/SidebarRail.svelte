@@ -590,7 +590,7 @@
 	}
 
 	.rail-tile.missing {
-		color: var(--e-error);
+		color: var(--e-error-text);
 		cursor: default;
 	}
 
@@ -629,7 +629,7 @@
 	}
 
 	.peek-errors {
-		color: var(--e-error);
+		color: var(--e-error-text);
 		font-size: var(--text-xs);
 		font-weight: var(--weight-semibold);
 	}

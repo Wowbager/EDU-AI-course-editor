@@ -69,18 +69,18 @@
 
 	.error {
 		background: var(--e-error-bg);
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 	.warning {
 		background: var(--e-warning-bg);
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 	}
 	.ok {
 		background: var(--e-ok-bg);
-		color: var(--e-ok);
+		color: var(--e-ok-text);
 	}
 	.accent {
 		background: var(--info-bg);
-		color: var(--gradient-purple);
+		color: var(--e-accent-text);
 	}
 </style>

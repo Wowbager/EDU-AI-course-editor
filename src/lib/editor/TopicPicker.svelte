@@ -631,7 +631,7 @@
 
 	.remove:hover,
 	.remove:focus-visible {
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 
 	/* The box looks like the folded sidebar's hover panel (`RailPeek`). `display` only

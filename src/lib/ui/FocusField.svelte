@@ -272,10 +272,10 @@
 		line-height: 1.45;
 	}
 	.note.error {
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 	.note.warning {
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 	}
 	.field.invalid {
 		box-shadow: inset 2px 0 0 var(--e-error);

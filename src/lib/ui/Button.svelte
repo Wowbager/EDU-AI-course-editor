@@ -143,7 +143,7 @@
 	.danger {
 		border: 1px solid transparent;
 		background: none;
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 
 	.danger:hover:not(:disabled) {

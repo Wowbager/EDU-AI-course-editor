@@ -900,7 +900,7 @@
 	.missing {
 		display: block;
 		padding: 6px 8px;
-		color: var(--e-error);
+		color: var(--e-error-text);
 		font-size: var(--text-xs);
 	}
 

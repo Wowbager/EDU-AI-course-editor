@@ -308,7 +308,7 @@
 
 	.problem {
 		margin: 0;
-		color: var(--e-error);
+		color: var(--e-error-text);
 		font-size: var(--text-xs);
 	}
 
@@ -325,6 +325,6 @@
 
 	.remove:hover,
 	.remove:focus-visible {
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 </style>

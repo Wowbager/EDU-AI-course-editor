@@ -155,7 +155,7 @@
 	.note {
 		margin: 0;
 		padding-left: 8px;
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 		font-size: var(--text-xs);
 		line-height: 1.45;
 	}

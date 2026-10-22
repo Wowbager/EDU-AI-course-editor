@@ -1058,7 +1058,7 @@
 	.missing-text {
 		margin: 4px 0 0;
 		padding-left: 8px;
-		color: var(--e-error);
+		color: var(--e-error-text);
 		font-size: var(--text-xs);
 	}
 
@@ -1135,6 +1135,6 @@
 	}
 
 	.field-hint.warning {
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 	}
 </style>

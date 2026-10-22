@@ -774,7 +774,7 @@
 	.cut-off {
 		margin: 4px 0 0;
 		padding: 0 6px;
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 		font-size: var(--text-xs);
 	}
 
@@ -977,18 +977,18 @@
 	.trash :global(.btn:hover:not(:disabled)) {
 		border-color: var(--e-error);
 		background: var(--e-error-bg);
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 
 	.list-issue {
 		margin: 4px 0 0;
 		padding-left: 8px;
-		color: var(--e-error);
+		color: var(--e-error-text);
 		font-size: var(--text-xs);
 	}
 
 	.list-issue.warning {
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 	}
 
 	.add {

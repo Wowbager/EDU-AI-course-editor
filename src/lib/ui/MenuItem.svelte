@@ -89,7 +89,7 @@
 	}
 
 	.menu-item.danger {
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 
 	.menu-item.danger:hover:not(:disabled),

@@ -434,11 +434,11 @@
 	}
 
 	.save-status.warning {
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 	}
 
 	.save-status.error {
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 
 	.save-status:hover {
@@ -467,6 +467,6 @@
 	}
 
 	.storage p.at-risk {
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 	}
 </style>

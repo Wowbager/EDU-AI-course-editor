@@ -707,7 +707,7 @@
 	}
 
 	.crumb .warn {
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 	}
 
 	h1 {
@@ -775,7 +775,7 @@
 
 	.banner.error {
 		background: var(--e-error-bg);
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 
 	.banner ul {
@@ -814,7 +814,7 @@
 	.recovery.stuck {
 		border-color: transparent;
 		background: var(--e-warning-bg);
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 	}
 
 	.recovery p {

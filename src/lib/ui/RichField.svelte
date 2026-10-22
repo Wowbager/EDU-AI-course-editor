@@ -948,7 +948,7 @@
 	.text-button.primary {
 		background: var(--primary);
 		border-color: var(--primary);
-		color: var(--on-primary, #fff);
+		color: var(--e-text);
 	}
 	.text-button:disabled {
 		opacity: 0.5;
@@ -969,10 +969,10 @@
 		color: var(--e-text-muted);
 	}
 	.note.error {
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 	.note.warning {
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 	}
 	.disabled {
 		background: none;
