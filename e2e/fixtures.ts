@@ -71,31 +71,19 @@ export async function openEditor(page: Page, url = '/'): Promise<boolean> {
 }
 
 /**
- * Open a menu by its trigger and return the menu. A menu closes on any scroll, and the
- * editor scrolls itself smoothly to a card it has just selected, so a click that lands
- * during that scroll opens a menu that is shut again at once. The click is repeated
- * until the menu is really open, which is the condition the caller wants.
+ * Open a menu by its trigger and return the menu, once the item the caller is about to
+ * use is really visible.
  *
  * `toBeVisible` on the panel alone is not enough, and `item` is the parameter that
- * matters. The panel is a native popover (`popover="auto"`) whose position is applied on
- * a `requestAnimationFrame` after `showPopover()`, so the panel reports visible while
- * its items are still laid out at the browser's default popover position — off-screen,
- * and not clickable. Waiting on "some item" does not help either, because a menu with
- * several items becomes visible one row at a time as the panel settles; waiting on the
- * *first* item still leaves the caller's `.click()` retrying against a later row that is
- * not visible yet. So the menu counts as open only once the item the caller is about to
- * use is really visible: pass it in, and this is the only reliable condition.
- *
- * Locally the frames land before the next assertion, so waiting on the panel looked
- * sufficient for a long time. On a CI runner (and under load) they do not, and the
- * caller burned its whole 30 s timeout on a not-visible element.
- *
- * An open menu can still close after it was seen open. A card just selected, or a step
- * just added, is revealed with a smooth scroll, and a scroll still going when the menu
- * opens closes it a frame later. So the menu counts as open only once nothing has
- * scrolled for a few frames and it is still open (CI, PR #4: the add-step menu was seen
- * open, then had no items). A caller that clicks an item straight away can use
- * `chooseFromMenu`, which opens and clicks in one retry.
+ * matters. The panel is a native popover (`popover="auto"`) whose position is applied
+ * right after `showPopover()`, so the panel can report visible while its items are
+ * still laid out at the browser's default popover position, off-screen and not
+ * clickable. Waiting on "some item" does not help either, because a menu with several
+ * items becomes visible one row at a time as the panel settles; waiting on the *first*
+ * item still leaves the caller's `.click()` retrying against a later row that is not
+ * visible yet. So pass in the item the caller will use: it is the only reliable
+ * condition. (A menu opened during the column's smooth scroll used to be shut by it, and
+ * this helper opened it again; the menu now follows its button instead, #28.)
  */
 export async function openMenu(
 	page: Page,
@@ -104,47 +92,15 @@ export async function openMenu(
 	item: Locator
 ): Promise<Locator> {
 	const menu = page.getByRole('menu', { name, exact: true });
-	await expect(async () => {
-		if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click();
-		await expect(item).toBeVisible({ timeout: 1_000 });
-		await scrollSettled(page);
-		await expect(item).toBeVisible({ timeout: 100 });
-	}).toPass({ timeout: 10_000 });
+	if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click();
+	await expect(item).toBeVisible();
 	return menu;
 }
 
-/**
- * Resolves once nothing on the page has scrolled for five frames. A smooth scroll fires
- * `scroll` every frame it moves, so five quiet ones mean it has ended.
- */
-async function scrollSettled(page: Page) {
-	await page.evaluate(
-		() =>
-			new Promise<void>((resolve) => {
-				let quiet = 0;
-				const moved = () => (quiet = 0);
-				window.addEventListener('scroll', moved, true);
-				const frame = () => {
-					if (++quiet < 5) return requestAnimationFrame(frame);
-					window.removeEventListener('scroll', moved, true);
-					resolve();
-				};
-				requestAnimationFrame(frame);
-			})
-	);
-}
-
-/**
- * Open a menu and click one of its items, retrying both together: a menu closed by a
- * late scroll (see `openMenu`) is opened again instead of leaving the click to wait on
- * an item that is gone. The click is the last thing tried, so one that went through is
- * never repeated.
- */
+/** Open a menu and click one of its items. */
 export async function chooseFromMenu(page: Page, trigger: Locator, item: Locator) {
-	await expect(async () => {
-		if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click();
-		await item.click({ timeout: 1_000 });
-	}).toPass({ timeout: 10_000 });
+	if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click();
+	await item.click();
 }
 
 /**

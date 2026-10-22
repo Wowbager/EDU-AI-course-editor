@@ -183,6 +183,25 @@ test('the add-step menu closes on Escape and gives focus back to its button', as
 	await expect(steps(page)).toHaveCount(4);
 });
 
+test('an open add-step menu stays open and follows its button when the column scrolls', async ({
+	page
+}) => {
+	await openQuizCard(page);
+	await page.setViewportSize({ width: 1440, height: 500 });
+	const trigger = page
+		.locator('main .add-step')
+		.getByRole('button', { name: 'Přidat krok', exact: true });
+	await trigger.scrollIntoViewIfNeeded();
+	const menu = await openMenu(page, trigger, 'Přidat krok', addStepItem(page, 'Text'));
+	const gapBefore = (await menu.boundingBox())!.y - (await trigger.boundingBox())!.y;
+	await page.locator('main.editor').evaluate((el) => (el.scrollTop -= 30));
+	await expect.poll(async () => (await trigger.boundingBox())!.y).toBeGreaterThan(0);
+	await expect(menu).toBeVisible();
+	await expect
+		.poll(async () => (await menu.boundingBox())!.y - (await trigger.boundingBox())!.y)
+		.toBeCloseTo(gapBefore, 0);
+});
+
 test('a step can be inserted between two others', async ({ page }) => {
 	await openQuizCard(page);
 	const list = steps(page);
