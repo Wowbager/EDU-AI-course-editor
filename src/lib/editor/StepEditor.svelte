@@ -402,6 +402,11 @@
 	/** The card's list of steps, as `CardEditor` draws it. */
 	const STEPS = ':scope > .step-wrap';
 
+	/** The header's measured height; a folded step is exactly that plus `FOLDED_CHROME`. */
+	let headerHeight = $state(25);
+	/** The step's vertical padding (2 × 12px) and border (2 × 1px). */
+	const FOLDED_CHROME = 26;
+
 	function remove() {
 		const list = root?.closest('.steps') ?? null;
 		const before = countOf(list, STEPS);
@@ -530,8 +535,9 @@
 	class:targeted
 	class:collapsed
 	class:folding-to-drag={stepView.dragging}
+	style:--folded-height="{headerHeight + FOLDED_CHROME}px"
 >
-	<header>
+	<header bind:offsetHeight={headerHeight}>
 		<button
 			type="button"
 			class="grip"
@@ -926,8 +932,10 @@
 		overflow: hidden;
 	}
 
+	/* The header's own height plus the step's padding and border, so a larger font or a
+	   header that wraps is not clipped (#53). */
 	.collapsed {
-		height: 51px;
+		height: var(--folded-height, 51px);
 	}
 
 	/*

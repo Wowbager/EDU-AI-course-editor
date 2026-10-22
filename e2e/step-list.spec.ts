@@ -300,3 +300,15 @@ test('the last step grabbed with the column scrolled to the bottom is under the 
 	await page.mouse.up();
 	await expect.poll(() => order(page)).toEqual(['krok-1', 'krok-2', 'krok-3', 'krok-4', 'krok-5']);
 });
+
+test('a folded step is as tall as its header, however tall that is', async ({ page }) => {
+	await openQuizCard(page);
+	// A larger font or a header that wraps: the header is taller than it usually is.
+	await page.addStyleTag({ content: '.step header { min-height: 90px; }' });
+	const step = steps(page).first();
+	await fold(step);
+	await expect(step).toHaveClass(/collapsed/);
+	await expect
+		.poll(() => step.evaluate((el) => el.scrollHeight - el.clientHeight))
+		.toBeLessThanOrEqual(0);
+});
