@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { appReadsField, appShowsFeedback, EVALUATION_ONLY_FIELDS } from '../course-feedback';
+import type { CourseV2 } from '../schema';
 import { parseCourse } from '../document';
 import { validate } from '../validate';
-import { allows, fieldsFor, FIELDS } from '$lib/ui/fields';
+import { allows, fieldOf, fieldsFor, FIELDS } from '$lib/ui/fields';
 import { DocStore } from '$lib/state/doc-store.svelte';
 
 const TYPES = ['course_v2', 'exercise_v2', 'quiz_v2'] as const;
@@ -56,6 +57,14 @@ describe('what the app shows of a course', () => {
 		}
 	});
 
+	it('lists no field the section and settings-count helpers see', () => {
+		// Those helpers (`sectionsFor`, `modeGain`, the search) take no `graded` flag
+		// because the dialogs holding them show only these levels.
+		for (const key of EVALUATION_ONLY_FIELDS) {
+			expect(['block', 'binding', 'course', 'lesson']).not.toContain(key.split('.')[0]);
+		}
+	});
+
 	it('lists only fields the registry has', () => {
 		for (const key of EVALUATION_ONLY_FIELDS) {
 			expect(
@@ -106,6 +115,29 @@ describe('validation of feedback in every card type and course type', () => {
 			validate(doc).errors.some((w) => w.ref.field === 'question.solution_image.url');
 		expect(warn(course('course_v2', 'question'))).toBe(true);
 		expect(warn(course('quiz_v2', 'question'))).toBe(false);
+	});
+});
+
+describe('a test without evaluation raises nothing about a field it hides', () => {
+	it('points at none of the evaluation-only fields, even when they are filled badly', () => {
+		const raw = JSON.parse(JSON.stringify(course('quiz_v2', 'question'))) as CourseV2;
+		const question = raw.blocks[0].steps[1].question!;
+		question.show_answers = false;
+		question.show_solution = false;
+		question.solution_image = { url: 'http://x/y.png' };
+		for (const option of question.options!) {
+			option.feedback = '';
+			option.feedback_image = { url: 'http://x/z.png' };
+			option.is_correct = false;
+		}
+		const result = validate(raw);
+		const hit = [...result.errors, ...result.warnings].filter((issue) => {
+			const field = fieldOf(issue.ref);
+			return field !== null && !appReadsField(raw, field.level, field.path);
+		});
+		expect(hit.map((i) => i.code)).toEqual([]);
+		// With no right answer left, that is still an error, and show_answers does not excuse it.
+		expect(result.errors.map((e) => e.code)).toContain('E_MC_NO_CORRECT');
 	});
 });
 

@@ -1,8 +1,10 @@
 /**
  * Id minting. §3 invariants 1, 2 and 4 live here.
  *
- * Step ids are `s` + random digits and are never reused or renumbered — a `go_to` target and
- * every saved student answer is keyed by them. Reordering rewrites `order` only.
+ * Step ids are `s` + random digits and are never reused — a `go_to` target and every
+ * saved student answer is keyed by them. Reordering rewrites `order` only. Only a
+ * copied block restarts at `s1` (`renumberStepsForCopy`): the copy is a new block, so no
+ * saved answer is keyed to it.
  */
 import type { BlockStep, BlockV2, CourseV2, QuestionOption } from './schema';
 
