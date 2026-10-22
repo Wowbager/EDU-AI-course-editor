@@ -1501,6 +1501,11 @@ export const NOT_EDITABLE: Record<string, string> = {
 /**
  * Cumulative: a field shows in its own mode and every mode above it. A `feedback`
  * field also needs `feedback` (the Zpětná vazba toggle) to be on.
+ *
+ * `graded` (false: the app shows no evaluation, `appShowsFeedback`) matters only to
+ * question and option fields. The section and settings-count helpers below leave it out
+ * because they serve the card, binding, lesson and course dialogs, which hold none
+ * (`course-feedback.test.ts` checks it).
  */
 export const visible = (
 	spec: FieldSpec,
