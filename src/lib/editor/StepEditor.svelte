@@ -56,6 +56,7 @@
 		Trash
 	} from '@lucide/svelte';
 	import type { Component } from 'svelte';
+	import { hintOfferedSteps } from '$lib/domain/hint-reach';
 	import { stepPracticeOffered, stepSummary } from '$lib/domain/derive';
 	import SettingsSection from '$lib/ui/SettingsSection.svelte';
 	import { sectionTargeted } from '$lib/ui/settings-target';
@@ -204,7 +205,7 @@
 	 * such a step is still shown, with `W_HINT_UNREACHABLE` under it, so it can be
 	 * moved or deleted.
 	 */
-	const ladderReached = $derived(block.type === 'display' || step.type === 'question');
+	const ladderReached = $derived(hintOfferedSteps(block).includes(step));
 	const ladderShown = $derived(
 		ladderReached || (step.hint ?? '').trim() !== '' || (step.help ?? '').trim() !== ''
 	);

@@ -333,6 +333,22 @@ describe('hint and help a pupil never reaches', () => {
 		expect(reached(card({ type: 'exercise' }, [{ help: 'P' }, question]))).toEqual(['s1.help']);
 	});
 
+	it('names the hint of a middle question when several are graded in one tap', () => {
+		const q = (extra: Record<string, unknown> = {}) => ({
+			type: 'question',
+			question: { type: 'multiple_choice', options: [{ id: 'a', text: 'A', is_correct: true }] },
+			...extra
+		});
+		expect(
+			reached(card({ type: 'question' }, [q({ hint: 'H1' }), q({ hint: 'H2' }), q({ hint: 'H3' })]))
+		).toEqual(['s2.hint']);
+		// With an open question the engine stops on each, so nothing is lost.
+		const open = q({ hint: 'H2', question: { type: 'open' } });
+		expect(
+			reached(card({ type: 'question' }, [q({ hint: 'H1' }), open, q({ hint: 'H3' })]))
+		).toEqual([]);
+	});
+
 	it('counts the "?" a finished question card keeps, which opens the card\'s', () => {
 		const question = {
 			type: 'question',

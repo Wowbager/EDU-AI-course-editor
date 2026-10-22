@@ -17,6 +17,7 @@
  * and has to stay on screen, alongside a human name so the teacher can find the
  * place.
  */
+import { hintOfferedSteps } from './hint-reach';
 import type { BlockStep, BlockV2, CourseV2, QuestionConfig } from './schema';
 import type { Ref } from './ref';
 import { buildIndex, isGoToKeyword, reachableSteps, type DocIndex } from './index-doc';
@@ -305,7 +306,7 @@ function checkHintReach(doc: CourseV2, block: BlockV2, add: Add) {
 	const filled = (text: string | undefined) => (text ?? '').trim() !== '';
 	const cardName = blockLabel(doc, block);
 	const oneBubble = block.type !== 'display';
-	const offered = block.steps.filter((step) => !oneBubble || step.type === 'question');
+	const offered = hintOfferedSteps(block);
 
 	for (const step of block.steps) {
 		const label = capitalize(stepLabel(block, step));
@@ -317,7 +318,7 @@ function checkHintReach(doc: CourseV2, block: BlockV2, add: Add) {
 					'warning',
 					'W_HINT_UNREACHABLE',
 					{ blockId: block.block_id, stepId: step.id, field },
-					`${label} v kartě „${cardName}“ má ${what}, kterou žák neuvidí: v kartě s otázkami se otazník ukazuje jen u otázek, ne u textu mezi nimi. Přesuň ji k otázce, které se týká.`
+					`${label} v kartě „${cardName}“ má ${what}, kterou žák neuvidí: v kartě s otázkami se otazník ukazuje jen u otázek (u karty s více otázkami najednou jen u první a poslední), ne u textu mezi nimi. Přesuň ji k otázce, které se týká.`
 				);
 			}
 			continue;
