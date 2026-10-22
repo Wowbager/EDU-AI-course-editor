@@ -746,7 +746,8 @@ function checkMedia(block: BlockV2, step: BlockStep, add: Add) {
 	// The image and the video share one position, so one warning covers both.
 	const hidden = (['image', 'video'] as const).filter((media) => mediaHidden(step, media));
 	if (hidden.length > 0) {
-		const what = hidden.length === 2 ? 'Obrázek a video' : hidden[0] === 'image' ? 'Obrázek' : 'Video';
+		const what =
+			hidden.length === 2 ? 'Obrázek a video' : hidden[0] === 'image' ? 'Obrázek' : 'Video';
 		const them = hidden.length === 2 ? 'je' : 'ho';
 		add(
 			'warning',

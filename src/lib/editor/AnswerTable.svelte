@@ -17,10 +17,10 @@
 	 * way to it says so once under that answer, with "Vrátit zpět" (`madeUnreachable`),
 	 * and says nothing after the next edit.
 	 */
-	import { formatNumberInput, typedNumber } from '$lib/domain/number-input';
 	import { tick, untrack } from 'svelte';
 	import type { BlockStep, BlockV2, CourseV2 } from '$lib/domain/schema';
 	import FocusField from '$lib/ui/FocusField.svelte';
+	import NumberField from '$lib/ui/NumberField.svelte';
 	import RichField from '$lib/ui/RichField.svelte';
 	import { INLINE, SNIFFED } from '$lib/domain/markdown';
 	import Button from '$lib/ui/Button.svelte';
@@ -534,16 +534,13 @@
 						{#if advanced}
 							<div class="field score">
 								<span class="label">Podíl bodů</span>
-								<FocusField
+								<NumberField
 									label="Podíl bodů za tuto odpověď"
-									value={formatNumberInput(option.score_koef)}
+									value={option.score_koef}
 									emptyText="1,0"
 									monospace
 									ref={ref(option.id, 'score_koef')}
-									onchange={(v) => {
-										const typed = typedNumber(v);
-										if (typed !== null) set(option.id, 'score_koef', typed.value);
-									}}
+									onchange={(v) => set(option.id, 'score_koef', v)}
 								/>
 							</div>
 						{/if}

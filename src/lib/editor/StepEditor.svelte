@@ -12,6 +12,7 @@
 		QuestionType
 	} from '$lib/domain/schema';
 	import FocusField from '$lib/ui/FocusField.svelte';
+	import NumberField from '$lib/ui/NumberField.svelte';
 	import RichField from '$lib/ui/RichField.svelte';
 	import { ALWAYS_MARKDOWN, SNIFFED } from '$lib/domain/markdown';
 	import Chip from '$lib/ui/Chip.svelte';
@@ -63,7 +64,6 @@
 	import Menu from '$lib/ui/Menu.svelte';
 	import MenuItem from '$lib/ui/MenuItem.svelte';
 	import { fade } from 'svelte/transition';
-	import { formatNumberInput, typedNumber } from '$lib/domain/number-input';
 
 	interface Props {
 		doc: CourseV2;
@@ -504,26 +504,6 @@
 			stepId: step.id
 		};
 	}
-
-	/**
-	 * The two number fields of a numeric question. While the teacher types, the field
-	 * keeps their text ("3," or "-" is half a number, not a wrong one) and every text
-	 * that reads as a number is written at once, so the preview and the checks follow.
-	 * Out of the field it shows the document's value, so undo, redo and import show
-	 * what the course really holds, and leaving it never rewrites the number.
-	 */
-	type NumberField = 'correct_number' | 'tolerance';
-	let typedText = $state<Partial<Record<NumberField, string | undefined>>>({});
-	const numberText = (field: NumberField) =>
-		field in typedText ? typedText[field] : formatNumberInput(step.question?.[field]);
-	function typeNumber(field: NumberField, text: string | undefined) {
-		typedText[field] = text;
-		const typed = typedNumber(text);
-		if (typed !== null) set(`question.${field}`, typed.value);
-	}
-	function leaveNumber(field: NumberField) {
-		delete typedText[field];
-	}
 </script>
 
 <article
@@ -769,9 +749,9 @@
 					{:else if step.question?.type === 'numeric'}
 						<div class="field-row">
 							<span class="field-label">Správný výsledek</span>
-							<FocusField
+							<NumberField
 								label="Správný výsledek"
-								value={numberText('correct_number')}
+								value={step.question?.correct_number}
 								emptyText="Číslo"
 								monospace
 								ref={{
@@ -779,15 +759,14 @@
 									stepId: step.id,
 									field: 'question.correct_number'
 								}}
-								onblur={() => leaveNumber('correct_number')}
-								onchange={(v) => typeNumber('correct_number', v)}
+								onchange={(v) => set('question.correct_number', v)}
 							/>
 						</div>
 						<div class="field-row">
 							<span class="field-label">Tolerance ±</span>
-							<FocusField
+							<NumberField
 								label="Tolerance"
-								value={numberText('tolerance')}
+								value={step.question?.tolerance}
 								emptyText="0 — vyžaduje přesnou shodu"
 								monospace
 								ref={{
@@ -795,8 +774,7 @@
 									stepId: step.id,
 									field: 'question.tolerance'
 								}}
-								onblur={() => leaveNumber('tolerance')}
-								onchange={(v) => typeNumber('tolerance', v)}
+								onchange={(v) => set('question.tolerance', v)}
 							/>
 						</div>
 					{:else}

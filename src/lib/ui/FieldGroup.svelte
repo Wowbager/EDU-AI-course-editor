@@ -20,11 +20,12 @@
 	 * offered as its first option stays reachable without an extra button.
 	 */
 	import FocusField from './FocusField.svelte';
+	import NumberField from './NumberField.svelte';
 	import RichField from './RichField.svelte';
 	import { ALWAYS_MARKDOWN, SNIFFED } from '$lib/domain/markdown';
 	import Toggle from './Toggle.svelte';
 	import Segmented from './Segmented.svelte';
-	import { formatNumberInput, typedNumber } from '$lib/domain/number-input';
+	import { typedNumber } from '$lib/domain/number-input';
 	import { formatDateTimeCs } from '$lib/domain/format-date';
 	import { hintFor, type FieldSpec } from './fields';
 	import { useSettingsSearch } from './settings-search.svelte';
@@ -52,6 +53,7 @@
 	const asText = (value: unknown): string | undefined =>
 		value === undefined || value === null ? undefined : String(value);
 
+	/** A number field an import filled with something else: typing a number replaces it. */
 	function writeNumber(path: string, raw: string | undefined) {
 		const typed = typedNumber(raw);
 		if (typed !== null) write(path, typed.value);
@@ -156,12 +158,21 @@
 						invalid={invalid?.(spec.path) === true}
 						onchange={(v) => write(spec.path, v)}
 					/>
+				{:else if spec.kind === 'number' && (value === undefined || typeof value === 'number')}
+					<NumberField
+						label={spec.label}
+						{value}
+						monospace
+						emptyText={spec.default === undefined ? 'nevyplněno' : `výchozí ${spec.default}`}
+						ref={spec.ref}
+						describedby={hint ? hintId(spec) : undefined}
+						invalid={invalid?.(spec.path) === true}
+						onchange={(v) => write(spec.path, v)}
+					/>
 				{:else}
 					<FocusField
 						label={spec.label}
-						value={spec.kind === 'number' && typeof value === 'number'
-							? formatNumberInput(value)
-							: asText(value)}
+						value={asText(value)}
 						multiline={spec.kind === 'multiline'}
 						monospace={spec.kind === 'number'}
 						emptyText={spec.default === undefined ? 'nevyplněno' : `výchozí ${spec.default}`}

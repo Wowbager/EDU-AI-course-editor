@@ -11,9 +11,9 @@
 	 */
 	import type { AiCriterion } from '$lib/domain/schema';
 	import { AI_CRITERIA_MAX } from '$lib/domain/question-settings';
-	import { formatNumberInput, typedNumber } from '$lib/domain/number-input';
 	import { uniqueKeys } from '$lib/ui/keys';
 	import FocusField from '$lib/ui/FocusField.svelte';
+	import NumberField from '$lib/ui/NumberField.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import { Plus, Trash } from '@lucide/svelte';
 
@@ -71,15 +71,11 @@
 				onchange={(v) => update(i, { description: v })}
 			/>
 			<div class="weight">
-				<FocusField
+				<NumberField
 					label={`Váha kritéria ${i + 1}`}
-					value={formatNumberInput(row.weight)}
+					value={row.weight}
 					emptyText="váha"
-					onchange={(v) => {
-						const typed = typedNumber(v);
-						if (typed === null) return;
-						update(i, { weight: typed.value === undefined ? undefined : Math.round(typed.value) });
-					}}
+					onchange={(v) => update(i, { weight: v === undefined ? undefined : Math.round(v) })}
 				/>
 			</div>
 			<Button
