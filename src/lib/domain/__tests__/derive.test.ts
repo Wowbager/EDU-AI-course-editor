@@ -274,3 +274,14 @@ describe('XP (course_model.dart _calculateBlockMaxXp)', () => {
 		expect(lessonTotals(doc.lessons[0], buildIndex(doc)).xp).toBe(10);
 	});
 });
+
+describe('a plain text stored with a backslash before a list marker (OPEN-PROBLEMS #55)', () => {
+	it.each([
+		['\\- a', '- a'],
+		['\\\\- a', '\\- a'],
+		['\\1. krok\nDruhý řádek', '1. krok'],
+		['a\\-b', 'a\\-b']
+	])('names %j as %j', (content, name) => {
+		expect(stepSummary({ id: 's1', type: 'text', content })).toBe(name);
+	});
+});

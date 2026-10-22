@@ -23,6 +23,7 @@ import { NodeSelection, type Transaction } from '@tiptap/pm/state';
 import {
 	parseMarkdown,
 	serializeMarkdown,
+	typedText,
 	toOneLine,
 	type DocNode,
 	type MarkdownDialect
@@ -96,11 +97,10 @@ export function createRichEditor(options: RichEditorOptions) {
 			},
 			transformPastedHTML: cleanPastedHtml,
 			clipboardTextParser: (text, $context, plain) => textToSlice(editor, text, plain, dialect),
-			clipboardTextSerializer: (slice) =>
-				serializeMarkdown(
-					{ type: 'doc', content: sliceBlocks(slice) as DocNode[] },
-					{ sniffed: true }
-				),
+			clipboardTextSerializer: (slice) => {
+				const copied: DocNode = { type: 'doc', content: sliceBlocks(slice) as DocNode[] };
+				return typedText(copied) ?? serializeMarkdown(copied, { sniffed: true });
+			},
 			handlePaste: (_view, event) => refuseFiles(event.clipboardData, options),
 			handleDrop: (_view, event) => refuseFiles((event as DragEvent).dataTransfer, options),
 			handleKeyDown: (_view, event) => {
