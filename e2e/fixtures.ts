@@ -92,14 +92,42 @@ export async function openMenu(
 	item: Locator
 ): Promise<Locator> {
 	const menu = page.getByRole('menu', { name, exact: true });
-	if (!(await item.isVisible())) await trigger.click();
+	if (!(await item.isVisible())) {
+		await scrollSettled(page);
+		await trigger.click();
+	}
 	await expect(item).toBeVisible();
 	return menu;
 }
 
+/**
+ * Resolves once nothing on the page has scrolled for five frames. A card just selected,
+ * or a step just added, is revealed with a smooth scroll, and a button clicked while it
+ * moves is missed: the press lands on one thing and the release on another.
+ */
+async function scrollSettled(page: Page) {
+	await page.evaluate(
+		() =>
+			new Promise<void>((resolve) => {
+				let quiet = 0;
+				const moved = () => (quiet = 0);
+				window.addEventListener('scroll', moved, true);
+				const frame = () => {
+					if (++quiet < 5) return requestAnimationFrame(frame);
+					window.removeEventListener('scroll', moved, true);
+					resolve();
+				};
+				requestAnimationFrame(frame);
+			})
+	);
+}
+
 /** Open a menu and click one of its items. */
 export async function chooseFromMenu(page: Page, trigger: Locator, item: Locator) {
-	if (!(await item.isVisible())) await trigger.click();
+	if (!(await item.isVisible())) {
+		await scrollSettled(page);
+		await trigger.click();
+	}
 	await item.click();
 }
 
