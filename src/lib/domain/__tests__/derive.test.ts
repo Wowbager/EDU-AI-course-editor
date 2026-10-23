@@ -70,7 +70,7 @@ describe('what a card is called', () => {
 		expect(oneLine.length).toBeGreaterThan(50_000);
 		expect(
 			derivedBlockName(block({ steps: [{ id: 's1', type: 'text', content: oneLine }] }), 20)
-		).toBe('Dlouhý slovo slovo …');
+		).toBe('Dlouhý slovo slovo s…');
 	});
 
 	it('treats an empty or blank title as no title at all', () => {
