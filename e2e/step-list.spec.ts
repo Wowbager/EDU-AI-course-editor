@@ -84,7 +84,7 @@ test('a folded step stays folded while it is carried and after it lands', async 
 
 test('a drag dropped where it started is not an edit', async ({ page }) => {
 	await openQuizCard(page);
-	const undo = page.getByRole('button', { name: 'Zpět', exact: true });
+	const undo = page.getByRole('button', { name: 'Vrátit', exact: true });
 	await expect(undo).toBeDisabled();
 
 	const from = await press(page, 2);

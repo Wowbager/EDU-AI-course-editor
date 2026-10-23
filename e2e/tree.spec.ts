@@ -27,11 +27,11 @@ test.beforeEach(async ({ page }) => {
 const cards = (page: Page) => page.locator('.cards .tree-card');
 const order = (page: Page) => cards(page).locator('.snippet').allTextContents();
 
-test('a card is grabbed by its padding, and Zpět puts it back', async ({ page }) => {
+test('a card is grabbed by its padding, and Vrátit puts it back', async ({ page }) => {
 	const before = await order(page);
 	expect(before.length).toBeGreaterThanOrEqual(3);
 	expect(new Set(before).size).toBe(before.length);
-	const undo = page.getByRole('button', { name: 'Zpět', exact: true });
+	const undo = page.getByRole('button', { name: 'Vrátit', exact: true });
 	await expect(undo).toBeDisabled();
 
 	// The left edge of the row: the padding of the card, not its text.
@@ -110,7 +110,7 @@ test('Alt+ArrowDown moves the focused card down and keeps it focused', async ({ 
 
 test('Alt+ArrowUp on the first card changes nothing and is not an edit', async ({ page }) => {
 	const before = await order(page);
-	const undo = page.getByRole('button', { name: 'Zpět', exact: true });
+	const undo = page.getByRole('button', { name: 'Vrátit', exact: true });
 	await expect(undo).toBeDisabled();
 	await cards(page).nth(0).focus();
 	await page.keyboard.press('Alt+ArrowUp');

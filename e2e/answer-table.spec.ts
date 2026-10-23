@@ -229,7 +229,7 @@ test('the detail line opens from the row, and a set value is read without openin
 
 	// A value that is set shows as inert text; the unset answer says nothing.
 	await expect(rows.nth(0).locator('.set-values')).toHaveText('známka 2');
-	await expect(rows.nth(1).locator('.set-values')).toHaveText('konec bloku');
+	await expect(rows.nth(1).locator('.set-values')).toHaveText('konec karty');
 	await expect(rows.nth(2).locator('.set-values')).toHaveCount(0);
 
 	// Opening the line swaps the text for the fields that hold the values.
@@ -342,13 +342,13 @@ test('a detail line that was pointed at can still be closed by hand', async ({ p
 	await first.getByRole('button', { name: 'Kam pokračovat po této odpovědi' }).click();
 	await page
 		.getByRole('dialog', { name: 'Kam pokračovat po této odpovědi' })
-		.getByRole('button', { name: 'Ukončit blok' })
+		.getByRole('button', { name: 'Ukončit kartu' })
 		.click();
 	await first.getByRole('button', { name: /^Podrobnosti odpovědi/ }).click();
 	await expect(first.getByRole('button', { name: 'Kam pokračovat po této odpovědi' })).toHaveCount(
 		0
 	);
-	await expect(first.locator('.set-values')).toContainText('konec bloku');
+	await expect(first.locator('.set-values')).toContainText('konec karty');
 });
 
 /** The "Kam dál" box of the first answer whose line is open. */
@@ -420,7 +420,7 @@ test('an answer that cuts a step off says so once, and "Vrátit zpět" brings it
 	// Answer b is the only way to step 3; sending it to the end leaves step 3 without a path.
 	await rows.nth(1).locator('.set-values').click();
 	await goTo(page).first().click();
-	await goToBox(page).getByRole('button', { name: 'Ukončit blok' }).click();
+	await goToBox(page).getByRole('button', { name: 'Ukončit kartu' }).click();
 	await expect(line).toHaveCount(1);
 	await expect(line).toContainText('Krok 3 teď nikam nevede — žák ho neuvidí');
 	await expect(rows.nth(1).locator('.cut-off')).toBeVisible();
@@ -432,7 +432,7 @@ test('an answer that cuts a step off says so once, and "Vrátit zpět" brings it
 
 	// Do it again; the next edit of anything clears the line.
 	await goTo(page).first().click();
-	await goToBox(page).getByRole('button', { name: 'Ukončit blok' }).click();
+	await goToBox(page).getByRole('button', { name: 'Ukončit kartu' }).click();
 	await expect(line).toHaveCount(1);
 	await page.getByRole('textbox', { name: 'Text odpovědi' }).first().click();
 	await page.keyboard.type('x');

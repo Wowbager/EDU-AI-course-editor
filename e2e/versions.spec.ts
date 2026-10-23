@@ -85,7 +85,7 @@ test('the history survives a reload, and restoring is an undoable edit', async (
 	await expect(page.locator('header .version')).toHaveText(/v1$/);
 	await expect(page.locator('.rich-content').first()).not.toContainText('věta navíc');
 
-	await page.getByRole('button', { name: 'Zpět', exact: true }).click();
+	await page.getByRole('button', { name: 'Vrátit', exact: true }).click();
 	await expect(page.locator('.rich-content').first()).toContainText('věta navíc');
 });
 

@@ -87,7 +87,7 @@
 		if (
 			versions.modified(doc) &&
 			!window.confirm(
-				`Rozpracované změny se nahradí verzí ${version.version}. Vrátit to půjde tlačítkem Zpět.`
+				`Rozpracované změny se nahradí verzí ${version.version}. Vrátit to půjde tlačítkem Vrátit v liště.`
 			)
 		)
 			return;

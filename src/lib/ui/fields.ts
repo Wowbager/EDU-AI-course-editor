@@ -42,7 +42,7 @@ export const MODE_LABELS: Record<Mode, { label: string; title: string }> = {
 	},
 	metodik: {
 		label: 'Metodik',
-		title: 'Navíc didaktika: zařazení do cvičení a znalostní vektor'
+		title: 'Navíc didaktika: zařazení do opakování a znalostní vektor'
 	},
 	advanced: {
 		label: 'Pokročilý',
@@ -176,7 +176,7 @@ export const SECTIONS: Record<FieldLevel, readonly SectionSpec[]> = {
 			label: 'Didaktika lekce',
 			icon: 'didactics',
 			mode: 'metodik',
-			keywords: 'zpětná vazba chybné odpovědi karty ve cvičení podíl'
+			keywords: 'zpětná vazba chybné odpovědi karty v opakování podíl'
 		},
 		{ id: 'ai', label: 'Pro AI lektora', icon: 'ai' },
 		{ id: 'meta', label: 'Údaje o lekci', icon: 'meta', keywords: 'identifikátor' }
@@ -196,8 +196,7 @@ export const SECTIONS: Record<FieldLevel, readonly SectionSpec[]> = {
 			id: 'review',
 			label: 'Opakování',
 			icon: 'review',
-			keywords:
-				'jak často kdy se karta vrací vrátí nejdéle nejdříve interval opakování cvičení FSRS'
+			keywords: 'jak často kdy se karta vrací vrátí nejdéle nejdříve interval opakování FSRS'
 		},
 		{
 			id: 'followup',
@@ -549,7 +548,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		section: 'lesson',
 		mode: 'advanced',
 		kind: 'toggle',
-		label: 'Zařadit do cvičení (jen v této lekci)',
+		label: 'Zařadit do opakování (jen v této lekci)',
 		hint: 'Starší způsob. U nového obsahu nastav příznak rovnou na kartě.'
 	},
 	{
@@ -626,8 +625,8 @@ export const FIELDS: readonly FieldSpec[] = [
 		section: 'main',
 		mode: 'metodik',
 		kind: 'toggle',
-		label: 'Zařadit do cvičení',
-		gain: 'zařazení do cvičení',
+		label: 'Zařadit do opakování',
+		gain: 'zařazení do opakování',
 		hint: 'Vhodné pro definice, postupy a fakta — ne pro úvody a přechody. Zhruba pětina až třetina karet.'
 	},
 	{
@@ -1104,9 +1103,9 @@ export const FIELDS: readonly FieldSpec[] = [
 		section: 'extras',
 		mode: 'metodik',
 		kind: 'toggle',
-		label: 'Zařadit do cvičení',
-		gain: 'zařazení do cvičení',
-		hint: 'Karta se pak ukáže mezi cvičeními kurzu, do denního opakování se ale nezařadí — na to zapni „Zařadit do cvičení“ u celé karty.'
+		label: 'Zařadit do opakování',
+		gain: 'zařazení do opakování',
+		hint: 'Zařadí do opakování celou kartu, stejně jako volba „Zařadit do opakování“ u karty.'
 	},
 
 	{

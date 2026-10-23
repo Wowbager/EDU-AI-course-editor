@@ -3,7 +3,7 @@ import { expect, openEditor, openSection, test, type Page } from './fixtures';
 
 /**
  * A step's own settings: folded under one quiet line, and the step's "Zařadit do
- * cvičení" only where it changes something.
+ * opakování" only where it changes something.
  */
 async function load(page: Page, edit: (doc: any) => void = () => {}) {
 	const doc = JSON.parse(
@@ -35,7 +35,7 @@ const NOT_IN_PRACTICE = (doc: any) => {
 const open = (page: Page) => page.locator('.step', { has: page.locator('.answers') });
 const fold = (page: Page) =>
 	open(page).getByRole('button', { name: 'Další nastavení kroku', exact: true });
-const practice = (page: Page) => page.getByRole('checkbox', { name: /^Zařadit do cvičení/ });
+const practice = (page: Page) => page.getByRole('checkbox', { name: /^Zařadit do opakování/ });
 
 test('the step settings are one folded line until they are asked for', async ({ page }) => {
 	await load(page, NOT_IN_PRACTICE);

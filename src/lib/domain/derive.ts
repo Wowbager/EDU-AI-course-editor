@@ -186,7 +186,7 @@ export function bindingFlagsPractice(doc: CourseV2, blockId: string): boolean {
 }
 
 /**
- * Whether a step's own "Zařadit do cvičení" is worth offering. The flag on a step is
+ * Whether a step's own "Zařadit do opakování" is worth offering. The flag on a step is
  * only a way to put the card into practice (`isPracticeBlock`); when the card's own
  * flag or a lesson's binding already does, the step's switch changes nothing, so it
  * stays out of the way. A step whose flag is already on keeps its switch, so it can

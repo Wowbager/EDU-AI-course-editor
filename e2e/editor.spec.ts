@@ -200,7 +200,7 @@ test('a dialog says what the next mode adds, and Přepnout opens on it', async (
 	await page.getByRole('button', { name: 'Nastavení karty' }).click();
 	const dialog = page.getByRole('dialog', { name: 'Nastavení karty' });
 	await expect(dialog).toContainText(
-		'Dovednosti, pojmy a zařazení do cvičení najdeš v režimu Metodik'
+		'Dovednosti, pojmy a zařazení do opakování najdeš v režimu Metodik'
 	);
 	await dialog.getByRole('button', { name: 'Přepnout', exact: true }).click();
 	await expect(page.getByRole('radio', { name: 'Metodik' })).toBeChecked();
@@ -255,7 +255,7 @@ test("the search in Učitel knows a teacher's words, and says when it finds noth
 	await expect(dialog.getByText('Nic takového tu není. Zkus jiné slovo.')).toBeVisible();
 });
 
-test('a type change that loses answers says Zpět brings them back, even from another card', async ({
+test('a type change that loses answers says Vrátit brings them back, even from another card', async ({
 	page
 }) => {
 	await page.locator('.tree-add').getByRole('button', { name: 'Otázka', exact: true }).click();
@@ -264,7 +264,7 @@ test('a type change that loses answers says Zpět brings them back, even from an
 	await page.getByRole('radio', { name: 'Otevřená odpověď' }).click();
 
 	const dialog = page.getByRole('dialog', { name: 'Změnit typ otázky?' });
-	await expect(dialog).toContainText('Zpět se dá vrátit tlačítkem Zpět v liště.');
+	await expect(dialog).toContainText('Vrátit to jde tlačítkem Vrátit v liště.');
 	// The promise is not limited to the card: undo is the course's.
 	await expect(dialog).not.toContainText('neopustíš');
 	await dialog.getByRole('button', { name: 'Přesto změnit' }).click();
@@ -272,7 +272,7 @@ test('a type change that loses answers says Zpět brings them back, even from an
 
 	await page.locator('.tree-card').first().click();
 	await expect(page.locator('.answers')).toHaveCount(0);
-	await page.getByRole('button', { name: 'Zpět', exact: true }).click();
+	await page.getByRole('button', { name: 'Vrátit', exact: true }).click();
 	await expect(answer).toHaveText('Čitatel je 5');
 });
 
@@ -286,10 +286,10 @@ test('the practice switch agrees with the Opakování chip, and off means off', 
 
 	await page.getByRole('button', { name: 'Nastavení karty' }).click();
 	const dialog = page.getByRole('dialog', { name: 'Nastavení karty' });
-	const practice = dialog.getByRole('checkbox', { name: /^Zařadit do cvičení/ });
+	const practice = dialog.getByRole('checkbox', { name: /^Zařadit do opakování/ });
 	await expect(practice).toBeChecked();
 	// The box itself is drawn as a track; the label is what a teacher clicks.
-	const label = dialog.locator('label.toggle').filter({ hasText: 'Zařadit do cvičení' });
+	const label = dialog.locator('label.toggle').filter({ hasText: 'Zařadit do opakování' });
 	await label.click();
 	await expect(chip).toBeHidden();
 	await expect(practice).not.toBeChecked();
@@ -551,8 +551,8 @@ test('undo puts back what a delete took away', async ({ page }) => {
 	await expect(page.locator('.tree-lesson .meta').first()).toContainText('2 karty');
 	await expect(page.locator('.orphans .tree-card')).toHaveCount(1);
 
-	// The glyph is what a mouse sees; "Zpět" is what the button is called.
-	await page.getByRole('button', { name: 'Zpět', exact: true }).click();
+	// The glyph is what a mouse sees; "Vrátit" is what the button is called.
+	await page.getByRole('button', { name: 'Vrátit', exact: true }).click();
 	await expect(inLesson).toHaveCount(3);
 });
 

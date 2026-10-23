@@ -76,7 +76,7 @@ test('undo shows the number the course holds again', async ({ page }) => {
 	await enter(page, answer(page), '5');
 	await expect.poll(async () => (await question(page))?.correct_number).toBe(5);
 
-	await page.getByRole('button', { name: 'Zpět', exact: true }).click();
+	await page.getByRole('button', { name: 'Vrátit', exact: true }).click();
 	await expect.poll(async () => (await question(page))?.correct_number).toBe(3);
 	await expect(answer(page)).toHaveValue('3');
 

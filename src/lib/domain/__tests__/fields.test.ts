@@ -629,7 +629,7 @@ describe('what a higher mode adds', () => {
 		expect(modeGain(['block'], 'teacher')).toEqual({
 			mode: 'metodik',
 			section: 'topics',
-			text: 'Dovednosti, pojmy a zařazení do cvičení najdeš v režimu Metodik'
+			text: 'Dovednosti, pojmy a zařazení do opakování najdeš v režimu Metodik'
 		});
 		expect(modeGain(['block'], 'metodik')).toMatchObject({
 			mode: 'advanced',

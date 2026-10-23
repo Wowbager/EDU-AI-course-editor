@@ -254,7 +254,7 @@ test.describe('a course made elsewhere, with several questions in one block', ()
 	});
 
 	test('undo puts the course back as it came in', async ({ page }) => {
-		await page.getByRole('button', { name: 'Zpět', exact: true }).click();
+		await page.getByRole('button', { name: 'Vrátit', exact: true }).click();
 		await expect
 			.poll(async () => (await exported(page)).blocks.length)
 			.toBe(original.blocks.length);

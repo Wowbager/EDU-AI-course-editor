@@ -58,7 +58,7 @@ does not mean more features, more panels or more information.
    it only moves focus in the editor. Vyzkoušet is exactly the pupil's experience.
    Neither shows editor markers, outlines or notes.
 8. **Modes add, they don't clutter.** Učitel has only what a course needs to work.
-   Metodik adds didactics (Zařadit do cvičení, the knowledge vector). Pokročilý adds
+   Metodik adds didactics (Zařadit do opakování, the knowledge vector). Pokročilý adds
    the rest. Nothing from a higher mode leaks into a lower one as a hint, badge or
    note.
 9. **Simple over clever.** One mechanism beats three special cases. Don't add a

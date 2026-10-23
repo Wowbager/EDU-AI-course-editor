@@ -280,8 +280,8 @@
 		variant="ghost"
 		onclick={() => store.undo()}
 		disabled={!store.canUndo}
-		title="Zpět"
-		ariaLabel="Zpět"
+		title="Vrátit"
+		ariaLabel="Vrátit"
 	>
 		<Undo size={16}></Undo>
 	</Button>

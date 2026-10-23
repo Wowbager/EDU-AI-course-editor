@@ -131,7 +131,7 @@
 					</dt>
 					<dd>{Math.round(didactics.wrongOptionFeedbackShare * 100)} %</dd>
 				{/if}
-				<dt title="Podíl karet zařazených do denního opakování">Karty zařazené do cvičení</dt>
+				<dt title="Podíl karet zařazených do denního opakování">Karty zařazené do opakování</dt>
 				<dd>{Math.round(didactics.practiceShare * 100)} %</dd>
 			</dl>
 		{:else if id === 'ai'}

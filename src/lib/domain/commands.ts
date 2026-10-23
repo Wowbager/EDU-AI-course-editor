@@ -86,7 +86,7 @@ const mapStep = (
 
 const requireBlock = (doc: CourseV2, blockId: string): BlockV2 => {
 	const block = doc.blocks.find((b) => b.block_id === blockId);
-	if (block === undefined) throw new CommandError(`Blok „${blockId}“ v kurzu není.`, { blockId });
+	if (block === undefined) throw new CommandError(`Karta „${blockId}“ v kurzu není.`, { blockId });
 	return block;
 };
 
@@ -383,7 +383,7 @@ export function bindBlock(
 			return { ...lesson, blocks: renumberOrder(bindings) };
 		}),
 		ref: { lessonId, blockId },
-		description: `Blok „${blockId}“ vložen do lekce „${lessonId}“`
+		description: `Karta „${blockId}“ vložena do lekce „${lessonId}“`
 	};
 }
 
@@ -393,7 +393,7 @@ export function unbindBlock(doc: CourseV2, lessonId: string, blockId: string): C
 			...lesson,
 			blocks: renumberOrder(lesson.blocks.filter((b) => b.block_id !== blockId))
 		})),
-		description: `Blok „${blockId}“ odebrán z lekce „${lessonId}“`
+		description: `Karta „${blockId}“ odebrána z lekce „${lessonId}“`
 	};
 }
 
@@ -414,7 +414,7 @@ export function reorderBindings(
 		return { doc, description: 'Pořadí karet se nezměnilo' };
 	return {
 		doc: mapLesson(doc, lessonId, (l) => ({ ...l, blocks: renumberOrder(reordered) })),
-		description: 'Změněno pořadí bloků v lekci'
+		description: 'Změněno pořadí karet v lekci'
 	};
 }
 
@@ -452,7 +452,7 @@ export function moveBlockToLesson(
 	requireLesson(doc, toLessonId);
 	const binding = from.blocks.find((b) => b.block_id === blockId);
 	if (binding === undefined) {
-		throw new CommandError(`Blok „${blockId}“ v lekci „${fromLessonId}“ není.`, {
+		throw new CommandError(`Karta „${blockId}“ v lekci „${fromLessonId}“ není.`, {
 			lessonId: fromLessonId,
 			blockId
 		});
@@ -471,7 +471,7 @@ export function moveBlockToLesson(
 	return {
 		doc: next,
 		ref: { lessonId: toLessonId, blockId },
-		description: `Blok „${blockId}“ přesunut do lekce „${toLessonId}“`
+		description: `Karta „${blockId}“ přesunuta do lekce „${toLessonId}“`
 	};
 }
 
@@ -492,7 +492,7 @@ export function setPractice(doc: CourseV2, blockId: string, on: boolean): Comman
 		return {
 			...setField(doc, { blockId, field: 'default_practice' }, true),
 			ref,
-			description: 'Karta zařazena do cvičení'
+			description: 'Karta zařazena do opakování'
 		};
 	}
 	const cleared = <T extends { default_practice?: boolean }>(node: T): T => {
@@ -515,12 +515,12 @@ export function setPractice(doc: CourseV2, blockId: string, on: boolean): Comman
 		return bindings === lesson.blocks ? lesson : { ...lesson, blocks: bindings };
 	});
 	if (blocks === doc.blocks && lessons === doc.lessons) {
-		return { doc, ref, description: 'Karta ve cvičení není' };
+		return { doc, ref, description: 'Karta v opakování není' };
 	}
 	return {
 		doc: { ...doc, blocks, lessons },
 		ref,
-		description: 'Karta vyřazena ze cvičení'
+		description: 'Karta vyřazena z opakování'
 	};
 }
 
@@ -603,7 +603,7 @@ export function duplicateBlock(
 	return {
 		doc: next,
 		ref: { lessonId, blockId: copyId },
-		description: `Duplikován blok „${blockId}“`
+		description: `Duplikována karta „${blockId}“`
 	};
 }
 
@@ -631,7 +631,7 @@ export function deleteBlock(doc: CourseV2, blockId: string, repairs: Repair[] = 
 	);
 	if (outstanding.length > 0) {
 		throw new CommandError(
-			`Na blok „${blockId}“ odkazuje ${outstanding.length} míst(o) v kurzu. Nejdřív je přesměruj nebo zruš, jinak by žák uvízl.`,
+			`Na kartu „${blockId}“ odkazuje ${outstanding.length} míst(o) v kurzu. Nejdřív je přesměruj nebo zruš, jinak by žák uvízl.`,
 			{ blockId }
 		);
 	}
@@ -639,7 +639,7 @@ export function deleteBlock(doc: CourseV2, blockId: string, repairs: Repair[] = 
 	const repaired = applyRepairs(doc, repairs);
 	return {
 		doc: { ...repaired, blocks: repaired.blocks.filter((b) => b.block_id !== blockId) },
-		description: `Smazán blok „${blockId}“`
+		description: `Smazána karta „${blockId}“`
 	};
 }
 
@@ -651,7 +651,7 @@ export function renameBlock(
 ): CommandResult {
 	requireBlock(doc, blockId);
 	if (doc.blocks.some((b) => b.block_id === newBlockIdValue)) {
-		throw new CommandError(`Blok s id „${newBlockIdValue}“ už v kurzu je.`, { blockId });
+		throw new CommandError(`Karta s id „${newBlockIdValue}“ už v kurzu je.`, { blockId });
 	}
 
 	const next: CourseV2 = {
@@ -691,7 +691,7 @@ export function renameBlock(
 	return {
 		doc: next,
 		ref: { blockId: newBlockIdValue },
-		description: `Blok „${blockId}“ přejmenován na „${newBlockIdValue}“`
+		description: `Karta „${blockId}“ přejmenována na „${newBlockIdValue}“`
 	};
 }
 
@@ -750,7 +750,7 @@ export function duplicateStep(
 	const block = requireBlock(doc, blockId);
 	const source = block.steps.find((s) => s.id === stepId);
 	if (source === undefined)
-		throw new CommandError(`Krok „${stepId}“ v bloku není.`, { blockId, stepId });
+		throw new CommandError(`Krok „${stepId}“ v kartě není.`, { blockId, stepId });
 
 	const id = nextStepId(block.steps, blockId, reserved);
 	const copy: BlockStep = deepCopy(source);
@@ -780,7 +780,7 @@ export function deleteStep(
 ): CommandResult {
 	const block = requireBlock(doc, blockId);
 	if (!block.steps.some((s) => s.id === stepId)) {
-		throw new CommandError(`Krok „${stepId}“ v bloku není.`, { blockId, stepId });
+		throw new CommandError(`Krok „${stepId}“ v kartě není.`, { blockId, stepId });
 	}
 	const outstanding = planDeleteStep(doc, blockId, stepId).filter(
 		(reference) => !repairs.some((r) => sameReference(r.reference, reference))

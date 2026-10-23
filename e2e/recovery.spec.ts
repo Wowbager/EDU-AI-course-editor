@@ -75,7 +75,7 @@ test('typing groups undo, Escape cancels, and redo is saved', async ({ page }) =
 	await field.press('Escape');
 	await expect(field).toHaveValue('Moje lekce');
 	await field.blur();
-	await page.getByRole('button', { name: 'Zpět', exact: true }).click();
+	await page.getByRole('button', { name: 'Vrátit', exact: true }).click();
 	await expect(field).toHaveValue('Nový kurz');
 	await page.getByRole('button', { name: 'Vpřed', exact: true }).click();
 	await expect(saved(page)).toBeVisible();

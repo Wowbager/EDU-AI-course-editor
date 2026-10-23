@@ -349,13 +349,13 @@
 			-->
 			<Chip
 				tone="quiet"
-				title="Karta je zařazená do denního opakování (Cvičení) — žák ji dostane znovu podle plánu opakování. S typem karty to nesouvisí; zapíná se v Nastavení karty."
+				title="Karta je zařazená do denního opakování — žák ji dostane znovu podle plánu opakování. S typem karty to nesouvisí; zapíná se v Nastavení karty."
 			>
 				Opakování
 			</Chip>
 		{/if}
 		{#if sharedWith > 1}
-			<Chip tone="warning" title="Blok je i v jiné lekci — úprava se projeví všude">
+			<Chip tone="warning" title="Karta je i v jiné lekci — úprava se projeví všude">
 				Sdílený: {counted(sharedWith, 'lekce', 'lekce', 'lekcí')}
 			</Chip>
 		{/if}
