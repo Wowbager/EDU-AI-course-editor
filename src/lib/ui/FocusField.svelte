@@ -98,6 +98,8 @@
 					onchange(lastEmitted);
 					// A field already left before hydration will never blur: its session ends
 					// here, and the text goes back to what the document holds (issue #18).
+					// No `beginEdit` was made for this text, so there is no `endEdit` to owe;
+					// `onblur` only tells the caller its field is no longer being typed in.
 					if (document.activeElement !== element) {
 						onblur?.();
 						void tick().then(() => {

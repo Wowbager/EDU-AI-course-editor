@@ -263,6 +263,7 @@
 					max="100"
 					step="5"
 					aria-label="Požadované zvládnutí v procentech"
+					data-undo="course"
 					value={percent(rule.min_level)}
 					onchange={(e) => setLevel(index, e.currentTarget)}
 				/>

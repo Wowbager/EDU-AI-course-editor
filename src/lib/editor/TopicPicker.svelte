@@ -363,6 +363,7 @@
 									min={ELO_MIN}
 									max={ELO_MAX}
 									step="0.5"
+									data-undo="course"
 									placeholder={`výchozí ${ELO_BASELINE}`}
 									value={topic.elo}
 									onchange={(e) => {

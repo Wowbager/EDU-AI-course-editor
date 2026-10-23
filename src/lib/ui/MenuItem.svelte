@@ -88,12 +88,10 @@
 		cursor: default;
 	}
 
-	.menu-item.danger {
-		color: var(--e-error-text);
-	}
-
+	/* Quiet at rest; red only once it is about to happen (DESIGN principle 3). */
 	.menu-item.danger:hover:not(:disabled),
 	.menu-item.danger:focus-visible {
 		background: var(--e-error-bg);
+		color: var(--e-error-text);
 	}
 </style>

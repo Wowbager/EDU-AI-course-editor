@@ -34,6 +34,20 @@ export function firstField(item: Element | null | undefined): HTMLElement | null
 const itemsOf = (list: ParentNode | null | undefined, selector: string) =>
 	list == null ? [] : [...list.querySelectorAll(selector)];
 
+/**
+ * Focus `field` and make sure it is not hugging an edge: a field the browser scrolled
+ * just into view sits clipped under the bottom of the column, so one within a margin of
+ * the window's edge is centred instead.
+ */
+function focusAndReveal(field: HTMLElement | null) {
+	if (field === null) return;
+	field.focus();
+	const box = field.getBoundingClientRect();
+	const margin = 72;
+	if (box.top < margin || box.bottom > window.innerHeight - margin)
+		field.scrollIntoView({ block: 'center' });
+}
+
 /** The item now at `index` (counted from the end when negative) gets focus. */
 export async function focusAdded(
 	list: ParentNode | null | undefined,
@@ -42,7 +56,7 @@ export async function focusAdded(
 ) {
 	await tick();
 	const items = itemsOf(list, itemSelector);
-	firstField(items.at(index < 0 ? index : Math.min(index, items.length - 1)))?.focus();
+	focusAndReveal(firstField(items.at(index < 0 ? index : Math.min(index, items.length - 1))));
 }
 
 /**

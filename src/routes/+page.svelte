@@ -414,13 +414,15 @@
 	 * that writes into the course as it is typed (the formula row) says
 	 * `data-undo="course"` and keeps the course's undo.
 	 */
-	const typesPlainText = (target: EventTarget | null) =>
-		(!(target instanceof Element && target.closest('[data-undo="course"]')) &&
-			target instanceof HTMLTextAreaElement &&
-			!target.readOnly) ||
-		(target instanceof HTMLInputElement &&
+	const typesPlainText = (target: EventTarget | null) => {
+		if (target instanceof Element && target.closest('[data-undo="course"]')) return false;
+		if (target instanceof HTMLTextAreaElement) return !target.readOnly;
+		return (
+			target instanceof HTMLInputElement &&
 			!target.readOnly &&
-			['text', 'search', 'number', 'url', 'email', 'tel', 'password'].includes(target.type));
+			['text', 'search', 'number', 'url', 'email', 'tel', 'password'].includes(target.type)
+		);
+	};
 
 	/** Whether the keys go into a text: a field, a menu of choices, or the Markdown editor. */
 	const typing = (target: EventTarget | null) =>

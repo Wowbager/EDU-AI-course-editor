@@ -183,6 +183,7 @@
 						max="100"
 						step="5"
 						aria-label={`Váha výstupu ${key}`}
+						data-undo="course"
 						{value}
 						onchange={(e) => reweight(key, e.currentTarget)}
 					/>

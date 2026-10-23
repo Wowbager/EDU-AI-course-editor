@@ -453,8 +453,7 @@
 				icon={Trash}
 				danger
 				onclick={() => {
-					actions.remove(block.block_id, lessonId);
-					void focusSelectedCard();
+					if (actions.remove(block.block_id, lessonId)) void focusSelectedCard();
 				}}
 				title="Smaže kartu z celého kurzu; jde vrátit zpět. Míří-li na ni odkaz odjinud, nejdřív se zeptá, kam má vést."
 			>

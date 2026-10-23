@@ -535,7 +535,7 @@
 	class:targeted
 	class:collapsed
 	class:folding-to-drag={stepView.dragging}
-	style:--folded-height="{headerHeight + FOLDED_CHROME}px"
+	style:--folded-height={headerHeight > 0 ? `${headerHeight + FOLDED_CHROME}px` : undefined}
 >
 	<header bind:offsetHeight={headerHeight}>
 		<button

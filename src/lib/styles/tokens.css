@@ -160,7 +160,7 @@
 
 	--e-text: var(--primary-dark);
 	/* Muted and faint text clear WCAG AA (4.5:1) on the page and card backgrounds (#52). */
-	--e-text-muted: var(--primary-dark-80);
+	--e-text-muted: var(--primary-dark-88);
 	--e-text-faint: var(--primary-dark-72);
 	/* The brand purple, darkened to 4.5:1 on the accent chip's tint (#52). */
 	--e-accent-text: #745db7;
@@ -187,7 +187,7 @@
 	--e-ok: var(--success);
 	--e-ok-bg: var(--success-bg);
 	/* The same three as text: darkened to 4.5:1 on white and on their own tints (#52). */
-	--e-error-text: #c62828;
+	--e-error-text: #b3261e;
 	--e-warning-text: #a35700;
 	--e-ok-text: #1b7a52;
 }

@@ -91,3 +91,27 @@ test('an added card is focused in the list, and a deleted one hands focus to its
 	await expect(page.locator('.tree-card')).toHaveCount(1);
 	await expect(page.locator('.tree-card')).toBeFocused();
 });
+
+test('Shift+Enter in the last answer only ends the edit', async ({ page }) => {
+	await page.locator('.tree-add').getByRole('button', { name: 'Otázka', exact: true }).click();
+	const rows = page.locator('main .answers .rows > .row');
+	const count = await rows.count();
+	await rows.last().getByRole('textbox', { name: 'Text odpovědi' }).click();
+	await page.keyboard.type('Poslední');
+	await page.keyboard.press('Shift+Enter');
+	await expect(rows).toHaveCount(count);
+});
+
+test('an added step is not left clipped at the bottom of the window', async ({ page }) => {
+	await page.setViewportSize({ width: 1280, height: 520 });
+	await exerciseCard(page);
+	for (const kind of ['Text', 'Text', 'Otázka'] as const) await addStep(page, kind);
+	const field = page.locator('main .step-wrap').last().locator(':focus');
+	await expect(field).toHaveCount(1);
+	await expect
+		.poll(async () => {
+			const box = await field.boundingBox();
+			return box !== null && box.y >= 0 && box.y + box.height <= 520 - 40;
+		})
+		.toBe(true);
+});

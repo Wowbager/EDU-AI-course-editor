@@ -133,9 +133,10 @@
 					else store.undo();
 				},
 				onescape: revert,
-				onenter: () => {
+				onenter: (shift) => {
 					rich?.editor.commands.blur();
-					onenter?.();
+					// Shift+Enter only ends the edit, as it always did.
+					if (!shift) onenter?.();
 				}
 			});
 			ready = true;
