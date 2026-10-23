@@ -2729,6 +2729,58 @@ here); branching on Výklad cards (the app honours `go_to` there); a script that
 the keys the app parses at `PLAYER_REF`, so `unread` flags are checked against the app
 rather than against hand-kept spec markers.
 
+## Round 24 — the owner's answers to the open list
+
+The owner went through every open question and every app-side problem, explained without
+jargon, and answered them. Where an answer was "use your recommendation", the
+recommendation is what is recorded.
+
+**Decided, nothing to build.**
+- **No sign-in for now.** Versions stay per browser. The app's developers should give the
+  editor an easy way to reuse the app's sign-in (issue #19). The mode stays the
+  teacher's own choice, not a role. "Still open" 2 and 3 wait on that issue.
+- **Publishing a Cvičení or Test, and image upload for teachers (#56, #48):** not a
+  problem while most users are admins. They wait for sign-in.
+- **The Opakování fields stay** although the app reads other keys (#14): they are in the
+  V2 schema and may be used later. Their hints say plainly which ones the app uses
+  today (#44, #41).
+- **The app is work in progress.** Its defects (#17, #19, #20, #49, #50, #57, G, #9) are
+  assumed to be fixed there. The editor does not copy an app bug to match it; Náhled
+  showing the app's quirk is fine (#55).
+- **RVP → GPF mapping (Still open 1): dropped.** The subconstruct picker stays the way
+  in; the manual „Výstupy RVP“ list stays (a schema field).
+- **Codes stay in Pokročilý** (#43): step ids, ids in „Kam dál“, GPF codes. Učitel and
+  Metodik never show them.
+- **Folding stays per session (#11); re-export key order stays canonical (#5).**
+
+**Built.**
+- „Duplikovat lekci“ copies the cards (#4): one button, no question. Jumps and
+  prerequisites between the lesson's own cards follow the copies.
+- A plain line that starts like a list shows as typed in the editor; the stored form is
+  unchanged (#55).
+- New step ids are `s` + random digits, so a reopened course never re-mints one (Still
+  open 5). Duplicate answer ids block export (Still open 6).
+- A Test without evaluation does not ask for solutions or answer feedback (#25,
+  `domain/course-feedback.ts`). The "?" reach follows the app for cards graded in one
+  tap, judged per exported block (#54, `domain/hint-reach.ts`).
+- Vyzkoušet: an XP counter beside Náhled / Vyzkoušet and a small overview when the run
+  ends (Still open 9, `domain/run.ts`). Known limits: #26.
+- Course subtitle and badge (Pokročilý); the validation panel closes on Escape, keeps a
+  hidden warning hidden until the issues change, and says „zveřejnit“ (#32).
+- Plain bugs: #22 (already fixed, now guarded), #28, #30, #31, #37, #46, #52, #53, #58,
+  #59, #60, issues #8, #13, #14, #18.
+
+*Rejected:* changing a card's type (#35). The card's menu has five actions, and the
+owner judges that enough.
+
+**Waits for the owner.** „Kam dál“ on a Výklad card: the app reads a step-level
+`go_to` (`block_model.dart`), but the format spec lists `go_to` only on options. That
+needs a format decision first.
+
+**Changed without asking.** The status „Publikováno“ reads „Zveřejněno“; a menu follows
+its button while the column scrolls instead of closing; the image and formula rows
+close when the selection moves away.
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today
@@ -2757,30 +2809,11 @@ citation still resolves. `0` is one of the numbers, not a placeholder.
    nothing is left to reconcile — kept here because `AGENTS.md` and the tidy's
    post-mortem both point at it.
 
-1. **RVP → GPF mapping table (M6)** — *question for the owner.* The GPF taxonomy is now
-   wired (below), but the mapping from a *RVP outcome* to competencies and a starting
-   vector is a different table, and the plan says to ask rather than invent it. Where
-   does it come from, and who maintains it? Until then the didactic front door is the
-   subconstruct picker.
-2. **Publish (M7)** — *blocker, on the auth question.* `POST /api/courses/upload` is
-   implemented in `api/client.ts` against the shape the Laravel controller accepts
-   (whole document as the body; version must be strictly higher than the stored one).
-   It is **not wired to a button** yet, because the auth question below is unanswered.
-   What "Zveřejnit" does today is recorded in `OPEN-PROBLEMS.md` (publish marks and
-   downloads; the upload half waits for sign-in).
-3. **Auth and roles** — *question for the owner.* The client assumes a same-origin
-   `/api` proxy carrying the session cookie, the pattern the admin uses. Confirm, and
-   say whether teacher/author mode is role-driven from the API or a local setting
-   (§9.5). It is currently a local toggle.
-5. **Id reuse beyond a session** — *question for the owner: this is a format question,
-   not an editor one.* The editor now refuses to re-mint an id it has handed out, but
-   only while the document is open. Reopening a course and deleting the last step of a
-   block can still produce a fresh `s1` that a student's old answer is keyed to. Solving
-   it properly needs somewhere to record the high-water mark; nothing in `CourseV2`
-   currently holds one.
-6. **`W_DUPLICATE_OPTION_ID`** — *question for the owner.* A check §14 does not list,
-   added as a warning rather than an error to avoid inventing a blocking rule. Confirm
-   which it should be.
+1. **RVP → GPF mapping table (M6)** — *closed in Round 24:* dropped by the owner.
+2. **Publish (M7)** — *blocker:* waits for sign-in, which waits for the app (issue #19). `api/client.ts` has the upload; no button is wired.
+3. **Auth and roles** — *closed in Round 24:* no editor login; the app's developers are asked for a shared sign-in (issue #19). The mode stays a personal choice.
+5. **Id reuse beyond a session** — *closed in Round 24:* new step ids are random (`ids.ts`).
+6. **`W_DUPLICATE_OPTION_ID`** — *closed in Round 24:* now the error `E_DUPLICATE_OPTION_ID`.
 7. **`relation_vector: 1` is inert in the app** — *settled in Round 23:* the editor
    and both specs now say so; the old text follows. The authoring spec defines it
    as a reduced-weight update (`elo_engine.dart:122`); the engine does not read it.
@@ -2797,9 +2830,7 @@ citation still resolves. `0` is one of the numbers, not a placeholder.
    right now a course can promise one number and award another. **Teacher-visible, so
    the fuller write-up (including the mode-to-mode total it shifts) is
    `OPEN-PROBLEMS.md` 15**; this entry is the question, that one is the defect.
-9. **A run's result is computed and thrown away.** `bridge.reset()`, `onstepChanged`
-   and `oncompleted` are wired to nothing, so the XP, score and mark that *Vyzkoušet*
-   produces never reach the author. They are the obvious thing to show after a run.
+9. **A run's result is computed and thrown away.** *Closed in Round 24:* Vyzkoušet shows XP and an overview (`domain/run.ts`).
 10. **`PreviewMode.sideEffectsSuppressed` guards nothing.** *Fork.* It is referenced
     nowhere in `lib/`; safety currently rests entirely on `PreviewPage` handing the
     engine inert callbacks. It stays as the documented pattern for a write that does not
