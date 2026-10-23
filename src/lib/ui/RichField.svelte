@@ -53,6 +53,8 @@
 		onchange: (value: string | undefined) => void;
 		/** The teacher left the field. */
 		onblur?: () => void;
+		/** Enter in a one-line field, after it has ended the edit (the field blurs first). */
+		onenter?: () => void;
 		ref?: Ref;
 		describedby?: string;
 	}
@@ -66,11 +68,38 @@
 		invalid = false,
 		onchange,
 		onblur,
+		onenter,
 		ref,
 		describedby
 	}: Props = $props();
 
 	const store = useStore();
+
+	/** Whether a pointer button is down anywhere on the page (see `onfocusout`). */
+	let pointerIsDown = false;
+	const afterPointer = (run: () => void) => {
+		const done = () => {
+			window.removeEventListener('pointerup', done, true);
+			window.removeEventListener('pointercancel', done, true);
+			// After the click that follows the release has been dispatched.
+			setTimeout(run, 0);
+		};
+		window.addEventListener('pointerup', done, true);
+		window.addEventListener('pointercancel', done, true);
+	};
+	$effect(() => {
+		const down = () => (pointerIsDown = true);
+		const up = () => (pointerIsDown = false);
+		window.addEventListener('pointerdown', down, true);
+		window.addEventListener('pointerup', up, true);
+		window.addEventListener('pointercancel', up, true);
+		return () => {
+			window.removeEventListener('pointerdown', down, true);
+			window.removeEventListener('pointerup', up, true);
+			window.removeEventListener('pointercancel', up, true);
+		};
+	});
+
 	const inline = untrack(() => dialect.inline === true);
 
 	let wrapper = $state<HTMLElement | null>(null);
@@ -121,7 +150,7 @@
 				onrefused: (message) => (refused = message),
 				onstate: (transaction) => {
 					tick++;
-					followFormula(transaction);
+					followRows(transaction);
 				},
 				onundo: (redo) => {
 					// The run ends here; what is typed after the undo is a run of its own.
@@ -130,7 +159,11 @@
 					else store.undo();
 				},
 				onescape: revert,
-				onenter: () => rich?.editor.commands.blur()
+				onenter: (shift) => {
+					rich?.editor.commands.blur();
+					// Shift+Enter only ends the edit, as it always did.
+					if (!shift) onenter?.();
+				}
 			});
 			ready = true;
 		});
@@ -168,8 +201,18 @@
 		onblur?.();
 	}
 
-	function onfocusin() {
+	function onfocusin(event: FocusEvent) {
 		focused = true;
+		// Focus coming back into the text from the image row is leaving the row, even when
+		// the click lands where the caret already was and no transaction follows.
+		if (imagePanel !== null && event.target instanceof Node && host?.contains(event.target))
+			imagePanel = null;
+	}
+
+	function finishLeaving() {
+		if (wrapper?.contains(document.activeElement)) return;
+		focused = false;
+		leave();
 	}
 
 	function onfocusout(event: FocusEvent) {
@@ -179,8 +222,11 @@
 		// the browser has settled where it went.
 		queueMicrotask(() => {
 			if (wrapper?.contains(document.activeElement)) return;
-			focused = false;
-			leave();
+			// A press that took the focus away has not ended yet. The toolbar going now
+			// would shift what is under the pointer, and the release would land on
+			// something else: the click on „Přidat krok“ right after typing was lost.
+			if (pointerIsDown) afterPointer(finishLeaving);
+			else finishLeaving();
 		});
 	}
 
@@ -314,6 +360,17 @@
 		if (mathPos === null || transaction.getMeta(FORMULA_ROW)) return;
 		mathPos = transaction.mapping.map(mathPos);
 		if (transaction.selectionSet || transaction.docChanged) closeMath(false);
+	}
+
+	/**
+	 * One rule for every inline row (OPEN-PROBLEMS #58): a transaction that moves the
+	 * selection or changes the text is the teacher leaving it. The image row's own focus
+	 * is outside the editor, so a click back into the text reaches here, not `onfocusout`.
+	 */
+	function followRows(transaction: Transaction) {
+		followFormula(transaction);
+		if (imagePanel !== null && (transaction.selectionSet || transaction.docChanged))
+			imagePanel = null;
 	}
 
 	function mathKeys(event: KeyboardEvent) {
@@ -461,6 +518,7 @@
 						bind:value={mathLatex}
 						rows={mathDisplay ? 2 : 1}
 						spellcheck="false"
+						data-undo="course"
 						oninput={updateMath}
 						onkeydown={mathKeys}></textarea>
 				</label>
@@ -941,7 +999,7 @@
 	.text-button.primary {
 		background: var(--primary);
 		border-color: var(--primary);
-		color: var(--on-primary, #fff);
+		color: var(--e-text);
 	}
 	.text-button:disabled {
 		opacity: 0.5;
@@ -962,10 +1020,10 @@
 		color: var(--e-text-muted);
 	}
 	.note.error {
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 	.note.warning {
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 	}
 	.disabled {
 		background: none;

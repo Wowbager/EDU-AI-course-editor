@@ -16,6 +16,7 @@
  * build stage, with no bundler or `ts-node` available there.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
+import { IMAGE_EXTENSIONS } from './image-extensions.mjs';
 
 export const SHIM_START = '<!-- edu-preview-image-shim:start -->';
 export const SHIM_END = '<!-- edu-preview-image-shim:end -->';
@@ -23,6 +24,17 @@ export const SHIM_END = '<!-- edu-preview-image-shim:end -->';
 /** @param {string} literal @returns {string} */
 function escapeRegExp(literal) {
 	return literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * The shim with its `__IMAGE_EXTENSIONS__` placeholder replaced by the shared list.
+ * A source without the placeholder comes back as it was.
+ *
+ * @param {string} shimSource
+ * @returns {string}
+ */
+export function fillShim(shimSource) {
+	return shimSource.replace('__IMAGE_EXTENSIONS__', IMAGE_EXTENSIONS.join('|'));
 }
 
 /**
@@ -45,7 +57,7 @@ function escapeRegExp(literal) {
  */
 export function injectPlayerShim(html, shimSource) {
 	html = dropSignInScripts(dropExternalScripts(html));
-	const block = `${SHIM_START}\n<script>\n${shimSource}\n</script>\n${SHIM_END}`;
+	const block = `${SHIM_START}\n<script>\n${fillShim(shimSource)}\n</script>\n${SHIM_END}`;
 	const existing = new RegExp(`${escapeRegExp(SHIM_START)}[\\s\\S]*?${escapeRegExp(SHIM_END)}`);
 	if (existing.test(html)) {
 		return html.replace(existing, block);

@@ -145,11 +145,11 @@
 	}
 
 	h3.error {
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 
 	h3.warning {
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 	}
 
 	ul {
@@ -206,7 +206,7 @@
 
 	.close:hover,
 	.dismiss:hover {
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 
 	.held {
@@ -220,7 +220,7 @@
 
 	.clean {
 		margin: 12px 0;
-		color: var(--e-ok);
+		color: var(--e-ok-text);
 		font-size: var(--text-m);
 	}
 </style>

@@ -12,6 +12,7 @@
 	import type { BlockV2 } from '$lib/domain/schema';
 	import { Plus, Trash2 } from '@lucide/svelte';
 	import { tick } from 'svelte';
+	import { countOf, focusAdded, focusAfterDelete } from '$lib/ui/focus-after';
 	import Chip from '$lib/ui/Chip.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import { useStore } from '$lib/ui/context';
@@ -67,24 +68,36 @@
 		}
 		problem = '';
 		write({ ...(block.learning?.competencies ?? {}), [trimmed]: value });
-		cancel();
+		cancel(false);
+		void focusAdded(section, ITEMS, -1);
 	}
 
-	function cancel() {
+	let section = $state<HTMLElement | null>(null);
+	const ITEMS = ':scope > ul > li';
+
+	/** The form goes, and with it the focus: it returns to the button that opened it. */
+	function cancel(refocus = true) {
 		adding = false;
 		code = '';
 		weight = '50';
 		problem = '';
+		if (refocus)
+			void tick().then(() => section?.querySelector<HTMLElement>(':scope > button')?.focus());
 	}
 
 	function remove(key: string) {
 		problem = '';
 		const next = { ...(block.learning?.competencies ?? {}) };
 		delete next[key];
+		const before = countOf(section, ITEMS);
+		const index = Object.keys(block.learning?.competencies ?? {}).indexOf(key);
 		withUndoNotice(store, 'Výstup odebrán.', () => write(next), {
 			lessonId: store.selection?.lessonId,
 			blockId: block.block_id
 		});
+		void focusAfterDelete(section, ITEMS, index, before, () =>
+			section?.querySelector<HTMLElement>(':scope > button')
+		);
 	}
 
 	function reweight(key: string, input: HTMLInputElement) {
@@ -124,7 +137,7 @@
 	}
 </script>
 
-<section class="competencies">
+<section class="competencies" bind:this={section}>
 	<header>
 		<span class="title">Výstupy RVP</span>
 		<!-- ⚪ in COURSE-EDITOR-SPEC §6.4: stored and exported, read by nothing yet. -->
@@ -170,6 +183,7 @@
 						max="100"
 						step="5"
 						aria-label={`Váha výstupu ${key}`}
+						data-undo="course"
 						{value}
 						onchange={(e) => reweight(key, e.currentTarget)}
 					/>
@@ -216,7 +230,7 @@
 			/>
 			<span class="unit">%</span>
 			<Button variant="secondary" size="s" onclick={add}>Přidat</Button>
-			<Button variant="ghost" size="s" onclick={cancel}>Zrušit</Button>
+			<Button variant="ghost" size="s" onclick={() => cancel()}>Zrušit</Button>
 		</div>
 	{:else}
 		<Button variant="secondary" size="s" onclick={() => (adding = true)}>
@@ -288,7 +302,7 @@
 
 	.problem {
 		margin: 0;
-		color: var(--e-error);
+		color: var(--e-error-text);
 		font-size: var(--text-xs);
 	}
 
@@ -326,6 +340,6 @@
 
 	.remove:hover,
 	.remove:focus-visible {
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 </style>

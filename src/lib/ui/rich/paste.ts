@@ -8,6 +8,7 @@
  * sizes) before the schema has to guess.
  */
 import { looksLikeMarkdown } from '$lib/domain/markdown';
+import { IMAGE_EXTENSIONS } from '../../../../scripts/image-extensions.mjs';
 
 const BOLD = /font-weight\s*:\s*(bold|[6-9]00)/i;
 const NOT_BOLD = /font-weight\s*:\s*(normal|[1-5]00)/i;
@@ -18,7 +19,10 @@ const STRIKE = /text-decoration[^;]*line-through/i;
 export const isImageAddress = (url: string) => /^https:\/\/\S+$/i.test(url.trim());
 
 /** A pasted line that is only an image's address. */
-export const IMAGE_URL = /^https:\/\/\S+\.(png|jpe?g|gif|webp|svg|avif)(\?\S*)?$/i;
+export const IMAGE_URL = new RegExp(
+	`^https://\\S+\\.(${IMAGE_EXTENSIONS.join('|')})(\\?\\S*)?$`,
+	'i'
+);
 
 export function cleanPastedHtml(html: string): string {
 	const parsed = new DOMParser().parseFromString(html, 'text/html');

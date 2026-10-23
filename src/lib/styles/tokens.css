@@ -159,8 +159,11 @@
 	--e-gap: 12px;
 
 	--e-text: var(--primary-dark);
-	--e-text-muted: var(--primary-dark-64);
-	--e-text-faint: var(--primary-dark-48);
+	/* Muted and faint text clear WCAG AA (4.5:1) on the page and card backgrounds (#52). */
+	--e-text-muted: var(--primary-dark-88);
+	--e-text-faint: var(--primary-dark-72);
+	/* The brand purple, darkened to 4.5:1 on the accent chip's tint (#52). */
+	--e-accent-text: #745db7;
 	--e-border: var(--primary-dark-12);
 	--e-border-strong: var(--primary-dark-24);
 	--e-focus-ring: var(--gradient-purple);
@@ -183,4 +186,8 @@
 	--e-warning-bg: var(--hint-bg);
 	--e-ok: var(--success);
 	--e-ok-bg: var(--success-bg);
+	/* The same three as text: darkened to 4.5:1 on white and on their own tints (#52). */
+	--e-error-text: #b3261e;
+	--e-warning-text: #a35700;
+	--e-ok-text: #1b7a52;
 }

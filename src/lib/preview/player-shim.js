@@ -38,6 +38,10 @@
 (function () {
 	'use strict';
 
+	// The extensions that mark an address as a picture, from `scripts/image-extensions.mjs`
+	// (the same list the editor's paste rule uses); `inject-player-shim.mjs` fills it in.
+	var IMAGE_EXTENSIONS = '__IMAGE_EXTENSIONS__';
+
 	/**
 	 * If `rawUrl` is a call to the Laravel image proxy (`.../api/proxy/image?url=…`,
 	 * absolute or relative, any origin), returns the equivalent same-origin
@@ -69,9 +73,10 @@
 	 * address on another origin, for an image file — goes to `/preview-image` too.
 	 */
 	function rewriteDirectImageUrl(rawUrl) {
-		var match = /^https:\/\/([^/?#]+)[^?#]*\.(png|jpe?g|gif|webp|svg|avif|bmp)(?:[?#].*)?$/i.exec(
-			rawUrl
-		);
+		var match = new RegExp(
+			'^https://([^/?#]+)[^?#]*\\.(' + IMAGE_EXTENSIONS + ')(?:[?#].*)?$',
+			'i'
+		).exec(rawUrl);
 		if (!match) return null;
 		try {
 			if (typeof location !== 'undefined' && location.host === match[1]) return null;
