@@ -104,6 +104,17 @@ test('a paste from Google Docs keeps its bold and lists, and drops its fonts', a
 	expect(await markdownOf(page)).toBe('Pizza má **8 dílků**\n\n* *jeden*\n* dva');
 });
 
+test('the image row closes when the teacher clicks back into the text', async ({ page }) => {
+	await text(page).click();
+	await page.keyboard.type('Kruh: ');
+	await toolbar(page).getByRole('button', { name: 'Obrázek' }).click();
+	const address = page.getByRole('textbox', { name: 'Webová adresa obrázku' });
+	await expect(address).toBeVisible();
+	// A click into the text, away from where the caret is.
+	await text(page).click({ position: { x: 4, y: 8 } });
+	await expect(address).toHaveCount(0);
+});
+
 test('pasted Markdown text is read as Markdown', async ({ page }) => {
 	await text(page).click();
 	await paste(page, { 'text/plain': '## Postup\n\n1. **Najdi** jmenovatel\n2. Sečti $a+b$' });

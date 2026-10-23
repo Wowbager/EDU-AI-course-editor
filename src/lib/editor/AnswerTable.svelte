@@ -38,6 +38,7 @@
 	import { MIN_CHOICE_OPTIONS } from '$lib/domain/validate';
 	import { Check, ChevronRight, CornerDownRight, GripVertical, Plus, Trash } from '@lucide/svelte';
 	import { withUndoNotice } from './undo-notice';
+	import { countOf, focusAdded, focusAfterDelete } from '$lib/ui/focus-after';
 
 	interface Props {
 		doc: CourseV2;
@@ -340,6 +341,39 @@
 			}
 		}
 	}
+
+	const ROWS = ':scope > .row';
+
+	/** A new answer at the end of the list; its text is where the author writes next. */
+	function addAnswer() {
+		store.apply((d) => addOption(d, block.block_id, step.id));
+		void focusAdded(rowsEl, ROWS, -1);
+	}
+
+	/** Enter in the last answer adds the next one, unless that one is still empty. */
+	function enterIn(index: number) {
+		if (fixedOptions || index !== options.length - 1 || !options[index].text.trim()) return;
+		addAnswer();
+	}
+
+	function remove(optionId: string, index: number) {
+		const before = countOf(rowsEl, ROWS);
+		withReachNotice('', () =>
+			withUndoNotice(
+				store,
+				'Odpověď smazána.',
+				() => store.apply((d) => deleteOption(d, block.block_id, step.id, optionId)),
+				{
+					lessonId: store.selection?.lessonId,
+					blockId: block.block_id,
+					stepId: step.id
+				}
+			)
+		);
+		void focusAfterDelete(rowsEl, ROWS, index, before, () =>
+			rowsEl?.closest('.answers')?.querySelector<HTMLElement>('.add button')
+		);
+	}
 </script>
 
 {#snippet cutOffLine(text: string)}
@@ -420,6 +454,7 @@
 						value={option.text}
 						emptyText="Napiš odpověď…"
 						onchange={(v) => set(option.id, 'text', v ?? '')}
+						onenter={() => enterIn(i)}
 						disabled={fixedOptions}
 						ref={ref(option.id, 'text')}
 					/>
@@ -489,19 +524,7 @@
 									? 'Otázka potřebuje aspoň dvě odpovědi, ze kterých žák vybírá'
 									: 'Smazat odpověď'}
 								ariaLabel={`Smazat odpověď ${option.text || 'bez textu'}`}
-								onclick={() =>
-									withReachNotice('', () =>
-										withUndoNotice(
-											store,
-											'Odpověď smazána.',
-											() => store.apply((d) => deleteOption(d, block.block_id, step.id, option.id)),
-											{
-												lessonId: store.selection?.lessonId,
-												blockId: block.block_id,
-												stepId: step.id
-											}
-										)
-									)}
+								onclick={() => remove(option.id, i)}
 							>
 								<Trash size={14}></Trash>
 							</Button>
@@ -565,11 +588,7 @@
 
 	{#if !fixedOptions}
 		<div class="add">
-			<Button
-				variant="secondary"
-				size="s"
-				onclick={() => store.apply((d) => addOption(d, block.block_id, step.id))}
-			>
+			<Button variant="secondary" size="s" onclick={addAnswer}>
 				<Plus size={14} />
 				Další odpověď
 			</Button>
@@ -758,7 +777,7 @@
 	.cut-off {
 		margin: 4px 0 0;
 		padding: 0 6px;
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 		font-size: var(--text-xs);
 	}
 
@@ -961,18 +980,18 @@
 	.trash :global(.btn:hover:not(:disabled)) {
 		border-color: var(--e-error);
 		background: var(--e-error-bg);
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 
 	.list-issue {
 		margin: 4px 0 0;
 		padding-left: 8px;
-		color: var(--e-error);
+		color: var(--e-error-text);
 		font-size: var(--text-xs);
 	}
 
 	.list-issue.warning {
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 	}
 
 	.add {

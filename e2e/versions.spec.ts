@@ -112,3 +112,15 @@ test('the metodik gets the editorial states, and they wrap on a narrow screen', 
 	await expect(group.getByRole('radio')).toHaveCount(6);
 	await expect(group.getByRole('radio', { name: 'K revizi' })).toBeVisible();
 });
+
+test('Ctrl+Z in the version note undoes the typed note, not the course', async ({ page }) => {
+	await page.locator('header .version').click();
+	const dialog = page.getByRole('dialog', { name: 'Verze kurzu' });
+	const note = dialog.getByRole('textbox', { name: 'Poznámka k verzi' });
+	await note.click();
+	await page.keyboard.type('první verze');
+	await page.keyboard.press('Control+z');
+	await expect(note).not.toHaveValue('první verze');
+	await page.keyboard.press('Escape');
+	await expect(page.locator('.rich-content').first()).toContainText('Fotosyntéza je proces');
+});

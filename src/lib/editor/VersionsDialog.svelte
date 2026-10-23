@@ -393,11 +393,11 @@
 	}
 
 	.message.error {
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 
 	.message.warning {
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 	}
 
 	.link {

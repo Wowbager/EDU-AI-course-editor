@@ -56,7 +56,7 @@ export interface RichEditorOptions {
 	/** Escape: whether the field took it (to revert the run of typing). */
 	onescape: () => boolean;
 	/** Enter in a one-line field. */
-	onenter?: () => void;
+	onenter?: (shift: boolean) => void;
 }
 
 const EXTERNAL = 'external-value';
@@ -133,7 +133,7 @@ export function createRichEditor(options: RichEditorOptions) {
 					}
 				}
 				if (event.key === 'Enter' && dialect.inline) {
-					options.onenter?.();
+					options.onenter?.(event.shiftKey);
 					return true;
 				}
 				return false;

@@ -16,6 +16,7 @@
 	 * whichever of the two is showing.
 	 */
 	import { tick } from 'svelte';
+	import { focusSelectedCard } from '$lib/ui/focus-after';
 	import { dndzone, type DndEvent } from 'svelte-dnd-action';
 	import { Plus, Settings } from '@lucide/svelte';
 	import type { CourseV2, LessonBlockBinding } from '$lib/domain/schema';
@@ -253,7 +254,13 @@
 		closePeek();
 		if (!inside) return;
 		void tick().then(() => {
-			if (document.querySelector('dialog[open]') === null) anchors[key]?.focus();
+			if (document.querySelector('dialog[open]') !== null) return;
+			// An action that renumbers the card's blocks (issue #8: „Všechny otázky v jedné
+			// kartě“ in Pokročilý) leaves the tile it came from gone: the selected one is it.
+			const tile = anchors[key]?.isConnected
+				? anchors[key]
+				: document.querySelector<HTMLElement>('.rail-tile[aria-current="true"]');
+			tile?.focus();
 		});
 	}
 
@@ -417,8 +424,10 @@
 											caption
 											onsettings={() =>
 												run(key, () => actions.settings(lesson.lesson_id, block.block_id))}
-											onduplicate={() =>
-												run(key, () => actions.duplicate(block.block_id, lesson.lesson_id))}
+											onduplicate={() => {
+												run(key, () => actions.duplicate(block.block_id, lesson.lesson_id));
+												void focusSelectedCard();
+											}}
 											together={actions.together(block)?.on}
 											ontoggleTogether={() =>
 												run(key, () => actions.toggleTogether(block, lesson.lesson_id))}
@@ -444,8 +453,10 @@
 						<MenuItem
 							icon={option.icon}
 							title={option.title}
-							onclick={() =>
-								store.apply((d, r) => addBlock(d, lesson.lesson_id, option.type, undefined, r))}
+							onclick={() => {
+								store.apply((d, r) => addBlock(d, lesson.lesson_id, option.type, undefined, r));
+								void focusSelectedCard();
+							}}
 						>
 							{option.label}
 						</MenuItem>
@@ -579,7 +590,7 @@
 	}
 
 	.rail-tile.missing {
-		color: var(--e-error);
+		color: var(--e-error-text);
 		cursor: default;
 	}
 
@@ -618,7 +629,7 @@
 	}
 
 	.peek-errors {
-		color: var(--e-error);
+		color: var(--e-error-text);
 		font-size: var(--text-xs);
 		font-weight: var(--weight-semibold);
 	}
