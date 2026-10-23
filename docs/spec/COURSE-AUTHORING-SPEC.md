@@ -411,7 +411,7 @@ moves through.
 
 | Field | Type | Meaning | Effect in the app |
 |---|---|---|---|
-| `id` | string, `"s1"`, `"s2"`… | Stable within the block. | **`go_to` targets and saved answers are keyed by it.** Ids are minted as `s{max+1}` and never reused — reordering steps must rewrite `order`, never renumber `id`. Deleting a step must repair every `go_to` that pointed at it. |
+| `id` | string, `"s1"`, `"s2"`… | Stable within the block. | **`go_to` targets and saved answers are keyed by it.** Ids are minted as `s` + random digits and never reused — reordering steps must rewrite `order`, never renumber `id`. Deleting a step must repair every `go_to` that pointed at it. |
 | `type` | `text \| image \| video \| audio \| question` | Renderer. | §7.1. |
 | `order` | int, 1-based | Position. | Should match the array position; the editor keeps them in sync. |
 | `content` | Markdown + LaTeX | Text body. | §7.1. |

@@ -64,7 +64,7 @@ state, a tree, drag-reordering and a validation panel, all of which Svelte does 
 
 1. `course_id`, `lesson_id`, `block_id` and step `id` are **immutable after first publish**. The UI must
    make changing them impossible in teacher mode and loud in author mode.
-2. Step ids are minted as `s{max+1}` and **never reused or renumbered**. Reordering rewrites `order` only.
+2. Step ids are minted as `s` + random digits and **never reused or renumbered**. Reordering rewrites `order` only.
 3. Deleting a step or block must surface and repair every `go_to`, binding and prerequisite that points
    at it. Deletion without repair is a bug, not a warning.
 4. Duplicating a block mints a fresh `block_id`, renumbers the copy's step ids, and drops `go_to` targets

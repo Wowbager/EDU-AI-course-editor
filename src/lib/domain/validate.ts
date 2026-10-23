@@ -17,6 +17,8 @@
  * and has to stay on screen, alongside a human name so the teacher can find the
  * place.
  */
+import { appShowsFeedback } from './course-feedback';
+import { hintOfferedSteps } from './hint-reach';
 import type { BlockStep, BlockV2, CourseV2, QuestionConfig } from './schema';
 import type { Ref } from './ref';
 import { buildIndex, isGoToKeyword, reachableSteps, type DocIndex } from './index-doc';
@@ -142,8 +144,8 @@ function checkUniqueIds(doc: CourseV2, add: Add) {
 				if (seenOptions.has(option.id)) {
 					const first = (step.question?.options ?? []).find((o) => o.id === option.id)!;
 					add(
-						'warning',
-						'W_DUPLICATE_OPTION_ID',
+						'error',
+						'E_DUPLICATE_OPTION_ID',
 						{ blockId: block.block_id, stepId: step.id, optionId: option.id, field: 'id' },
 						`V bloku „${blockLabel(doc, block)}“ (${stepLabel(block, step)}) mají dvě odpovědi stejné id „${option.id}“ — ${optionLabel(step.question, first)} a ${optionLabel(step.question, option)}. Žákova volba se může uložit k té druhé a vyhodnotit se jinak, než čekáš.`
 					);
@@ -222,6 +224,7 @@ function checkBlocks(
 	add: Add
 ) {
 	const courseEloMean = meanElo(doc);
+	const graded = appShowsFeedback(doc);
 
 	for (const block of doc.blocks) {
 		const blockRef: Ref = { blockId: block.block_id };
@@ -263,7 +266,7 @@ function checkBlocks(
 		const reachable = reachableSteps(block);
 		for (const step of block.steps) {
 			const stepRef: Ref = { blockId: block.block_id, stepId: step.id };
-			checkMedia(block, step, add);
+			checkMedia(block, step, add, graded);
 
 			if (!reachable.has(step.id)) {
 				add(
@@ -278,7 +281,7 @@ function checkBlocks(
 			if (question === undefined) continue;
 
 			checkGoToTargets(index, block, step, question, add);
-			checkFeedbackQuality(block, step, question, add);
+			if (graded) checkFeedbackQuality(block, step, question, add);
 			checkIgnoredOutcomes(block, step, question, add);
 		}
 
@@ -305,7 +308,7 @@ function checkHintReach(doc: CourseV2, block: BlockV2, add: Add) {
 	const filled = (text: string | undefined) => (text ?? '').trim() !== '';
 	const cardName = blockLabel(doc, block);
 	const oneBubble = block.type !== 'display';
-	const offered = block.steps.filter((step) => !oneBubble || step.type === 'question');
+	const offered = hintOfferedSteps(block);
 
 	for (const step of block.steps) {
 		const label = capitalize(stepLabel(block, step));
@@ -317,7 +320,7 @@ function checkHintReach(doc: CourseV2, block: BlockV2, add: Add) {
 					'warning',
 					'W_HINT_UNREACHABLE',
 					{ blockId: block.block_id, stepId: step.id, field },
-					`${label} v kartě „${cardName}“ má ${what}, kterou žák neuvidí: v kartě s otázkami se otazník ukazuje jen u otázek, ne u textu mezi nimi. Přesuň ji k otázce, které se týká.`
+					`${label} v kartě „${cardName}“ má ${what}, kterou žák neuvidí: v kartě s otázkami se otazník ukazuje jen u otázek (u karty s více otázkami najednou jen u první a poslední), ne u textu mezi nimi. Přesuň ji k otázce, které se týká.`
 				);
 			}
 			continue;
@@ -408,12 +411,18 @@ function checkStructuralCompleteness(doc: CourseV2, block: BlockV2, add: Add) {
 	for (const step of block.steps) {
 		const question = step.question;
 		if (question === undefined) continue;
-		checkQuestionShape(block, step, question, add);
+		checkQuestionShape(block, step, question, add, appShowsFeedback(doc));
 	}
 }
 
 /** §14.1 — every question type's structural requirements. */
-function checkQuestionShape(block: BlockV2, step: BlockStep, question: QuestionConfig, add: Add) {
+function checkQuestionShape(
+	block: BlockV2,
+	step: BlockStep,
+	question: QuestionConfig,
+	add: Add,
+	graded: boolean
+) {
 	const ref: Ref = { blockId: block.block_id, stepId: step.id };
 	const position = stepPosition(block, step);
 	const options = question.options ?? [];
@@ -475,7 +484,9 @@ function checkQuestionShape(block: BlockV2, step: BlockStep, question: QuestionC
 					`Otázka v kroku ${position} má jen ${options.length} možnost(í). Žák nemá z čeho vybírat.`
 				);
 			}
-			if (correct.length === 0 && question.show_answers !== false) {
+			// `show_answers` is not read where the app shows no evaluation, so it cannot
+			// excuse a missing right answer there (the question still scores by `is_correct`).
+			if (correct.length === 0 && (!graded || question.show_answers !== false)) {
 				add(
 					'error',
 					'E_MC_NO_CORRECT',
@@ -663,7 +674,7 @@ function checkFeedbackQuality(block: BlockV2, step: BlockStep, question: Questio
 }
 
 /** §14.5 — media must be playable for the student. */
-function checkMedia(block: BlockV2, step: BlockStep, add: Add) {
+function checkMedia(block: BlockV2, step: BlockStep, add: Add, graded: boolean) {
 	const ref: Ref = { blockId: block.block_id, stepId: step.id };
 	const position = stepPosition(block, step);
 
@@ -720,7 +731,7 @@ function checkMedia(block: BlockV2, step: BlockStep, add: Add) {
 		checkHttps(audio, { ...ref, field: 'audio.url' }, `Zvuk v kroku ${position}`, add);
 	}
 	const solutionImage = step.question?.solution_image?.url;
-	if (typeof solutionImage === 'string' && solutionImage !== '') {
+	if (graded && typeof solutionImage === 'string' && solutionImage !== '') {
 		checkHttps(
 			solutionImage,
 			{ ...ref, field: 'question.solution_image.url' },
@@ -1018,7 +1029,7 @@ function checkCourseLevel(doc: CourseV2, index: DocIndex, options: ValidateOptio
 			'warning',
 			'W_VERSION_NOT_BUMPED',
 			{ field: 'version' },
-			`Verze kurzu je stále ${doc.version}, stejně jako u poslední publikace. Žáci, kteří kurz už mají stažený, novou verzi nedostanou.`
+			`Verze kurzu je stále ${doc.version}, stejně jako u posledního zveřejnění. Žáci, kteří kurz už mají stažený, novou verzi nedostanou.`
 		);
 	}
 

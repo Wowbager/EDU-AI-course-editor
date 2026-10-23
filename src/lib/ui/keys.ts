@@ -1,7 +1,7 @@
 /**
  * Keys for `{#each}` and `svelte-dnd-action` that stay unique when the document is
  * broken. Duplicate ids are something validation reports (`E_DUPLICATE_STEP_ID`,
- * `W_DUPLICATE_OPTION_ID`), not something the editor may crash on, and a keyed each
+ * `E_DUPLICATE_OPTION_ID`), not something the editor may crash on, and a keyed each
  * throws `each_key_duplicate` on the first repeat.
  *
  * The first occurrence keeps its id, so in a healthy document the key *is* the id

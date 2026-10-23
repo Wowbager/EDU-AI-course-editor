@@ -127,11 +127,13 @@ Edited today in `ADM/src/components/editors/CourseV2Editor.tsx`. Type: `CourseV2
 | `version` | int ≥ 1 | ✅🟡 | Content version. | Two effects: (a) it is in the R2 file path, so bumping it writes a *new* object rather than overwriting; (b) the app compares versions to decide whether to re-download (`course_repository.dart:494-499`). **An editor that saves without bumping `version` will not reach students who already downloaded the course.** This is the single most common authoring foot-gun. Conversely, a pending update **locks every lesson** behind an update banner until the student downloads it (`course_detail_page.dart:997-1003`, `_hasUpdate`) — so bumping the version mid-term interrupts students. |
 | `name` | string, ≤255 | ✅🟡 | Course title. | Course card and player header. Required by the API. |
 | `description` | string, ≤500 | ✅🟡 | Short blurb. | Course card subtitle in the library; also copied into the DB column so it shows for courses the student has *not* downloaded yet. |
+| `subtitle` | string | ✅ | One line under the title. | Course page, under the title (`course_detail_page.dart:615`, from `Course.fromJson`). Not the library card, which shows `description`. |
 | `language` | string, ≤10 | ✅🟡 | BCP-ish language tag (`cs`, `en`). | Library language filter (`?language=` on the listing). Does **not** switch UI strings. |
 | `author` | string | 🟡 | Author/organisation name. | Shown in listings. |
 | `updated` | ISO timestamp | 🟡 | Last edit. | Display only; the API keeps its own `updated_at`. The editor should set it on every save. |
 | `status` | `draft \| private \| locked \| approved \| published` | 🟡 | Publication state. | **Only `published` is visible to students.** `Course::scopePublished()` is `where('status','published')`, applied to every non-admin/non-teacher request (`CourseController@index`, `@checkUpdates`). `draft`, `private`, `locked`, `approved` are all equally invisible to a student — they differ only as editorial workflow labels. The editor must make "this is not yet live" unmistakable. |
 | `emoji` | string | ✅🟡 | Course icon. | Rendered as the course tile icon (`course_model.dart:1026`, `knihovna_page.dart:669`), default `📖`. **Missing from the `CourseV2` TypeScript type — the current editor cannot set it**, so the API falls back to a keyword heuristic (`CourseStorageService::detectEmoji`, e.g. "zlomk" → ➗). A new editor should expose it. |
+| `badge` | string | ✅ | Short tag, e.g. `GEO`. | Top right of the library card (`course_card.dart`, `kurzy_page.dart:516`) and beside the title on the course page (`course_detail_page.dart:655, 2027`). Shown only when non-empty on the page; the card shows it for any non-null value. |
 | `estimated_minutes` | int | 🟡 | Course length for the listing. | If absent the API computes `lesson_count × 15` (`CourseStorageService::extractMetadata`). Also missing from the TS type; worth exposing. |
 | `header_image` | `{url, alt?}` | ✅ | Course cover. | Course detail header. `alt` is stored but the Flutter side currently renders the image only. |
 
@@ -403,7 +405,7 @@ steps is a migration artefact.
 
 | Field | Type | Status | Meaning | Effect |
 |---|---|---|---|---|
-| `id` | string, `"s1"`, `"s2"`… | ✅ | Stable within the block. | **`go_to` targets and per-step answer state are keyed by it.** The editor generates `s{max+1}` (`generateStepId`) so ids are never reused. Renumbering steps on reorder would break every `go_to` — the current editor deliberately keeps ids stable and only rewrites `order`. A new editor must preserve that invariant, and must rewrite `go_to` references when a step is deleted. |
+| `id` | string, `"s1"`, `"s2"`… | ✅ | Stable within the block. | **`go_to` targets and per-step answer state are keyed by it.** The editor mints `s` + six random digits so ids are never reused. Renumbering steps on reorder would break every `go_to` — the current editor deliberately keeps ids stable and only rewrites `order`. A new editor must preserve that invariant, and must rewrite `go_to` references when a step is deleted. |
 | `type` | `text \| image \| video \| audio \| question` | ✅ | Renderer selection. | §7.1. |
 | `order` | int, 1-based | ✅ | Position. | Should match array position; the engine iterates the array. |
 | `content` | Markdown+LaTeX | ✅ | Text step body. | §7.1. |

@@ -15,6 +15,7 @@
  */
 
 import type { Ref } from '$lib/domain/ref';
+import { EVALUATION_ONLY_FIELDS } from '$lib/domain/course-feedback';
 
 /**
  * The three editing modes, in increasing order of exposure. They are cumulative:
@@ -221,7 +222,7 @@ export const STATUS_OPTIONS = [
 	{ value: 'private', label: 'Soukromé' },
 	{ value: 'locked', label: 'Uzamčeno' },
 	{ value: 'approved', label: 'Schváleno' },
-	{ value: 'published', label: 'Publikováno' }
+	{ value: 'published', label: 'Zveřejněno' }
 ] as const;
 
 const POSITION_OPTIONS = [
@@ -251,12 +252,30 @@ export const FIELDS: readonly FieldSpec[] = [
 	},
 	{
 		level: 'course',
+		path: 'subtitle',
+		section: 'meta',
+		mode: 'advanced',
+		kind: 'text',
+		label: 'Podtitul',
+		hint: 'Krátký řádek pod názvem kurzu na jeho stránce. Není to popis z karty v knihovně.'
+	},
+	{
+		level: 'course',
 		path: 'emoji',
 		section: 'main',
 		mode: 'teacher',
 		kind: 'text',
 		label: 'Emoji',
 		hint: 'Ikona dlaždice. Když ji nevyplníš, odhadne ji server z názvu.'
+	},
+	{
+		level: 'course',
+		path: 'badge',
+		section: 'meta',
+		mode: 'advanced',
+		kind: 'text',
+		label: 'Štítek',
+		hint: 'Krátký text, třeba „BIO“, v rohu karty kurzu v knihovně a vedle názvu na stránce kurzu.'
 	},
 	{
 		level: 'course',
@@ -769,7 +788,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'custom',
 		label: 'Identifikátor',
-		hint: 'Klíč, na který jsou navázané odpovědi žáků. Po publikaci se nemění.',
+		hint: 'Klíč, na který jsou navázané odpovědi žáků. Po zveřejnění se nemění.',
 		custom: true
 	},
 	{
@@ -901,7 +920,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Počáteční obtížnost',
-		hint: '0–1. Jak těžké je si to udržet.'
+		hint: 'Od 0 do 1. Čím vyšší číslo, tím těžší je pro žáka si kartu udržet v hlavě.'
 	},
 	{
 		level: 'block',
@@ -911,7 +930,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Počáteční stabilita',
-		hint: 'Ve dnech: jak dlouho si to žák po prvním úspěšném opakování pamatuje.'
+		hint: 'Počet dní do prvního vrácení karty po úspěšném opakování. Čím víc dní, tím později se karta vrátí.'
 	},
 	{
 		level: 'block',
@@ -921,7 +940,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Počáteční vybavení',
-		hint: '0–1: jak pravděpodobně si to žák při prvním opakování vybaví.'
+		hint: 'Od 0 do 1: jak jistě si žák při prvním opakování kartu vybaví. Například 0,65 je asi dvakrát ze tří.'
 	},
 	{
 		level: 'block',
@@ -931,7 +950,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Rychlost zapomínání',
-		hint: 'Vyšší číslo — karta se vrací dřív.'
+		hint: 'Čím vyšší číslo, tím rychleji žák podle odhadu zapomíná a karta se proto vrací dřív.'
 	},
 	{
 		level: 'block',
@@ -941,7 +960,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Počet opakování',
-		hint: 'Jen pro import už rozpracovaného obsahu.'
+		hint: 'Kolikrát už byla karta procvičena, než ji žák dostal. Obvykle nech prázdné.'
 	},
 	{
 		level: 'block',
@@ -950,7 +969,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Priorita v opakování',
-		hint: 'Když má žák v opakování víc karet, než stihne, jdou karty s vyšším číslem dřív. Výchozí 5.',
+		hint: 'Když má žák v opakování víc karet, než stihne, jdou nejdřív karty s vyšším číslem. Výchozí je 5.',
 		default: '5'
 	},
 	{
@@ -961,7 +980,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Nejkratší odstup',
-		hint: 'Ve dnech: nejkratší doba, než se karta vrátí.'
+		hint: 'Nejméně tolik dní musí uplynout, než se karta vrátí, ať žák odpověděl jakkoli.'
 	},
 	{
 		level: 'block',
@@ -971,7 +990,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Nejdelší odstup',
-		hint: 'Ve dnech: nejdelší doba, než se karta vrátí.'
+		hint: 'Nejvýš tolik dní smí uplynout, než se karta vrátí, ať žák odpověděl jakkoli.'
 	},
 	{
 		level: 'block',
@@ -990,7 +1009,7 @@ export const FIELDS: readonly FieldSpec[] = [
 		mode: 'advanced',
 		kind: 'number',
 		label: 'Časový limit',
-		hint: 'po vypršení limitu (v sekundách) by se karta zavřela.'
+		hint: 'Kolik sekund má žák na kartu.'
 	},
 	{
 		level: 'block',
@@ -1400,7 +1419,7 @@ export const NOT_EDITABLE: Record<string, string> = {
 	'course.course_id': 'Klíč úložiště a zápisu žáka. Po založení se nemění (§3 invariant 1).',
 	'course.lessons': 'Struktura, ne pole — přidává se a přesouvá v postranním panelu.',
 	'course.blocks': 'Struktura, ne pole — karty se přidávají v lekci.',
-	'lesson.lesson_id': 'Klíč postupu žáka. Po publikaci se nemění (§3 invariant 1).',
+	'lesson.lesson_id': 'Klíč postupu žáka. Po zveřejnění se nemění (§3 invariant 1).',
 	'lesson.order': 'Přepisuje se přetažením lekce; ruční zápis by rozbil hustotu pořadí.',
 	'lesson.blocks': 'Struktura, ne pole — vazby se přidávají přetažením karty do lekce.',
 	'binding.block_id': 'Odkaz na kartu; mění se přesunem karty, ne přepsáním.',
@@ -1500,14 +1519,35 @@ export const NOT_EDITABLE: Record<string, string> = {
 /**
  * Cumulative: a field shows in its own mode and every mode above it. A `feedback`
  * field also needs `feedback` (the Zpětná vazba toggle) to be on.
+ *
+ * `graded` (false: the app shows no evaluation, `appShowsFeedback`) matters only to
+ * question and option fields. The section and settings-count helpers below leave it out
+ * because they serve the card, binding, lesson and course dialogs, which hold none
+ * (`course-feedback.test.ts` checks it).
  */
-export const visible = (spec: FieldSpec, mode: Mode, feedback: boolean = true): boolean =>
-	MODE_RANK[mode] >= MODE_RANK[spec.mode] && (feedback || spec.feedback !== true);
+export const visible = (
+	spec: FieldSpec,
+	mode: Mode,
+	feedback: boolean = true,
+	graded: boolean = true
+): boolean =>
+	MODE_RANK[mode] >= MODE_RANK[spec.mode] &&
+	(feedback || spec.feedback !== true) &&
+	(graded || EVALUATION_ONLY_FIELDS.includes(`${spec.level}.${spec.path}`) === false);
 
-/** The fields of one level that `mode` may edit, minus the hand-written ones. */
-export function fieldsFor(level: FieldLevel, mode: Mode, feedback: boolean = true): FieldSpec[] {
+/**
+ * The fields of one level that `mode` may edit, minus the hand-written ones. `graded`
+ * is false in a course whose app shows no evaluation (`appShowsFeedback`): the fields
+ * the app then never reads are left out.
+ */
+export function fieldsFor(
+	level: FieldLevel,
+	mode: Mode,
+	feedback: boolean = true,
+	graded: boolean = true
+): FieldSpec[] {
 	return FIELDS.filter(
-		(spec) => spec.level === level && spec.custom !== true && visible(spec, mode, feedback)
+		(spec) => spec.level === level && spec.custom !== true && visible(spec, mode, feedback, graded)
 	);
 }
 
@@ -1734,10 +1774,11 @@ export function allows(
 	level: FieldLevel,
 	path: string,
 	mode: Mode,
-	feedback: boolean = true
+	feedback: boolean = true,
+	graded: boolean = true
 ): boolean {
 	const spec = fieldSpec(level, path);
-	return spec === undefined ? true : visible(spec, mode, feedback);
+	return spec === undefined ? true : visible(spec, mode, feedback, graded);
 }
 
 /**
