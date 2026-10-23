@@ -48,6 +48,18 @@ describe('what a card is called', () => {
 		expect(derivedBlockName(b)).toBe('Zlomek popisuje část celku.');
 	});
 
+	it('keeps underscores and stars that are part of the author’s words', () => {
+		const name = (content: string) =>
+			derivedBlockName(block({ steps: [{ id: 's1', type: 'text', content }] }));
+		expect(name('snake_case je jméno proměnné')).toBe('snake_case je jméno proměnné');
+		// Typed in the editor, a star is written escaped and stays a star; unescaped,
+		// the app shows a lone `2*3*4` as typed (it sniffs no Markdown there).
+		expect(name('Spočítej 2\\*3\\*4 a pak **tučně**')).toBe('Spočítej 2*3*4 a pak tučně');
+		expect(name('Spočítej 2*3*4')).toBe('Spočítej 2*3*4');
+		expect(name('Použij `print(x)` a _kurzívu_')).toBe('Použij print(x) a kurzívu');
+		expect(name('Řádek **s tučným** a snake_case')).toBe('Řádek s tučným a snake_case');
+	});
+
 	it('treats an empty or blank title as no title at all', () => {
 		// Nothing should ever write `""` here, but a hand-edited document can carry
 		// one, and a card named "" would be invisible in the tree.
