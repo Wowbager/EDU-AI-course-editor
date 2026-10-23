@@ -74,6 +74,32 @@
 	}: Props = $props();
 
 	const store = useStore();
+
+	/** Whether a pointer button is down anywhere on the page (see `onfocusout`). */
+	let pointerIsDown = false;
+	const afterPointer = (run: () => void) => {
+		const done = () => {
+			window.removeEventListener('pointerup', done, true);
+			window.removeEventListener('pointercancel', done, true);
+			// After the click that follows the release has been dispatched.
+			setTimeout(run, 0);
+		};
+		window.addEventListener('pointerup', done, true);
+		window.addEventListener('pointercancel', done, true);
+	};
+	$effect(() => {
+		const down = () => (pointerIsDown = true);
+		const up = () => (pointerIsDown = false);
+		window.addEventListener('pointerdown', down, true);
+		window.addEventListener('pointerup', up, true);
+		window.addEventListener('pointercancel', up, true);
+		return () => {
+			window.removeEventListener('pointerdown', down, true);
+			window.removeEventListener('pointerup', up, true);
+			window.removeEventListener('pointercancel', up, true);
+		};
+	});
+
 	const inline = untrack(() => dialect.inline === true);
 
 	let wrapper = $state<HTMLElement | null>(null);
@@ -183,6 +209,12 @@
 			imagePanel = null;
 	}
 
+	function finishLeaving() {
+		if (wrapper?.contains(document.activeElement)) return;
+		focused = false;
+		leave();
+	}
+
 	function onfocusout(event: FocusEvent) {
 		const next = event.relatedTarget as Node | null;
 		if (next && wrapper?.contains(next)) return;
@@ -190,8 +222,11 @@
 		// the browser has settled where it went.
 		queueMicrotask(() => {
 			if (wrapper?.contains(document.activeElement)) return;
-			focused = false;
-			leave();
+			// A press that took the focus away has not ended yet. The toolbar going now
+			// would shift what is under the pointer, and the release would land on
+			// something else: the click on „Přidat krok“ right after typing was lost.
+			if (pointerIsDown) afterPointer(finishLeaving);
+			else finishLeaving();
 		});
 	}
 
