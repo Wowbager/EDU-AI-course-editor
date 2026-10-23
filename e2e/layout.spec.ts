@@ -267,9 +267,8 @@ test('a player that takes focus while it boots gives it back to the field being 
 	await expect(booted(page)).toHaveAttribute('data-player', 'ready');
 	const name = page.getByRole('textbox', { name: 'Název kurzu', exact: true });
 	await name.click();
+	// Typing in a field is not asking for the player, however close to the steal.
 	await name.press('End');
-	// A key just before focus lands in the frame reads as the teacher asking for it.
-	await page.waitForTimeout(1_200);
 
 	// What the real player does about two seconds after the page loads.
 	await player(page).evaluate((frame: HTMLIFrameElement) =>
@@ -291,13 +290,14 @@ test('focus the teacher moves into the player with the pointer stays there', asy
 	await expect.poll(() => page.evaluate(() => document.activeElement?.tagName)).toBe('IFRAME');
 });
 
-test('focus that follows a key press is the teacher’s own and stays in the player', async ({
+test('focus that follows a key press outside a field is the teacher’s own and stays in the player', async ({
 	page
 }) => {
 	await openEditor(page);
 	await expect(booted(page)).toHaveAttribute('data-player', 'ready');
-	await page.getByRole('textbox', { name: 'Název kurzu', exact: true }).click();
-	await page.keyboard.press('Shift');
+	const button = page.getByRole('button', { name: 'Nová lekce' });
+	await button.focus();
+	await button.press('Shift');
 	await player(page).evaluate((frame: HTMLIFrameElement) =>
 		(frame.contentWindow as Window & { stealFocus(): void }).stealFocus()
 	);
