@@ -310,10 +310,22 @@ describe('every offered field has a consumer, or says it has none', async () => 
 		expect(FIELDS.filter((f) => f.mode === 'teacher' && f.unread).map(key)).toEqual([]);
 	});
 
-	it('does not say so on screen: an inert field is offered as if it worked', () => {
-		// The owner plans to make them take effect (OPEN-PROBLEMS #41), so the line
-		// under them is the hint like any other's. The flag stays, and so does the
-		// spec cross-check above.
+	it('says that the app ignores a value once per section, not in every hint (#41, #44)', () => {
+		// The Opakování section names the fields the app reads, from the `unread` flag
+		// (`CardSettings`), so the hints themselves carry no such note and stay short.
+		const fsrs = FIELDS.filter((f) => f.path.startsWith('fsrs.'));
+		expect(fsrs.filter((f) => !f.unread).map(key)).toEqual([
+			'block.fsrs.weight',
+			'block.fsrs.skip_condition'
+		]);
+		for (const f of fsrs) {
+			expect(f.hint, key(f)).not.toMatch(/nepoužívá/);
+			// Short, as a teacher reads them.
+			expect(f.hint!.split(/\.\s/).length, key(f)).toBeLessThanOrEqual(3);
+		}
+	});
+
+	it("shows an inert field's hint as written", () => {
 		for (const f of FIELDS.filter((f) => f.unread)) {
 			expect(hintFor(f), key(f)).toBe(f.hint);
 			expect(hintFor(f) ?? '', key(f)).not.toMatch(/Zatím bez účinku/);
@@ -656,5 +668,19 @@ describe('what a higher mode adds', () => {
 			section: 'topics'
 		});
 		expect(matchHigherModes(['block'], '  ', 'teacher')).toEqual([]);
+	});
+});
+
+describe('course subtitle and badge', () => {
+	it('are typed fields, offered in Pokročilý, under Údaje o kurzu', () => {
+		expect(specOf({ field: 'subtitle' })?.mode).toBe('advanced');
+		expect(specOf({ field: 'badge' })?.mode).toBe('advanced');
+		expect(KEY_ORDER.course).toContain('subtitle');
+		expect(KEY_ORDER.course).toContain('badge');
+	});
+
+	it('keep the description and the subtitle apart in their hints', () => {
+		expect(specOf({ field: 'description' })?.hint).toMatch(/kart/);
+		expect(specOf({ field: 'subtitle' })?.hint).toMatch(/Není to popis/);
 	});
 });

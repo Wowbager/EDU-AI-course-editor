@@ -157,6 +157,34 @@ export class DocStore {
 	 */
 	#reviewed = $state<ReadonlySet<string> | null>(null);
 
+	/**
+	 * Warnings the author hid in the validation panel, valid for exactly the set of issues
+	 * they were hidden against (OPEN-PROBLEMS #32). Any issue appearing or going away
+	 * brings them all back; closing the panel or a validation run that finds the same
+	 * issues does not.
+	 */
+	#dismissal = $state<{ signature: string; keys: ReadonlySet<string> } | null>(null);
+
+	/** The `issueKey`s of the warnings the panel currently leaves out. */
+	get dismissedWarnings(): ReadonlySet<string> {
+		const d = this.#dismissal;
+		return d !== null && d.signature === this.#signature ? d.keys : new Set();
+	}
+
+	/** Forget the hidden warnings once the set of issues differs, for good (called after every edit). */
+	#pruneDismissal() {
+		if (this.#dismissal !== null && this.#dismissal.signature !== this.#signature) {
+			this.#dismissal = null;
+		}
+	}
+
+	dismissWarning(issue: Issue) {
+		this.#dismissal = {
+			signature: this.#signature,
+			keys: new Set([...this.dismissedWarnings, issueKey(issue)])
+		};
+	}
+
 	/** Whether the author has looked at the review and not yet exported. */
 	get reviewing(): boolean {
 		return this.#reviewed !== null;
@@ -200,6 +228,10 @@ export class DocStore {
 	);
 	totals = $derived<CourseTotals>(courseTotals(this.doc, this.index));
 	/** Errors block export; warnings never do (§3 invariant 5). */
+	#signature = $derived(
+		[...this.validation.errors, ...this.validation.warnings].map(issueKey).sort().join('\n')
+	);
+
 	canPublish = $derived(this.validation.errors.length === 0);
 
 	get undoStack(): readonly UndoEntry[] {
@@ -228,6 +260,7 @@ export class DocStore {
 	load(doc: CourseV2, options: { published?: { version: number; doc: CourseV2 } } = {}) {
 		this.endEdit();
 		this.source = doc;
+		this.#dismissal = null;
 		this.#undo = [];
 		this.#redo = [];
 		this.#reservedBlocks = new Set();
@@ -333,6 +366,7 @@ export class DocStore {
 		const before = this.source;
 		if (next === before) return result;
 		this.source = next;
+		this.#pruneDismissal();
 		this.#reserve(next);
 		const last = this.#undo.at(-1);
 		if (this.#edit?.entry && last === this.#edit.entry) {
@@ -380,6 +414,7 @@ export class DocStore {
 		this.#undo = this.#undo.slice(0, -1);
 		this.#redo = [...this.#redo, entry];
 		this.source = entry.before;
+		this.#pruneDismissal();
 		this.dirty = true;
 		if (entry.ref !== undefined) this.selection = this.#inSameLesson(entry.ref);
 	}
@@ -391,6 +426,7 @@ export class DocStore {
 		this.#redo = this.#redo.slice(0, -1);
 		this.#undo = [...this.#undo, entry];
 		this.source = entry.after;
+		this.#pruneDismissal();
 		this.#reserve(entry.after);
 		this.dirty = true;
 		if (entry.ref !== undefined) this.selection = this.#inSameLesson(entry.ref);
