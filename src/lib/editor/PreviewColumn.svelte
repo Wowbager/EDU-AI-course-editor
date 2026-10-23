@@ -115,11 +115,20 @@
 	let hideHost = $state<HTMLElement>();
 	let showButton = $state<HTMLButtonElement>();
 
-	/** A click moves the control the pointer was on out of reach; focus its counterpart. */
-	async function toggle() {
+	let root = $state<HTMLElement>();
+
+	/**
+	 * Fold or open the column. Folding makes it `inert`, so focus inside it would drop
+	 * to the page: it moves to the control that replaces the one it was on. The two
+	 * buttons and Ctrl+Shift+B all come here. Focus elsewhere (a field being typed in)
+	 * stays where it is.
+	 */
+	export async function toggle() {
 		const opening = collapsed === true;
+		const focusHere = root?.contains(document.activeElement) ?? false;
 		ontoggle();
 		await tick();
+		if (!focusHere) return;
 		if (opening) hideHost?.querySelector('button')?.focus();
 		else showButton?.focus();
 	}
@@ -431,7 +440,13 @@
 	}}
 />
 
-<aside class="preview" class:collapsed data-player={playerState} aria-label="Náhled pro žáka">
+<aside
+	class="preview"
+	bind:this={root}
+	class:collapsed
+	data-player={playerState}
+	aria-label="Náhled pro žáka"
+>
 	<div class="inner" inert={collapsed === true}>
 		<header>
 			<div class="hide" bind:this={hideHost}>

@@ -186,6 +186,24 @@ test('Ctrl+Shift+B folds and opens the preview, and the choice survives a reload
 	await expect(page.locator('aside.preview.collapsed')).toHaveCount(0);
 });
 
+test('Ctrl+Shift+B from inside the preview hands focus to the other toggle, and leaves a field alone', async ({
+	page
+}) => {
+	await openEditor(page);
+	await expect(booted(page)).toHaveAttribute('data-player', 'ready');
+	await hide(page).focus();
+	await page.keyboard.press('Control+Shift+B');
+	await expect(show(page)).toBeFocused();
+	await page.keyboard.press('Control+Shift+B');
+	await expect(hide(page)).toBeFocused();
+
+	const field = page.getByRole('textbox').first();
+	await field.focus();
+	await page.keyboard.press('Control+Shift+B');
+	await expect(show(page)).toBeVisible();
+	await expect(field).toBeFocused();
+});
+
 test('the preview header has no chip while the player runs, and names the states that need attention', async ({
 	page
 }) => {
