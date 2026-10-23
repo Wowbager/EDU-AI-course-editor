@@ -121,7 +121,7 @@ function checkUniqueIds(doc: CourseV2, add: Add) {
 				'error',
 				'E_DUPLICATE_BLOCK_ID',
 				{ blockId: block.block_id, field: 'block_id' },
-				`Dvě karty — „${blockLabel(doc, first)}“ a „${blockLabel(doc, block)}“ — mají stejné id „${block.block_id}“. Žákovi by se zobrazil jen jeden z nich a odkazy na ten druhý by nikam nevedly.`
+				`Dvě karty — „${blockLabel(doc, first)}“ a „${blockLabel(doc, block)}“ — mají stejné id „${block.block_id}“. Žákovi by se zobrazila jen jedna z nich a odkazy na tu druhou by nikam nevedly.`
 			);
 		}
 		seenBlocks.add(block.block_id);
@@ -921,7 +921,7 @@ function checkPrerequisiteGraph(doc: CourseV2, index: DocIndex, add: Add) {
 					'warning',
 					'W_PREREQ_MIN_LEVEL_HIGH',
 					ref,
-					`Karta „${cardName}“ se odemkne až při zvládnutí na ${Math.round(rule.min_level * 100)} %. Téměř žádný žák se k němu nedostane.`
+					`Karta „${cardName}“ se odemkne až při zvládnutí na ${Math.round(rule.min_level * 100)} %. Téměř žádný žák se k ní nedostane.`
 				);
 			}
 		}
