@@ -30,11 +30,20 @@
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import Chip from '$lib/ui/Chip.svelte';
 	import Button from '$lib/ui/Button.svelte';
+	import RunSummary from './RunSummary.svelte';
 	import { PreviewBridge, type PreviewView } from '$lib/preview/bridge';
 	import { serialise } from '$lib/domain/document';
 	import { useStepView, useStore } from '$lib/ui/context';
 	import { allows } from '$lib/ui/fields';
-	import { blockPreview } from '$lib/domain/derive';
+	import { blockPreview, derivedBlockXp } from '$lib/domain/derive';
+	import {
+		completedBlock,
+		endsRun,
+		runBlocks,
+		runMaxXp,
+		runTally,
+		type BlockResult
+	} from '$lib/domain/run';
 	import { groupOf, groupsOf } from '$lib/domain/groups';
 
 	interface Props {
@@ -80,6 +89,7 @@
 	/** Which load of the frame this is. Bumped to load it again. */
 	let attempt = $state(0);
 	let canGoBack = $state(false);
+
 	/** Undecided until the player URL has been probed — see below. */
 	let available = $state<boolean | null>(null);
 
@@ -194,6 +204,76 @@
 		return owners[0];
 	}
 
+	/**
+	 * What the current run earned, by block (see `runTally`), and how it ended. The
+	 * player's `completed` names no block, so `completedBlock` works out whose it is
+	 * from the last position reported (`seen`) and the last block credited (`credited`).
+	 * The player sends `completed` before it moves on, and says nothing of its own at
+	 * the end.
+	 */
+	let results = $state<ReadonlyMap<string, BlockResult>>(new Map());
+	let finished = $state<{ xp: number; share: number; mark?: string } | null>(null);
+	let seen: string | undefined;
+	let credited: string | undefined;
+	/** Zpět was pressed: the next position is a block being played again. */
+	let wentBack = false;
+	let summary = $state<ReturnType<typeof RunSummary>>();
+	const earned = $derived(runTally(results).xp);
+	const maxXp = $derived(runMaxXp(source, playLessonId, playStart));
+	/** Náhled: what the card on screen is worth, as the pupil's app counts it. */
+	const cardXp = $derived(
+		block === undefined
+			? undefined
+			: blocksOfCard(block.block_id).reduce((sum, b) => sum + derivedBlockXp(b), 0)
+	);
+
+	function startRun() {
+		results = new Map();
+		finished = null;
+		seen = credited = undefined;
+		wentBack = false;
+		canGoBack = false;
+	}
+
+	function closeSummary() {
+		const hadFocus = summary?.hasFocus() ?? false;
+		finished = null;
+		if (hadFocus) frame?.focus();
+	}
+
+	/** An open dialog or popover, or a field being typed in, has its own use for Escape. */
+	function ownsEscape() {
+		if (document.querySelector('dialog[open], :popover-open') !== null) return true;
+		const at = document.activeElement;
+		return (
+			at instanceof HTMLElement &&
+			(at.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(at.tagName))
+		);
+	}
+
+	function restart() {
+		startRun();
+		bridge.restart();
+	}
+
+	// An edit makes the summary stale: it is about a course that no longer exists. What
+	// was earned stays, but only for blocks the run still plays, so it cannot pass the max.
+	$effect(() => {
+		const playing = new Set(runBlocks(source, playLessonId, playStart).map((b) => b.block_id));
+		untrack(() => {
+			finished = null;
+			if ([...results.keys()].some((id) => !playing.has(id)))
+				results = new Map([...results].filter(([id]) => playing.has(id)));
+		});
+	});
+
+	// A player that boots again (a retry) starts its run afresh; a `completed` still on
+	// its way from the old one must not be counted.
+	$effect(() => {
+		void attempt;
+		untrack(startRun);
+	});
+
 	const bridge = new PreviewBridge({
 		onready: () => {
 			booted = true;
@@ -207,10 +287,35 @@
 			const owner = view === 'play' ? lessonOf(shown.blockId) : (ref.lessonId ?? lessonId);
 			store.revealAt({ ...shown, lessonId: owner });
 		},
+		oncompleted: (result) => {
+			if (view !== 'play') return;
+			const id = completedBlock(source, playLessonId, playStart, seen, credited);
+			seen = undefined;
+			if (id === undefined) return;
+			credited = id;
+			results = new Map(results).set(id, result);
+			if (!endsRun(source, playLessonId, id)) return;
+			const { xp, share } = runTally(results);
+			const focusWasHere = document.activeElement === frame;
+			finished = { xp, share, mark: result.mark };
+			// Only when the teacher was playing: a summary must not take the focus
+			// from a field they are typing in.
+			if (focusWasHere) tick().then(() => summary?.focusClose());
+		},
 		onstepChanged: (stepId, blockId, shownStepIds) => {
+			seen = blockId;
 			// Only a played run reports positions; one arriving after the author
 			// switched back to Náhled is from a run that is over.
 			if (view !== 'play') return;
+			if (wentBack) {
+				// Playing a block again: what it earned before no longer counts.
+				wentBack = false;
+				if (results.has(blockId)) {
+					const next = new Map(results);
+					next.delete(blockId);
+					results = next;
+				}
+			}
 			// Folding first, so the step list never draws the new card fully open.
 			const card = store.toView({ blockId }).blockId!;
 			stepView.followRun(card, reachedSteps(blockId, shownStepIds));
@@ -319,6 +424,13 @@
 	});
 </script>
 
+<svelte:window
+	onkeydown={(event) => {
+		if (event.key === 'Escape' && finished !== null && !event.defaultPrevented && !ownsEscape())
+			closeSummary();
+	}}
+/>
+
 <aside class="preview" class:collapsed data-player={playerState} aria-label="Náhled pro žáka">
 	<div class="inner" inert={collapsed === true}>
 		<header>
@@ -355,13 +467,26 @@
 					if (next === 'play') {
 						playStart = block === undefined ? undefined : blocksOfCard(block.block_id)[0]?.block_id;
 						playLessonId = lessonId;
-						canGoBack = false;
+						startRun();
 					} else {
 						stepView.endRun();
+						finished = null;
 					}
 					view = next;
 				}}
 			/>
+			{#if view === 'play' ? booted && playLessonId !== undefined : cardXp !== undefined}
+				<!-- A number, not a verdict: the card's worth in Náhled, the run's score in Vyzkoušet. -->
+				<span
+					class="xp"
+					title={view === 'play'
+						? 'Kolik XP jsi ve zkoušeném průchodu získal/a z toho, co od této karty nabízí'
+						: 'Nejvíc XP, které žák za tuto kartu dostane'}
+				>
+					{view === 'play' ? `${earned} / ${maxXp} XP` : `${cardXp} XP`}
+				</span>
+			{/if}
+
 			<!-- Running has no chip: only the two states a teacher has to wait out or act on. -->
 			{#if !booted && failed}
 				<Chip tone="warning">přehrávač neběží</Chip>
@@ -376,7 +501,11 @@
 					size="s"
 					disabled={!canGoBack}
 					title="O krok zpět — můžeš zkusit jinou odpověď"
-					onclick={() => bridge.back()}
+					onclick={() => {
+						finished = null;
+						wentBack = true;
+						bridge.back();
+					}}
 				>
 					<ArrowLeft size={16}></ArrowLeft>
 					Zpět
@@ -385,10 +514,7 @@
 					variant="ghost"
 					size="s"
 					title="Znovu od karty, u které jsi začal/a"
-					onclick={() => {
-						canGoBack = false;
-						bridge.restart();
-					}}
+					onclick={restart}
 				>
 					<RotateCcw size={16}></RotateCcw>
 					Od začátku
@@ -423,6 +549,17 @@
 				{/key}
 			{/if}
 		</div>
+		{#if view === 'play' && finished !== null}
+			<RunSummary
+				bind:this={summary}
+				xp={finished.xp}
+				{maxXp}
+				share={finished.share}
+				mark={finished.mark}
+				onretry={restart}
+				onclose={closeSummary}
+			/>
+		{/if}
 	</div>
 
 	{#if collapsed === true}
@@ -502,6 +639,14 @@
 
 	.spacer {
 		flex: 1;
+	}
+
+	.xp {
+		font: var(--type-caption);
+		font-variant-numeric: tabular-nums;
+		/* --e-text-muted is 4.0:1 on white; this is 5.0:1. */
+		color: color-mix(in srgb, var(--primary-dark) 72%, transparent);
+		white-space: nowrap;
 	}
 
 	.frame {

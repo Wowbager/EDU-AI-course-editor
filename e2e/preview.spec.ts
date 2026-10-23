@@ -180,6 +180,30 @@ test.describe('live preview', () => {
 		expect(log.up('ready', mark)).toHaveLength(0);
 	});
 
+	test('finishing the last card of a run shows the overview with what it earned', async ({
+		page
+	}) => {
+		await openCard(page, 2, QUIZ);
+		await play(page, QUIZ);
+		const counter = page.locator('aside.preview .xp');
+		await expect(counter).toHaveText('0 / 11 XP');
+
+		await answerRight(page);
+		const summary = page.getByRole('region', { name: 'Shrnutí vyzkoušení' });
+		// The question is followed by text steps; press on until the run is over.
+		const next = button(page, 'Pokračovat').or(button(page, 'Hotovo'));
+		await expect(async () => {
+			if ((await summary.count()) === 0) await press(page, next.first());
+			await expect(summary).toBeVisible({ timeout: 2_000 });
+		}).toPass({ timeout: 30_000 });
+		await expect(summary).toContainText('Hotovo');
+		await expect(summary).toContainText('/ 11 XP');
+		await expect(summary).toContainText('úspěšnost 100 %');
+		await expect(counter).not.toHaveText('0 / 11 XP');
+		await summary.getByRole('button', { name: 'Zavřít' }).click();
+		await expect(summary).toHaveCount(0);
+	});
+
 	test('Vyzkoušet moves the editor to where the pupil is, and nothing else', async ({ page }) => {
 		// The run is the only thing that decides where the editor is while it plays:
 		// every step the player reports is selected and opened in the editor. The
