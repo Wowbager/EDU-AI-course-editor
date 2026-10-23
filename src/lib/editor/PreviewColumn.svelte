@@ -115,11 +115,20 @@
 	let hideHost = $state<HTMLElement>();
 	let showButton = $state<HTMLButtonElement>();
 
-	/** A click moves the control the pointer was on out of reach; focus its counterpart. */
-	async function toggle() {
+	let root = $state<HTMLElement>();
+
+	/**
+	 * Fold or open the column. Folding makes it `inert`, so focus inside it would drop
+	 * to the page: it moves to the control that replaces the one it was on. The two
+	 * buttons and Ctrl+Shift+B all come here. Focus elsewhere (a field being typed in)
+	 * stays where it is.
+	 */
+	export async function toggle() {
 		const opening = collapsed === true;
+		const focusHere = root?.contains(document.activeElement) ?? false;
 		ontoggle();
 		await tick();
+		if (!focusHere) return;
 		if (opening) hideHost?.querySelector('button')?.focus();
 		else showButton?.focus();
 	}
@@ -276,6 +285,7 @@
 
 	const bridge = new PreviewBridge({
 		onready: () => {
+			bootedAt = Date.now();
 			booted = true;
 			failed = false;
 		},
@@ -363,8 +373,76 @@
 
 	$effect(() => {
 		if (frame === null) return;
+		bootedAt = undefined;
 		bridge.attach(frame);
 		return () => bridge.detach();
+	});
+
+	/**
+	 * The player grabs keyboard focus by itself while it boots (OPEN-PROBLEMS #46):
+	 * about two seconds after the page loads, whatever the teacher had already clicked
+	 * into loses focus and what they type goes nowhere. Focus that moves into the frame
+	 * during the boot (until `BOOT_FOCUS_GRACE_MS` after `ready`) is given back to the
+	 * element that had it, unless the teacher asked for it: the pointer is over the
+	 * frame, or Tab was just pressed. The frame's own clicks never reach this page, so
+	 * the pointer's place is the only sign of intent there is.
+	 */
+	const BOOT_FOCUS_GRACE_MS = 5_000;
+	let bootedAt: number | undefined;
+	let focusBefore: HTMLElement | null = null;
+	let askedAt = 0;
+
+	$effect(() => {
+		const focusedPage = (event: FocusEvent) => {
+			askedInColumn(event);
+			const at = event.target;
+			if (at instanceof HTMLElement && at !== frame && at !== document.body) focusBefore = at;
+		};
+		// What the teacher does on the page just before focus lands in the frame is a
+		// request for it: Tab, a key outside a text field (a screen reader's move), a
+		// press or focus in the column. Typing in a field is not: that is the steal #46
+		// is about.
+		const asking = () => (askedAt = Date.now());
+		const keyed = (event: KeyboardEvent) => {
+			const at = event.target;
+			const typing =
+				at instanceof HTMLElement &&
+				(at.isContentEditable ||
+					at instanceof HTMLInputElement ||
+					at instanceof HTMLTextAreaElement);
+			if (event.key === 'Tab' || !typing) asking();
+		};
+		const askedInColumn = (event: Event) => {
+			if (root?.contains(event.target as Node)) asking();
+		};
+		// Focus leaving a page element is not yet "into the frame": the frame is the
+		// active element a tick later, and the page body when focus went nowhere.
+		let pending: ReturnType<typeof setTimeout> | undefined;
+		const leftPage = () => {
+			clearTimeout(pending);
+			pending = setTimeout(() => {
+				if (frame === null) return;
+				if (document.activeElement !== frame) {
+					if (document.activeElement === document.body) focusBefore = null;
+					return;
+				}
+				const booting = bootedAt === undefined || Date.now() - bootedAt < BOOT_FOCUS_GRACE_MS;
+				const asked = frame.matches(':hover') || Date.now() - askedAt < 1_000;
+				if (!booting || asked || focusBefore === null || !focusBefore.isConnected) return;
+				focusBefore.focus({ preventScroll: true });
+			}, 0);
+		};
+		document.addEventListener('focusin', focusedPage, true);
+		document.addEventListener('focusout', leftPage, true);
+		document.addEventListener('keydown', keyed, true);
+		document.addEventListener('pointerdown', askedInColumn, true);
+		return () => {
+			document.removeEventListener('focusin', focusedPage, true);
+			document.removeEventListener('focusout', leftPage, true);
+			document.removeEventListener('keydown', keyed, true);
+			document.removeEventListener('pointerdown', askedInColumn, true);
+			clearTimeout(pending);
+		};
 	});
 
 	// Folded, the watchdog is off (the frame is alive but nobody is waiting on it);
@@ -431,7 +509,13 @@
 	}}
 />
 
-<aside class="preview" class:collapsed data-player={playerState} aria-label="Náhled pro žáka">
+<aside
+	class="preview"
+	bind:this={root}
+	class:collapsed
+	data-player={playerState}
+	aria-label="Náhled pro žáka"
+>
 	<div class="inner" inert={collapsed === true}>
 		<header>
 			<div class="hide" bind:this={hideHost}>

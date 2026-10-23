@@ -372,7 +372,8 @@
 		};
 	});
 
-	const togglePreview = () => (previewCollapsed = previewCollapsed !== true);
+	let preview = $state<ReturnType<typeof PreviewColumn>>();
+	const flipPreview = () => (previewCollapsed = previewCollapsed !== true);
 
 	function onkeydown(event: KeyboardEvent) {
 		if (event.defaultPrevented) return;
@@ -395,7 +396,7 @@
 			// Plain Ctrl+B is "bold" to anyone typing; only Ctrl+Shift+B is ours there.
 			if (!event.shiftKey && typing(event.target)) return;
 			event.preventDefault();
-			if (event.shiftKey) togglePreview();
+			if (event.shiftKey) void preview?.toggle();
 			else sidebarCollapsed = !sidebarCollapsed;
 		} else if (event.key.toLowerCase() === 'e') {
 			event.preventDefault();
@@ -597,11 +598,12 @@
 		</main>
 
 		<PreviewColumn
+			bind:this={preview}
 			{doc}
 			block={card}
 			lessonId={lesson?.lesson_id}
 			collapsed={previewCollapsed}
-			ontoggle={togglePreview}
+			ontoggle={flipPreview}
 		/>
 
 		<!-- Over the editor column, bottom left: where the eye is after clicking a card. -->
