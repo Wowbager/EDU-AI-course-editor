@@ -26,13 +26,52 @@ const MD_INLINE_MARKERS = /(\*\*|__|`|!\[|\[[^\]\n]+\]\(|\$|(?<!\w)\*\S)/;
 /** A real tag, name required, so `5 < 10 a 20 > 15` is not mistaken for HTML. */
 const HTML_TAG = /<\s*\/?\s*[a-zA-Z][a-zA-Z0-9-]*(\s[^<>]*)?\/?>/;
 
+/** `MD_BLOCK_MARKERS` for one line, not any line of a text. */
+const LINE_BLOCK_MARKER = new RegExp(MD_BLOCK_MARKERS.source);
+
+/** Leading backslashes, then something the app reads as a line-start marker. */
+const ESCAPED_MARKER_LINE = /^(\\*)([^\\][^]*)?$/;
+
+function marker(line: string): { slashes: string; rest: string } | undefined {
+	const match = ESCAPED_MARKER_LINE.exec(line);
+	if (!match) return undefined;
+	const rest = match[2] ?? '';
+	return LINE_BLOCK_MARKER.test(rest) ? { slashes: match[1], rest } : undefined;
+}
+
 /**
- * Whether only a line's start makes the app read this text as Markdown. A plain text
- * like that cannot be shown as typed: unescaped it is a list, heading, quote or number,
- * and escaped it is no longer Markdown, so the app prints the backslash.
+ * RULE 1, the one place the editor and the app disagree on a plain text, written once.
+ *
+ * The app reads a sniffed field as Markdown when a line starts with `- `, `1. `, `> `,
+ * `# ` or `|` (`content_format.dart`, OPEN-PROBLEMS #55). To keep a teacher's plain
+ * `- a` from becoming a list, a plain text is stored with one backslash in front of
+ * such a line: `\- a`. The app, which finds no marker then, prints the backslash;
+ * the editor undoes it, so the teacher always sees what they typed.
+ *
+ * It is one backslash more in front of a line that is, after any backslashes, a marker
+ * (`\- a` is stored `\\- a`), and one fewer when read. Every other line is untouched,
+ * so `\x` and `a\- b` stay as typed, and `unescapePlainLines(escapePlainLines(x)) === x`
+ * for every text.
  */
-export function onlyBlockMarkers(text: string): boolean {
-	return MD_BLOCK_MARKERS.test(text) && !MD_INLINE_MARKERS.test(text);
+export function escapePlainLines(text: string): string {
+	return text
+		.split('\n')
+		.map((line) => {
+			const found = marker(line);
+			return found ? `\\${found.slashes}${found.rest}` : line;
+		})
+		.join('\n');
+}
+
+/** The reverse of `escapePlainLines`: what a plain text stored by the editor looked like when typed. */
+export function unescapePlainLines(text: string): string {
+	return text
+		.split('\n')
+		.map((line) => {
+			const found = marker(line);
+			return found && found.slashes !== '' ? found.slashes.slice(1) + found.rest : line;
+		})
+		.join('\n');
 }
 
 /** Whether the app renders a text as Markdown at all (`looksLikeMarkdown`). */
