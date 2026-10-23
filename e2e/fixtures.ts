@@ -92,14 +92,14 @@ export async function openMenu(
 	item: Locator
 ): Promise<Locator> {
 	const menu = page.getByRole('menu', { name, exact: true });
-	if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click();
+	if (!(await item.isVisible())) await trigger.click();
 	await expect(item).toBeVisible();
 	return menu;
 }
 
 /** Open a menu and click one of its items. */
 export async function chooseFromMenu(page: Page, trigger: Locator, item: Locator) {
-	if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click();
+	if (!(await item.isVisible())) await trigger.click();
 	await item.click();
 }
 

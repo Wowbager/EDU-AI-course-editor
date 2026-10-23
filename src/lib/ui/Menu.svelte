@@ -114,7 +114,7 @@
 	}
 
 	function onpointerdown() {
-		wasOpenAtPointerDown = open;
+		wasOpenAtPointerDown = isShowing();
 	}
 
 	function onclick() {
@@ -122,7 +122,14 @@
 			wasOpenAtPointerDown = false;
 			return;
 		}
-		open = !open;
+		// What is on screen decides, not `open`: `ontoggle` updates that a moment after
+		// the panel closes, and a click in that moment must open the menu again.
+		if (isShowing()) {
+			close();
+		} else {
+			open = true;
+			show();
+		}
 	}
 
 	$effect(() => {
