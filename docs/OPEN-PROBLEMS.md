@@ -280,13 +280,6 @@ are on its row in the tree, and since Round 9 also in the panel beside a lesson 
 the folded rail. The lesson's own deletion and duplication are in that dialog, so nothing
 a teacher needs is reachable only from a hover.
 
-### 33. Labels the editor uses in two senses
-**By design so far, but it costs a teacher.** "Blok" and "karta" are both used for the same
-thing depending on the mode; "Zpět" is the undo in one place and the way out in three
-others; "Cvičení" and "Opakování" name the same property in the chip and the field. Renaming
-touches every spec that locates by accessible name, so it wants its own round with the e2e
-suite in hand.
-
 ### 43. What the Round 11 CRUD re-audit left
 **Found by a scripted audit of every settings and editor-column flow, not fixed.**
 Reproduced in the browser unless said otherwise.
@@ -343,6 +336,9 @@ Headings kept so that a citation from `docs/DECISIONS.md`,
 **Nothing here is open**, and the entries no longer sit in the live list above. The round
 that closed it is named, and the reasoning is in that round's section of
 `docs/DECISIONS.md`.
+
+### 33. Labels the editor uses in two senses
+Fixed (Round 24): „karta“ everywhere a teacher reads, „Vrátit“ for undo and „Zpět“ only for going back, „Opakování“ for the practice flag.
 
 ### 4. "Duplikovat lekci" shares its cards rather than copying them
 Copies the cards now; one button, no question (Round 24).

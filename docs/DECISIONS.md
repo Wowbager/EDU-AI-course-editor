@@ -2770,6 +2770,12 @@ recommendation is what is recorded.
 - Plain bugs: #22 (already fixed, now guarded), #28, #30, #31, #37, #46, #52, #53, #58,
   #59, #60, issues #8, #13, #14, #18.
 
+**One word per thing (#33).** „Karta“ everywhere a teacher reads; Pokročilý's help for
+card groups still says „bloky“, because it means exported blocks. „Vrátit“ is undo;
+„Zpět“ only goes back. The practice flag is „Opakování“ (it feeds spaced repetition),
+since „Cvičení“ is already a card type and a course type; the pupil's app names its own
+practice tab „Cvičení“.
+
 *Rejected:* changing a card's type (#35). The card's menu has five actions, and the
 owner judges that enough.
 
