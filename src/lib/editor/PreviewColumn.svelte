@@ -390,37 +390,49 @@
 	const BOOT_FOCUS_GRACE_MS = 5_000;
 	let bootedAt: number | undefined;
 	let focusBefore: HTMLElement | null = null;
-	let tabbedAt = 0;
+	let askedAt = 0;
 
 	$effect(() => {
 		const focusedPage = (event: FocusEvent) => {
+			askedInColumn(event);
 			const at = event.target;
 			if (at instanceof HTMLElement && at !== frame && at !== document.body) focusBefore = at;
 		};
-		const keyed = (event: KeyboardEvent) => {
-			if (event.key === 'Tab') tabbedAt = Date.now();
+		// Anything the teacher does on the page just before focus lands in the frame is
+		// a request for it: a key (Tab, a screen reader's move), a press or focus in the
+		// column. A key typed in the field before the steal is not told apart, which is
+		// the safe side: the focus then stays in the player.
+		const asking = () => (askedAt = Date.now());
+		const askedInColumn = (event: Event) => {
+			if (root?.contains(event.target as Node)) asking();
 		};
 		// Focus leaving a page element is not yet "into the frame": the frame is the
 		// active element a tick later, and the page body when focus went nowhere.
-		const leftPage = () =>
-			setTimeout(() => {
+		let pending: ReturnType<typeof setTimeout> | undefined;
+		const leftPage = () => {
+			clearTimeout(pending);
+			pending = setTimeout(() => {
 				if (frame === null) return;
 				if (document.activeElement !== frame) {
 					if (document.activeElement === document.body) focusBefore = null;
 					return;
 				}
 				const booting = bootedAt === undefined || Date.now() - bootedAt < BOOT_FOCUS_GRACE_MS;
-				const asked = frame.matches(':hover') || Date.now() - tabbedAt < 1_000;
+				const asked = frame.matches(':hover') || Date.now() - askedAt < 1_000;
 				if (!booting || asked || focusBefore === null || !focusBefore.isConnected) return;
 				focusBefore.focus({ preventScroll: true });
 			}, 0);
+		};
 		document.addEventListener('focusin', focusedPage, true);
 		document.addEventListener('focusout', leftPage, true);
-		document.addEventListener('keydown', keyed, true);
+		document.addEventListener('keydown', asking, true);
+		document.addEventListener('pointerdown', askedInColumn, true);
 		return () => {
 			document.removeEventListener('focusin', focusedPage, true);
 			document.removeEventListener('focusout', leftPage, true);
-			document.removeEventListener('keydown', keyed, true);
+			document.removeEventListener('keydown', asking, true);
+			document.removeEventListener('pointerdown', askedInColumn, true);
+			clearTimeout(pending);
 		};
 	});
 

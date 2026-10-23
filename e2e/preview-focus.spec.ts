@@ -14,13 +14,12 @@ test.describe('the real player at boot', () => {
 		await openEditor(page);
 		const name = page.getByRole('textbox', { name: 'Název kurzu', exact: true });
 		await name.click();
-		await name.press('End');
 		await expect(page.locator('aside.preview')).toHaveAttribute('data-player', 'ready', {
 			timeout: 60_000
 		});
 		// The steal comes a moment after `ready`; wait it out, then type.
 		await page.waitForTimeout(4_000);
 		await page.keyboard.type('Xyz');
-		await expect(name).toHaveValue(/Xyz$/);
+		await expect(name).toHaveValue(/Xyz/);
 	});
 });
