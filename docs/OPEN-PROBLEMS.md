@@ -223,6 +223,11 @@ e2e helper `openMenu` retries the click. A teacher would see a menu that flicker
 click again. A fix could ignore scrolls that start before the menu opened, or reposition
 instead of closing.
 
+### 30. Ctrl+Shift+B leaves focus on the page when it folds the preview
+**Reproduced by reading the code.** The preview goes `inert` when folded. The buttons move
+focus to the other toggle, but the shortcut does not, so focus inside the preview drops
+to the page body.
+
 ### 31. Focus does not follow what was added or deleted
 **Reproduced by reading the code.** Adding a step, an answer or a card leaves focus where
 it was, and deleting one leaves it on nothing. A keyboard author does Enter, Enter, Enter
@@ -261,6 +266,15 @@ the file with no field to clear them, except by switching the option off and on 
 `W_OPTION_OUTCOMES_IGNORED` says so at export review. Also app-side: the multi-select
 branch of `_confirmAnswer` skips an option's `score_koef` too (`block_step_engine.dart:597-601`),
 which the advanced "Podíl bodů" field still offers. Not changed here.
+
+### 46. The player takes focus from the field being typed in when it boots
+**Reproduced in the browser** (Round 15, real player). About two seconds after the page
+loads, the Flutter player in the preview column focuses itself, and the field the teacher
+had already clicked into loses focus — any field, the course name as much as a text step.
+Whatever was typed after that goes nowhere until the teacher clicks back. It happens once
+per player boot (page load, and the reload of a player that did not start). Not caused by
+the visual editor; found while testing it. An editor-side fix is possible (give focus back
+when the preview takes it without a click in it), not done here.
 
 ### 48. Teachers cannot upload an image; the visual editor takes web addresses only
 **Verified by reading the API.** The only upload is `POST /api/admin/assets/upload`
@@ -312,6 +326,12 @@ click into the text leaves it open, the fix is the same rule for any open inline
 list, and they differ by `bmp`. An address with no extension (`…/photo?id=3`) is fetched
 directly in Náhled and fails without CORS headers. One rule, or routing by the
 response's type, would close it.
+
+### 60. A card named from its text loses underscores and stars inside words
+**Not reproduced; read from the code** (Round 23, review of `1961208`). `plainFirstLine`
+(`derive.ts`) strips Markdown with regexes, a third copy of the serializer's escaping,
+and removes every `*`, `_` and backtick, so `snake_case` reads `snakecase`. Deriving the
+text from `parseMarkdown`'s document would make it the one reading.
 
 ### 53. A folded step is a fixed 51px tall
 **Not reproduced; read from the code** (Round 18). The fold animation (`239ac8a`) needs a
@@ -672,16 +692,3 @@ the pre-`1bcff8d` config it came from nginx's default root and 404'd, so the job
 fail there; that is read from the config, not run against the old image. It checks that
 nginx serves the player, not that the preview draws; that is still the `player`
 Playwright project, run locally.
-
-### 30. Ctrl+Shift+B leaves focus on the page when it folds the preview — fixed
-The shortcut and the two buttons share `PreviewColumn.toggle`: focus that was inside the
-column moves to the other toggle.
-
-### 46. The player takes focus from the field being typed in when it boots — fixed
-`PreviewColumn` gives focus back to the element that had it when the player takes it
-during the boot (until 5 s after `ready`), unless the pointer is over the frame or Tab was
-just pressed. A teacher who clicks into the player within 5 s of `ready` with the pointer
-resting elsewhere would not get keyboard focus there (nothing seen so far).
-
-### 60. A card named from its text loses underscores and stars inside words — fixed
-`plainFirstLine` reads the text through `parseMarkdown`.
