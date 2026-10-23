@@ -259,3 +259,32 @@ test('a folded preview does not run the boot watchdog, and opening it starts a f
 	await expect(page.locator('iframe[data-probe="1"]')).toHaveCount(0);
 	await expect(player(page)).toHaveCount(1);
 });
+
+test('a player that takes focus while it boots gives it back to the field being typed in', async ({
+	page
+}) => {
+	await openEditor(page);
+	await expect(booted(page)).toHaveAttribute('data-player', 'ready');
+	const name = page.getByRole('textbox', { name: 'Název kurzu', exact: true });
+	await name.click();
+	await name.press('End');
+
+	// What the real player does about two seconds after the page loads.
+	await player(page).evaluate((frame: HTMLIFrameElement) =>
+		(frame.contentWindow as Window & { stealFocus(): void }).stealFocus()
+	);
+	await page.keyboard.type('Xyz');
+	await expect(name).toBeFocused();
+	await expect(name).toHaveValue(/Xyz$/);
+});
+
+test('focus the teacher moves into the player with the pointer stays there', async ({ page }) => {
+	await openEditor(page);
+	await expect(booted(page)).toHaveAttribute('data-player', 'ready');
+	await page.getByRole('textbox', { name: 'Název kurzu', exact: true }).click();
+	await player(page).hover();
+	await player(page).evaluate((frame: HTMLIFrameElement) =>
+		(frame.contentWindow as Window & { stealFocus(): void }).stealFocus()
+	);
+	await expect.poll(() => page.evaluate(() => document.activeElement?.tagName)).toBe('IFRAME');
+});

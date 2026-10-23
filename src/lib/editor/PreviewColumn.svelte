@@ -285,6 +285,7 @@
 
 	const bridge = new PreviewBridge({
 		onready: () => {
+			bootedAt = Date.now();
 			booted = true;
 			failed = false;
 		},
@@ -372,8 +373,55 @@
 
 	$effect(() => {
 		if (frame === null) return;
+		bootedAt = undefined;
 		bridge.attach(frame);
 		return () => bridge.detach();
+	});
+
+	/**
+	 * The player grabs keyboard focus by itself while it boots (OPEN-PROBLEMS #46):
+	 * about two seconds after the page loads, whatever the teacher had already clicked
+	 * into loses focus and what they type goes nowhere. Focus that moves into the frame
+	 * during the boot (until `BOOT_FOCUS_GRACE_MS` after `ready`) is given back to the
+	 * element that had it, unless the teacher asked for it: the pointer is over the
+	 * frame, or Tab was just pressed. The frame's own clicks never reach this page, so
+	 * the pointer's place is the only sign of intent there is.
+	 */
+	const BOOT_FOCUS_GRACE_MS = 5_000;
+	let bootedAt: number | undefined;
+	let focusBefore: HTMLElement | null = null;
+	let tabbedAt = 0;
+
+	$effect(() => {
+		const focusedPage = (event: FocusEvent) => {
+			const at = event.target;
+			if (at instanceof HTMLElement && at !== frame && at !== document.body) focusBefore = at;
+		};
+		const keyed = (event: KeyboardEvent) => {
+			if (event.key === 'Tab') tabbedAt = Date.now();
+		};
+		// Focus leaving a page element is not yet "into the frame": the frame is the
+		// active element a tick later, and the page body when focus went nowhere.
+		const leftPage = () =>
+			setTimeout(() => {
+				if (frame === null) return;
+				if (document.activeElement !== frame) {
+					if (document.activeElement === document.body) focusBefore = null;
+					return;
+				}
+				const booting = bootedAt === undefined || Date.now() - bootedAt < BOOT_FOCUS_GRACE_MS;
+				const asked = frame.matches(':hover') || Date.now() - tabbedAt < 1_000;
+				if (!booting || asked || focusBefore === null || !focusBefore.isConnected) return;
+				focusBefore.focus({ preventScroll: true });
+			}, 0);
+		document.addEventListener('focusin', focusedPage, true);
+		document.addEventListener('focusout', leftPage, true);
+		document.addEventListener('keydown', keyed, true);
+		return () => {
+			document.removeEventListener('focusin', focusedPage, true);
+			document.removeEventListener('focusout', leftPage, true);
+			document.removeEventListener('keydown', keyed, true);
+		};
 	});
 
 	// Folded, the watchdog is off (the frame is alive but nobody is waiting on it);

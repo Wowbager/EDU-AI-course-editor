@@ -57,6 +57,13 @@
 			});
 
 			send({ type: 'ready' });
+
+			// Opt-in, for the suite about focus (OPEN-PROBLEMS #46): a test calls this to
+			// play the real player, which takes keyboard focus by itself while it boots.
+			window.stealFocus = () => {
+				document.body.tabIndex = -1;
+				document.body.focus();
+			};
 		</script>
 	</body>
 </html>
