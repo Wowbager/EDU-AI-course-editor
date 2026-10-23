@@ -60,6 +60,19 @@ describe('what a card is called', () => {
 		expect(name('Řádek **s tučným** a snake_case')).toBe('Řádek s tučným a snake_case');
 	});
 
+	it('names a very long text from its start without reading all of it', () => {
+		const long = `Úvod je **důležitý** a snake_case\n\n${'Další odstavec. '.repeat(3_000)}`;
+		expect(long.length).toBeGreaterThan(40_000);
+		expect(derivedBlockName(block({ steps: [{ id: 's1', type: 'text', content: long }] }))).toBe(
+			'Úvod je důležitý a snake_case'
+		);
+		const oneLine = `Dlouhý ${'slovo '.repeat(9_000)}**tučně**`;
+		expect(oneLine.length).toBeGreaterThan(50_000);
+		expect(
+			derivedBlockName(block({ steps: [{ id: 's1', type: 'text', content: oneLine }] }), 20)
+		).toBe('Dlouhý slovo slovo …');
+	});
+
 	it('treats an empty or blank title as no title at all', () => {
 		// Nothing should ever write `""` here, but a hand-edited document can carry
 		// one, and a card named "" would be invisible in the tree.
