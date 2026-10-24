@@ -290,7 +290,10 @@ export function duplicateLesson(
 		if (original === undefined) continue; // dangling binding: kept as it is
 		const id = nextBlockId(binding.block_id, { blocks: [...doc.blocks, ...copies] }, reserved);
 		copyOf.set(binding.block_id, id);
-		copies.push(duplicateBlockValue(original, id));
+		// A copy is not in daily practice: the pupil would get the same card twice there.
+		// Its block, steps and bindings all lose the flag (`isPracticeBlock` reads each).
+		const copy = withoutPractice(duplicateBlockValue(original, id));
+		copies.push({ ...copy, steps: copy.steps.map(withoutPractice) });
 	}
 	// A jump or prerequisite from one copied card to another card of the lesson follows
 	// the copies; one that leaves the lesson still points at the original.
@@ -300,10 +303,10 @@ export function duplicateLesson(
 		...lesson,
 		lesson_id: copyId,
 		name: `${lessonLabel(doc, lesson)} (kopie)`,
-		blocks: lesson.blocks.map((binding) => ({
-			...binding,
-			block_id: copyOf.get(binding.block_id) ?? binding.block_id
-		}))
+		blocks: lesson.blocks.map((binding) => {
+			const copied = copyOf.get(binding.block_id);
+			return copied === undefined ? binding : { ...withoutPractice(binding), block_id: copied };
+		})
 	};
 	const at = doc.lessons.findIndex((l) => l.lesson_id === lessonId);
 	const lessons = [...doc.lessons];
@@ -311,7 +314,7 @@ export function duplicateLesson(
 	return {
 		doc: { ...doc, blocks: [...doc.blocks, ...blocks], lessons: renumberOrder(lessons) },
 		ref: { lessonId: copyId },
-		description: `Duplikována lekce „${lessonLabel(doc, lesson)}“ i s kopiemi karet`
+		description: `Duplikována lekce „${lessonLabel(doc, lesson)}“ i s kopiemi karet, mimo opakování`
 	};
 }
 
@@ -477,6 +480,14 @@ export function moveBlockToLesson(
 
 // ───────────────────────────────────────── blocks ─────────────────────────────────────────
 
+/** `node` without its practice flag; the same object when it has none set. */
+function withoutPractice<T extends { default_practice?: boolean }>(node: T): T {
+	if (node.default_practice !== true) return node;
+	const { default_practice: _flag, ...rest } = node;
+	void _flag;
+	return rest as T;
+}
+
 /**
  * Put a card into daily practice, or take it out (§11). A card is in practice when
  * the block, any of its steps or a lesson's binding of it says so
@@ -495,11 +506,7 @@ export function setPractice(doc: CourseV2, blockId: string, on: boolean): Comman
 			description: 'Karta zařazena do opakování'
 		};
 	}
-	const cleared = <T extends { default_practice?: boolean }>(node: T): T => {
-		if (node.default_practice !== true) return node;
-		const { default_practice: _flag, ...rest } = node;
-		return rest as T;
-	};
+	const cleared = withoutPractice;
 	const each = <T>(items: T[], fn: (item: T) => T): T[] => {
 		const next = items.map(fn);
 		return next.some((item, i) => item !== items[i]) ? next : items;

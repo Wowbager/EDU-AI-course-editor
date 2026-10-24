@@ -370,6 +370,29 @@ describe('duplicating a lesson', () => {
 		expect(next.blocks.filter((b) => b.block_id === 'L1_B1_uvod_copy')).toHaveLength(1);
 	});
 
+	it('keeps the copies out of daily practice, and the originals in it', () => {
+		const { doc: plain, lessonId } = withTwoLessons();
+		const id = 'L1_B3_poznej';
+		const stepId = plain.blocks.find((b) => b.block_id === id)!.steps[0].id;
+		let doc = setField(plain, { blockId: id, field: 'default_practice' }, true).doc;
+		doc = setField(doc, { blockId: id, stepId, field: 'default_practice' }, true).doc;
+		doc = {
+			...doc,
+			lessons: doc.lessons.map((l) => ({
+				...l,
+				blocks: l.blocks.map((b) => (b.block_id === id ? { ...b, default_practice: true } : b))
+			}))
+		};
+		const next = duplicateLesson(doc, lessonId).doc;
+		const inPractice = (blockId: string) =>
+			isPracticeBlock(
+				next.blocks.find((b) => b.block_id === blockId)!,
+				bindingFlagsPractice(next, blockId)
+			);
+		expect(inPractice(id)).toBe(true);
+		expect(inPractice(`${id}_copy`)).toBe(false);
+	});
+
 	it('mints ids that avoid existing and reserved ones, and leaves the input course as it was (undo is a snapshot)', () => {
 		const { doc, lessonId } = withTwoLessons();
 		const reserved: Reservations = {
@@ -1058,7 +1081,7 @@ describe('a lesson without a name is never called by its id', () => {
 	it('so does duplicating it, and the copy is called by the same name, not by an id', () => {
 		const { doc, lessonId } = unnamed();
 		const result = duplicateLesson(doc, lessonId);
-		expect(result.description).toBe('Duplikována lekce „Lekce 1“ i s kopiemi karet');
+		expect(result.description).toBe('Duplikována lekce „Lekce 1“ i s kopiemi karet, mimo opakování');
 		expect(result.doc.lessons[1].name).toBe('Lekce 1 (kopie)');
 	});
 
