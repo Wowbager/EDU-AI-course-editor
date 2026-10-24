@@ -2,14 +2,13 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, openEditor, test, type Page } from './fixtures';
 
 /**
- * The page passes axe's WCAG 2.1 level A rules in each state a teacher writes in:
- * every field has a name, every control a role a screen reader can use. Level AA's
- * colour contrast is not gated yet — it fails on the existing top bar
- * (OPEN-PROBLEMS #52), and a check that is always red checks nothing.
+ * The page passes axe's WCAG 2.1 level A and AA rules in each state a teacher writes
+ * in: every field has a name, every control a role a screen reader can use, and text
+ * has enough contrast.
  */
 
 async function expectAccessible(page: Page, state: string) {
-	const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag21a']).analyze();
+	const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag21a', 'wcag2aa', 'wcag21aa']).analyze();
 	const found = result.violations.map(
 		(v) => `${v.id} (${v.impact}): ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`
 	);

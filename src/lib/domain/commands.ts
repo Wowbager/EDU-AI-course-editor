@@ -25,7 +25,13 @@ import type { Ref } from './ref';
 import { lessonLabel } from './naming';
 import { deepCopy } from './clone';
 import { ELO_BASELINE } from './skill-config';
-import { buildIndex, referencesToBlock, referencesToStep, type Reference } from './index-doc';
+import {
+	buildIndex,
+	isGoToKeyword,
+	referencesToBlock,
+	referencesToStep,
+	type Reference
+} from './index-doc';
 import {
 	duplicateBlockValue,
 	newBlockId,
@@ -80,7 +86,7 @@ const mapStep = (
 
 const requireBlock = (doc: CourseV2, blockId: string): BlockV2 => {
 	const block = doc.blocks.find((b) => b.block_id === blockId);
-	if (block === undefined) throw new CommandError(`Blok „${blockId}“ v kurzu není.`, { blockId });
+	if (block === undefined) throw new CommandError(`Karta „${blockId}“ v kurzu není.`, { blockId });
 	return block;
 };
 
@@ -238,6 +244,34 @@ export function addLesson(doc: CourseV2, name?: string, reserved?: Reservations)
 	};
 }
 
+/** Rewrite a block's cross-block `go_to` targets and prerequisite blocks. */
+function retargetBlockRefs(block: BlockV2, to: (value: string) => string): BlockV2 {
+	const steps = block.steps.map((step) => {
+		const options = step.question?.options;
+		if (options === undefined) return step;
+		return {
+			...step,
+			question: {
+				...step.question!,
+				options: options.map((o) =>
+					typeof o.go_to === 'string' && !isGoToKeyword(o.go_to) ? { ...o, go_to: to(o.go_to) } : o
+				)
+			}
+		};
+	});
+	const rules = block.learning?.prerequisites;
+	const learning =
+		rules === undefined
+			? block.learning
+			: {
+					...block.learning!,
+					prerequisites: rules.map((r) =>
+						typeof r.block_id === 'string' ? { ...r, block_id: to(r.block_id) } : r
+					)
+				};
+	return { ...block, steps, ...(learning === undefined ? {} : { learning }) };
+}
+
 export function duplicateLesson(
 	doc: CourseV2,
 	lessonId: string,
@@ -245,20 +279,49 @@ export function duplicateLesson(
 ): CommandResult {
 	const lesson = requireLesson(doc, lessonId);
 	const copyId = nextLessonId(lessonId, doc, reserved);
-	// Bindings are copied as-is: the blocks themselves stay shared, which is the
-	// behaviour the format is built for (§5).
+	// The duplicate owns copies of its cards (OPEN-PROBLEMS #4): editing it never changes
+	// the original. A card bound twice in the lesson is copied once and bound twice, so
+	// sharing *inside* the lesson stays as it was.
+	const copyOf = new Map<string, string>();
+	const copies: BlockV2[] = [];
+	/** Whether a copy lost a practice flag, so the description can say so. */
+	let leftPractice = false;
+	const unflag = <T extends { default_practice?: boolean }>(node: T): T => {
+		const next = withoutPractice(node);
+		if (next !== node) leftPractice = true;
+		return next;
+	};
+	for (const binding of lesson.blocks) {
+		if (copyOf.has(binding.block_id)) continue;
+		const original = doc.blocks.find((b) => b.block_id === binding.block_id);
+		if (original === undefined) continue; // dangling binding: kept as it is
+		const id = nextBlockId(binding.block_id, { blocks: [...doc.blocks, ...copies] }, reserved);
+		copyOf.set(binding.block_id, id);
+		// A copy is not in daily practice: the pupil would get the same card twice there.
+		// Its block, steps and bindings all lose the flag (`isPracticeBlock` reads each).
+		const copy = unflag(duplicateBlockValue(original, id));
+		copies.push({ ...copy, steps: copy.steps.map(unflag) });
+	}
+	// A jump or prerequisite from one copied card to another card of the lesson follows
+	// the copies; one that leaves the lesson still points at the original.
+	const follow = (value: string) => copyOf.get(value) ?? value;
+	const blocks = copies.map((block) => retargetBlockRefs(block, follow));
 	const copy: LessonV2 = {
 		...lesson,
 		lesson_id: copyId,
-		name: `${lessonLabel(doc, lesson)} (kopie)`
+		name: `${lessonLabel(doc, lesson)} (kopie)`,
+		blocks: lesson.blocks.map((binding) => {
+			const copied = copyOf.get(binding.block_id);
+			return copied === undefined ? binding : { ...unflag(binding), block_id: copied };
+		})
 	};
 	const at = doc.lessons.findIndex((l) => l.lesson_id === lessonId);
 	const lessons = [...doc.lessons];
 	lessons.splice(at + 1, 0, copy);
 	return {
-		doc: { ...doc, lessons: renumberOrder(lessons) },
+		doc: { ...doc, blocks: [...doc.blocks, ...blocks], lessons: renumberOrder(lessons) },
 		ref: { lessonId: copyId },
-		description: `Duplikována lekce „${lessonLabel(doc, lesson)}“`
+		description: `Duplikována lekce „${lessonLabel(doc, lesson)}“ i s kopiemi karet${leftPractice ? ', mimo opakování' : ''}`
 	};
 }
 
@@ -330,7 +393,7 @@ export function bindBlock(
 			return { ...lesson, blocks: renumberOrder(bindings) };
 		}),
 		ref: { lessonId, blockId },
-		description: `Blok „${blockId}“ vložen do lekce „${lessonId}“`
+		description: `Karta „${blockId}“ vložena do lekce „${lessonId}“`
 	};
 }
 
@@ -340,7 +403,7 @@ export function unbindBlock(doc: CourseV2, lessonId: string, blockId: string): C
 			...lesson,
 			blocks: renumberOrder(lesson.blocks.filter((b) => b.block_id !== blockId))
 		})),
-		description: `Blok „${blockId}“ odebrán z lekce „${lessonId}“`
+		description: `Karta „${blockId}“ odebrána z lekce „${lessonId}“`
 	};
 }
 
@@ -361,7 +424,7 @@ export function reorderBindings(
 		return { doc, description: 'Pořadí karet se nezměnilo' };
 	return {
 		doc: mapLesson(doc, lessonId, (l) => ({ ...l, blocks: renumberOrder(reordered) })),
-		description: 'Změněno pořadí bloků v lekci'
+		description: 'Změněno pořadí karet v lekci'
 	};
 }
 
@@ -399,7 +462,7 @@ export function moveBlockToLesson(
 	requireLesson(doc, toLessonId);
 	const binding = from.blocks.find((b) => b.block_id === blockId);
 	if (binding === undefined) {
-		throw new CommandError(`Blok „${blockId}“ v lekci „${fromLessonId}“ není.`, {
+		throw new CommandError(`Karta „${blockId}“ v lekci „${fromLessonId}“ není.`, {
 			lessonId: fromLessonId,
 			blockId
 		});
@@ -418,11 +481,19 @@ export function moveBlockToLesson(
 	return {
 		doc: next,
 		ref: { lessonId: toLessonId, blockId },
-		description: `Blok „${blockId}“ přesunut do lekce „${toLessonId}“`
+		description: `Karta „${blockId}“ přesunuta do lekce „${toLessonId}“`
 	};
 }
 
 // ───────────────────────────────────────── blocks ─────────────────────────────────────────
+
+/** `node` without its practice flag; the same object when it has none set. */
+function withoutPractice<T extends { default_practice?: boolean }>(node: T): T {
+	if (node.default_practice !== true) return node;
+	const { default_practice: _flag, ...rest } = node;
+	void _flag;
+	return rest as T;
+}
 
 /**
  * Put a card into daily practice, or take it out (§11). A card is in practice when
@@ -439,14 +510,10 @@ export function setPractice(doc: CourseV2, blockId: string, on: boolean): Comman
 		return {
 			...setField(doc, { blockId, field: 'default_practice' }, true),
 			ref,
-			description: 'Karta zařazena do cvičení'
+			description: 'Karta zařazena do opakování'
 		};
 	}
-	const cleared = <T extends { default_practice?: boolean }>(node: T): T => {
-		if (node.default_practice !== true) return node;
-		const { default_practice: _flag, ...rest } = node;
-		return rest as T;
-	};
+	const cleared = withoutPractice;
 	const each = <T>(items: T[], fn: (item: T) => T): T[] => {
 		const next = items.map(fn);
 		return next.some((item, i) => item !== items[i]) ? next : items;
@@ -462,12 +529,12 @@ export function setPractice(doc: CourseV2, blockId: string, on: boolean): Comman
 		return bindings === lesson.blocks ? lesson : { ...lesson, blocks: bindings };
 	});
 	if (blocks === doc.blocks && lessons === doc.lessons) {
-		return { doc, ref, description: 'Karta ve cvičení není' };
+		return { doc, ref, description: 'Karta v opakování není' };
 	}
 	return {
 		doc: { ...doc, blocks, lessons },
 		ref,
-		description: 'Karta vyřazena ze cvičení'
+		description: 'Karta vyřazena z opakování'
 	};
 }
 
@@ -550,7 +617,7 @@ export function duplicateBlock(
 	return {
 		doc: next,
 		ref: { lessonId, blockId: copyId },
-		description: `Duplikován blok „${blockId}“`
+		description: `Duplikována karta „${blockId}“`
 	};
 }
 
@@ -578,7 +645,7 @@ export function deleteBlock(doc: CourseV2, blockId: string, repairs: Repair[] = 
 	);
 	if (outstanding.length > 0) {
 		throw new CommandError(
-			`Na blok „${blockId}“ odkazuje ${outstanding.length} míst(o) v kurzu. Nejdřív je přesměruj nebo zruš, jinak by žák uvízl.`,
+			`Na kartu „${blockId}“ odkazuje ${outstanding.length} míst(o) v kurzu. Nejdřív je přesměruj nebo zruš, jinak by žák uvízl.`,
 			{ blockId }
 		);
 	}
@@ -586,7 +653,7 @@ export function deleteBlock(doc: CourseV2, blockId: string, repairs: Repair[] = 
 	const repaired = applyRepairs(doc, repairs);
 	return {
 		doc: { ...repaired, blocks: repaired.blocks.filter((b) => b.block_id !== blockId) },
-		description: `Smazán blok „${blockId}“`
+		description: `Smazána karta „${blockId}“`
 	};
 }
 
@@ -598,7 +665,7 @@ export function renameBlock(
 ): CommandResult {
 	requireBlock(doc, blockId);
 	if (doc.blocks.some((b) => b.block_id === newBlockIdValue)) {
-		throw new CommandError(`Blok s id „${newBlockIdValue}“ už v kurzu je.`, { blockId });
+		throw new CommandError(`Karta s id „${newBlockIdValue}“ už v kurzu je.`, { blockId });
 	}
 
 	const next: CourseV2 = {
@@ -638,7 +705,7 @@ export function renameBlock(
 	return {
 		doc: next,
 		ref: { blockId: newBlockIdValue },
-		description: `Blok „${blockId}“ přejmenován na „${newBlockIdValue}“`
+		description: `Karta „${blockId}“ přejmenována na „${newBlockIdValue}“`
 	};
 }
 
@@ -697,7 +764,7 @@ export function duplicateStep(
 	const block = requireBlock(doc, blockId);
 	const source = block.steps.find((s) => s.id === stepId);
 	if (source === undefined)
-		throw new CommandError(`Krok „${stepId}“ v bloku není.`, { blockId, stepId });
+		throw new CommandError(`Krok „${stepId}“ v kartě není.`, { blockId, stepId });
 
 	const id = nextStepId(block.steps, blockId, reserved);
 	const copy: BlockStep = deepCopy(source);
@@ -727,7 +794,7 @@ export function deleteStep(
 ): CommandResult {
 	const block = requireBlock(doc, blockId);
 	if (!block.steps.some((s) => s.id === stepId)) {
-		throw new CommandError(`Krok „${stepId}“ v bloku není.`, { blockId, stepId });
+		throw new CommandError(`Krok „${stepId}“ v kartě není.`, { blockId, stepId });
 	}
 	const outstanding = planDeleteStep(doc, blockId, stepId).filter(
 		(reference) => !repairs.some((r) => sameReference(r.reference, reference))

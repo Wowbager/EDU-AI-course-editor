@@ -90,24 +90,6 @@ editor will not, and uses `status: private` for "PIN only".
 Entries where something is wrong and a teacher can hit it. These want fixing. The note at
 the top of this file applies: numbers are a citation key and are never renumbered.
 
-### 54. The editor still describes the app before its 2026-10-15 sync
-**Verified: yes**, read off the new app's code (DECISIONS Round 21). Round 23 fixed the
-rest of this list (the Markdown and HTML sniffing, `allow_photo`, `fsrs.weight` and
-`skip_condition`, open-answer grading, `only_once` and practice). Left:
-- `W_HINT_UNREACHABLE` counts every question of a merged card as offering a "?". The
-  app offers only the first and the last question's when the card has no open question.
-
-### 55. A plain line that starts like a list, quote, heading or number cannot be shown as typed — app-side
-**Verified: by reading the code** (Round 23). Since its 2026-10-15 sync the app reads a
-text step, question, answer, solution or feedback as Markdown when a line starts with
-`- `, `1. `, `> `, `# ` or `|` (`content_format.dart`). A teacher's plain `- a`, `>2)` or
-`1. krok`, with nothing else formatted, then has no form the app shows as typed:
-unescaped it becomes a list or a quote, and escaped (`\- a`) it is no longer Markdown,
-so the app prints the backslash. The editor writes the escaped form and, reloaded, shows
-the backslash too, as the pupil sees it. The fix is app-side (render these fields as
-Markdown always, as hints already are). The editor's property tests skip exactly this
-case (`onlyBlockMarkers`).
-
 ### 56. Publishing a Cvičení or Test course would be refused — API-side
 **Verified: by reading the code** (Round 23). `POST /api/courses/upload`, the editor's
 publish route (`api/client.ts`), validates `export_type` as `in:course_v2` only
@@ -122,33 +104,6 @@ step's `default_practice` (`course_model.dart`), so the card shows among the cou
 exercises. Both paths that create FSRS practice cards (`createCardsFromLesson`, also used
 by `seedCardsFromCourse`) read only `ContentBlock.defaultPractice`, the block's or the
 binding's flag. The step's switch says so; the fix is app-side.
-
-### 41. Unread fields no longer say so on screen
-**Verified by reading the code** (Round 10). Until Round 10 every field nothing reads
-yet began its hint with "Zatím bez účinku — aplikace ani API tuto hodnotu nečtou, jen se
-uloží." The owner plans to make them take effect and does not want them kept in one
-group, so they now sit in the section they belong to (Opakování, Návaznost,
-Co karta procvičuje, V této lekci, Údaje o kartě, Průběh kurzu, Pro AI lektora) with the
-same hint as any other field. A teacher or metodik who fills in a `fsrs.*`, `gpf.grade`,
-`learning.*`, `xp` or `stop_gambling` field is therefore no longer told that the student
-sees no difference. Nothing is lost silently: the `unread: true` flag stays on the spec,
-is never offered in Učitel, and `fields.test.ts` still holds it to the ⚪ / ❌ / "Inert"
-rows of `docs/spec/COURSE-EDITOR-SPEC.md` in both directions, so that spec list is the
-record of what the app has yet to read. Closing this is the app (or API) reading those
-keys; an unread field that stays unread should say so again, or leave the editor.
-Related: #14, #15.
-
-### 14. The FSRS fields write keys the app does not read
-**Verified: yes**, per `COURSE-EDITOR-SPEC.md` §6.5. The authoring spec names them
-`initial_difficulty`, `initial_stability`, `repetitions`…; the app reads `difficulty`,
-`stability`, `reps` and nothing else. They were marked "Zatím bez účinku" until Round 10
-(see #41), and now sit unmarked in „Opakování“. Which side is wrong is a spec question for the owner; the editor writes what the authoring
-spec says.
-
-Round 23: the 2026-10-15 app reads `fsrs.weight` and `fsrs.skip_condition` (no longer
-flagged unread) and still reads `stability`, `difficulty`, `reps`, on FSRS's own scale
-(difficulty 1–10, not the spec's 0–1). The owner kept the spec's names; the fields no
-longer show defaults the app never applies.
 
 ### 17. The player still talks to other origins while it runs — app-side
 **Verified: yes.** Google Fonts (the app's `google_fonts`) and `accounts.google.com`
@@ -190,17 +145,6 @@ the question's own block, and the pupil goes on to the card's next question, so 
 teacher it does what "Pokračovat dál" does. The option is not relabelled. An imported
 card with such an `END` is kept whole.
 
-### 25. In quiz_v2 courses the app shows no solution or feedback, but the editor still asks for them
-**Verified by reading the code** (Round 23). A `quiz_v2` course keeps the hint button
-(Round 23 corrected the texts that said otherwise), and with `quiz_evaluate: false` it
-drops solutions and per-option feedback, so a teacher writing a test is asked for text
-the pupil never sees (and `W_NO_WRONG_OPTION_FEEDBACK` says the pupil "will not learn"
-what the app does not tell). The Zpětná vazba switch is the teacher's, not a rule. A
-candidate fix is a domain rule, once, in `src/lib/domain/` (AGENTS.md rule 1): which of
-those fields the app shows for an `export_type` and `quiz_evaluate`, cited from
-`lesson_detail_page.dart` and `block_step_engine.dart`, used by validation and the
-registry alike. It should be checked against the app before it is written.
-
 ### 26. Hover-hidden actions on a touch screen are unverified
 **Not reproduced.** A step's Duplikovat and Smazat, its drag grip, and the + between steps
 are drawn faint or invisible until hover or focus, and always drawn under
@@ -215,27 +159,6 @@ tile toggles its panel, and the tile's panel is also what a right-click, Shift+F
 ContextMenu key pin. The tree's rows have no touch path of their own yet. Still unverified
 on a device that reports `hover: hover` without a mouse.
 
-### 28. A menu opened while the column is still scrolling closes at once
-**Reproduced in e2e, not by hand.** `Menu` closes on any scroll outside its panel, so the
-menu stays anchored to its trigger. Selecting a card smooth-scrolls the editor column, and
-a click on "Přidat krok" or ⋯ during that scroll opens the menu and shuts it again. The
-e2e helper `openMenu` retries the click. A teacher would see a menu that flickers and
-click again. A fix could ignore scrolls that start before the menu opened, or reposition
-instead of closing.
-
-### 30. Ctrl+Shift+B leaves focus on the page when it folds the preview
-**Reproduced by reading the code.** The preview goes `inert` when folded. The buttons move
-focus to the other toggle, but the shortcut does not, so focus inside the preview drops
-to the page body.
-
-### 31. Focus does not follow what was added or deleted
-**Reproduced by reading the code.** Adding a step, an answer or a card leaves focus where
-it was, and deleting one leaves it on nothing. A keyboard author does Enter, Enter, Enter
-to add answers and is then somewhere they did not choose. It also covers Enter adding the
-*next* answer (today it does not) and the delete dialog for a plain card (#15: a card with
-nothing pointing at it still asks). Left for a later round: the fix is one focus
-convention across every "add" and every "delete", and half of one is worse than none.
-
 ### 34. Metodik noise
 **Not reproduced by a teacher, seen in the interface.** The step part is addressed
 (Round 10): the per-step practice switch is offered only when the card is not already in
@@ -244,21 +167,6 @@ left is unread fields drawn as empty rather than as "not asked yet", now #41, an
 rule about which fields a card of a given type actually earns, which is the same one #25
 is waiting on.
 
-### 35. Changing a card's type
-**Reproduced in the UI.** A card's type is chosen when it is added and there is no way to
-change it afterwards, so a text card that should have been a question is deleted and
-written again. Not chosen this round: it is a command, a dialog and a rule about which
-fields survive the conversion.
-
-### 37. Ctrl+Z in a plain input undoes the course, not the text
-**Reproduced by reading the code.** The page's key handler undoes the store for any Ctrl+Z
-that nothing else consumed. `FocusField` consumes it, and since Round 9 the Markdown editor
-leaves it to the store on purpose. The other inputs (the knowledge vector's numbers, the
-topic and competency searches, the prerequisite picker, the field in the versions dialog) do not, so
-Ctrl+Z inside one of them takes back the last course edit instead of the last characters
-typed there. Not tried by hand. A fix is to let the page handler stand aside for an input
-that keeps no store state of its own, the way Ctrl+B now does.
-
 ### 38. A question with several picks still carries "Kam dál" and grades nobody can see or clear
 **Reproduced in unit tests.** With "Víc správných možností" on, the table hides the
 columns the app ignores (DECISIONS Round 9), so an answer's old branch and grade stay in
@@ -266,15 +174,6 @@ the file with no field to clear them, except by switching the option off and on 
 `W_OPTION_OUTCOMES_IGNORED` says so at export review. Also app-side: the multi-select
 branch of `_confirmAnswer` skips an option's `score_koef` too (`block_step_engine.dart:597-601`),
 which the advanced "Podíl bodů" field still offers. Not changed here.
-
-### 46. The player takes focus from the field being typed in when it boots
-**Reproduced in the browser** (Round 15, real player). About two seconds after the page
-loads, the Flutter player in the preview column focuses itself, and the field the teacher
-had already clicked into loses focus — any field, the course name as much as a text step.
-Whatever was typed after that goes nowhere until the teacher clicks back. It happens once
-per player boot (page load, and the reload of a player that did not start). Not caused by
-the visual editor; found while testing it. An editor-side fix is possible (give focus back
-when the preview takes it without a click in it), not done here.
 
 ### 48. Teachers cannot upload an image; the visual editor takes web addresses only
 **Verified by reading the API.** The only upload is `POST /api/admin/assets/upload`
@@ -301,44 +200,12 @@ mathematics they agree. A command one supports and the other does not would draw
 field and fall back to orange source in the app (or the reverse). Náhled is the reference:
 it is the app.
 
-### 52. Faint text in the top bar and elsewhere fails WCAG AA colour contrast
-**Reproduced by axe** (Round 15, `@axe-core/playwright`, rule `color-contrast`): 24
-elements on a new course's page, among them the version chip and the save status.
-`e2e/accessibility.spec.ts` gates WCAG level A only for that reason; once these pass,
-add `wcag2aa` to its tags. Not caused by the visual editor.
-
 ---
 
 ## Unconfirmed
 
 Entries not reproduced, or reproduced only from the code. They stay until someone sees
 them, or until enough rounds pass that the behaviour would have surfaced.
-
-### 58. The image row may stay open after a click back into the text
-**Not reproduced; read from the code** (Round 23, review of `9e708b3`). The formula row
-now closes on any transaction that moves away from it (`followFormula`, `RichField`),
-but the image row (`imagePanel`) still closes only on Escape and its own buttons. If a
-click into the text leaves it open, the fix is the same rule for any open inline row.
-
-### 59. Two lists of image extensions decide how a picture is fetched
-**Not reproduced; read from the code** (Round 23, review of `a6c66d7`). The player shim
-(`player-shim.js`) and the paste rule (`rich/paste.ts`) each keep their own extension
-list, and they differ by `bmp`. An address with no extension (`…/photo?id=3`) is fetched
-directly in Náhled and fails without CORS headers. One rule, or routing by the
-response's type, would close it.
-
-### 60. A card named from its text loses underscores and stars inside words
-**Not reproduced; read from the code** (Round 23, review of `1961208`). `plainFirstLine`
-(`derive.ts`) strips Markdown with regexes, a third copy of the serializer's escaping,
-and removes every `*`, `_` and backtick, so `snake_case` reads `snakecase`. Deriving the
-text from `parseMarkdown`'s document would make it the one reading.
-
-### 53. A folded step is a fixed 51px tall
-**Not reproduced; read from the code** (Round 18). The fold animation (`239ac8a`) needs a
-height to animate to, so `.collapsed` in `StepEditor.svelte` is `height: 51px` with
-`overflow: hidden`: one header line at the current font. A larger minimum font size in
-the browser, or a header that ever wraps, would clip the folded row. `interpolate-size`
-or measuring the header would remove the number.
 
 ### 7. A possible transition artifact in "Vyzkoušet" — likely fixed (Round 5)
 **Verified: no.** One scripted author flagged it and was explicit about not being sure
@@ -380,14 +247,6 @@ Until then "Zveřejnit" records which version is out, for whom, and downloads th
 for the administration's upload. The API's own quirks (D, E) matter the day it is
 wired. The blocking question is `DECISIONS.md` "Still open" 2.
 
-### 4. "Duplikovat lekci" shares its cards rather than copying them
-**Verified: yes** — and deliberate: bindings are copied, blocks stay shared, which is
-what the format is built for (§5, and the comment on `duplicateLesson`). The problem is
-that the only tell is a small `Sdílený (2×)` chip on the card, so a teacher who
-duplicates a lesson to make a variant edits both. Worth an explicit choice at the point
-of duplication rather than a chip discovered afterwards. *Cited from `DECISIONS.md`
-Round 8.*
-
 ### 5. A no-op import → export rewrites key order in real-world files
 **Verified: yes**, and deliberate: output key order is canonical so that a publish diff
 is readable (`docs/DECISIONS.md`, M1). Values round-trip deep-equal — the scripted
@@ -400,11 +259,6 @@ actually change" hard to answer for a course that came from somewhere else.
 mode switches to that mode on the jump, and the mode stays switched. The alternative —
 landing on a card whose field is not drawn — is what this replaced. *Cited from
 `DECISIONS.md` Round 8, which applies the same rule to 24.*
-
-### 22. The version button says "upraveno" right after importing a multi-question course
-**Verified: by construction.** The import is recorded as the version it came with; the
-split that follows is an edit, so the working copy differs from that version. True, and
-undo takes it back, but a teacher who changed nothing sees "upraveno".
 
 ### 23. Editing a card overwrites settings its blocks disagree on
 **Verified: by construction.** A card's settings are written to each of its blocks. If
@@ -426,19 +280,6 @@ are on its row in the tree, and since Round 9 also in the panel beside a lesson 
 the folded rail. The lesson's own deletion and duplication are in that dialog, so nothing
 a teacher needs is reachable only from a hover.
 
-### 32. The validation panel
-**Seen in a session, not fixed.** It has no Escape, a dismissal is forgotten on the next
-validation run, and it says "publikovat" where the rest of the editor says "zveřejnit".
-Not chosen this round: the panel is being reworked with the topbar, and the wording is part
-of that.
-
-### 33. Labels the editor uses in two senses
-**By design so far, but it costs a teacher.** "Blok" and "karta" are both used for the same
-thing depending on the mode; "Zpět" is the undo in one place and the way out in three
-others; "Cvičení" and "Opakování" name the same property in the chip and the field. Renaming
-touches every spec that locates by accessible name, so it wants its own round with the e2e
-suite in hand.
-
 ### 43. What the Round 11 CRUD re-audit left
 **Found by a scripted audit of every settings and editor-column flow, not fixed.**
 Reproduced in the browser unless said otherwise.
@@ -458,34 +299,6 @@ Reproduced in the browser unless said otherwise.
 - Pokročilý shows block and step ids in „Kam dál“ and the step headers, and GPF codes on
   skill rows. Pokročilý is meant to show them; listed so the choice is a decision, not an
   accident.
-
-### 44. Opakování explains too little, and waits for the newer app
-**Known, deliberately not fixed yet.** The owner's call (Round 12): the fields of the card's
-Opakování section need better explanations, and those are to be written once the newer
-version of the app is public. The public app code is months behind the app in
-development, so what it reads today is no guide to what these fields will do.
-
-What a teacher misses today, field by field:
-
-| Field | Missing for a teacher |
-|---|---|
-| Počáteční obtížnost (`fsrs.initial_difficulty`) | what a higher number does (intervals grow more slowly) and when to change it |
-| Počáteční stabilita (`fsrs.initial_stability`) | that it is in effect the first gap before the card returns; "stabilita" is jargon |
-| Počáteční vybavení (`fsrs.initial_recall`) | that it is the assumed chance the student still remembers |
-| Rychlost zapomínání (`fsrs.forgetting_rate`) | the direction (higher = the card comes back sooner) and a range |
-| Počet opakování (`fsrs.repetitions`) | that it is only for imported, already practised content; no default or unit |
-| Priorita v opakování (`fsrs.weight`) | the scale, the default and that higher comes first |
-| Nejkratší / Nejdelší odstup (`fsrs.min_interval`, `max_interval`) | what the gap is: the time until the card returns |
-| Podmínka vynechání (`fsrs.skip_condition`) | which variables an expression may use; it is free text with one example |
-| Časový limit (`fsrs.time_limit_sec`) | whether it is enforced, and what happens when it runs out |
-
-To check against the newer app when it lands: in the public code (`block_model.dart`,
-`FsrsParameters.fromJson`) the app reads `block.fsrs.stability`, `difficulty`, `reps`,
-`lapses`, `last_review` and `due_date`, while the editor writes the format's
-`initial_stability`, `initial_difficulty`, `repetitions` and the rest. If the newer app
-keeps those names, one side has to change before any of these fields does anything. **The newer app has landed (2026-10-15) and kept
-them** (#14); `weight` and `skip_condition` are read and say how, the rest wait for that
-decision.
 
 ### 45. What the Round 12 teacher test found and left
 **Found by an agent doing six teacher tasks by reading only the screen. Mostly fixed in
@@ -523,6 +336,69 @@ Headings kept so that a citation from `docs/DECISIONS.md`,
 **Nothing here is open**, and the entries no longer sit in the live list above. The round
 that closed it is named, and the reasoning is in that round's section of
 `docs/DECISIONS.md`.
+
+### 33. Labels the editor uses in two senses
+Fixed (Round 24): „karta“ everywhere a teacher reads, „Vrátit“ for undo and „Zpět“ only for going back, „Opakování“ for the practice flag.
+
+### 4. "Duplikovat lekci" shares its cards rather than copying them
+Copies the cards now; one button, no question (Round 24).
+
+### 14. The FSRS fields write keys the app does not read
+Decided (Round 24): the fields stay, they are in the V2 schema; the Opakování note says which ones the app reads.
+
+### 22. The version button says "upraveno" right after importing a multi-question course
+Already fixed; `e2e/import-version.spec.ts` guards it (Round 24).
+
+### 25. In quiz_v2 courses the app shows no solution or feedback, but the editor still asks for them
+Fixed (Round 24): `domain/course-feedback.ts`; the editor no longer asks for what a Test without evaluation never shows.
+
+### 28. A menu opened while the column is still scrolling closes at once
+Fixed (Round 24): the menu follows its button while the column scrolls.
+
+### 30. Ctrl+Shift+B leaves focus on the page when it folds the preview
+Fixed (Round 24).
+
+### 31. Focus does not follow what was added or deleted
+Fixed (Round 24): `ui/focus-after.ts`, one convention for every add and delete.
+
+### 32. The validation panel
+Fixed (Round 24): Escape, remembered dismissal, „zveřejnit“.
+
+### 35. Changing a card's type
+Rejected (Round 24): the card's menu keeps its five actions.
+
+### 37. Ctrl+Z in a plain input undoes the course, not the text
+Fixed (Round 24).
+
+### 41. Unread fields no longer say so on screen
+Addressed (Round 24): one line under Opakování, derived from `unread`, says which values the app uses.
+
+### 44. Opakování explains too little, and waits for the newer app
+Fixed (Round 24): plain hints for every field.
+
+### 46. The player takes focus from the field being typed in when it boots
+Fixed (Round 24).
+
+### 52. Faint text in the top bar and elsewhere fails WCAG AA colour contrast
+Fixed (Round 24): text tokens meet AA; `e2e/accessibility.spec.ts` gates `wcag2aa`.
+
+### 53. A folded step is a fixed 51px tall
+Fixed (Round 24): measured header height.
+
+### 54. The editor still describes the app before its 2026-10-15 sync
+Fixed (Round 24): `domain/hint-reach.ts`, per exported block.
+
+### 55. A plain line that starts like a list, quote, heading or number cannot be shown as typed — app-side
+Editor side fixed (Round 24): the editor shows the text as typed; Náhled keeps the app's reading, which the app is expected to fix.
+
+### 58. The image row may stay open after a click back into the text
+Fixed (Round 24).
+
+### 59. Two lists of image extensions decide how a picture is fetched
+Fixed (Round 24): one list in `scripts/image-extensions.mjs`. An address with no extension is still fetched directly.
+
+### 60. A card named from its text loses underscores and stars inside words
+Fixed (Round 24): the name comes from the parsed document.
 
 ### 15. A card's own XP is shown as its reward, and the app ignores it — fixed (Round 23)
 The card chip and the lesson and course totals show the most the steps can earn, the

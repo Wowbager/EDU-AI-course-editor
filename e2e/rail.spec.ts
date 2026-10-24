@@ -25,7 +25,7 @@ test.beforeEach(async ({ page }) => {
 
 const circles = (page: Page) => page.locator('.rail-item');
 const tiles = (page: Page) => page.locator('.rail-tile');
-const undo = (page: Page) => page.getByRole('button', { name: 'Zpět', exact: true });
+const undo = (page: Page) => page.getByRole('button', { name: 'Vrátit', exact: true });
 /** What each tile is called, in order: the whole order of the lesson in one read. */
 const order = (page: Page) =>
 	tiles(page).evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')));
@@ -71,7 +71,7 @@ test('clicking a tile selects its card', async ({ page }) => {
 	}
 });
 
-test('a tile is dragged by any part of it, Zpět puts it back, and a drop in place is not an edit', async ({
+test('a tile is dragged by any part of it, Vrátit puts it back, and a drop in place is not an edit', async ({
 	page
 }) => {
 	const before = await order(page);

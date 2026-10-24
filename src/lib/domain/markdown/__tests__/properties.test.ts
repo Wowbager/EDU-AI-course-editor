@@ -19,7 +19,6 @@ import {
 	SNIFFED,
 	looksLikeHtml,
 	looksLikeMarkdown,
-	onlyBlockMarkers,
 	parseMarkdown,
 	sameDoc,
 	serializeMarkdown,
@@ -220,10 +219,10 @@ function appReadsIt(input: DocNode, markdown: string, dialect: MarkdownDialect):
 	if (isPlain(input)) {
 		const typed = plainText(input);
 		if (looksLikeMarkdown(markdown)) return true;
-		// A plain line that starts like a list, heading, quote or number has no form the
-		// app shows as typed (OPEN-PROBLEMS #55), and a typed tag goes to the app's HTML
-		// renderer (`looksLikeHtml`), which the editor opens as source.
-		return !onlyBlockMarkers(typed) && !looksLikeHtml(typed);
+		// A typed tag goes to the app's HTML renderer (`looksLikeHtml`), which the editor
+		// opens as source. A line that starts like a list is stored with a backslash the
+		// editor undoes (`escapePlainLines`, OPEN-PROBLEMS #55).
+		return !looksLikeHtml(typed);
 	}
 	return looksLikeMarkdown(markdown);
 }

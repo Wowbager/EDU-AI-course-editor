@@ -84,7 +84,7 @@ test('a folded step stays folded while it is carried and after it lands', async 
 
 test('a drag dropped where it started is not an edit', async ({ page }) => {
 	await openQuizCard(page);
-	const undo = page.getByRole('button', { name: 'Zpět', exact: true });
+	const undo = page.getByRole('button', { name: 'Vrátit', exact: true });
 	await expect(undo).toBeDisabled();
 
 	const from = await press(page, 2);
@@ -181,6 +181,25 @@ test('the add-step menu closes on Escape and gives focus back to its button', as
 	await expect(menu).toBeHidden();
 	await expect(trigger).toBeFocused();
 	await expect(steps(page)).toHaveCount(4);
+});
+
+test('an open add-step menu stays open and follows its button when the column scrolls', async ({
+	page
+}) => {
+	await openQuizCard(page);
+	await page.setViewportSize({ width: 1440, height: 500 });
+	const trigger = page
+		.locator('main .add-step')
+		.getByRole('button', { name: 'Přidat krok', exact: true });
+	await trigger.scrollIntoViewIfNeeded();
+	const menu = await openMenu(page, trigger, 'Přidat krok', addStepItem(page, 'Text'));
+	const gapBefore = (await menu.boundingBox())!.y - (await trigger.boundingBox())!.y;
+	await page.locator('main.editor').evaluate((el) => (el.scrollTop -= 30));
+	await expect.poll(async () => (await trigger.boundingBox())!.y).toBeGreaterThan(0);
+	await expect(menu).toBeVisible();
+	await expect
+		.poll(async () => (await menu.boundingBox())!.y - (await trigger.boundingBox())!.y)
+		.toBeCloseTo(gapBefore, 0);
 });
 
 test('a step can be inserted between two others', async ({ page }) => {
@@ -280,4 +299,16 @@ test('the last step grabbed with the column scrolled to the bottom is under the 
 	await page.mouse.move(from.x, from.y, { steps: 4 });
 	await page.mouse.up();
 	await expect.poll(() => order(page)).toEqual(['krok-1', 'krok-2', 'krok-3', 'krok-4', 'krok-5']);
+});
+
+test('a folded step is as tall as its header, however tall that is', async ({ page }) => {
+	await openQuizCard(page);
+	// A larger font or a header that wraps: the header is taller than it usually is.
+	await page.addStyleTag({ content: '.step header { min-height: 90px; }' });
+	const step = steps(page).first();
+	await fold(step);
+	await expect(step).toHaveClass(/collapsed/);
+	await expect
+		.poll(() => step.evaluate((el) => el.scrollHeight - el.clientHeight))
+		.toBeLessThanOrEqual(0);
 });

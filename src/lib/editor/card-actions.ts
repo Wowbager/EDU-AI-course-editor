@@ -110,13 +110,14 @@ export function cardActions(store: DocStore, handlers: CardActionHandlers) {
 		/**
 		 * Delete the card. When nothing but its own lesson points at it, it goes at once
 		 * with an undo toast; otherwise the repair dialog asks where those pointers
-		 * should go (`domain/card-delete.ts`).
+		 * should go (`domain/card-delete.ts`). Returns whether the card is gone; `false`
+		 * means the repair dialog has taken over and nothing was deleted yet.
 		 */
-		remove(blockId: string, lessonId: string | undefined) {
+		remove(blockId: string, lessonId: string | undefined): boolean {
 			const plan = quickDelete(store.doc, lessonId, blockId);
 			if (plan === null) {
 				handlers.onrepair(blockId);
-				return;
+				return false;
 			}
 			const wasSelected = store.selection?.blockId === blockId;
 			const entry = recorded(store, () => {
@@ -133,6 +134,7 @@ export function cardActions(store: DocStore, handlers: CardActionHandlers) {
 				entry,
 				ref: wasSelected ? { lessonId, blockId } : undefined
 			});
+			return true;
 		},
 
 		/** Settings are per card, so the card is selected first. */

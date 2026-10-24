@@ -71,8 +71,17 @@
 		const anchor = trigger();
 		if (panel === null || anchor === null || isShowing()) return;
 		panel.showPopover();
-		// Measured in the same task as `showPopover()`, so the menu is never painted
-		// in the wrong place first.
+		place();
+		panel.querySelector<HTMLElement>('[role^="menuitem"]:not(:disabled)')?.focus();
+	}
+
+	/**
+	 * Measured in the same task as `showPopover()`, so the menu is never painted in the
+	 * wrong place first, and again whenever the trigger moves under a scroll.
+	 */
+	function place() {
+		const anchor = trigger();
+		if (panel === null || anchor === null) return;
 		const box = panel.getBoundingClientRect();
 		const spot = placeMenu(
 			anchor.getBoundingClientRect(),
@@ -82,7 +91,6 @@
 		);
 		panel.style.top = `${spot.top}px`;
 		panel.style.left = `${spot.left}px`;
-		panel.querySelector<HTMLElement>('[role^="menuitem"]:not(:disabled)')?.focus();
 	}
 
 	function close() {
@@ -106,7 +114,7 @@
 	}
 
 	function onpointerdown() {
-		wasOpenAtPointerDown = open;
+		wasOpenAtPointerDown = isShowing();
 	}
 
 	function onclick() {
@@ -114,20 +122,30 @@
 			wasOpenAtPointerDown = false;
 			return;
 		}
-		open = !open;
+		// What is on screen decides, not `open`: `ontoggle` updates that a moment after
+		// the panel closes, and a click in that moment must open the menu again.
+		if (isShowing()) {
+			close();
+		} else {
+			open = true;
+			show();
+		}
 	}
 
 	$effect(() => {
 		if (!open) return;
-		// A menu anchored to a rectangle that has moved is worse than no menu.
-		const dismiss = (event: Event) => {
+		// A menu anchored to a rectangle that has moved is worse than no menu: a scroll
+		// (the editor column is still smooth-scrolling to a card just selected, #28)
+		// moves it along with its trigger; a resize closes it.
+		const follow = (event: Event) => {
 			if (event.target instanceof Node && panel?.contains(event.target)) return;
-			close();
+			if (isShowing()) place();
 		};
-		window.addEventListener('scroll', dismiss, true);
+		const dismiss = () => close();
+		window.addEventListener('scroll', follow, true);
 		window.addEventListener('resize', dismiss);
 		return () => {
-			window.removeEventListener('scroll', dismiss, true);
+			window.removeEventListener('scroll', follow, true);
 			window.removeEventListener('resize', dismiss);
 		};
 	});

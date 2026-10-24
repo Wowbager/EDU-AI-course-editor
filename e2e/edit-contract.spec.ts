@@ -17,7 +17,7 @@ interface Surface {
 	open(page: Page): Promise<Locator>;
 }
 
-const undoButton = (page: Page) => page.getByRole('button', { name: 'Zpět', exact: true });
+const undoButton = (page: Page) => page.getByRole('button', { name: 'Vrátit', exact: true });
 
 async function sourceView(page: Page): Promise<Locator> {
 	await page.locator('.rich-content').first().click();

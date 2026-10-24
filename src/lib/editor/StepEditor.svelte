@@ -12,6 +12,7 @@
 		QuestionType
 	} from '$lib/domain/schema';
 	import FocusField from '$lib/ui/FocusField.svelte';
+	import { countOf, focusAdded, focusAfterDelete } from '$lib/ui/focus-after';
 	import NumberField from '$lib/ui/NumberField.svelte';
 	import RichField from '$lib/ui/RichField.svelte';
 	import { ALWAYS_MARKDOWN, SNIFFED } from '$lib/domain/markdown';
@@ -56,6 +57,8 @@
 		Trash
 	} from '@lucide/svelte';
 	import type { Component } from 'svelte';
+	import { appShowsFeedback } from '$lib/domain/course-feedback';
+	import { hintOfferedSteps } from '$lib/domain/hint-reach';
 	import { stepPracticeOffered, stepSummary } from '$lib/domain/derive';
 	import SettingsSection from '$lib/ui/SettingsSection.svelte';
 	import { sectionTargeted } from '$lib/ui/settings-target';
@@ -95,7 +98,9 @@
 	 * would add of the same kind — is not drawn while it is off.
 	 */
 	const feedbackOn = $derived(store.showFeedback);
-	const showSolution = $derived(allows('question', 'solution', mode, feedbackOn));
+	/** A test course without evaluation: the app drops the solution and the answers' feedback. */
+	const graded = $derived(appShowsFeedback(doc));
+	const showSolution = $derived(allows('question', 'solution', mode, feedbackOn, graded));
 	const showLadder = $derived(allows('step', 'hint', mode, feedbackOn));
 	const issues = $derived(store.issuesAt({ blockId: block?.block_id, stepId: step?.id }));
 	/**
@@ -161,7 +166,7 @@
 	 * empty, which is the point — nothing in this editor needs expanding to be found.
 	 */
 	const extraFields = $derived(
-		fieldsFor('step', mode, feedbackOn).filter(
+		fieldsFor('step', mode, feedbackOn, graded).filter(
 			(f) =>
 				!INLINE_STEP.includes(f.path) &&
 				// The step's switch only duplicates the card's own when the card is in practice.
@@ -179,7 +184,7 @@
 		})
 	);
 	const questionExtras = $derived(
-		fieldsFor('question', mode, feedbackOn).filter(
+		fieldsFor('question', mode, feedbackOn, graded).filter(
 			(f) =>
 				!INLINE_QUESTION.includes(f.path) &&
 				(step.question === undefined || questionSettingApplies(step.question, f.path))
@@ -204,7 +209,7 @@
 	 * such a step is still shown, with `W_HINT_UNREACHABLE` under it, so it can be
 	 * moved or deleted.
 	 */
-	const ladderReached = $derived(block.type === 'display' || step.type === 'question');
+	const ladderReached = $derived(hintOfferedSteps(block).includes(step));
 	const ladderShown = $derived(
 		ladderReached || (step.hint ?? '').trim() !== '' || (step.help ?? '').trim() !== ''
 	);
@@ -321,7 +326,7 @@
 		if (loss.correctNumber !== undefined) {
 			parts.push(`smaže zadaný správný výsledek ${loss.correctNumber}`);
 		}
-		return `Tato změna ${parts.join(' a ')}. Zpět se dá vrátit tlačítkem Zpět v liště.`;
+		return `Tato změna ${parts.join(' a ')}. Vrátit to jde tlačítkem Vrátit v liště.`;
 	}
 
 	let pendingTypeChange = $state<{
@@ -398,7 +403,18 @@
 	const VIDEO_PAGE_URL = /youtube\.com|youtu\.be|vimeo\.com/i;
 	const videoIsPageLink = $derived(VIDEO_PAGE_URL.test(step.video?.url ?? ''));
 
+	/** The card's list of steps, as `CardEditor` draws it. */
+	const STEPS = ':scope > .step-wrap';
+
+	/** The header's measured height; a folded step is exactly that plus `FOLDED_CHROME`. */
+	let headerHeight = $state(25);
+	/** The step's vertical padding (2 × 12px) and border (2 × 1px). */
+	const FOLDED_CHROME = 26;
+
 	function remove() {
+		const list = root?.closest('.steps') ?? null;
+		const before = countOf(list, STEPS);
+		const at = place;
 		try {
 			withUndoNotice(
 				store,
@@ -406,10 +422,20 @@
 				() => store.apply((d) => deleteStep(d, block.block_id, step.id)),
 				{ lessonId: store.selection?.lessonId, blockId: block.block_id, stepId: step.id }
 			);
+			void focusAfterDelete(list, STEPS, at, before, () =>
+				list?.parentElement?.querySelector<HTMLElement>('.add-step button')
+			);
 		} catch (error) {
 			if (error instanceof CommandError) onrepair(block.block_id, step.id);
 			else throw error;
 		}
+	}
+
+	function duplicate() {
+		const list = root?.closest('.steps') ?? null;
+		const at = place + 1;
+		store.apply((d, r) => duplicateStep(d, block.block_id, step.id, r));
+		void focusAdded(list, STEPS, at);
 	}
 
 	const inboundBranches = $derived(planDeleteStep(doc, block.block_id, step.id).length);
@@ -513,8 +539,9 @@
 	class:targeted
 	class:collapsed
 	class:folding-to-drag={stepView.dragging}
+	style:--folded-height={headerHeight > 0 ? `${headerHeight + FOLDED_CHROME}px` : undefined}
 >
-	<header>
+	<header bind:offsetHeight={headerHeight}>
 		<button
 			type="button"
 			class="grip"
@@ -582,7 +609,7 @@
 			<Button
 				variant="ghost"
 				size="s"
-				onclick={() => store.apply((d, r) => duplicateStep(d, block.block_id, step.id, r))}
+				onclick={duplicate}
 				title="Duplikovat krok"
 				ariaLabel="Duplikovat krok"
 			>
@@ -909,8 +936,10 @@
 		overflow: hidden;
 	}
 
+	/* The header's own height plus the step's padding and border, so a larger font or a
+	   header that wraps is not clipped (#53). */
 	.collapsed {
-		height: 51px;
+		height: var(--folded-height, 51px);
 	}
 
 	/*
@@ -1041,7 +1070,7 @@
 	.missing-text {
 		margin: 4px 0 0;
 		padding-left: 8px;
-		color: var(--e-error);
+		color: var(--e-error-text);
 		font-size: var(--text-xs);
 	}
 
@@ -1118,6 +1147,6 @@
 	}
 
 	.field-hint.warning {
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 	}
 </style>

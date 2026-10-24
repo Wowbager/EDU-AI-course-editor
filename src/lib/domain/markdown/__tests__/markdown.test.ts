@@ -4,6 +4,9 @@ import {
 	INLINE,
 	SNIFFED,
 	canEditVisually,
+	escapePlainLines,
+	unescapePlainLines,
+	typedText,
 	looksLikeHtml,
 	looksLikeMarkdown,
 	parseMarkdown,
@@ -202,5 +205,58 @@ describe('canEditVisually', () => {
 
 	it.each(['', 'Prostý text', '**a**\nb', '$x$ je *y*', '* a\n* b'])('opens %j visually', (md) => {
 		expect(canEditVisually(md, SNIFFED)).toBe(true);
+	});
+});
+
+describe('a plain text that starts like a list (OPEN-PROBLEMS #55)', () => {
+	const typed = (value: string): DocNode => parseMarkdown(value, SNIFFED).doc;
+	const plain = (value: string): DocNode => ({
+		type: 'doc',
+		content: value.split('\n\n').map((p) => ({
+			type: 'paragraph',
+			content: p
+				.split('\n')
+				.flatMap((line, i) => [
+					...(i > 0 ? [{ type: 'hardBreak' }] : []),
+					...(line ? [{ type: 'text', text: line }] : [])
+				])
+		}))
+	});
+
+	it.each([
+		['- a', '\\- a'],
+		['\\- a', '\\\\- a'],
+		['\\\\- a', '\\\\\\- a'],
+		['\\x', '\\x'],
+		['a\\- b', 'a\\- b'],
+		['1. krok', '\\1. krok'],
+		['1) krok', '1) krok'],
+		['>2)', '\\>2)'],
+		['# a', '\\# a'],
+		['| a', '\\| a'],
+		['a\n- b\n\\- c\nd', 'a\n\\- b\n\\\\- c\nd'],
+		['  - a', '\\  - a']
+	])('stores %j as %j and reads it back', (shown, stored) => {
+		expect(serializeMarkdown(plain(shown), SNIFFED)).toBe(stored);
+		expect(typedText(parseMarkdown(stored, SNIFFED).doc)).toBe(shown);
+		expect(unescapePlainLines(escapePlainLines(shown))).toBe(shown);
+	});
+
+	it('reads what older editors stored as the text the teacher typed', () => {
+		expect(typedText(typed('\\- a'))).toBe('- a');
+	});
+
+	it('reads a text that is Markdown elsewhere back as typed too', () => {
+		const md = serializeMarkdown(plain('- a **b**'), SNIFFED);
+		expect(typedText(parseMarkdown(md, SNIFFED).doc)).toBe('- a **b**');
+	});
+
+	it('copies the typed text, not the stored one', () => {
+		expect(typedText(plain('- a'))).toBe('- a');
+	});
+
+	it('opens it visually', () => {
+		expect(canEditVisually('\\- a', SNIFFED)).toBe(true);
+		expect(canEditVisually('\\\\- a', SNIFFED)).toBe(true);
 	});
 });

@@ -36,7 +36,7 @@ import {
 	type Repair
 } from '../commands';
 import { bindingFlagsPractice, isPracticeBlock } from '../derive';
-import { stepReservation, type Reservations } from '../ids';
+import { nextStepId, nextStepIds, stepReservation, type Reservations } from '../ids';
 
 const fixture = (name: string): unknown =>
 	JSON.parse(readFileSync(fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url)), 'utf8'));
@@ -97,40 +97,43 @@ function reservations() {
 // ────────────────────────────────── unit behaviour ──────────────────────────────────
 
 describe('step ids', () => {
-	it('are minted as s{max+1} and never reuse a deleted id', () => {
+	it('are minted as s + random digits and never reuse a deleted id', () => {
 		const reserved = reservations();
 		let doc = base();
 		reserved.record(doc);
 		const blockId = 'L1_B1_uvod';
+		const ids = () => doc.blocks.find((b) => b.block_id === blockId)!.steps.map((s) => s.id);
 
-		doc = addStep(doc, blockId, 'text', undefined, reserved.value).doc; // s3
-		reserved.record(doc);
-		expect(doc.blocks.find((b) => b.block_id === blockId)!.steps.map((s) => s.id)).toEqual([
-			's1',
-			's2',
-			's3'
-		]);
-
-		doc = deleteStep(doc, blockId, 's3').doc;
 		doc = addStep(doc, blockId, 'text', undefined, reserved.value).doc;
-		// s3 is gone for good: the next id is s4, not a reused s3. A student's saved
-		// answer is keyed by (block_id, step id), so a reused id would inherit it.
-		expect(doc.blocks.find((b) => b.block_id === blockId)!.steps.map((s) => s.id)).toEqual([
-			's1',
-			's2',
-			's4'
-		]);
+		reserved.record(doc);
+		const added = ids()[2];
+		expect(added).toMatch(/^s\d{6}$/);
+
+		doc = deleteStep(doc, blockId, added).doc;
+		doc = addStep(doc, blockId, 'text', undefined, reserved.value).doc;
+		expect(ids()).toHaveLength(3);
+		expect(ids()[2]).not.toBe(added);
 	});
 
-	it('do not restart even when every step of a block is deleted', () => {
-		const reserved = reservations();
-		let doc = base();
-		reserved.record(doc);
-		const blockId = 'L1_B1_uvod';
-
-		for (const stepId of ['s1', 's2']) doc = deleteStep(doc, blockId, stepId).doc;
-		doc = addStep(doc, blockId, 'text', undefined, reserved.value).doc;
-		expect(doc.blocks.find((b) => b.block_id === blockId)!.steps.map((s) => s.id)).toEqual(['s3']);
+	it('loop on a collision with existing steps and reservations', () => {
+		const draws = [0, 0, 0.5];
+		const random = () => draws.shift() ?? 0.9;
+		const reserved = {
+			steps: new Set(['B/s100000']),
+			blocks: new Set<string>(),
+			lessons: new Set<string>()
+		};
+		// 0 -> s100000 (reserved), 0 -> s100000 again, 0.5 -> s550000
+		expect(nextStepId([], 'B', reserved, random)).toBe('s550000');
+		const again = [0, 0, 0.5];
+		expect(nextStepId([{ id: 's100000' }], undefined, undefined, () => again.shift() ?? 0.9)).toBe(
+			's550000'
+		);
+		const many = [0, 0, 0.1];
+		expect(nextStepIds([], 2, undefined, undefined, () => many.shift() ?? 0.9)).toEqual([
+			's100000',
+			's190000'
+		]);
 	});
 
 	it('survive a reorder untouched — only `order` moves', () => {
@@ -278,6 +281,139 @@ describe('moving a card with the keyboard', () => {
 	});
 });
 
+describe('duplicating a lesson', () => {
+	const withTwoLessons = () => {
+		const doc = base();
+		const lesson = doc.lessons[0];
+		// L1_B3_poznej jumps to L1_B2_casti (same lesson) and requires it; point one more
+		// option outside the lesson to prove an outside target is kept.
+		return {
+			doc: {
+				...doc,
+				lessons: [
+					lesson,
+					{ lesson_id: 'L2', version: 1, name: 'Druhá', blocks: [{ block_id: 'L1_B3_poznej' }] }
+				]
+			},
+			lessonId: lesson.lesson_id
+		};
+	};
+
+	it('gives the duplicate its own copies of the cards, bound with the same settings', () => {
+		const doc = base();
+		const lessonId = 'L1_INTRO';
+		const before = doc.lessons[0];
+		const next = duplicateLesson(doc, lessonId).doc;
+		const copy = next.lessons[1];
+		expect(copy.blocks).toHaveLength(before.blocks.length);
+		copy.blocks.forEach((binding, i) => {
+			expect(binding.block_id).toBe(`${before.blocks[i].block_id}_copy`);
+			expect(next.blocks.some((b) => b.block_id === binding.block_id)).toBe(true);
+			expect({ ...binding, block_id: '' }).toEqual({ ...before.blocks[i], block_id: '' });
+		});
+		expect(next.lessons[0]).toEqual(before);
+		expectUniqueIds(next);
+		expectNoDanglingGoTo(next);
+	});
+
+	it('leaves the original untouched when a copied card is edited', () => {
+		const { doc, lessonId } = withTwoLessons();
+		const next = duplicateLesson(doc, lessonId).doc;
+		const edited = setField(
+			next,
+			{ blockId: 'L1_B1_uvod_copy', stepId: 's1', field: 'text' },
+			'Změněno'
+		).doc;
+		const original = edited.blocks.find((b) => b.block_id === 'L1_B1_uvod')!;
+		expect(original).toEqual(doc.blocks.find((b) => b.block_id === 'L1_B1_uvod'));
+		expect(edited.blocks.find((b) => b.block_id === 'L1_B1_uvod_copy')!.steps[0].text).toBe(
+			'Změněno'
+		);
+	});
+
+	it('remaps go_to and prerequisites inside the lesson, keeps those that leave it', () => {
+		const { doc, lessonId } = withTwoLessons();
+		const next = duplicateLesson(doc, lessonId).doc;
+		const copy = next.blocks.find((b) => b.block_id === 'L1_B3_poznej_copy')!;
+		const goTos = copy.steps.flatMap((s) => s.question?.options ?? []).map((o) => o.go_to);
+		expect(goTos).toContain('L1_B2_casti_copy');
+		expect(goTos).not.toContain('L1_B2_casti');
+		expect(copy.learning?.prerequisites?.[0].block_id).toBe('L1_B2_casti_copy');
+
+		// Only the first of the lesson's cards is in it: a target outside stays.
+		const lone = {
+			...doc,
+			lessons: [{ ...doc.lessons[0], blocks: [{ block_id: 'L1_B3_poznej' }] }, doc.lessons[1]]
+		};
+		const kept = duplicateLesson(lone, lessonId).doc.blocks.find(
+			(b) => b.block_id === 'L1_B3_poznej_copy'
+		)!;
+		const keptGoTos = kept.steps.flatMap((s) => s.question?.options ?? []).map((o) => o.go_to);
+		expect(keptGoTos).toContain('L1_B2_casti');
+		expect(kept.learning?.prerequisites?.[0].block_id).toBe('L1_B2_casti');
+	});
+
+	it('copies a card bound twice once, and binds the copy twice', () => {
+		const { doc, lessonId } = withTwoLessons();
+		const twice = {
+			...doc,
+			lessons: [
+				{ ...doc.lessons[0], blocks: [{ block_id: 'L1_B1_uvod' }, { block_id: 'L1_B1_uvod' }] },
+				doc.lessons[1]
+			]
+		};
+		const next = duplicateLesson(twice, lessonId).doc;
+		expect(next.lessons[1].blocks.map((b) => b.block_id)).toEqual([
+			'L1_B1_uvod_copy',
+			'L1_B1_uvod_copy'
+		]);
+		expect(next.blocks.filter((b) => b.block_id === 'L1_B1_uvod_copy')).toHaveLength(1);
+	});
+
+	it('keeps the copies out of daily practice, and the originals in it', () => {
+		const { doc: plain, lessonId } = withTwoLessons();
+		const id = 'L1_B3_poznej';
+		const stepId = plain.blocks.find((b) => b.block_id === id)!.steps[0].id;
+		let doc = setField(plain, { blockId: id, field: 'default_practice' }, true).doc;
+		doc = setField(doc, { blockId: id, stepId, field: 'default_practice' }, true).doc;
+		doc = {
+			...doc,
+			lessons: doc.lessons.map((l) => ({
+				...l,
+				blocks: l.blocks.map((b) => (b.block_id === id ? { ...b, default_practice: true } : b))
+			}))
+		};
+		const next = duplicateLesson(doc, lessonId).doc;
+		const inPractice = (blockId: string) =>
+			isPracticeBlock(
+				next.blocks.find((b) => b.block_id === blockId)!,
+				bindingFlagsPractice(next, blockId)
+			);
+		expect(inPractice(id)).toBe(true);
+		expect(inPractice(`${id}_copy`)).toBe(false);
+		expect(duplicateLesson(doc, lessonId).description).toMatch(/, mimo opakování$/);
+		// Nothing in practice, nothing to say about it.
+		const none = JSON.parse(
+			JSON.stringify(doc, (key, value) => (key === 'default_practice' ? undefined : value))
+		) as CourseV2;
+		expect(duplicateLesson(none, lessonId).description).not.toMatch(/opakování/);
+	});
+
+	it('mints ids that avoid existing and reserved ones, and leaves the input course as it was (undo is a snapshot)', () => {
+		const { doc, lessonId } = withTwoLessons();
+		const reserved: Reservations = {
+			steps: new Set(),
+			blocks: new Set(['L1_B1_uvod_copy']),
+			lessons: new Set()
+		};
+		const next = duplicateLesson(doc, lessonId, reserved).doc;
+		expect(next.lessons[1].blocks[0].block_id).toBe('L1_B1_uvod_copy2');
+		expectUniqueIds(next);
+
+		expect(doc).toEqual(withTwoLessons().doc);
+	});
+});
+
 describe('duplicating a block', () => {
 	it('mints a fresh id, restarts step ids and drops inward `go_to`', () => {
 		const doc = duplicateBlock(base(), 'L1_B3_poznej', 'L1_INTRO').doc;
@@ -299,15 +435,16 @@ describe('duplicating a block', () => {
 		let doc = base();
 		// Point an option at a step id that exists in the original but will not exist
 		// in a copy whose ids restart at s1: add s5, then point at it, then trim.
-		doc = addStep(doc, 'L1_B3_poznej', 'text').doc; // s5
+		doc = addStep(doc, 'L1_B3_poznej', 'text').doc;
+		const extra = doc.blocks.find((b) => b.block_id === 'L1_B3_poznej')!.steps.at(-1)!.id;
 		doc = setField(
 			doc,
 			{ blockId: 'L1_B3_poznej', stepId: 's2', optionId: 'd', field: 'go_to' },
-			's5'
+			extra
 		).doc;
-		doc = deleteStep(doc, 'L1_B3_poznej', 's5', [
+		doc = deleteStep(doc, 'L1_B3_poznej', extra, [
 			{
-				reference: planDeleteStep(doc, 'L1_B3_poznej', 's5')[0],
+				reference: planDeleteStep(doc, 'L1_B3_poznej', extra)[0],
 				action: 'clear'
 			}
 		]).doc;
@@ -950,7 +1087,9 @@ describe('a lesson without a name is never called by its id', () => {
 	it('so does duplicating it, and the copy is called by the same name, not by an id', () => {
 		const { doc, lessonId } = unnamed();
 		const result = duplicateLesson(doc, lessonId);
-		expect(result.description).toBe('Duplikována lekce „Lekce 1“');
+		expect(result.description).toBe(
+			'Duplikována lekce „Lekce 1“ i s kopiemi karet, mimo opakování'
+		);
 		expect(result.doc.lessons[1].name).toBe('Lekce 1 (kopie)');
 	});
 

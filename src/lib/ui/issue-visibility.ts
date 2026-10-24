@@ -40,7 +40,7 @@ export const TIMING: Record<string, Timing> = {
 	E_DUPLICATE_LESSON_ID: 'immediate',
 	E_DUPLICATE_BLOCK_ID: 'immediate',
 	E_DUPLICATE_STEP_ID: 'immediate',
-	W_DUPLICATE_OPTION_ID: 'immediate',
+	E_DUPLICATE_OPTION_ID: 'immediate',
 	E_BINDING_UNRESOLVED: 'immediate',
 	E_GOTO_UNRESOLVED: 'immediate',
 	W_GOTO_IN_EXERCISE: 'immediate',

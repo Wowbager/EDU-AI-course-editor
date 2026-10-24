@@ -57,7 +57,7 @@
 		describedby
 	}: Props = $props();
 
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { useStore } from './context';
 	import type { Ref } from '$lib/domain/ref';
 
@@ -96,6 +96,19 @@
 					draft = dom;
 					lastEmitted = dom.trim() === '' ? undefined : dom;
 					onchange(lastEmitted);
+					// A field already left before hydration will never blur: its session ends
+					// here, and the text goes back to what the document holds (issue #18).
+					// No `beginEdit` was made for this text, so there is no `endEdit` to owe;
+					// `onblur` only tells the caller its field is no longer being typed in.
+					if (document.activeElement !== element) {
+						onblur?.();
+						void tick().then(() => {
+							if (editing || lastEmitted === value) return;
+							draft = value ?? '';
+							baseline = draft;
+							lastEmitted = value;
+						});
+					}
 					return;
 				}
 			}
@@ -125,6 +138,9 @@
 	function commit() {
 		store.endEdit();
 		editing = false;
+		// Spaces alone are no text: nothing was sent for them, so nothing would
+		// replace them either (issue #18).
+		if (lastEmitted === undefined) draft = '';
 		baseline = draft;
 		// Leaving a field is what lets its "not filled in yet" show as a problem.
 		if (ref) store.touchField(ref);
@@ -272,10 +288,10 @@
 		line-height: 1.45;
 	}
 	.note.error {
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 	.note.warning {
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 	}
 	.field.invalid {
 		box-shadow: inset 2px 0 0 var(--e-error);

@@ -186,6 +186,24 @@ test('Ctrl+Shift+B folds and opens the preview, and the choice survives a reload
 	await expect(page.locator('aside.preview.collapsed')).toHaveCount(0);
 });
 
+test('Ctrl+Shift+B from inside the preview hands focus to the other toggle, and leaves a field alone', async ({
+	page
+}) => {
+	await openEditor(page);
+	await expect(booted(page)).toHaveAttribute('data-player', 'ready');
+	await hide(page).focus();
+	await page.keyboard.press('Control+Shift+B');
+	await expect(show(page)).toBeFocused();
+	await page.keyboard.press('Control+Shift+B');
+	await expect(hide(page)).toBeFocused();
+
+	const field = page.getByRole('textbox').first();
+	await field.focus();
+	await page.keyboard.press('Control+Shift+B');
+	await expect(show(page)).toBeVisible();
+	await expect(field).toBeFocused();
+});
+
 test('the preview header has no chip while the player runs, and names the states that need attention', async ({
 	page
 }) => {
@@ -240,4 +258,48 @@ test('a folded preview does not run the boot watchdog, and opening it starts a f
 	await page.clock.runFor(2_000);
 	await expect(page.locator('iframe[data-probe="1"]')).toHaveCount(0);
 	await expect(player(page)).toHaveCount(1);
+});
+
+test('a player that takes focus while it boots gives it back to the field being typed in', async ({
+	page
+}) => {
+	await openEditor(page);
+	await expect(booted(page)).toHaveAttribute('data-player', 'ready');
+	const name = page.getByRole('textbox', { name: 'Název kurzu', exact: true });
+	await name.click();
+	// Typing in a field is not asking for the player, however close to the steal.
+	await name.press('End');
+
+	// What the real player does about two seconds after the page loads.
+	await player(page).evaluate((frame: HTMLIFrameElement) =>
+		(frame.contentWindow as Window & { stealFocus(): void }).stealFocus()
+	);
+	await page.keyboard.type('Xyz');
+	await expect(name).toBeFocused();
+	await expect(name).toHaveValue(/Xyz$/);
+});
+
+test('focus the teacher moves into the player with the pointer stays there', async ({ page }) => {
+	await openEditor(page);
+	await expect(booted(page)).toHaveAttribute('data-player', 'ready');
+	await page.getByRole('textbox', { name: 'Název kurzu', exact: true }).click();
+	await player(page).hover();
+	await player(page).evaluate((frame: HTMLIFrameElement) =>
+		(frame.contentWindow as Window & { stealFocus(): void }).stealFocus()
+	);
+	await expect.poll(() => page.evaluate(() => document.activeElement?.tagName)).toBe('IFRAME');
+});
+
+test('focus that follows a key press outside a field is the teacher’s own and stays in the player', async ({
+	page
+}) => {
+	await openEditor(page);
+	await expect(booted(page)).toHaveAttribute('data-player', 'ready');
+	const button = page.getByRole('button', { name: 'Nová lekce' });
+	await button.focus();
+	await button.press('Shift');
+	await player(page).evaluate((frame: HTMLIFrameElement) =>
+		(frame.contentWindow as Window & { stealFocus(): void }).stealFocus()
+	);
+	await expect.poll(() => page.evaluate(() => document.activeElement?.tagName)).toBe('IFRAME');
 });

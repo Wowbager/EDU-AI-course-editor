@@ -143,12 +143,15 @@
 	.danger {
 		border: 1px solid transparent;
 		background: none;
-		color: var(--e-error);
+		color: var(--e-text);
 	}
 
-	.danger:hover:not(:disabled) {
+	/* Quiet at rest; red only once it is about to happen (DESIGN principle 3). */
+	.danger:hover:not(:disabled),
+	.danger:focus-visible:not(:disabled) {
 		border-color: var(--e-error);
 		background: var(--e-error-bg);
+		color: var(--e-error-text);
 	}
 
 	.danger-solid {

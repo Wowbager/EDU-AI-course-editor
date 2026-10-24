@@ -73,9 +73,10 @@ COPY --from=player /app/build/web /usr/share/nginx/player
 # for `npm run dev`, via the one script both share. `nginx.conf` then just serves the
 # resulting file; no `sub_filter` or other on-the-fly rewriting involved.
 COPY scripts/inject-player-shim.mjs /tmp/inject-player-shim.mjs
+COPY scripts/image-extensions.mjs /tmp/image-extensions.mjs
 COPY src/lib/preview/player-shim.js /tmp/player-shim.js
 RUN node /tmp/inject-player-shim.mjs /usr/share/nginx/player/index.html /tmp/player-shim.js \
-    && rm /tmp/inject-player-shim.mjs /tmp/player-shim.js
+    && rm /tmp/inject-player-shim.mjs /tmp/image-extensions.mjs /tmp/player-shim.js
 
 # Every file but index.html moves under /player/<hash>/, named by the build's contents,
 # so nginx can let browsers keep them for good (scripts/version-player.mjs). Then each

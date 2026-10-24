@@ -171,6 +171,29 @@ test('the sidebar’s card buttons offer the same choice as the ⋯ menu', async
 	await expect(button).toHaveAttribute('aria-pressed', 'false');
 });
 
+for (const mode of ['Učitel', 'Pokročilý']) {
+	test(`${mode}: focus stays on the card's tile after „Všechny otázky v jedné kartě“ in the rail (issue #8)`, async ({
+		page
+	}) => {
+		await page.getByRole('radio', { name: mode }).click();
+		await page.locator('.tree-add').getByRole('button', { name: 'Cvičení', exact: true }).click();
+		await addStep(page, 'Otázka');
+		await page.getByRole('button', { name: 'Sbalit panel lekcí' }).click();
+		const tile = page.locator('.rail-tile[aria-current="true"]');
+		await tile.focus();
+		await page.keyboard.press('ArrowRight');
+		const together = page
+			.getByRole('group', { name: /^Karta \d+$/ })
+			.getByRole('button', { name: /v jedné kartě$/ });
+		await together.focus();
+		await page.keyboard.press('Enter');
+		await expect
+			.poll(async () => (await exported(page)).blocks.filter((b) => b.type === 'exercise').length)
+			.not.toBe(2);
+		await expect(page.locator('.rail-tile:focus')).toHaveCount(1);
+	});
+}
+
 test.describe('a course made elsewhere, with several questions in one block', () => {
 	const file = readFileSync(
 		new URL('../src/lib/domain/__tests__/fixtures/corpus/zlomky-5-trida.json', import.meta.url)
@@ -231,7 +254,7 @@ test.describe('a course made elsewhere, with several questions in one block', ()
 	});
 
 	test('undo puts the course back as it came in', async ({ page }) => {
-		await page.getByRole('button', { name: 'Zpět', exact: true }).click();
+		await page.getByRole('button', { name: 'Vrátit', exact: true }).click();
 		await expect
 			.poll(async () => (await exported(page)).blocks.length)
 			.toBe(original.blocks.length);

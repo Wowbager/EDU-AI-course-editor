@@ -304,7 +304,7 @@
 	.danger:hover,
 	.danger:focus-visible {
 		background: transparent;
-		color: var(--e-error);
+		color: var(--e-error-text);
 		box-shadow: inset 0 0 0 1.5px var(--e-error);
 		outline: none;
 	}
@@ -329,7 +329,7 @@
 	}
 
 	.caption.armed {
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 
 	@media (prefers-reduced-motion: reduce) {

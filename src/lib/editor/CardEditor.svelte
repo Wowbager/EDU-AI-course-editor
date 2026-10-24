@@ -71,6 +71,7 @@
 		Trash
 	} from '@lucide/svelte';
 	import { STEP_TYPES } from '$lib/lang';
+	import { focusAdded, focusSelectedCard } from '$lib/ui/focus-after';
 	import { cardTypeChipTitle, cardTypeIcon, cardTypeLabel } from '$lib/ui/card-types';
 
 	interface Props {
@@ -312,6 +313,9 @@
 		showLessonPicker = false;
 		showNotice(`Karta zařazena do lekce „${name}“.`, { blockId });
 	}
+
+	let stepsEl = $state<HTMLElement | null>(null);
+	const STEPS = ':scope > .step-wrap';
 </script>
 
 {#snippet stepItems(at: number | undefined)}
@@ -319,7 +323,11 @@
 		<MenuItem
 			icon={option.icon}
 			title={stepTitle(option.type)}
-			onclick={() => store.apply((d, r) => addStep(d, block.block_id, option.type, at, r))}
+			onclick={() => {
+				const index = at ?? block.steps.length;
+				store.apply((d, r) => addStep(d, block.block_id, option.type, at, r));
+				void focusAdded(stepsEl, STEPS, index);
+			}}
 		>
 			{option.label}
 		</MenuItem>
@@ -341,13 +349,13 @@
 			-->
 			<Chip
 				tone="quiet"
-				title="Karta je zařazená do denního opakování (Cvičení) — žák ji dostane znovu podle plánu opakování. S typem karty to nesouvisí; zapíná se v Nastavení karty."
+				title="Karta je zařazená do denního opakování — žák ji dostane znovu podle plánu opakování. S typem karty to nesouvisí; zapíná se v Nastavení karty."
 			>
 				Opakování
 			</Chip>
 		{/if}
 		{#if sharedWith > 1}
-			<Chip tone="warning" title="Blok je i v jiné lekci — úprava se projeví všude">
+			<Chip tone="warning" title="Karta je i v jiné lekci — úprava se projeví všude">
 				Sdílený: {counted(sharedWith, 'lekce', 'lekce', 'lekcí')}
 			</Chip>
 		{/if}
@@ -444,7 +452,9 @@
 			<MenuItem
 				icon={Trash}
 				danger
-				onclick={() => actions.remove(block.block_id, lessonId)}
+				onclick={() => {
+					if (actions.remove(block.block_id, lessonId)) void focusSelectedCard();
+				}}
 				title="Smaže kartu z celého kurzu; jde vrátit zpět. Míří-li na ni odkaz odjinud, nejdřív se zeptá, kam má vést."
 			>
 				Smazat kartu
@@ -454,6 +464,7 @@
 
 	<div
 		class="steps"
+		bind:this={stepsEl}
 		use:dragHandleZone={{
 			items,
 			flipDurationMs: 150,

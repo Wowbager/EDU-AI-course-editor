@@ -35,7 +35,8 @@ import {
 import type { SkillConfig } from '$lib/domain/skill-config';
 import type { CommandResult } from '$lib/domain/commands';
 import type { Mode } from '$lib/ui/fields';
-import { isFeedbackRef } from '$lib/ui/fields';
+import { fieldOf, isFeedbackRef } from '$lib/ui/fields';
+import { appReadsField } from '$lib/domain/course-feedback';
 import { fieldKey, heldBack, isVisible, issueKey } from '$lib/ui/issue-visibility';
 import type { Issue } from '$lib/domain/validate';
 
@@ -156,6 +157,34 @@ export class DocStore {
 	 */
 	#reviewed = $state<ReadonlySet<string> | null>(null);
 
+	/**
+	 * Warnings the author hid in the validation panel, valid for exactly the set of issues
+	 * they were hidden against (OPEN-PROBLEMS #32). Any issue appearing or going away
+	 * brings them all back; closing the panel or a validation run that finds the same
+	 * issues does not.
+	 */
+	#dismissal = $state<{ signature: string; keys: ReadonlySet<string> } | null>(null);
+
+	/** The `issueKey`s of the warnings the panel currently leaves out. */
+	get dismissedWarnings(): ReadonlySet<string> {
+		const d = this.#dismissal;
+		return d !== null && d.signature === this.#signature ? d.keys : new Set();
+	}
+
+	/** Forget the hidden warnings once the set of issues differs, for good (called after every edit). */
+	#pruneDismissal() {
+		if (this.#dismissal !== null && this.#dismissal.signature !== this.#signature) {
+			this.#dismissal = null;
+		}
+	}
+
+	dismissWarning(issue: Issue) {
+		this.#dismissal = {
+			signature: this.#signature,
+			keys: new Set([...this.dismissedWarnings, issueKey(issue)])
+		};
+	}
+
 	/** Whether the author has looked at the review and not yet exported. */
 	get reviewing(): boolean {
 		return this.#reviewed !== null;
@@ -199,6 +228,10 @@ export class DocStore {
 	);
 	totals = $derived<CourseTotals>(courseTotals(this.doc, this.index));
 	/** Errors block export; warnings never do (§3 invariant 5). */
+	#signature = $derived(
+		[...this.validation.errors, ...this.validation.warnings].map(issueKey).sort().join('\n')
+	);
+
 	canPublish = $derived(this.validation.errors.length === 0);
 
 	get undoStack(): readonly UndoEntry[] {
@@ -227,6 +260,7 @@ export class DocStore {
 	load(doc: CourseV2, options: { published?: { version: number; doc: CourseV2 } } = {}) {
 		this.endEdit();
 		this.source = doc;
+		this.#dismissal = null;
 		this.#undo = [];
 		this.#redo = [];
 		this.#reservedBlocks = new Set();
@@ -332,6 +366,7 @@ export class DocStore {
 		const before = this.source;
 		if (next === before) return result;
 		this.source = next;
+		this.#pruneDismissal();
 		this.#reserve(next);
 		const last = this.#undo.at(-1);
 		if (this.#edit?.entry && last === this.#edit.entry) {
@@ -379,6 +414,7 @@ export class DocStore {
 		this.#undo = this.#undo.slice(0, -1);
 		this.#redo = [...this.#redo, entry];
 		this.source = entry.before;
+		this.#pruneDismissal();
 		this.dirty = true;
 		if (entry.ref !== undefined) this.selection = this.#inSameLesson(entry.ref);
 	}
@@ -390,6 +426,7 @@ export class DocStore {
 		this.#redo = this.#redo.slice(0, -1);
 		this.#undo = [...this.#undo, entry];
 		this.source = entry.after;
+		this.#pruneDismissal();
 		this.#reserve(entry.after);
 		this.dirty = true;
 		if (entry.ref !== undefined) this.selection = this.#inSameLesson(entry.ref);
@@ -441,6 +478,17 @@ export class DocStore {
 	 * there. Following a played run does not.
 	 */
 	revealAt(ref: Ref) {
+		// A field the app does not read in this course is not drawn whatever the toggle
+		// says, so the jump lands on its step instead.
+		const field = fieldOf(ref);
+		if (field !== null && !appReadsField(this.doc, field.level, field.path)) {
+			const { field: _field, optionId: _option, ...step } = ref;
+			void _field;
+			void _option;
+			this.selection = step;
+			this.reveal++;
+			return;
+		}
 		if (!this.#showFeedback && isFeedbackRef(ref)) this.#showFeedback = true;
 		this.selection = ref;
 		this.reveal++;

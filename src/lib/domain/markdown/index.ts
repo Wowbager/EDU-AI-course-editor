@@ -1,7 +1,12 @@
 export { parseMarkdown, type Parsed } from './parse';
-export { serializeMarkdown } from './serialize';
+export { serializeMarkdown, typedText } from './serialize';
 export { canEditVisually, sameDoc } from './lossless';
-export { looksLikeMarkdown, looksLikeHtml, onlyBlockMarkers } from './app-dialect';
+export {
+	looksLikeMarkdown,
+	looksLikeHtml,
+	escapePlainLines,
+	unescapePlainLines
+} from './app-dialect';
 export {
 	SNIFFED,
 	ALWAYS_MARKDOWN,
