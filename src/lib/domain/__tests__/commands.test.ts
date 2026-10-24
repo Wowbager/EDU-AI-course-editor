@@ -391,6 +391,12 @@ describe('duplicating a lesson', () => {
 			);
 		expect(inPractice(id)).toBe(true);
 		expect(inPractice(`${id}_copy`)).toBe(false);
+		expect(duplicateLesson(doc, lessonId).description).toMatch(/, mimo opakování$/);
+		// Nothing in practice, nothing to say about it.
+		const none = JSON.parse(
+			JSON.stringify(doc, (key, value) => (key === 'default_practice' ? undefined : value))
+		) as CourseV2;
+		expect(duplicateLesson(none, lessonId).description).not.toMatch(/opakování/);
 	});
 
 	it('mints ids that avoid existing and reserved ones, and leaves the input course as it was (undo is a snapshot)', () => {
@@ -1081,7 +1087,9 @@ describe('a lesson without a name is never called by its id', () => {
 	it('so does duplicating it, and the copy is called by the same name, not by an id', () => {
 		const { doc, lessonId } = unnamed();
 		const result = duplicateLesson(doc, lessonId);
-		expect(result.description).toBe('Duplikována lekce „Lekce 1“ i s kopiemi karet, mimo opakování');
+		expect(result.description).toBe(
+			'Duplikována lekce „Lekce 1“ i s kopiemi karet, mimo opakování'
+		);
 		expect(result.doc.lessons[1].name).toBe('Lekce 1 (kopie)');
 	});
 

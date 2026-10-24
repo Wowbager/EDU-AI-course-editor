@@ -284,6 +284,13 @@ export function duplicateLesson(
 	// sharing *inside* the lesson stays as it was.
 	const copyOf = new Map<string, string>();
 	const copies: BlockV2[] = [];
+	/** Whether a copy lost a practice flag, so the description can say so. */
+	let leftPractice = false;
+	const unflag = <T extends { default_practice?: boolean }>(node: T): T => {
+		const next = withoutPractice(node);
+		if (next !== node) leftPractice = true;
+		return next;
+	};
 	for (const binding of lesson.blocks) {
 		if (copyOf.has(binding.block_id)) continue;
 		const original = doc.blocks.find((b) => b.block_id === binding.block_id);
@@ -292,8 +299,8 @@ export function duplicateLesson(
 		copyOf.set(binding.block_id, id);
 		// A copy is not in daily practice: the pupil would get the same card twice there.
 		// Its block, steps and bindings all lose the flag (`isPracticeBlock` reads each).
-		const copy = withoutPractice(duplicateBlockValue(original, id));
-		copies.push({ ...copy, steps: copy.steps.map(withoutPractice) });
+		const copy = unflag(duplicateBlockValue(original, id));
+		copies.push({ ...copy, steps: copy.steps.map(unflag) });
 	}
 	// A jump or prerequisite from one copied card to another card of the lesson follows
 	// the copies; one that leaves the lesson still points at the original.
@@ -305,7 +312,7 @@ export function duplicateLesson(
 		name: `${lessonLabel(doc, lesson)} (kopie)`,
 		blocks: lesson.blocks.map((binding) => {
 			const copied = copyOf.get(binding.block_id);
-			return copied === undefined ? binding : { ...withoutPractice(binding), block_id: copied };
+			return copied === undefined ? binding : { ...unflag(binding), block_id: copied };
 		})
 	};
 	const at = doc.lessons.findIndex((l) => l.lesson_id === lessonId);
@@ -314,7 +321,7 @@ export function duplicateLesson(
 	return {
 		doc: { ...doc, blocks: [...doc.blocks, ...blocks], lessons: renumberOrder(lessons) },
 		ref: { lessonId: copyId },
-		description: `Duplikována lekce „${lessonLabel(doc, lesson)}“ i s kopiemi karet, mimo opakování`
+		description: `Duplikována lekce „${lessonLabel(doc, lesson)}“ i s kopiemi karet${leftPractice ? ', mimo opakování' : ''}`
 	};
 }
 

@@ -63,6 +63,8 @@ describe('a card bound twice in the lesson', () => {
 	} as unknown as CourseV2;
 	it('offers its XP once', () => {
 		expect(runMaxXp(twice, 'L', 'A')).toBe(10);
+		// From B the run plays B, then A (the player goes back to A's first place).
+		expect(runMaxXp(twice, 'L', 'B')).toBe(10);
 	});
 	it('does not end the run, since the player goes on from its first place', () => {
 		expect(endsRun(twice, 'L', 'A')).toBe(false);
