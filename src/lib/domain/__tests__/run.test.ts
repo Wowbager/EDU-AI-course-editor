@@ -46,6 +46,30 @@ describe('what a played run is made of (preview_lesson_player.dart)', () => {
 	});
 });
 
+describe('a card bound twice in the lesson', () => {
+	// A, B, A: the player knows A only by its first place (`_indexOf`).
+	const twice = {
+		...doc,
+		lessons: [
+			{
+				lesson_id: 'L',
+				blocks: [
+					{ block_id: 'A', order: 1 },
+					{ block_id: 'B', order: 2 },
+					{ block_id: 'A', order: 3 }
+				]
+			}
+		]
+	} as unknown as CourseV2;
+	it('offers its XP once', () => {
+		expect(runMaxXp(twice, 'L', 'A')).toBe(10);
+	});
+	it('does not end the run, since the player goes on from its first place', () => {
+		expect(endsRun(twice, 'L', 'A')).toBe(false);
+		expect(endsRun(twice, 'L', 'B')).toBe(false);
+	});
+});
+
 describe('what a run earned', () => {
 	it('counts a block once, the latest result winning, and averages the scores', () => {
 		const results = new Map([
@@ -75,5 +99,9 @@ describe('which block a completion belongs to', () => {
 	it('is nothing once the lesson has no block after the last completed one', () => {
 		expect(completedBlock(doc, 'L', 'A', undefined, 'C')).toBeUndefined();
 		expect(completedBlock(doc, 'nope', undefined, undefined, undefined)).toBeUndefined();
+	});
+	it('is nothing when the last completed block has left the lesson', () => {
+		// `_advance` does not move from a card it cannot find; the first card is not it.
+		expect(completedBlock(doc, 'L', 'A', undefined, 'gone')).toBeUndefined();
 	});
 });
