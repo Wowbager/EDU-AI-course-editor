@@ -411,18 +411,12 @@ function checkStructuralCompleteness(doc: CourseV2, block: BlockV2, add: Add) {
 	for (const step of block.steps) {
 		const question = step.question;
 		if (question === undefined) continue;
-		checkQuestionShape(block, step, question, add, appShowsFeedback(doc));
+		checkQuestionShape(block, step, question, add);
 	}
 }
 
 /** §14.1 — every question type's structural requirements. */
-function checkQuestionShape(
-	block: BlockV2,
-	step: BlockStep,
-	question: QuestionConfig,
-	add: Add,
-	graded: boolean
-) {
+function checkQuestionShape(block: BlockV2, step: BlockStep, question: QuestionConfig, add: Add) {
 	const ref: Ref = { blockId: block.block_id, stepId: step.id };
 	const position = stepPosition(block, step);
 	const options = question.options ?? [];
@@ -484,9 +478,10 @@ function checkQuestionShape(
 					`Otázka v kroku ${position} má jen ${options.length} možnost(í). Žák nemá z čeho vybírat.`
 				);
 			}
-			// `show_answers` is not read where the app shows no evaluation, so it cannot
-			// excuse a missing right answer there (the question still scores by `is_correct`).
-			if (correct.length === 0 && (!graded || question.show_answers !== false)) {
+			// `show_answers: false` is how the spec writes an opinion question with no right
+			// answer, in every course type. A test without evaluation hides the switch, but
+			// a poll written with it must not stop the course from exporting.
+			if (correct.length === 0 && question.show_answers !== false) {
 				add(
 					'error',
 					'E_MC_NO_CORRECT',

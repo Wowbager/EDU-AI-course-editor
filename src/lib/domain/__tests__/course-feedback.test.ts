@@ -136,8 +136,11 @@ describe('a test without evaluation raises nothing about a field it hides', () =
 			return field !== null && !appReadsField(raw, field.level, field.path);
 		});
 		expect(hit.map((i) => i.code)).toEqual([]);
-		// With no right answer left, that is still an error, and show_answers does not excuse it.
-		expect(result.errors.map((e) => e.code)).toContain('E_MC_NO_CORRECT');
+		// An opinion question (`show_answers: false`, no right answer) is not an error here
+		// either: the switch is hidden, but the poll it wrote still exports.
+		expect(result.errors.map((e) => e.code)).not.toContain('E_MC_NO_CORRECT');
+		delete question.show_answers;
+		expect(validate(raw).errors.map((e) => e.code)).toContain('E_MC_NO_CORRECT');
 	});
 });
 
