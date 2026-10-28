@@ -28,7 +28,7 @@ WORKDIR /app
 # a fact recorded in this file rather than whatever the fork's default branch held
 # that morning. Bump it deliberately when the player changes.
 ARG PLAYER_REPO=https://github.com/Wowbager/EDU-AI-asistent-APP.git
-ARG PLAYER_REF=a8a9528da66499f73d4ed8897266bf513cfec4bc
+ARG PLAYER_REF=741b2bacf6ee1e6025a2d148701582fd03a2e037
 RUN git clone --no-checkout --filter=blob:none "${PLAYER_REPO}" . \
     && git checkout --detach "${PLAYER_REF}"
 
