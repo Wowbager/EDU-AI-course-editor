@@ -17,6 +17,11 @@ describe('toAppLatex', () => {
 		expect(toAppLatex('a\\Colon b')).toBe('a:: b');
 		expect(toAppLatex('a\\colon b')).toBe('a\\colon b');
 	});
+	it('does not take a row break for a command', () => {
+		expect(toAppLatex('\\begin{cases}a\\\\ne\\end{cases}')).toBe(
+			'\\begin{cases}a\\\\ne\\end{cases}'
+		);
+	});
 	it('leaves everything else as it is', () => {
 		expect(toAppLatex('\\frac{\\sqrt{x}}{2}\\cdot\\pi')).toBe('\\frac{\\sqrt{x}}{2}\\cdot\\pi');
 	});

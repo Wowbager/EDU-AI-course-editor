@@ -14,11 +14,11 @@
  */
 
 const REPLACEMENTS: [RegExp, string][] = [
-	[/\\placeholder(?:\[[^\]]*\])?\{\}/g, ''],
-	[/\\Colon(?![a-zA-Z])/g, '::'],
-	[/\\biconditional(?![a-zA-Z])/g, '\\leftrightarrow'],
-	[/\\roundimplies(?![a-zA-Z])/g, '\\Rightarrow'],
-	[/\\neq?(?![a-zA-Z])/g, '\\not=']
+	[/(?<!\\)\\placeholder(?:\[[^\]]*\])?\{\}/g, ''],
+	[/(?<!\\)\\Colon(?![a-zA-Z])/g, '::'],
+	[/(?<!\\)\\biconditional(?![a-zA-Z])/g, '\\leftrightarrow'],
+	[/(?<!\\)\\roundimplies(?![a-zA-Z])/g, '\\Rightarrow'],
+	[/(?<!\\)\\neq?(?![a-zA-Z])/g, '\\not=']
 ];
 
 export function toAppLatex(latex: string): string {
