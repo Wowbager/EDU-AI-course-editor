@@ -15,6 +15,25 @@ const course = () =>
 
 const text = (page: Page) => page.locator('.rich-content').first();
 const toolbar = (page: Page) => page.getByRole('toolbar', { name: 'Formátování textu' });
+/** The formula row's visual editor (MathLive). */
+const formula = (page: Page) => page.locator('math-field');
+/** MathLive takes the keys a moment after it takes focus; until then they are lost. */
+async function formulaReady(page: Page) {
+	await expect(formula(page)).toBeFocused();
+	await expect
+		.poll(() =>
+			page.evaluate(() =>
+				document.activeElement?.shadowRoot?.activeElement?.classList.contains('ML__keyboard-sink')
+			)
+		)
+		.toBe(true);
+}
+/** The formula's ⋯: on a separate line, LaTeX, help. */
+async function formulaMenu(page: Page, item: string) {
+	await page.getByRole('button', { name: 'Další možnosti vzorce' }).click();
+	await page.getByRole('menuitem', { name: item }).click();
+}
+const formulaValue = (page: Page) => formula(page).evaluate((el) => (el as HTMLInputElement).value);
 
 /** What the field stores, read through its own source view. */
 async function markdownOf(page: Page): Promise<string> {
@@ -73,20 +92,163 @@ test('bold, a list and a formula are written as the Markdown the app reads', asy
 	);
 });
 
+// `1. ` sent `\1. ` and then the list's `1.` in one tick; the second matched the stale
+// value and was dropped, so the typed text came back over the list.
+test('1. typed into an empty text starts a numbered list that stays', async ({ page }) => {
+	await text(page).click();
+	await page.keyboard.type('1. první');
+	await expect(text(page).locator('ol li')).toHaveText('první');
+	expect(await markdownOf(page)).toBe('1. první');
+});
+
+test('a list also starts after a space and on a line begun with Shift+Enter', async ({ page }) => {
+	await text(page).click();
+	await page.keyboard.type(' 1. a');
+	await expect(text(page).locator('ol li')).toHaveText('a');
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('Enter');
+	await page.keyboard.type('Úvod');
+	await page.keyboard.press('Shift+Enter');
+	await page.keyboard.type('1. b');
+	await expect(text(page).locator('ol')).toHaveCount(2);
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('Enter');
+	await page.keyboard.type('Dál');
+	await page.keyboard.press('Shift+Enter');
+	await page.keyboard.type('- c');
+	await expect(text(page).locator('ul li')).toHaveText('c');
+	expect(await markdownOf(page)).toBe('1. a\n\nÚvod\n\n1. b\n\nDál\n\n* c');
+});
+
+test('one list button goes bullets, numbers, none; Citace is a button of its own', async ({
+	page
+}) => {
+	await text(page).click();
+	await page.keyboard.type('a');
+	const list = toolbar(page).getByRole('button', { name: 'Seznam' });
+	await list.click();
+	await expect(list).toHaveAccessibleName('Seznam: odrážky');
+	await expect(text(page).locator('ul li')).toHaveText('a');
+	await list.click();
+	await expect(list).toHaveAccessibleName('Seznam: číslování');
+	await expect(text(page).locator('ol li')).toHaveText('a');
+	await list.click();
+	await expect(list).toHaveAccessibleName('Seznam');
+	await expect(text(page).locator('ol, ul')).toHaveCount(0);
+
+	const quote = toolbar(page).getByRole('button', { name: 'Citace' });
+	await quote.click();
+	await expect(quote).toHaveAttribute('aria-pressed', 'true');
+	expect(await markdownOf(page)).toBe('> a');
+});
+
 test('a formula opens for editing in the field and draws as it is typed', async ({ page }) => {
+	await text(page).click();
+	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
+	await formulaReady(page);
+	await page.keyboard.type('x^2');
+	await page.keyboard.press('Enter');
+	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec x^2');
+	await text(page).locator('.math').click();
+	await formulaReady(page);
+	await expect.poll(() => formulaValue(page)).toBe('x^2');
+	// An emptied formula is gone, not an empty pair of dollars.
+	await page.keyboard.press('Control+a');
+	await page.keyboard.press('Backspace');
+	await page.getByRole('button', { name: 'Hotovo' }).click();
+	await expect(text(page).locator('.math')).toHaveCount(0);
+});
+
+test('a formula is typed without LaTeX, and the LaTeX is there for who wants it', async ({
+	page
+}) => {
+	await text(page).click();
+	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
+	await formulaReady(page);
+	// `/` makes a fraction; the arrow leaves the denominator.
+	await page.keyboard.type('1/2');
+	await page.keyboard.press('ArrowRight');
+	await page.keyboard.type('+x');
+	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec \\frac12+x');
+
+	// The row is the formula, its keyboard, ⋯ and Hotovo: nothing else until asked.
+	const row = page.getByRole('group', { name: 'Vzorec' });
+	await expect(row.getByRole('button')).toHaveText(['', '', 'Hotovo']);
+	await expect(row.getByRole('textbox', { name: 'Vzorec v LaTeXu' })).toHaveCount(0);
+	await expect(row.getByRole('checkbox')).toHaveCount(0);
+
+	// The on-screen keyboard opens inside the row, types into the formula and leaves the
+	// row open.
+	await page.getByRole('button', { name: 'Klávesnice se značkami' }).click();
+	await row.locator('.MLK__keycap[aria-label="7"]').filter({ visible: true }).click();
+	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec \\frac12+x7');
+	await expect(formula(page)).toBeVisible();
+
+	// The same field shows the LaTeX, and back.
+	await formulaMenu(page, 'Upravit jako LaTeX');
+	const latex = page.getByRole('textbox', { name: 'Vzorec v LaTeXu' });
+	await expect(latex).toBeFocused();
+	await expect(latex).toHaveValue('\\frac12+x7');
+	await expect(formula(page)).toHaveCount(0);
+	await latex.fill('x\\ne 1');
+	await formulaMenu(page, 'Upravit vizuálně');
+	await formulaReady(page);
+	await expect.poll(() => formulaValue(page)).toBe('x\\ne 1');
+	await page.keyboard.press('End');
+	await page.keyboard.type('0');
+	// ≠ is stored as `\not=`, which survives the app's `\n` line breaks in a text step.
+	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec x\\not=10');
+	await page.getByRole('button', { name: 'Hotovo' }).click();
+	expect(await markdownOf(page)).toBe('$x\\not=10$');
+});
+
+test('a formula opened and closed unchanged keeps its LaTeX as written', async ({ page }) => {
+	await text(page).click();
+	await page.keyboard.type('Půl je $\\dfrac{1}{2}$');
+	await text(page).locator('.math').click();
+	await formulaReady(page);
+	await page.keyboard.press('Enter');
+	expect(await markdownOf(page)).toBe('Půl je $\\dfrac{1}{2}$');
+});
+
+test('a dollar typed into a formula leaves no backslash behind', async ({ page }) => {
+	await text(page).click();
+	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
+	await formulaReady(page);
+	await page.keyboard.type('5$+3');
+	await page.keyboard.press('Enter');
+	expect(await markdownOf(page)).toBe('$5+3$');
+	// In the LaTeX box, a row break before a dollar stays a row break.
+	await page.getByRole('button', { name: 'Upravit vizuálně' }).click();
+	await text(page).locator('.math').click();
+	await formulaReady(page);
+	await formulaMenu(page, 'Upravit jako LaTeX');
+	await page.getByRole('textbox', { name: 'Vzorec v LaTeXu' }).fill('a\\\\$b');
+	await page.getByRole('button', { name: 'Hotovo' }).click();
+	expect(await markdownOf(page)).toBe('$a\\\\b$');
+});
+
+test('without the visual formula editor, the LaTeX box edits the formula', async ({ page }) => {
+	// A dropped connection while MathLive loads: its chunk is the one that defines it.
+	await page.route('**/*.js*', async (route) => {
+		// A reload while a request is out disposes its response; let that one go.
+		try {
+			const response = await route.fetch();
+			const body = await response.text();
+			if (body.includes('mathVirtualKeyboard') && body.includes('MathfieldElement'))
+				return await route.abort();
+			return await route.fulfill({ response, body });
+		} catch {
+			await route.continue().catch(() => {});
+		}
+	});
 	await text(page).click();
 	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
 	const latex = page.getByRole('textbox', { name: 'Vzorec v LaTeXu' });
 	await expect(latex).toBeFocused();
-	await latex.fill('x^2');
-	await latex.press('Enter');
+	await page.keyboard.type('x^2');
+	await page.keyboard.press('Enter');
 	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec x^2');
-	await text(page).locator('.math').click();
-	await expect(latex).toHaveValue('x^2');
-	// An emptied formula is gone, not an empty pair of dollars.
-	await latex.fill('');
-	await page.getByRole('button', { name: 'Hotovo' }).click();
-	await expect(text(page).locator('.math')).toHaveCount(0);
 });
 
 test('a paste from Google Docs keeps its bold and lists, and drops its fonts', async ({ page }) => {
@@ -202,11 +364,11 @@ test('a click back into the text closes the formula, and typing goes where it la
 	await text(page).click();
 	await page.keyboard.type('Plocha ');
 	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
-	const latex = page.getByRole('textbox', { name: 'Vzorec v LaTeXu' });
-	await latex.fill('x^2');
+	await formulaReady(page);
+	await page.keyboard.type('x^2');
 
 	await text(page).click({ position: { x: 2, y: 2 } });
-	await expect(latex).toBeHidden();
+	await expect(formula(page)).toBeHidden();
 	await expect(toolbar(page)).toBeVisible();
 	await page.keyboard.type('Velká ');
 	await expect(text(page)).toContainText('Velká Plocha');
@@ -217,10 +379,10 @@ test('a formula left empty by a click into the text is gone', async ({ page }) =
 	await text(page).click();
 	await page.keyboard.type('Plocha ');
 	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
-	await expect(page.getByRole('textbox', { name: 'Vzorec v LaTeXu' })).toBeFocused();
+	await formulaReady(page);
 
 	await text(page).click({ position: { x: 2, y: 2 } });
-	await expect(page.getByRole('textbox', { name: 'Vzorec v LaTeXu' })).toBeHidden();
+	await expect(formula(page)).toBeHidden();
 	await expect(text(page).locator('.math')).toHaveCount(0);
 });
 
@@ -228,12 +390,13 @@ test('undo while a formula is open closes its row with it', async ({ page }) => 
 	await text(page).click();
 	await page.keyboard.type('Plocha ');
 	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
-	const latex = page.getByRole('textbox', { name: 'Vzorec v LaTeXu' });
-	await latex.pressSequentially('x^2');
+	await formulaReady(page);
+	await page.keyboard.type('x^2');
 	await expect(text(page).locator('.math')).toHaveCount(1);
 
+	// Ctrl+Z is the course's, as in every other field: it closes the row with the formula.
 	await page.keyboard.press('Control+z');
-	await expect(latex).toBeHidden();
+	await expect(formula(page)).toBeHidden();
 });
 
 test('a formula and an image open from the keyboard, as they do with a click', async ({ page }) => {
@@ -244,11 +407,11 @@ test('a formula and an image open from the keyboard, as they do with a click', a
 	await expect(text(page).locator('.math')).toHaveCount(1);
 	await page.keyboard.press('ArrowLeft');
 	await page.keyboard.press('Enter');
-	const latex = page.getByRole('textbox', { name: 'Vzorec v LaTeXu' });
-	await expect(latex).toBeFocused();
-	await expect(latex).toHaveValue('x^2');
-	await latex.fill('x^3');
-	await latex.press('Enter');
+	await formulaReady(page);
+	await expect.poll(() => formulaValue(page)).toBe('x^2');
+	await page.keyboard.press('Control+a');
+	await page.keyboard.type('x^3');
+	await page.keyboard.press('Enter');
 	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', /x\^3/);
 	// Back in the text, after the formula: typing goes on where it was.
 	await page.keyboard.type(' m');

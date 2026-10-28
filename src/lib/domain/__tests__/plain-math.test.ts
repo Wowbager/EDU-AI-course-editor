@@ -13,6 +13,11 @@ describe('plainMath', () => {
 	it('maps operators', () => {
 		expect(plainMath('2 \\cdot 3 \\times 4 \\div 5')).toBe('2 · 3 × 4 : 5');
 	});
+	it('reads a one-character argument without braces, as the formula editor writes it', () => {
+		expect(plainMath('\\sqrt9')).toBe('√9');
+		expect(plainMath('\\frac12')).toBe('1/2');
+		expect(plainMath('\\frac{1}{2+x^2}+\\sqrt9')).toBe('1/(2+x²)+√9');
+	});
 	it('roots', () => {
 		expect(plainMath('\\sqrt{9}')).toBe('√9');
 		expect(plainMath('\\sqrt{x+1}')).toBe('√(x+1)');

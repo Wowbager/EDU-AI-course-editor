@@ -8,7 +8,9 @@ import { expect, openEditor, test, type Page } from './fixtures';
  */
 
 async function expectAccessible(page: Page, state: string) {
-	const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag21a', 'wcag2aa', 'wcag21aa']).analyze();
+	const result = await new AxeBuilder({ page })
+		.withTags(['wcag2a', 'wcag21a', 'wcag2aa', 'wcag21aa'])
+		.analyze();
 	const found = result.violations.map(
 		(v) => `${v.id} (${v.impact}): ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`
 	);
@@ -27,8 +29,21 @@ test('writing a text, a formula and an image', async ({ page }) => {
 	await page.locator('.rich-content').first().click();
 	await expectAccessible(page, 'a text field with its formatting buttons');
 	await page.getByRole('button', { name: 'Vzorec' }).first().click();
-	await page.getByRole('textbox', { name: 'Vzorec v LaTeXu' }).fill('x^2');
+	await expect(page.locator('math-field')).toBeFocused();
+	// MathLive takes the keys a moment after it takes focus.
+	await expect
+		.poll(() =>
+			page.evaluate(() =>
+				document.activeElement?.shadowRoot?.activeElement?.classList.contains('ML__keyboard-sink')
+			)
+		)
+		.toBe(true);
+	await page.keyboard.type('x^2');
 	await expectAccessible(page, 'the formula row');
+	await page.getByRole('button', { name: 'Klávesnice se značkami' }).click();
+	await expect(page.locator('.MLK__keycap').filter({ visible: true }).first()).toBeVisible();
+	await expectAccessible(page, 'the formula row with its keyboard');
+	await page.locator('math-field').focus();
 	await page.keyboard.press('Enter');
 	await page.getByRole('button', { name: 'Obrázek', exact: true }).first().click();
 	await expectAccessible(page, 'the image row');

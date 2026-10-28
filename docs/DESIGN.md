@@ -138,6 +138,7 @@ Each row is a design the agents chose, and what the owner said once he saw it.
 | Keeping a card's questions together only in Pokročilý, as a switch under Nastavení karty → Údaje o kartě | "too hidden and isn't intuitive to use" | A choice teachers make goes where they act on the card (its ⋯ menu), in every mode, and Náhled shows what it did |
 | Dragging an answer faded it and drew a line at the drop place; the list moved only on release, and a drag the window lost stayed in that look | "when moving the answers around it looks weird" | A drag moves the thing itself: lifted under the pointer, the others slide aside, like a step. Every way a press ends, ends the drag |
 | Answers stacked part by part (handle, mark, text, actions each on a line) below 760 px, which a 1440–1600 px desktop hits | "weird behaviour of multiple choice questions" | Check layouts at 1440, with both side columns open, not only on a wide screen |
+| A formula row with its own bordered field, ⌨, a checkbox, „LaTeX“ and Hotovo; the LaTeX in a second labelled box with a help icon; the library's grey keyboard across the bottom of the page | "looks really out of place", "creates a lot of visual load" | A tool inside a field is part of that field: one line in the field's own look, rare options in its ⋯, one place for one value, a keyboard inside the field in the editor's colours |
 
 
 ## Known gaps in the current editor

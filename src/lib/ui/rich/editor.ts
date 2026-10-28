@@ -29,6 +29,7 @@ import {
 	type MarkdownDialect
 } from '$lib/domain/markdown';
 import { parsePlainText } from '$lib/domain/markdown/parse';
+import { ListInputRules } from './lists';
 import { MathNode } from './math';
 import { IMAGE_URL, cleanPastedHtml, pastedTextIsMarkdown } from './paste';
 
@@ -254,6 +255,7 @@ function extensions(options: RichEditorOptions) {
 						return without(this.parent, 'Mod-Alt-c');
 					}
 				}),
+				ListInputRules,
 				Table.configure({ resizable: false }),
 				TableRow,
 				TableHeader,

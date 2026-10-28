@@ -19,11 +19,11 @@
 		Heading,
 		Image as ImageIcon,
 		Italic,
+		Keyboard,
 		List,
 		ListOrdered,
 		Sigma,
 		Table,
-		TextQuote,
 		Trash,
 		Type,
 		CircleQuestionMark
@@ -39,7 +39,7 @@
 	import { pagePress } from './press';
 	import { createRichEditor, type RichEditor } from './rich/editor';
 	import { EditRun } from '$lib/state/edit-run';
-	import { renderMath } from './rich/math';
+	import { hideMathKeyboard, mathField, toggleMathKeyboard } from './rich/mathfield';
 	import { isImageAddress } from './rich/paste';
 
 	interface Props {
@@ -160,7 +160,11 @@
 		untrack(() => rich?.setEditable(editable));
 	});
 
-	onDestroy(() => rich?.destroy());
+	onDestroy(() => {
+		rich?.destroy();
+		// The keyboard is MathLive's one for the page: gone with the field it was in.
+		hideMathKeyboard(keyboardDock);
+	});
 
 	/** This field's run of typing, in whichever view: one undo entry, Escape's target. */
 	const typing = new EditRun(store);
@@ -169,8 +173,12 @@
 	function emit(markdown: string) {
 		refused = null;
 		const next = markdown.trim() === '' ? undefined : markdown;
+		// Against what was last sent, not `value`: the prop catches up only after the tick,
+		// and an input rule sends twice in one. `1. ` sent `\1. `, then the list's `1.`,
+		// which matched the stale prop and was dropped; `\1. ` then came back over the list.
+		const changed = next !== emitted;
 		emitted = next;
-		if (next !== value) onchange(next);
+		if (changed) onchange(next);
 	}
 
 	function leave() {
@@ -267,6 +275,23 @@
 	/** Keep the editor's selection when a toolbar button is pressed. */
 	const keepFocus = (event: MouseEvent) => event.preventDefault();
 
+	/** The list button cycles: none → bullets → numbers → none. Its name says where it is. */
+	const LIST_STEPS = {
+		none: { title: 'Odrážky (napiš - a mezeru)', label: 'Seznam' },
+		bullet: { title: 'Změnit na číslování (napiš 1. a mezeru)', label: 'Seznam: odrážky' },
+		ordered: { title: 'Zrušit seznam', label: 'Seznam: číslování' }
+	} as const;
+	const list = $derived.by((): keyof typeof LIST_STEPS => {
+		void tick;
+		if (active('orderedList')) return 'ordered';
+		return active('bulletList') ? 'bullet' : 'none';
+	});
+	function cycleList() {
+		// Bullets → numbers converts the list in place; numbers → none lifts it out.
+		if (list === 'none') run((c) => c.toggleBulletList().run());
+		else run((c) => c.toggleOrderedList().run());
+	}
+
 	const inTable = $derived.by(() => {
 		void tick;
 		return active('table');
@@ -280,6 +305,14 @@
 	let mathLatex = $state('');
 	let mathDisplay = $state(false);
 	let mathInput = $state<HTMLTextAreaElement | null>(null);
+	let mathHost = $state<HTMLElement | null>(null);
+	/** Where the on-screen keyboard opens: inside the row, under the formula. */
+	let mathDock = $state<HTMLElement | null>(null);
+	let keyboardOpen = $state(false);
+	/** The row the keyboard last opened in, kept past the row's unmount. */
+	let keyboardDock: HTMLElement | null = null;
+	/** The same field as raw LaTeX, for whoever wants it (the row's ⋯). */
+	let latexMode = $state(false);
 
 	function openMath(pos: number) {
 		const node = editor()?.state.doc.nodeAt(pos);
@@ -288,7 +321,25 @@
 		mathPos = pos;
 		mathLatex = node.attrs.latex;
 		mathDisplay = node.attrs.display === true;
-		queueMicrotask(() => mathInput?.focus());
+		latexMode = false;
+		closeKeyboard();
+	}
+
+	function closeKeyboard() {
+		hideMathKeyboard(mathDock);
+		keyboardOpen = false;
+	}
+
+	function setLatexMode(on: boolean) {
+		closeKeyboard();
+		latexMode = on;
+		// The visual field focuses itself once it is mounted.
+		if (on) queueMicrotask(() => mathInput?.focus());
+	}
+
+	function toggleDisplay() {
+		mathDisplay = !mathDisplay;
+		updateMath();
 	}
 
 	function insertMath() {
@@ -305,8 +356,10 @@
 		if (!e || mathPos === null) return;
 		const node = e.state.doc.nodeAt(mathPos);
 		if (node?.type.name !== 'math') return;
-		// A formula has no dollars inside, and an inline one no line break.
-		const latex = mathLatex.replace(/\$/g, '');
+		// A formula has no dollars inside, and an inline one no line break. The visual
+		// editor writes a dollar as `\$`: it goes whole, not leaving its backslash. A `\\`
+		// row break is read first, so its second backslash is not taken for that one.
+		const latex = mathLatex.replace(/(\\\\)|\\?\$/g, (_, rowBreak?: string) => rowBreak ?? '');
 		begin();
 		e.view.dispatch(
 			e.state.tr
@@ -328,6 +381,7 @@
 		const pos = mathPos;
 		// Cleared first: what is dispatched below comes back through `followFormula`.
 		mathPos = null;
+		closeKeyboard();
 		if (!e || pos === null) return;
 		const node = e.state.doc.nodeAt(pos);
 		// An empty formula is no formula.
@@ -365,11 +419,6 @@
 			closeMath();
 			focusText();
 		}
-	}
-
-	function preview(node: HTMLElement, params: { latex: string; display: boolean }) {
-		renderMath(node, params.latex, params.display);
-		return { update: (next: typeof params) => renderMath(node, next.latex, next.display) };
 	}
 
 	// ─── Image row ──────────────────────────────────────────────────────────
@@ -496,46 +545,80 @@
 
 	{#if focused && !disabled}
 		{#if mathPos !== null}
-			<div class="row panel" role="group" aria-label="Vzorec">
-				<label class="math-source">
-					<span>Vzorec v LaTeXu</span>
-					<textarea
-						bind:this={mathInput}
-						bind:value={mathLatex}
-						rows={mathDisplay ? 2 : 1}
-						spellcheck="false"
-						data-undo="course"
-						oninput={updateMath}
-						onkeydown={mathKeys}></textarea>
-				</label>
-				<span class="math-preview" use:preview={{ latex: mathLatex, display: mathDisplay }}></span>
-				<div class="panel-actions">
-					{#if !inline}
-						<label class="check">
-							<input type="checkbox" bind:checked={mathDisplay} onchange={updateMath} />
-							Na samostatný řádek
-						</label>
+			{#key mathPos}
+				<div class="row formula" role="group" aria-label="Vzorec">
+					{#if latexMode}
+						<textarea
+							class="math-latex"
+							aria-label="Vzorec v LaTeXu"
+							bind:this={mathInput}
+							bind:value={mathLatex}
+							rows={mathDisplay ? 2 : 1}
+							spellcheck="false"
+							data-undo="course"
+							oninput={updateMath}
+							onkeydown={mathKeys}></textarea>
+					{:else}
+						<div
+							class="math-field"
+							bind:this={mathHost}
+							use:mathField={{
+								latex: mathLatex,
+								label: 'Vzorec',
+								oninput: (latex) => {
+									mathLatex = latex;
+									updateMath();
+								},
+								ondone: () => {
+									closeMath();
+									focusText();
+								},
+								onunreadable: () => setLatexMode(true)
+							}}
+						></div>
+						<button
+							type="button"
+							class="tool"
+							class:on={keyboardOpen}
+							aria-pressed={keyboardOpen}
+							title="Klávesnice se značkami"
+							aria-label="Klávesnice se značkami"
+							onmousedown={keepFocus}
+							onclick={() => {
+								keyboardDock = mathDock;
+								keyboardOpen = toggleMathKeyboard(mathHost, mathDock);
+							}}><Keyboard size={16} /></button
+						>
 					{/if}
+					<Menu label="Další možnosti vzorce" icon={Ellipsis} placement="bottom-end">
+						{#if !inline}
+							<MenuItem checked={mathDisplay} onclick={toggleDisplay}>Na samostatný řádek</MenuItem>
+						{/if}
+						{#if latexMode}
+							<MenuItem icon={Type} onclick={() => setLatexMode(false)}>Upravit vizuálně</MenuItem>
+							<MenuItem
+								icon={CircleQuestionMark}
+								onclick={() =>
+									window.open('https://katex.org/docs/supported.html', '_blank', 'noopener')}
+								>Nápověda k LaTeXu</MenuItem
+							>
+						{:else}
+							<MenuItem icon={CodeXml} onclick={() => setLatexMode(true)}
+								>Upravit jako LaTeX</MenuItem
+							>
+						{/if}
+					</Menu>
 					<button
 						type="button"
-						class="icon-button"
-						onclick={() =>
-							window.open('https://katex.org/docs/supported.html', '_blank', 'noopener')}
-						title="Nápověda k LaTeXu"
-						aria-label="Nápověda k LaTeXu"
-					>
-						<CircleQuestionMark size={14}></CircleQuestionMark>
-					</button>
-					<button
-						type="button"
-						class="text-button"
+						class="text-button quiet"
 						onclick={() => {
 							closeMath();
 							focusText();
 						}}>Hotovo</button
 					>
+					<div class="math-keyboard" bind:this={mathDock}></div>
 				</div>
-			</div>
+			{/key}
 		{:else if imagePanel}
 			<form class="row panel" aria-label="Obrázek" onsubmit={placeImage}>
 				<label class="grow">
@@ -618,23 +701,23 @@
 					<button
 						type="button"
 						class="tool"
-						class:on={active('bulletList')}
-						aria-pressed={active('bulletList')}
-						title="Odrážky (napiš - a mezeru)"
-						aria-label="Odrážky"
+						class:on={list !== 'none'}
+						title={LIST_STEPS[list].title}
+						aria-label={LIST_STEPS[list].label}
 						onmousedown={keepFocus}
-						onclick={() => run((c) => c.toggleBulletList().run())}><List size={16} /></button
+						onclick={cycleList}
+						>{#if list === 'ordered'}<ListOrdered size={16} />{:else}<List size={16} />{/if}</button
 					>
 					<button
 						type="button"
 						class="tool"
-						class:on={active('orderedList')}
-						aria-pressed={active('orderedList')}
-						title="Číslování (napiš 1. a mezeru)"
-						aria-label="Číslování"
+						class:on={active('blockquote')}
+						aria-pressed={active('blockquote')}
+						title="Citace (napiš > a mezeru)"
+						aria-label="Citace"
 						onmousedown={keepFocus}
-						onclick={() => run((c) => c.toggleOrderedList().run())}
-						><ListOrdered size={16} /></button
+						onclick={() => run((c) => c.toggleBlockquote().run())}
+						><span class="quote-glyph" aria-hidden="true">„“</span></button
 					>
 				{/if}
 				<button
@@ -658,9 +741,6 @@
 				{/if}
 				<Menu label="Další formátování" icon={Ellipsis} placement="bottom-end">
 					{#if !inline}
-						<MenuItem icon={TextQuote} onclick={() => run((c) => c.toggleBlockquote().run())}>
-							Citace
-						</MenuItem>
 						{#if inTable}
 							<MenuItem
 								icon={BetweenHorizontalEnd}
@@ -705,20 +785,6 @@
 </div>
 
 <style>
-	.icon-button {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 28px;
-		height: 28px;
-		padding: 0;
-		border: 0;
-		border-radius: var(--radius-xs);
-		background: none;
-		color: var(--e-text-muted);
-		cursor: pointer;
-	}
-
 	.rich-field {
 		display: flex;
 		flex-direction: column;
@@ -911,6 +977,15 @@
 		background: var(--e-field-hover);
 		color: var(--e-text);
 	}
+	.quote-glyph {
+		font-family: Georgia, 'Times New Roman', serif;
+		font-size: 20px;
+		font-weight: 400;
+		line-height: 1;
+		letter-spacing: -1px;
+		/* The low „ and the high “ together sit centred, like an icon. */
+		transform: translateY(-1px);
+	}
 	.tool.on {
 		background: var(--e-field-rest);
 		color: var(--primary);
@@ -934,16 +1009,102 @@
 	.panel label.grow {
 		flex: 1 1 12rem;
 	}
-	.panel label.check {
-		flex-direction: row;
-		align-items: center;
-		gap: 6px;
+	/* The formula row: one field in the text's own look, then ⌨, ⋯ and Hotovo. */
+	.formula {
+		gap: 2px 4px;
+		padding: 4px 4px 4px 8px;
 	}
-	.math-source {
-		flex: 1 1 14rem;
+	.formula :global(.menu) {
+		margin-left: 0;
 	}
-	.panel textarea,
-	.panel input:not([type='checkbox']) {
+	.math-field,
+	.math-latex {
+		flex: 1 1 12rem;
+		min-width: 0;
+	}
+	.math-field :global(math-field) {
+		display: block;
+		width: 100%;
+		min-height: 28px;
+		padding: 2px 0;
+		border: 0;
+		outline: 0;
+		background: transparent;
+		color: var(--e-text);
+		font-size: 1.05em;
+		--caret-color: var(--primary);
+		--selection-background-color: var(--primary-dark-12);
+		--contains-highlight-background-color: transparent;
+		--placeholder-color: var(--e-text-faint);
+		--smart-fence-color: var(--e-text-faint);
+	}
+	/* One keyboard button and no menu: the row's own controls. */
+	.math-field :global(math-field::part(virtual-keyboard-toggle)),
+	.math-field :global(math-field::part(menu-toggle)) {
+		display: none;
+	}
+	.math-latex {
+		font: inherit;
+		font-family: var(--font-code);
+		font-size: var(--text-m);
+		padding: 4px 0;
+		border: 0;
+		outline: 0;
+		background: transparent;
+		color: var(--e-text);
+		resize: none;
+	}
+	/* The on-screen keyboard, laid out in the row (`toggleMathKeyboard` sets its height). */
+	.math-keyboard {
+		flex-basis: 100%;
+		position: relative;
+		height: 0;
+		/* A pressed key sits 5 below this, so it must stay above the row. */
+		--keyboard-zindex: 10;
+		--keyboard-background: transparent;
+		--keyboard-border: transparent;
+		--keyboard-padding-top: 4px;
+		--keyboard-padding-bottom: 8px;
+		/* One compact block in the middle, not two halves at the field's edges. */
+		--keyboard-padding-horizontal: max(0px, (100% - 460px) / 2);
+		--keyboard-accent-color: var(--primary);
+		--keyboard-toolbar-text: var(--e-text);
+		--keyboard-toolbar-text-active: var(--primary-dark);
+		--keyboard-toolbar-background-hover: var(--e-field-hover);
+		--keyboard-toolbar-font-size: var(--text-s);
+		--keyboard-horizontal-rule: 1px solid var(--e-border);
+		--keycap-height: 34px;
+		--keycap-max-width: 56px;
+		--keycap-gap: 4px;
+		--keycap-font-size: 17px;
+		--keycap-small-font-size: 14px;
+		--keycap-background: var(--e-field-rest);
+		--keycap-background-hover: var(--e-field-hover);
+		--keycap-background-pressed: var(--primary-dark-12);
+		--keycap-border: transparent;
+		--keycap-border-bottom: transparent;
+		--keycap-text: var(--e-text);
+		--keycap-secondary-background: var(--e-field-hover);
+		--keycap-secondary-background-hover: var(--e-border);
+		--keycap-secondary-border: transparent;
+		--keycap-secondary-border-bottom: transparent;
+		--keycap-secondary-text: var(--e-text-muted);
+		--keycap-primary-background: var(--primary);
+		--keycap-primary-background-hover: var(--primary);
+		--keycap-primary-text: var(--e-text);
+		--placeholder-color: var(--e-text-faint);
+	}
+	.math-keyboard :global(.MLK__keycap),
+	.math-keyboard :global(.MLK__toolbar) {
+		border-radius: var(--radius-xs);
+		font-family: var(--font-body);
+	}
+	/* Operators in the digits' colour: MathLive draws them faint, as if disabled. */
+	.math-keyboard :global(.MLK__keycap),
+	.math-keyboard :global(.MLK__keycap *) {
+		color: var(--e-text);
+	}
+	.panel input {
 		font: inherit;
 		font-size: var(--text-s);
 		padding: 4px 6px;
@@ -951,17 +1112,6 @@
 		border-radius: var(--radius-xs);
 		background: var(--surface);
 		color: var(--e-text);
-	}
-	.panel textarea {
-		font-family: var(--font-code);
-		resize: vertical;
-	}
-	.math-preview {
-		flex: 1 1 8rem;
-		min-height: 28px;
-		display: flex;
-		align-items: center;
-		overflow-x: auto;
 	}
 	.panel-actions {
 		display: flex;
@@ -985,6 +1135,15 @@
 	.text-button.primary {
 		background: var(--primary);
 		border-color: var(--primary);
+		color: var(--e-text);
+	}
+	.text-button.quiet {
+		border-color: transparent;
+		background: none;
+		color: var(--e-text-muted);
+	}
+	.text-button.quiet:hover {
+		background: var(--e-field-hover);
 		color: var(--e-text);
 	}
 	.text-button:disabled {

@@ -2297,8 +2297,9 @@ toolbar that **must support images**; every Markdown field; raw Markdown only th
 Step text, question, solution, hint, help, answer text and answer feedback are edited
 as formatted text (`src/lib/ui/RichField.svelte`). The field looks like every other field
 at rest. While it has focus, one row of icons sits inside its bottom edge — Tučně,
-Kurzíva, Nadpis, Odrážky, Číslování, Vzorec, Obrázek, ⋯ (Citace, Tabulka, Upravit jako
-text) — and the formula and image editors open in that same row. An answer, one line,
+Kurzíva, Nadpis, Seznam, Citace, Vzorec, Obrázek, ⋯ (Tabulka, Upravit jako text) — and
+the formula and image editors open in that same row (round 25 merged the two list buttons
+and moved Citace out of ⋯). An answer, one line,
 gets Tučně, Kurzíva, Vzorec and ⋯. Markdown typed by hand still works (`## `, `- `,
 `1. `, `> `, `**…**`, `$x^2$`).
 
@@ -2786,6 +2787,68 @@ needs a format decision first.
 **Changed without asking.** The status „Publikováno“ reads „Zveřejněno“; a menu follows
 its button while the column scrolls instead of closing; the image and formula rows
 close when the selection moves away.
+
+## Round 25 — the formatting row: one list button, Citace, formulas without LaTeX
+
+The owner, trying the visual editor: Citace "shouldn't be hidden in the extra settings"
+and wants a better symbol („“); typing `1. ` "didn't always" make a numbered list; maybe
+one list button that cycles through three states; and "some sort of easier editor for
+the LaTeX, something like GeoGebra has … most people won't" be fine with raw LaTeX.
+
+**The numbered list.** Not the input rule: it fired every time. `RichField.emit`
+compared each change with its `value` prop, which catches up only after the tick, and
+the list rule sends two changes in one (`\1. ` as typed, then the list's `1.`). The
+second matched the stale prop and was dropped, and the typed text came back over the
+list. It worked whenever the list's Markdown differed from the line before the space
+(bold on, another list around), which made it look random. `emit` now compares with what
+it last sent. Also added (`rich/lists.ts`): `1. ` after a leading space, and `1. ` / `- `
+on a line begun with Shift+Enter. Not changed: `## 1. ` stays a heading, and `1:` / `1,`
+(Shift held, the numpad's decimal key on a Czech keyboard) stay text; a list from them
+would also catch sentences.
+
+**The row.** Tučně, Kurzíva, Nadpis, Seznam, Citace, Vzorec, Obrázek, ⋯: the same count.
+Seznam cycles none → odrážky → číslování → none; its icon and name follow the list the
+caret is in, the tooltip says what the next click does. Citace is drawn as „“ (a serif
+glyph, not an icon). Rejected: keeping two list buttons (the owner's concern was the
+count), a dropdown under one button (two clicks for every list).
+
+**Formulas: MathLive.** The LaTeX box and the KaTeX preview become one MathLive field,
+where `/` makes a fraction, `^` a power, `sqrt` a root. The row is that field, ⌨, ⋯ and
+Hotovo. ⋯ holds „Na samostatný řádek“ and „Upravit jako LaTeX“, which shows the raw LaTeX
+in the same place (and the help link while it does). ⌨ opens the on-screen keyboard
+inside the row, as wide as the field, with two tabs of school keys, Čísla and Značky
+(policy manual: it never opens by itself). MathLive keeps no undo of its own (Ctrl+Z is
+the course's) and no menu. Rejected: a palette of buttons over the LaTeX
+box (smaller, but the teacher still reads LaTeX); writing our own structural editor.
+- What MathLive writes passes through `domain/app-latex.ts`: its `latex-expanded`
+  output uses only commands flutter_math_fork 0.7.4 knows (checked for every key of its
+  default keyboard), except the empty box `\placeholder{}` and three logic keys. Its ≠
+  is stored as `\not=` (#50). LaTeX typed in the box is kept as typed.
+- It writes `\sqrt9`, `\frac12` for one-character arguments, valid LaTeX; `plainMath`
+  now reads them, so card names do not show "sqrt9".
+- No CDN: MathLive's fonts are KaTeX's, already loaded by `katex.min.css`, so its own
+  font loading and sounds are off. It is an 800 kB chunk fetched when a formula opens.
+- MathLive takes keys a moment after focus and holds typed keys a moment before its
+  `input` (shortcuts like `sqrt`). Enter and blur read the field directly, so a quick
+  Enter keeps them; the e2e tests wait for its keyboard sink before typing. Only a real
+  change is written: opening `\dfrac{1}{2}` and pressing Enter keeps it as written.
+- The keyboard is laid out in the row (MathLive's `container`), in the editor's colours,
+  one block at most 460 px wide; operators are labelled in the editor's font, since
+  MathLive's maths font draws + − = hairline-thin.
+  A pressed key sits five below the keyboard's z-index, so that stays above the row's;
+  opening it scrolls it into view at once, so no key moves under a press. If MathLive
+  fails to load, the row opens on the LaTeX instead.
+- The first version put „LaTeX“, the checkbox and the help beside the field, the LaTeX
+  in a second labelled box under it, and MathLive's own keyboard across the bottom of
+  the page. The owner: it "looks really out of place", and "the UI gets complicated and
+  creates a lot of visual load". Up to seven things showed at once; now four.
+
+### Proposed, not built
+- Czech decimal comma in the formula field (MathLive's `decimalSeparator`, which writes
+  `{,}`): it changes how existing formulas are stored.
+- Lists from `1) ` and `a. `.
+- From the outside review of the reworked row: a soft highlight on the formula in the
+  text while its row is open; Hotovo in the accent colour; „Symboly“ for „Značky“.
 
 ## Still open
 
