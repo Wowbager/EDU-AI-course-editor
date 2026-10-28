@@ -2832,7 +2832,9 @@ box (smaller, but the teacher still reads LaTeX); writing our own structural edi
   `input` (shortcuts like `sqrt`). Enter and blur read the field directly, so a quick
   Enter keeps them; the e2e tests wait for its keyboard sink before typing. Only a real
   change is written: opening `\dfrac{1}{2}` and pressing Enter keeps it as written.
-- The keyboard is laid out in the row (MathLive's `container`), in the editor's colours.
+- The keyboard is laid out in the row (MathLive's `container`), in the editor's colours,
+  one block at most 460 px wide; operators are labelled in the editor's font, since
+  MathLive's maths font draws + − = hairline-thin.
   A pressed key sits five below the keyboard's z-index, so that stays above the row's;
   opening it scrolls it into view at once, so no key moves under a press. If MathLive
   fails to load, the row opens on the LaTeX instead.
@@ -2845,6 +2847,8 @@ box (smaller, but the teacher still reads LaTeX); writing our own structural edi
 - Czech decimal comma in the formula field (MathLive's `decimalSeparator`, which writes
   `{,}`): it changes how existing formulas are stored.
 - Lists from `1) ` and `a. `.
+- From the outside review of the reworked row: a soft highlight on the formula in the
+  text while its row is open; Hotovo in the accent colour; „Symboly“ for „Značky“.
 
 ## Still open
 
