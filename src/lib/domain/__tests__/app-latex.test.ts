@@ -27,5 +27,6 @@ describe('toAppLatex', () => {
 	});
 	it('leaves everything else as it is', () => {
 		expect(toAppLatex('\\frac{\\sqrt{x}}{2}\\cdot\\pi')).toBe('\\frac{\\sqrt{x}}{2}\\cdot\\pi');
+		expect(toAppLatex('\\constructor\\toString')).toBe('\\constructor\\toString');
 	});
 });

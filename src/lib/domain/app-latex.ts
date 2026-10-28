@@ -14,13 +14,13 @@
  */
 
 /** The commands rewritten, by name. */
-const COMMANDS: Record<string, string> = {
-	Colon: '::',
-	biconditional: '\\leftrightarrow',
-	roundimplies: '\\Rightarrow',
-	ne: '\\not=',
-	neq: '\\not='
-};
+const COMMANDS = new Map([
+	['Colon', '::'],
+	['biconditional', '\\leftrightarrow'],
+	['roundimplies', '\\Rightarrow'],
+	['ne', '\\not='],
+	['neq', '\\not=']
+]);
 
 /**
  * Read as tokens, so a `\\` row break is never the start of a command and a command is
@@ -32,6 +32,6 @@ export function toAppLatex(latex: string): string {
 	return latex.replace(TOKEN, (token) => {
 		if (token === '\\\\') return token;
 		if (token.startsWith('\\placeholder') && token.endsWith('{}')) return '';
-		return COMMANDS[token.slice(1)] ?? token;
+		return COMMANDS.get(token.slice(1)) ?? token;
 	});
 }
