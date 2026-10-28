@@ -169,8 +169,12 @@
 	function emit(markdown: string) {
 		refused = null;
 		const next = markdown.trim() === '' ? undefined : markdown;
+		// Against what was last sent, not `value`: the prop catches up only after the tick,
+		// and an input rule sends twice in one. `1. ` sent `\1. `, then the list's `1.`,
+		// which matched the stale prop and was dropped; `\1. ` then came back over the list.
+		const changed = next !== emitted;
 		emitted = next;
-		if (next !== value) onchange(next);
+		if (changed) onchange(next);
 	}
 
 	function leave() {

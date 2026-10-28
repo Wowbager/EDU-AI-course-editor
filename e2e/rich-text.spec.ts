@@ -73,6 +73,15 @@ test('bold, a list and a formula are written as the Markdown the app reads', asy
 	);
 });
 
+// `1. ` sent `\1. ` and then the list's `1.` in one tick; the second matched the stale
+// value and was dropped, so the typed text came back over the list.
+test('1. typed into an empty text starts a numbered list that stays', async ({ page }) => {
+	await text(page).click();
+	await page.keyboard.type('1. první');
+	await expect(text(page).locator('ol li')).toHaveText('první');
+	expect(await markdownOf(page)).toBe('1. první');
+});
+
 test('a formula opens for editing in the field and draws as it is typed', async ({ page }) => {
 	await text(page).click();
 	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
