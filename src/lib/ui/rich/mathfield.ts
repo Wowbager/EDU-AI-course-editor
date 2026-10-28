@@ -126,6 +126,17 @@ export function toggleMathKeyboard(host: HTMLElement | null) {
 	if (keyboard.visible) keyboard.hide();
 	else {
 		host?.querySelector<MathfieldElement>('math-field')?.focus();
+		// The keyboard lies over the bottom of the page: keep the formula's row above it.
+		const row = host?.closest<HTMLElement>('[role="group"]') ?? host;
+		(keyboard as unknown as EventTarget).addEventListener(
+			'geometrychange',
+			() => {
+				if (!row) return;
+				row.style.scrollMarginBottom = `${keyboard.boundingRect.height + 16}px`;
+				row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+			},
+			{ once: true }
+		);
 		keyboard.show({ animate: true });
 	}
 }
