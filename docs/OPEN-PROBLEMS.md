@@ -199,6 +199,8 @@ same problem and `\not=` does not.
 mathematics they agree. A command one supports and the other does not would draw in the
 field and fall back to orange source in the app (or the reverse). Náhled is the reference:
 it is the app.
+The formula row's own field is MathLive, a third renderer; what it writes is passed
+through `domain/app-latex.ts` so the app can draw it (DECISIONS round 25).
 
 ---
 
