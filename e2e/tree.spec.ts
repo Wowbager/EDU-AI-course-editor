@@ -188,14 +188,18 @@ test('a card is still grabbed by its padding while the pointer is on its row', a
 	const before = await order(page);
 	// Hovering the row fades the actions in over its right end; the left edge is still the card.
 	const box = (await cards(page).nth(1).boundingBox())!;
+	// Dropped on the middle of the first card, not at its edge: the edge is where the
+	// cards meet, and while they slide it is over one or the other.
+	const first = (await cards(page).nth(0).boundingBox())!;
+	const to = first.y + first.height / 2;
 	await page.mouse.move(box.x + 3, box.y + box.height / 2);
 	await expect(actionsOf(page, 2)).toHaveCSS('opacity', '1');
 	await page.mouse.down();
 	await page.mouse.move(box.x + 3, box.y + box.height / 2 + 12, { steps: 4 });
-	await page.mouse.move(box.x + 3, box.y - 4, { steps: 8 });
+	await page.mouse.move(box.x + 3, to, { steps: 8 });
 	await expect
 		.poll(async () => {
-			await page.mouse.move(box.x + 3, box.y - 4);
+			await page.mouse.move(box.x + 3, to);
 			return page
 				.locator('.cards > li')
 				.evaluateAll((items) =>
