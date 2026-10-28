@@ -122,23 +122,49 @@ export function mathField(host: HTMLElement, initial: MathFieldParams) {
  * The keys a school formula needs, in two tabs. Each writes LaTeX the app draws
  * (`toAppLatex` still runs on what the field holds).
  */
+/** An operator drawn in the editor's font: MathLive's maths font draws it hairline-thin. */
+const op = (label: string, latex: string) => ({ label, latex, class: 'op' });
+
 const LAYOUTS = [
 	{
 		label: 'Čísla',
 		tooltip: 'Čísla a početní operace',
 		rows: [
-			['[7]', '[8]', '[9]', '\\cdot', '[separator]', '\\frac{#@}{#?}', '#@^{#?}', '\\sqrt{#0}'],
-			['[4]', '[5]', '[6]', '[/]', '[separator]', '(', ')', '\\pi'],
-			['[1]', '[2]', '[3]', '-', '[separator]', 'x', 'y', '[backspace]'],
-			['[0]', '[.]', '=', '+', '[separator]', '[left]', '[right]', '[return]']
+			[
+				'[7]',
+				'[8]',
+				'[9]',
+				op('·', '\\cdot'),
+				'[separator]',
+				'\\frac{#@}{#?}',
+				'#@^{#?}',
+				'\\sqrt{#0}'
+			],
+			['[4]', '[5]', '[6]', op('÷', '\\div'), '[separator]', '(', ')', '\\pi'],
+			['[1]', '[2]', '[3]', op('−', '-'), '[separator]', 'x', 'y', '[backspace]'],
+			['[0]', '[.]', op('=', '='), op('+', '+'), '[separator]', '[left]', '[right]', '[return]']
 		]
 	},
 	{
 		label: 'Značky',
 		tooltip: 'Porovnání, jednotky a další značky',
 		rows: [
-			['<', '>', '\\le', '\\ge', '\\ne', '\\approx'],
-			['\\pm', '\\times', '^{\\circ}', '\\%', '|#0|', '\\sqrt[#0]{#?}'],
+			[
+				op('<', '<'),
+				op('>', '>'),
+				op('≤', '\\le'),
+				op('≥', '\\ge'),
+				op('≠', '\\ne'),
+				op('≈', '\\approx')
+			],
+			[
+				op('±', '\\pm'),
+				op('×', '\\times'),
+				op('°', '^{\\circ}'),
+				op('%', '\\%'),
+				'|#0|',
+				'\\sqrt[#0]{#?}'
+			],
 			['#@_{#?}', '\\alpha', '\\beta', '\\gamma', '[left]', '[right]'],
 			['a', 'b', 'c', 'n', '[backspace]', '[return]']
 		]

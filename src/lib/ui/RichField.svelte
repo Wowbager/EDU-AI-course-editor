@@ -160,7 +160,11 @@
 		untrack(() => rich?.setEditable(editable));
 	});
 
-	onDestroy(() => rich?.destroy());
+	onDestroy(() => {
+		rich?.destroy();
+		// The keyboard is MathLive's one for the page: gone with the field it was in.
+		if (keyboardOpen) hideMathKeyboard(null);
+	});
 
 	/** This field's run of typing, in whichever view: one undo entry, Escape's target. */
 	const typing = new EditRun(store);
@@ -1018,12 +1022,10 @@
 		display: block;
 		width: 100%;
 		min-height: 28px;
-		padding: 2px 6px;
+		padding: 2px 0;
 		border: 0;
-		border-radius: var(--radius-xs);
 		outline: 0;
-		/* Filled like a field at rest, so it reads as the place to type. */
-		background: var(--e-field-rest);
+		background: transparent;
 		color: var(--e-text);
 		font-size: 1.05em;
 		--caret-color: var(--primary);
@@ -1040,12 +1042,11 @@
 	.math-latex {
 		font: inherit;
 		font-family: var(--font-code);
-		font-size: var(--text-s);
-		padding: 4px 6px;
+		font-size: var(--text-m);
+		padding: 4px 0;
 		border: 0;
-		border-radius: var(--radius-xs);
 		outline: 0;
-		background: var(--e-field-rest);
+		background: transparent;
 		color: var(--e-text);
 		resize: none;
 	}
@@ -1059,10 +1060,12 @@
 		--keyboard-background: transparent;
 		--keyboard-border: transparent;
 		--keyboard-padding-top: 4px;
-		--keyboard-padding-bottom: 4px;
+		--keyboard-padding-bottom: 8px;
+		/* One compact block in the middle, not two halves at the field's edges. */
+		--keyboard-padding-horizontal: max(0px, (100% - 460px) / 2);
 		--keyboard-accent-color: var(--primary);
-		--keyboard-toolbar-text: var(--e-text-muted);
-		--keyboard-toolbar-text-active: var(--e-text);
+		--keyboard-toolbar-text: var(--e-text);
+		--keyboard-toolbar-text-active: var(--primary-dark);
 		--keyboard-toolbar-background-hover: var(--e-field-hover);
 		--keyboard-toolbar-font-size: var(--text-s);
 		--keyboard-horizontal-rule: 1px solid var(--e-border);
@@ -1091,6 +1094,11 @@
 	.math-keyboard :global(.MLK__toolbar) {
 		border-radius: var(--radius-xs);
 		font-family: var(--font-body);
+	}
+	/* Operators in the digits' colour: MathLive draws them faint, as if disabled. */
+	.math-keyboard :global(.MLK__keycap),
+	.math-keyboard :global(.MLK__keycap *) {
+		color: var(--e-text);
 	}
 	.panel input {
 		font: inherit;
