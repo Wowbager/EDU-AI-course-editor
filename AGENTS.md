@@ -138,6 +138,12 @@ Each of these comes from a bug that cost a round.
    it was written on; the machine-specific side (checkout layout, which port is busy,
    how to build the player in a sibling directory, the archive of retired work) lives in
    the workspace notes outside the repo.
+9. **A field other fields depend on is written by a domain command that keeps them
+   consistent**, never by a raw `setField` from a component („Víc správných možností“
+   off left several right answers on a one-pick question). Validation of a field asks
+   the same function that decides whether the editor shows it (`optionOutcomesApply`,
+   `questionSettingApplies`). `question-commands.property.test.ts` runs random edit
+   sequences against both; a new command on a question goes in it.
 
 ## Conventions that are tested
 
