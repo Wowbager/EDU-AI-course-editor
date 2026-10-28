@@ -2828,13 +2828,19 @@ box (smaller, but the teacher still reads LaTeX); writing our own structural edi
   font loading and sounds are off. It is an 800 kB chunk fetched when a formula opens.
 - MathLive takes keys a moment after focus and holds typed keys a moment before its
   `input` (shortcuts like `sqrt`). Enter and blur read the field directly, so a quick
-  Enter keeps them; the e2e tests wait for its keyboard sink before typing.
+  Enter keeps them; the e2e tests wait for its keyboard sink before typing. Only a real
+  change is written: opening `\dfrac{1}{2}` and pressing Enter keeps it as written.
+- The keyboard lies over the bottom of the page, so opening it scrolls the formula row
+  above it. If MathLive fails to load, the row opens with the LaTeX box instead.
 
 ### Proposed, not built
 - Czech decimal comma in the formula field (MathLive's `decimalSeparator`, which writes
   `{,}`): it changes how existing formulas are stored.
 - A school-maths keyboard layout instead of MathLive's default four.
 - Lists from `1) ` and `a. `.
+- From the outside design review: „Na samostatný řádek“ and „LaTeX“ into a small ⋯ in the
+  formula row, leaving the field and Hotovo; the maths keyboard themed to the editor and
+  cut to the 123 and abc layers.
 
 ## Still open
 
