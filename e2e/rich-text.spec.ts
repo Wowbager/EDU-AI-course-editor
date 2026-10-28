@@ -197,6 +197,15 @@ test('a formula opened and closed unchanged keeps its LaTeX as written', async (
 	expect(await markdownOf(page)).toBe('Půl je $\\dfrac{1}{2}$');
 });
 
+test('a dollar typed into a formula leaves no backslash behind', async ({ page }) => {
+	await text(page).click();
+	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
+	await formulaReady(page);
+	await page.keyboard.type('5$+3');
+	await page.keyboard.press('Enter');
+	expect(await markdownOf(page)).toBe('$5+3$');
+});
+
 test('without the visual formula editor, the LaTeX box edits the formula', async ({ page }) => {
 	// A dropped connection while MathLive loads: its chunk is the one that defines it.
 	await page.route('**/*.js*', async (route) => {

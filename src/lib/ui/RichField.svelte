@@ -329,8 +329,9 @@
 		if (!e || mathPos === null) return;
 		const node = e.state.doc.nodeAt(mathPos);
 		if (node?.type.name !== 'math') return;
-		// A formula has no dollars inside, and an inline one no line break.
-		const latex = mathLatex.replace(/\$/g, '');
+		// A formula has no dollars inside, and an inline one no line break. The visual
+		// editor writes a dollar as `\$`: it goes whole, not leaving its backslash.
+		const latex = mathLatex.replace(/\\?\$/g, '');
 		begin();
 		e.view.dispatch(
 			e.state.tr
