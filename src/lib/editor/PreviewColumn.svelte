@@ -416,21 +416,29 @@
 			if (root?.contains(event.target as Node)) asking();
 		};
 		// Focus leaving a page element is not yet "into the frame": the frame is the
-		// active element a tick later, and the page body when focus went nowhere.
+		// active element once the move is done, and the page body when focus went nowhere.
 		let pending: ReturnType<typeof setTimeout> | undefined;
+		const settled = () => {
+			if (frame === null) return;
+			if (document.activeElement !== frame) {
+				if (document.activeElement === document.body) focusBefore = null;
+				return;
+			}
+			const booting = bootedAt === undefined || Date.now() - bootedAt < BOOT_FOCUS_GRACE_MS;
+			const asked = frame.matches(':hover') || Date.now() - askedAt < 1_000;
+			if (!booting || asked || focusBefore === null || !focusBefore.isConnected) return;
+			focusBefore.focus({ preventScroll: true });
+		};
+		// The player takes focus from its own script, so the move is done as that script
+		// ends, before the next key is handled: a timer runs after keys waiting in the
+		// browser's queue, which would land in the player and be lost. A move the browser
+		// makes by itself is done only a tick later.
 		const leftPage = () => {
 			clearTimeout(pending);
-			pending = setTimeout(() => {
-				if (frame === null) return;
-				if (document.activeElement !== frame) {
-					if (document.activeElement === document.body) focusBefore = null;
-					return;
-				}
-				const booting = bootedAt === undefined || Date.now() - bootedAt < BOOT_FOCUS_GRACE_MS;
-				const asked = frame.matches(':hover') || Date.now() - askedAt < 1_000;
-				if (!booting || asked || focusBefore === null || !focusBefore.isConnected) return;
-				focusBefore.focus({ preventScroll: true });
-			}, 0);
+			queueMicrotask(() => {
+				if (document.activeElement === frame) settled();
+				else pending = setTimeout(settled, 0);
+			});
 		};
 		document.addEventListener('focusin', focusedPage, true);
 		document.addEventListener('focusout', leftPage, true);
