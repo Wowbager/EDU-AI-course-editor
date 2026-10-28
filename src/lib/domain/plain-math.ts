@@ -32,6 +32,12 @@ const SYMBOLS: Record<string, string> = {
 	pi: 'π'
 };
 
+/**
+ * An argument: a group with no braces inside, or one character without braces, as in
+ * `\sqrt9` and `\frac12`, which the formula editor writes.
+ */
+const ARG = String.raw`(?:\{([^{}]*)\}|([0-9a-zA-Z]))`;
+
 /** A group read as one token needs no brackets when it is put next to an operator. */
 const isSimple = (text: string) => /^[\p{L}\p{N}.,]+$/u.test(text);
 const wrap = (text: string) => (isSimple(text) ? text : `(${text})`);
@@ -48,10 +54,14 @@ export function plainMath(text: string): string {
 		const before = out;
 		out = out
 			.replace(
-				/\\d?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g,
-				(_, a: string, b: string) => `${wrap(a.trim())}/${wrap(b.trim())}`
+				new RegExp(String.raw`\\d?frac\s*${ARG}\s*${ARG}`, 'g'),
+				(_, a1?: string, a2?: string, b1?: string, b2?: string) =>
+					`${wrap((a1 ?? a2)!.trim())}/${wrap((b1 ?? b2)!.trim())}`
 			)
-			.replace(/\\sqrt\s*\{([^{}]*)\}/g, (_, x: string) => `√${wrap(x.trim())}`)
+			.replace(
+				new RegExp(String.raw`\\sqrt\s*${ARG}`, 'g'),
+				(_, x1?: string, x2?: string) => `√${wrap((x1 ?? x2)!.trim())}`
+			)
 			.replace(/\^\s*\{([^{}]*)\}/g, (_, x: string) => superscript(x.trim()))
 			.replace(/\^\s*([0-9a-zA-Z])/g, (_, x: string) => superscript(x));
 		if (out === before) break;
