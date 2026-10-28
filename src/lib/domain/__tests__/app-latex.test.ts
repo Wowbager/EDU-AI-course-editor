@@ -21,6 +21,9 @@ describe('toAppLatex', () => {
 		expect(toAppLatex('\\begin{cases}a\\\\ne\\end{cases}')).toBe(
 			'\\begin{cases}a\\\\ne\\end{cases}'
 		);
+		expect(toAppLatex('\\begin{cases}a\\\\\\neq b\\end{cases}')).toBe(
+			'\\begin{cases}a\\\\\\not= b\\end{cases}'
+		);
 	});
 	it('leaves everything else as it is', () => {
 		expect(toAppLatex('\\frac{\\sqrt{x}}{2}\\cdot\\pi')).toBe('\\frac{\\sqrt{x}}{2}\\cdot\\pi');

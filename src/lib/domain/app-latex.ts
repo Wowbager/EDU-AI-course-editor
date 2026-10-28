@@ -13,14 +13,25 @@
  * Applied only to what MathLive writes. LaTeX a teacher types stays as typed.
  */
 
-const REPLACEMENTS: [RegExp, string][] = [
-	[/(?<!\\)\\placeholder(?:\[[^\]]*\])?\{\}/g, ''],
-	[/(?<!\\)\\Colon(?![a-zA-Z])/g, '::'],
-	[/(?<!\\)\\biconditional(?![a-zA-Z])/g, '\\leftrightarrow'],
-	[/(?<!\\)\\roundimplies(?![a-zA-Z])/g, '\\Rightarrow'],
-	[/(?<!\\)\\neq?(?![a-zA-Z])/g, '\\not=']
-];
+/** The commands rewritten, by name. */
+const COMMANDS: Record<string, string> = {
+	Colon: '::',
+	biconditional: '\\leftrightarrow',
+	roundimplies: '\\Rightarrow',
+	ne: '\\not=',
+	neq: '\\not='
+};
+
+/**
+ * Read as tokens, so a `\\` row break is never the start of a command and a command is
+ * matched whole (`\nearrow` is not `\ne`).
+ */
+const TOKEN = /\\(?:\\|placeholder(?:\[[^\]]*\])?\{\}|[a-zA-Z]+)/g;
 
 export function toAppLatex(latex: string): string {
-	return REPLACEMENTS.reduce((out, [find, replace]) => out.replace(find, replace), latex);
+	return latex.replace(TOKEN, (token) => {
+		if (token === '\\\\') return token;
+		if (token.startsWith('\\placeholder') && token.endsWith('{}')) return '';
+		return COMMANDS[token.slice(1)] ?? token;
+	});
 }
