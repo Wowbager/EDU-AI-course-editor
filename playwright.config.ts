@@ -1,5 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
-import type { PlayerKind } from './e2e/fixtures';
+import type { PlayerKind } from './e2e/fixtures.ts';
 
 /**
  * Two projects, split by what a suite needs from the preview column.

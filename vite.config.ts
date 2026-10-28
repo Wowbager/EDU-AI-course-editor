@@ -1,7 +1,7 @@
 import adapter from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
-import { playerPlugin } from './vite-plugin-player';
+import { playerPlugin } from './vite-plugin-player.ts';
 
 export default defineConfig({
 	// In production nginx puts the API on this origin (see nginx.conf). In dev the
