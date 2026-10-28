@@ -123,7 +123,7 @@ export function mathField(host: HTMLElement, initial: MathFieldParams) {
  * (`toAppLatex` still runs on what the field holds).
  */
 /** An operator drawn in the editor's font: MathLive's maths font draws it hairline-thin. */
-const op = (label: string, latex: string) => ({ label, latex, class: 'op' });
+const op = (label: string, latex: string) => ({ label, latex });
 
 const LAYOUTS = [
 	{
@@ -175,10 +175,13 @@ let fit: ResizeObserver | null = null;
 
 /** Hide the on-screen keyboard, folding the place it took in the row. */
 export function hideMathKeyboard(dock: HTMLElement | null) {
+	const keyboard = window.mathVirtualKeyboard;
+	if (dock) dock.style.height = '0';
+	// The keyboard is one for the page: a row hides it only while it is that row's.
+	if (!dock || !keyboard || keyboard.container !== dock) return;
 	fit?.disconnect();
 	fit = null;
-	if (window.mathVirtualKeyboard?.visible) window.mathVirtualKeyboard.hide();
-	if (dock) dock.style.height = '0';
+	if (keyboard.visible) keyboard.hide();
 }
 
 /**
@@ -189,7 +192,7 @@ export function hideMathKeyboard(dock: HTMLElement | null) {
 export function toggleMathKeyboard(host: HTMLElement | null, dock: HTMLElement | null): boolean {
 	const keyboard = window.mathVirtualKeyboard;
 	if (!keyboard || !dock) return false;
-	if (keyboard.visible) {
+	if (keyboard.visible && keyboard.container === dock) {
 		hideMathKeyboard(dock);
 		return false;
 	}

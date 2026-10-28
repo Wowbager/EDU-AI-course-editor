@@ -163,7 +163,7 @@
 	onDestroy(() => {
 		rich?.destroy();
 		// The keyboard is MathLive's one for the page: gone with the field it was in.
-		if (keyboardOpen) hideMathKeyboard(null);
+		hideMathKeyboard(keyboardDock);
 	});
 
 	/** This field's run of typing, in whichever view: one undo entry, Escape's target. */
@@ -309,6 +309,8 @@
 	/** Where the on-screen keyboard opens: inside the row, under the formula. */
 	let mathDock = $state<HTMLElement | null>(null);
 	let keyboardOpen = $state(false);
+	/** The row the keyboard last opened in, kept past the row's unmount. */
+	let keyboardDock: HTMLElement | null = null;
 	/** The same field as raw LaTeX, for whoever wants it (the row's ⋯). */
 	let latexMode = $state(false);
 
@@ -582,8 +584,10 @@
 							title="Klávesnice se značkami"
 							aria-label="Klávesnice se značkami"
 							onmousedown={keepFocus}
-							onclick={() => (keyboardOpen = toggleMathKeyboard(mathHost, mathDock))}
-							><Keyboard size={16} /></button
+							onclick={() => {
+								keyboardDock = mathDock;
+								keyboardOpen = toggleMathKeyboard(mathHost, mathDock);
+							}}><Keyboard size={16} /></button
 						>
 					{/if}
 					<Menu label="Další možnosti vzorce" icon={Ellipsis} placement="bottom-end">
