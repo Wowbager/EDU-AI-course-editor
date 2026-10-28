@@ -271,10 +271,27 @@ test('an answer is reordered by dragging its handle, and the handle answers the 
 	await page.mouse.move(x, from.y + 20, { steps: 4 });
 	const last = (await rows.last().boundingBox())!;
 	await page.mouse.move(x, last.y + last.height + 8, { steps: 10 });
-	// The carried row fades and the gap under the last row shows where it will land.
+	// The carried row is lifted, and the list is already in the order the drop gives.
 	await expect(page.locator('.rows .row.dragged')).toHaveCount(1);
-	await page.mouse.up();
 	await expect.poll(texts).toEqual([...before.slice(1), before[0]]);
+	await page.mouse.up();
+	await expect(page.locator('.rows .row.dragged')).toHaveCount(0);
+	await expect.poll(texts).toEqual([...before.slice(1), before[0]]);
+
+	// A drag the window takes away (a screenshot tool, another app) puts the answer
+	// back and leaves nothing in the dragging look.
+	const moved = await texts();
+	const top = (await grip(0).boundingBox())!;
+	await page.mouse.move(x, top.y + top.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(x, top.y + 20, { steps: 4 });
+	await page.mouse.move(x, last.y + last.height + 8, { steps: 10 });
+	await expect(page.locator('.rows .row.dragged')).toHaveCount(1);
+	await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+	await expect(page.locator('.rows .row.dragged')).toHaveCount(0);
+	await expect.poll(texts).toEqual(moved);
+	await page.mouse.up();
+	await expect.poll(texts).toEqual(moved);
 
 	// The handle answers the arrow keys too, and keeps its focus through the move. The
 	// moved answer (now last) swaps back up one place.
