@@ -82,6 +82,25 @@ test('1. typed into an empty text starts a numbered list that stays', async ({ p
 	expect(await markdownOf(page)).toBe('1. první');
 });
 
+test('a list also starts after a space and on a line begun with Shift+Enter', async ({ page }) => {
+	await text(page).click();
+	await page.keyboard.type(' 1. a');
+	await expect(text(page).locator('ol li')).toHaveText('a');
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('Enter');
+	await page.keyboard.type('Úvod');
+	await page.keyboard.press('Shift+Enter');
+	await page.keyboard.type('1. b');
+	await expect(text(page).locator('ol')).toHaveCount(2);
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('Enter');
+	await page.keyboard.type('Dál');
+	await page.keyboard.press('Shift+Enter');
+	await page.keyboard.type('- c');
+	await expect(text(page).locator('ul li')).toHaveText('c');
+	expect(await markdownOf(page)).toBe('1. a\n\nÚvod\n\n1. b\n\nDál\n\n* c');
+});
+
 test('a formula opens for editing in the field and draws as it is typed', async ({ page }) => {
 	await text(page).click();
 	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
