@@ -332,6 +332,36 @@ test('an answer is reordered by dragging its handle, and the handle answers the 
 	await expect.poll(texts).toEqual(swappedUp);
 });
 
+test('the answer that makes way slides once, however the pointer keeps moving', async ({
+	page
+}) => {
+	await loadCourse(page);
+	const rows = page.locator('.answers .row');
+	// Counts the slides the second answer starts from here on: Svelte holds each slide's
+	// first frame with a 0 ms animation before running it, which is no slide.
+	await rows.nth(1).evaluate((row) => {
+		const counted = window as unknown as { slides: number };
+		counted.slides = 0;
+		const animate = row.animate.bind(row);
+		row.animate = (keyframes, options) => {
+			if (typeof options === 'object' && Number(options.duration) > 0) counted.slides += 1;
+			return animate(keyframes, options);
+		};
+	});
+	const grip = rows.nth(0).getByRole('button', { name: /^Přesunout odpověď/ });
+	const handle = (await grip.boundingBox())!;
+	const second = (await rows.nth(1).boundingBox())!;
+	const x = handle.x + handle.width / 2;
+	await page.mouse.move(x, handle.y + handle.height / 2);
+	await page.mouse.down();
+	// Past the second answer's middle in one move, then on in small ones while it slides.
+	await page.mouse.move(x, handle.y + handle.height / 2 + second.height * 1.2);
+	await page.mouse.move(x, handle.y + handle.height / 2 + second.height * 1.4, { steps: 8 });
+	await expect.poll(() => rows.nth(0).evaluate((row) => row.getAnimations().length)).toBe(0);
+	expect(await page.evaluate(() => (window as unknown as { slides: number }).slides)).toBe(1);
+	await page.mouse.up();
+});
+
 test('the heading row goes when "Odpověď" would be its only label', async ({ page }) => {
 	await addQuestionCard(page);
 	await expect(head(page)).toBeVisible();

@@ -139,12 +139,18 @@
 	 * The answers in the order on screen: while one is carried, already in the order
 	 * the drop would give, as a step drag shows it. `index` stays the answer's place in
 	 * the document, which is what every command and id below is about.
+	 *
+	 * Read through `carriedFrom`/`carriedTo`, not `drag`: a new list restarts every
+	 * row's slide from where it is, so a pointer move that changes only the offset
+	 * must not make one, or the row sliding aside never finishes its slide.
 	 */
+	const carriedFrom = $derived(drag?.moved ? drag.from : -1);
+	const carriedTo = $derived(drag?.moved ? drag.to : -1);
 	const shown = $derived.by(() => {
 		const entries = options.map((option, index) => ({ option, index, key: optionKeys[index] }));
-		if (drag === null || !drag.moved) return entries;
-		const [carried] = entries.splice(drag.from, 1);
-		entries.splice(drag.to, 0, carried);
+		if (carriedFrom < 0) return entries;
+		const [carried] = entries.splice(carriedFrom, 1);
+		entries.splice(carriedTo, 0, carried);
 		return entries;
 	});
 
