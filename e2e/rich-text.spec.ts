@@ -204,6 +204,14 @@ test('a dollar typed into a formula leaves no backslash behind', async ({ page }
 	await page.keyboard.type('5$+3');
 	await page.keyboard.press('Enter');
 	expect(await markdownOf(page)).toBe('$5+3$');
+	// In the LaTeX box, a row break before a dollar stays a row break.
+	await page.getByRole('button', { name: 'Upravit vizuálně' }).click();
+	await text(page).locator('.math').click();
+	await formulaReady(page);
+	await page.getByRole('button', { name: 'LaTeX', exact: true }).click();
+	await page.getByRole('textbox', { name: 'Vzorec v LaTeXu' }).fill('a\\\\$b');
+	await page.getByRole('button', { name: 'Hotovo' }).click();
+	expect(await markdownOf(page)).toBe('$a\\\\b$');
 });
 
 test('without the visual formula editor, the LaTeX box edits the formula', async ({ page }) => {

@@ -330,8 +330,9 @@
 		const node = e.state.doc.nodeAt(mathPos);
 		if (node?.type.name !== 'math') return;
 		// A formula has no dollars inside, and an inline one no line break. The visual
-		// editor writes a dollar as `\$`: it goes whole, not leaving its backslash.
-		const latex = mathLatex.replace(/\\?\$/g, '');
+		// editor writes a dollar as `\$`: it goes whole, not leaving its backslash. A `\\`
+		// row break is read first, so its second backslash is not taken for that one.
+		const latex = mathLatex.replace(/(\\\\)|\\?\$/g, (_, rowBreak?: string) => rowBreak ?? '');
 		begin();
 		e.view.dispatch(
 			e.state.tr
