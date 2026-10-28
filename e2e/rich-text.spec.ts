@@ -28,6 +28,11 @@ async function formulaReady(page: Page) {
 		)
 		.toBe(true);
 }
+/** The formula's ⋯: on a separate line, LaTeX, help. */
+async function formulaMenu(page: Page, item: string) {
+	await page.getByRole('button', { name: 'Další možnosti vzorce' }).click();
+	await page.getByRole('menuitem', { name: item }).click();
+}
 const formulaValue = (page: Page) => formula(page).evaluate((el) => (el as HTMLInputElement).value);
 
 /** What the field stores, read through its own source view. */
@@ -166,24 +171,33 @@ test('a formula is typed without LaTeX, and the LaTeX is there for who wants it'
 	await page.keyboard.type('+x');
 	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec \\frac12+x');
 
-	// The on-screen keyboard types into the formula and leaves the row open.
+	// The row is the formula, its keyboard, ⋯ and Hotovo: nothing else until asked.
+	const row = page.getByRole('group', { name: 'Vzorec' });
+	await expect(row.getByRole('button')).toHaveText(['', '', 'Hotovo']);
+	await expect(row.getByRole('textbox', { name: 'Vzorec v LaTeXu' })).toHaveCount(0);
+	await expect(row.getByRole('checkbox')).toHaveCount(0);
+
+	// The on-screen keyboard opens inside the row, types into the formula and leaves the
+	// row open.
 	await page.getByRole('button', { name: 'Klávesnice se značkami' }).click();
-	await page.locator('.MLK__keycap[aria-label="7"]').filter({ visible: true }).click();
+	await row.locator('.MLK__keycap[aria-label="7"]').filter({ visible: true }).click();
 	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec \\frac12+x7');
 	await expect(formula(page)).toBeVisible();
 
-	// The LaTeX box edits the same formula, both ways.
-	await page.getByRole('button', { name: 'LaTeX', exact: true }).click();
+	// The same field shows the LaTeX, and back.
+	await formulaMenu(page, 'Upravit jako LaTeX');
 	const latex = page.getByRole('textbox', { name: 'Vzorec v LaTeXu' });
+	await expect(latex).toBeFocused();
 	await expect(latex).toHaveValue('\\frac12+x7');
+	await expect(formula(page)).toHaveCount(0);
 	await latex.fill('x\\ne 1');
-	await expect.poll(() => formulaValue(page)).toBe('x\\ne 1');
-	await formula(page).click();
+	await formulaMenu(page, 'Upravit vizuálně');
 	await formulaReady(page);
+	await expect.poll(() => formulaValue(page)).toBe('x\\ne 1');
 	await page.keyboard.press('End');
 	await page.keyboard.type('0');
 	// ≠ is stored as `\not=`, which survives the app's `\n` line breaks in a text step.
-	await expect(latex).toHaveValue('x\\not=10');
+	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec x\\not=10');
 	await page.getByRole('button', { name: 'Hotovo' }).click();
 	expect(await markdownOf(page)).toBe('$x\\not=10$');
 });
@@ -208,7 +222,7 @@ test('a dollar typed into a formula leaves no backslash behind', async ({ page }
 	await page.getByRole('button', { name: 'Upravit vizuálně' }).click();
 	await text(page).locator('.math').click();
 	await formulaReady(page);
-	await page.getByRole('button', { name: 'LaTeX', exact: true }).click();
+	await formulaMenu(page, 'Upravit jako LaTeX');
 	await page.getByRole('textbox', { name: 'Vzorec v LaTeXu' }).fill('a\\\\$b');
 	await page.getByRole('button', { name: 'Hotovo' }).click();
 	expect(await markdownOf(page)).toBe('$a\\\\b$');
@@ -217,11 +231,16 @@ test('a dollar typed into a formula leaves no backslash behind', async ({ page }
 test('without the visual formula editor, the LaTeX box edits the formula', async ({ page }) => {
 	// A dropped connection while MathLive loads: its chunk is the one that defines it.
 	await page.route('**/*.js*', async (route) => {
-		const response = await route.fetch();
-		const body = await response.text();
-		if (body.includes('mathVirtualKeyboard') && body.includes('MathfieldElement'))
-			return route.abort();
-		return route.fulfill({ response, body });
+		// A reload while a request is out disposes its response; let that one go.
+		try {
+			const response = await route.fetch();
+			const body = await response.text();
+			if (body.includes('mathVirtualKeyboard') && body.includes('MathfieldElement'))
+				return await route.abort();
+			return await route.fulfill({ response, body });
+		} catch {
+			await route.continue().catch(() => {});
+		}
 	});
 	await text(page).click();
 	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();

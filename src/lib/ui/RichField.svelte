@@ -39,7 +39,7 @@
 	import { pagePress } from './press';
 	import { createRichEditor, type RichEditor } from './rich/editor';
 	import { EditRun } from '$lib/state/edit-run';
-	import { mathField, toggleMathKeyboard } from './rich/mathfield';
+	import { hideMathKeyboard, mathField, toggleMathKeyboard } from './rich/mathfield';
 	import { isImageAddress } from './rich/paste';
 
 	interface Props {
@@ -302,8 +302,11 @@
 	let mathDisplay = $state(false);
 	let mathInput = $state<HTMLTextAreaElement | null>(null);
 	let mathHost = $state<HTMLElement | null>(null);
-	/** The raw LaTeX box under the visual one, for whoever wants it. */
-	let showLatex = $state(false);
+	/** Where the on-screen keyboard opens: inside the row, under the formula. */
+	let mathDock = $state<HTMLElement | null>(null);
+	let keyboardOpen = $state(false);
+	/** The same field as raw LaTeX, for whoever wants it (the row's ⋯). */
+	let latexMode = $state(false);
 
 	function openMath(pos: number) {
 		const node = editor()?.state.doc.nodeAt(pos);
@@ -312,7 +315,25 @@
 		mathPos = pos;
 		mathLatex = node.attrs.latex;
 		mathDisplay = node.attrs.display === true;
-		showLatex = false;
+		latexMode = false;
+		closeKeyboard();
+	}
+
+	function closeKeyboard() {
+		hideMathKeyboard(mathDock);
+		keyboardOpen = false;
+	}
+
+	function setLatexMode(on: boolean) {
+		closeKeyboard();
+		latexMode = on;
+		// The visual field focuses itself once it is mounted.
+		if (on) queueMicrotask(() => mathInput?.focus());
+	}
+
+	function toggleDisplay() {
+		mathDisplay = !mathDisplay;
+		updateMath();
 	}
 
 	function insertMath() {
@@ -354,6 +375,7 @@
 		const pos = mathPos;
 		// Cleared first: what is dispatched below comes back through `followFormula`.
 		mathPos = null;
+		closeKeyboard();
 		if (!e || pos === null) return;
 		const node = e.state.doc.nodeAt(pos);
 		// An empty formula is no formula.
@@ -518,86 +540,75 @@
 	{#if focused && !disabled}
 		{#if mathPos !== null}
 			{#key mathPos}
-				<div class="row panel" role="group" aria-label="Vzorec">
-					<div
-						class="math-field"
-						bind:this={mathHost}
-						use:mathField={{
-							latex: mathLatex,
-							label: 'Vzorec',
-							oninput: (latex) => {
-								mathLatex = latex;
-								updateMath();
-							},
-							ondone: () => {
-								closeMath();
-								focusText();
-							},
-							onunreadable: () => {
-								showLatex = true;
-								queueMicrotask(() => mathInput?.focus());
-							}
-						}}
-					></div>
-					<button
-						type="button"
-						class="icon-button keyboard"
-						title="Klávesnice se značkami"
-						aria-label="Klávesnice se značkami"
-						onmousedown={keepFocus}
-						onclick={() => toggleMathKeyboard(mathHost)}><Keyboard size={16} /></button
-					>
-					<div class="panel-actions">
+				<div class="row formula" role="group" aria-label="Vzorec">
+					{#if latexMode}
+						<textarea
+							class="math-latex"
+							aria-label="Vzorec v LaTeXu"
+							bind:this={mathInput}
+							bind:value={mathLatex}
+							rows={mathDisplay ? 2 : 1}
+							spellcheck="false"
+							data-undo="course"
+							oninput={updateMath}
+							onkeydown={mathKeys}></textarea>
+					{:else}
+						<div
+							class="math-field"
+							bind:this={mathHost}
+							use:mathField={{
+								latex: mathLatex,
+								label: 'Vzorec',
+								oninput: (latex) => {
+									mathLatex = latex;
+									updateMath();
+								},
+								ondone: () => {
+									closeMath();
+									focusText();
+								},
+								onunreadable: () => setLatexMode(true)
+							}}
+						></div>
+						<button
+							type="button"
+							class="tool"
+							class:on={keyboardOpen}
+							aria-pressed={keyboardOpen}
+							title="Klávesnice se značkami"
+							aria-label="Klávesnice se značkami"
+							onmousedown={keepFocus}
+							onclick={() => (keyboardOpen = toggleMathKeyboard(mathHost, mathDock))}
+							><Keyboard size={16} /></button
+						>
+					{/if}
+					<Menu label="Další možnosti vzorce" icon={Ellipsis} placement="bottom-end">
 						{#if !inline}
-							<label class="check">
-								<input type="checkbox" bind:checked={mathDisplay} onchange={updateMath} />
-								Na samostatný řádek
-							</label>
+							<MenuItem checked={mathDisplay} onclick={toggleDisplay}>Na samostatný řádek</MenuItem>
 						{/if}
-						<button
-							type="button"
-							class="text-button"
-							aria-pressed={showLatex}
-							title="Upravit vzorec jako LaTeX"
-							onclick={() => {
-								showLatex = !showLatex;
-								if (showLatex) queueMicrotask(() => mathInput?.focus());
-							}}>LaTeX</button
-						>
-						<button
-							type="button"
-							class="text-button"
-							onclick={() => {
-								closeMath();
-								focusText();
-							}}>Hotovo</button
-						>
-					</div>
-					{#if showLatex}
-						<div class="math-source">
-							<label>
-								<span>Vzorec v LaTeXu</span>
-								<textarea
-									bind:this={mathInput}
-									bind:value={mathLatex}
-									rows={mathDisplay ? 2 : 1}
-									spellcheck="false"
-									data-undo="course"
-									oninput={updateMath}
-									onkeydown={mathKeys}></textarea>
-							</label>
-							<button
-								type="button"
-								class="icon-button"
+						{#if latexMode}
+							<MenuItem icon={Type} onclick={() => setLatexMode(false)}>Upravit vizuálně</MenuItem>
+							<MenuItem
+								icon={CircleQuestionMark}
 								onclick={() =>
 									window.open('https://katex.org/docs/supported.html', '_blank', 'noopener')}
-								title="Nápověda k LaTeXu"
-								aria-label="Nápověda k LaTeXu"
+								>Nápověda k LaTeXu</MenuItem
 							>
-								<CircleQuestionMark size={14}></CircleQuestionMark>
-							</button>
-						</div>
-					{/if}
+						{:else}
+							<MenuItem icon={CodeXml} onclick={() => setLatexMode(true)}
+								>Upravit jako LaTeX</MenuItem
+							>
+						{/if}
+					</Menu>
+					<button
+						type="button"
+						class="text-button quiet"
+						onclick={() => {
+							closeMath();
+							focusText();
+						}}>Hotovo</button
+					>
+					<div class="math-keyboard" bind:this={mathDock}></div>
 				</div>
 			{/key}
 		{:else if imagePanel}
@@ -766,20 +777,6 @@
 </div>
 
 <style>
-	.icon-button {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 28px;
-		height: 28px;
-		padding: 0;
-		border: 0;
-		border-radius: var(--radius-xs);
-		background: none;
-		color: var(--e-text-muted);
-		cursor: pointer;
-	}
-
 	.rich-field {
 		display: flex;
 		flex-direction: column;
@@ -1004,52 +1001,98 @@
 	.panel label.grow {
 		flex: 1 1 12rem;
 	}
-	.panel label.check {
-		flex-direction: row;
-		align-items: center;
-		gap: 6px;
+	/* The formula row: one field in the text's own look, then ⌨, ⋯ and Hotovo. */
+	.formula {
+		gap: 2px 4px;
+		padding: 4px 4px 4px 8px;
 	}
-	.math-field {
-		flex: 1 1 14rem;
+	.formula :global(.menu) {
+		margin-left: 0;
+	}
+	.math-field,
+	.math-latex {
+		flex: 1 1 12rem;
 		min-width: 0;
 	}
 	.math-field :global(math-field) {
 		display: block;
 		width: 100%;
-		min-height: 32px;
+		min-height: 28px;
 		padding: 2px 6px;
-		font-size: 1.15em;
-		border: 1px solid var(--e-border);
+		border: 0;
 		border-radius: var(--radius-xs);
-		background: var(--surface);
+		outline: 0;
+		/* Filled like a field at rest, so it reads as the place to type. */
+		background: var(--e-field-rest);
 		color: var(--e-text);
+		font-size: 1.05em;
 		--caret-color: var(--primary);
-		--selection-background-color: var(--e-field-hover);
+		--selection-background-color: var(--primary-dark-12);
 		--contains-highlight-background-color: transparent;
-	}
-	.math-field :global(math-field:focus-within) {
-		outline: 2px solid var(--primary);
-		outline-offset: -1px;
+		--placeholder-color: var(--e-text-faint);
+		--smart-fence-color: var(--e-text-faint);
 	}
 	/* One keyboard button and no menu: the row's own controls. */
 	.math-field :global(math-field::part(virtual-keyboard-toggle)),
 	.math-field :global(math-field::part(menu-toggle)) {
 		display: none;
 	}
-	.keyboard {
-		align-self: center;
+	.math-latex {
+		font: inherit;
+		font-family: var(--font-code);
+		font-size: var(--text-s);
+		padding: 4px 6px;
+		border: 0;
+		border-radius: var(--radius-xs);
+		outline: 0;
+		background: var(--e-field-rest);
+		color: var(--e-text);
+		resize: none;
 	}
-	.math-source {
+	/* The on-screen keyboard, laid out in the row (`toggleMathKeyboard` sets its height). */
+	.math-keyboard {
 		flex-basis: 100%;
-		display: flex;
-		align-items: end;
-		gap: 4px;
+		position: relative;
+		height: 0;
+		/* A pressed key sits 5 below this, so it must stay above the row. */
+		--keyboard-zindex: 10;
+		--keyboard-background: transparent;
+		--keyboard-border: transparent;
+		--keyboard-padding-top: 4px;
+		--keyboard-padding-bottom: 4px;
+		--keyboard-accent-color: var(--primary);
+		--keyboard-toolbar-text: var(--e-text-muted);
+		--keyboard-toolbar-text-active: var(--e-text);
+		--keyboard-toolbar-background-hover: var(--e-field-hover);
+		--keyboard-toolbar-font-size: var(--text-s);
+		--keyboard-horizontal-rule: 1px solid var(--e-border);
+		--keycap-height: 34px;
+		--keycap-max-width: 56px;
+		--keycap-gap: 4px;
+		--keycap-font-size: 17px;
+		--keycap-small-font-size: 14px;
+		--keycap-background: var(--e-field-rest);
+		--keycap-background-hover: var(--e-field-hover);
+		--keycap-background-pressed: var(--primary-dark-12);
+		--keycap-border: transparent;
+		--keycap-border-bottom: transparent;
+		--keycap-text: var(--e-text);
+		--keycap-secondary-background: var(--e-field-hover);
+		--keycap-secondary-background-hover: var(--e-border);
+		--keycap-secondary-border: transparent;
+		--keycap-secondary-border-bottom: transparent;
+		--keycap-secondary-text: var(--e-text-muted);
+		--keycap-primary-background: var(--primary);
+		--keycap-primary-background-hover: var(--primary);
+		--keycap-primary-text: var(--e-text);
+		--placeholder-color: var(--e-text-faint);
 	}
-	.math-source label {
-		flex: 1;
+	.math-keyboard :global(.MLK__keycap),
+	.math-keyboard :global(.MLK__toolbar) {
+		border-radius: var(--radius-xs);
+		font-family: var(--font-body);
 	}
-	.panel textarea,
-	.panel input:not([type='checkbox']) {
+	.panel input {
 		font: inherit;
 		font-size: var(--text-s);
 		padding: 4px 6px;
@@ -1057,10 +1100,6 @@
 		border-radius: var(--radius-xs);
 		background: var(--surface);
 		color: var(--e-text);
-	}
-	.panel textarea {
-		font-family: var(--font-code);
-		resize: vertical;
 	}
 	.panel-actions {
 		display: flex;
@@ -1084,6 +1123,15 @@
 	.text-button.primary {
 		background: var(--primary);
 		border-color: var(--primary);
+		color: var(--e-text);
+	}
+	.text-button.quiet {
+		border-color: transparent;
+		background: none;
+		color: var(--e-text-muted);
+	}
+	.text-button.quiet:hover {
+		background: var(--e-field-hover);
 		color: var(--e-text);
 	}
 	.text-button:disabled {

@@ -113,30 +113,78 @@ export function mathField(host: HTMLElement, initial: MathFieldParams) {
 		},
 		destroy() {
 			destroyed = true;
-			if (window.mathVirtualKeyboard?.visible) window.mathVirtualKeyboard.hide();
 			field?.remove();
 		}
 	};
 }
 
-/** Show or hide the on-screen keyboard for the field in `host`. */
-export function toggleMathKeyboard(host: HTMLElement | null) {
-	const keyboard = window.mathVirtualKeyboard;
-	if (!keyboard) return;
-	if (keyboard.visible) keyboard.hide();
-	else {
-		host?.querySelector<MathfieldElement>('math-field')?.focus();
-		// The keyboard lies over the bottom of the page: keep the formula's row above it.
-		const row = host?.closest<HTMLElement>('[role="group"]') ?? host;
-		(keyboard as unknown as EventTarget).addEventListener(
-			'geometrychange',
-			() => {
-				if (!row) return;
-				row.style.scrollMarginBottom = `${keyboard.boundingRect.height + 16}px`;
-				row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-			},
-			{ once: true }
-		);
-		keyboard.show({ animate: true });
+/**
+ * The keys a school formula needs, in two tabs. Each writes LaTeX the app draws
+ * (`toAppLatex` still runs on what the field holds).
+ */
+const LAYOUTS = [
+	{
+		label: 'Čísla',
+		tooltip: 'Čísla a početní operace',
+		rows: [
+			['[7]', '[8]', '[9]', '\\cdot', '[separator]', '\\frac{#@}{#?}', '#@^{#?}', '\\sqrt{#0}'],
+			['[4]', '[5]', '[6]', '[/]', '[separator]', '(', ')', '\\pi'],
+			['[1]', '[2]', '[3]', '-', '[separator]', 'x', 'y', '[backspace]'],
+			['[0]', '[.]', '=', '+', '[separator]', '[left]', '[right]', '[return]']
+		]
+	},
+	{
+		label: 'Značky',
+		tooltip: 'Porovnání, jednotky a další značky',
+		rows: [
+			['<', '>', '\\le', '\\ge', '\\ne', '\\approx'],
+			['\\pm', '\\times', '^{\\circ}', '\\%', '|#0|', '\\sqrt[#0]{#?}'],
+			['#@_{#?}', '\\alpha', '\\beta', '\\gamma', '[left]', '[right]'],
+			['a', 'b', 'c', 'n', '[backspace]', '[return]']
+		]
 	}
+];
+
+let fit: ResizeObserver | null = null;
+
+/** Hide the on-screen keyboard, folding the place it took in the row. */
+export function hideMathKeyboard(dock: HTMLElement | null) {
+	fit?.disconnect();
+	fit = null;
+	if (window.mathVirtualKeyboard?.visible) window.mathVirtualKeyboard.hide();
+	if (dock) dock.style.height = '0';
+}
+
+/**
+ * Show or hide the on-screen keyboard for the field in `host`. It opens inside `dock`,
+ * under the formula and as wide as the field, not over the page: MathLive lays it out
+ * in place in a container, which takes its height.
+ */
+export function toggleMathKeyboard(host: HTMLElement | null, dock: HTMLElement | null): boolean {
+	const keyboard = window.mathVirtualKeyboard;
+	if (!keyboard || !dock) return false;
+	if (keyboard.visible) {
+		hideMathKeyboard(dock);
+		return false;
+	}
+	// Each of these rebuilds the keyboard, which then forgets the field it types into.
+	if (keyboard.layouts !== LAYOUTS) keyboard.layouts = LAYOUTS;
+	if (keyboard.editToolbar !== 'none') keyboard.editToolbar = 'none';
+	if (keyboard.container !== dock) keyboard.container = dock;
+	host?.querySelector<MathfieldElement>('math-field')?.focus();
+	keyboard.connect();
+	keyboard.show({ animate: false });
+	const plate = dock.querySelector<HTMLElement>('.MLK__plate');
+	if (plate) {
+		let shown = false;
+		fit = new ResizeObserver(() => {
+			dock.style.height = `${plate.offsetTop + plate.offsetHeight}px`;
+			// Once, as it opens, and at once: a key moving under the pointer loses its press.
+			if (shown) return;
+			shown = true;
+			dock.scrollIntoView({ block: 'nearest' });
+		});
+		fit.observe(plate);
+	}
+	return true;
 }
