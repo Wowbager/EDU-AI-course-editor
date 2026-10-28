@@ -24,6 +24,11 @@ function loadMathLive(): Promise<MathLive> {
 				cs: { 'tooltip.undo': 'Zpět', 'tooltip.redo': 'Znovu', 'tooltip.menu': 'Nabídka' }
 			};
 			return module;
+		},
+		(error) => {
+			// A dropped connection: the next formula tries again.
+			mathlive = null;
+			throw error;
 		}
 	);
 	return mathlive;
@@ -50,43 +55,61 @@ export function mathField(host: HTMLElement, initial: MathFieldParams) {
 	let destroyed = false;
 
 	const written = () => (field ? toAppLatex(field.getValue('latex-expanded')) : params.latex);
+	/** What the row last heard from the field, or set in it: only a change is written. */
+	let seen = params.latex;
+	const send = () => {
+		const now = written();
+		if (now === seen) return;
+		seen = now;
+		params.oninput(now);
+	};
 
-	void loadMathLive().then(({ MathfieldElement }) => {
-		if (destroyed) return;
-		const mf = new MathfieldElement();
-		mf.setAttribute('aria-label', params.label);
-		mf.dataset.undo = 'course';
-		mf.mathVirtualKeyboardPolicy = 'manual';
-		// Options read the field's state, so they are set once it is in the page.
-		host.append(mf);
-		mf.menuItems = [];
-		mf.keybindings = mf.keybindings.filter((binding) => {
-			const command = Array.isArray(binding.command) ? binding.command[0] : binding.command;
-			return !UNDO.has(String(command));
-		});
-		mf.value = params.latex;
-		mf.addEventListener('input', () => params.oninput(written()));
-		// On blur, as Hotovo is pressed: the keys it still held arrive with it.
-		mf.addEventListener('change', () => params.oninput(written()));
-		mf.addEventListener('keydown', (event) => {
-			if (event.key === 'Enter' && !event.shiftKey) {
-				event.preventDefault();
-				// MathLive holds typed keys a moment (for shortcuts like `sqrt`) before its
-				// `input`; a quick Enter would close the row on the formula before them.
-				params.oninput(written());
-				params.ondone();
-			}
-		});
-		field = mf;
-		if (mf.errors.length > 0) params.onunreadable();
-		mf.focus();
-	});
+	loadMathLive().then(
+		({ MathfieldElement }) => {
+			if (destroyed) return;
+			const mf = new MathfieldElement();
+			mf.setAttribute('aria-label', params.label);
+			mf.dataset.undo = 'course';
+			mf.mathVirtualKeyboardPolicy = 'manual';
+			// Options read the field's state, so they are set once it is in the page.
+			host.append(mf);
+			mf.menuItems = [];
+			mf.keybindings = mf.keybindings.filter((binding) => {
+				const command = Array.isArray(binding.command) ? binding.command[0] : binding.command;
+				return !UNDO.has(String(command));
+			});
+			mf.value = params.latex;
+			mf.addEventListener('input', send);
+			// On blur, as Hotovo is pressed: the keys it still held arrive with it.
+			mf.addEventListener('change', send);
+			mf.addEventListener('keydown', (event) => {
+				if (event.key === 'Enter' && !event.shiftKey) {
+					event.preventDefault();
+					// MathLive holds typed keys a moment (for shortcuts like `sqrt`) before its
+					// `input`; a quick Enter would close the row on the formula before them.
+					send();
+					params.ondone();
+				}
+			});
+			field = mf;
+			seen = written();
+			if (mf.errors.length > 0) params.onunreadable();
+			mf.focus();
+		},
+		() => {
+			// No visual editor: the LaTeX box still edits the formula.
+			if (!destroyed) params.onunreadable();
+		}
+	);
 
 	return {
 		update(next: MathFieldParams) {
 			params = next;
 			// A change from the LaTeX box; the field's own typing is already there.
-			if (field && next.latex !== written()) field.value = next.latex;
+			if (field && next.latex !== written()) {
+				field.value = next.latex;
+				seen = written();
+			}
 		},
 		destroy() {
 			destroyed = true;

@@ -531,7 +531,10 @@
 								closeMath();
 								focusText();
 							},
-							onunreadable: () => (showLatex = true)
+							onunreadable: () => {
+								showLatex = true;
+								queueMicrotask(() => mathInput?.focus());
+							}
 						}}
 					></div>
 					<button

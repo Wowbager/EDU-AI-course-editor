@@ -188,6 +188,33 @@ test('a formula is typed without LaTeX, and the LaTeX is there for who wants it'
 	expect(await markdownOf(page)).toBe('$x\\not=10$');
 });
 
+test('a formula opened and closed unchanged keeps its LaTeX as written', async ({ page }) => {
+	await text(page).click();
+	await page.keyboard.type('Půl je $\\dfrac{1}{2}$');
+	await text(page).locator('.math').click();
+	await formulaReady(page);
+	await page.keyboard.press('Enter');
+	expect(await markdownOf(page)).toBe('Půl je $\\dfrac{1}{2}$');
+});
+
+test('without the visual formula editor, the LaTeX box edits the formula', async ({ page }) => {
+	// A dropped connection while MathLive loads: its chunk is the one that defines it.
+	await page.route('**/*.js*', async (route) => {
+		const response = await route.fetch();
+		const body = await response.text();
+		if (body.includes('mathVirtualKeyboard') && body.includes('MathfieldElement'))
+			return route.abort();
+		return route.fulfill({ response, body });
+	});
+	await text(page).click();
+	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
+	const latex = page.getByRole('textbox', { name: 'Vzorec v LaTeXu' });
+	await expect(latex).toBeFocused();
+	await page.keyboard.type('x^2');
+	await page.keyboard.press('Enter');
+	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec x^2');
+});
+
 test('a paste from Google Docs keeps its bold and lists, and drops its fonts', async ({ page }) => {
 	await text(page).click();
 	await paste(page, {
