@@ -188,13 +188,18 @@
 			const committed = drag;
 			drag = null;
 			if (!commit || committed === null || !committed.moved) return;
+			// By id, not by the index at the press: the list may have changed meanwhile.
 			const ids = options.map((o) => o.id);
-			const [moved] = ids.splice(committed.from, 1);
-			ids.splice(committed.to, 0, moved);
+			const from = ids.indexOf(committed.id);
+			if (from < 0) return;
+			ids.splice(from, 1);
+			ids.splice(Math.min(committed.to, ids.length), 0, committed.id);
 			store.apply((d) => reorderOptions(d, block.block_id, step.id, ids));
 		};
-		const release = () => end(true);
-		const cancel = () => end(false);
+		// Only the pointer that pressed ends the drag, not a second finger.
+		const ours = (e: Event) => !(e instanceof PointerEvent) || e.pointerId === event.pointerId;
+		const release = (e: Event) => ours(e) && end(true);
+		const cancel = (e?: Event) => (e === undefined || ours(e)) && end(false);
 		const escape = (e: KeyboardEvent) => {
 			if (e.key !== 'Escape') return;
 			e.preventDefault();
