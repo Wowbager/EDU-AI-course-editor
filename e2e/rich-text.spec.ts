@@ -15,6 +15,20 @@ const course = () =>
 
 const text = (page: Page) => page.locator('.rich-content').first();
 const toolbar = (page: Page) => page.getByRole('toolbar', { name: 'Formátování textu' });
+/** The formula row's visual editor (MathLive). */
+const formula = (page: Page) => page.locator('math-field');
+/** MathLive takes the keys a moment after it takes focus; until then they are lost. */
+async function formulaReady(page: Page) {
+	await expect(formula(page)).toBeFocused();
+	await expect
+		.poll(() =>
+			page.evaluate(() =>
+				document.activeElement?.shadowRoot?.activeElement?.classList.contains('ML__keyboard-sink')
+			)
+		)
+		.toBe(true);
+}
+const formulaValue = (page: Page) => formula(page).evaluate((el) => (el as HTMLInputElement).value);
 
 /** What the field stores, read through its own source view. */
 async function markdownOf(page: Page): Promise<string> {
@@ -126,17 +140,52 @@ test('one list button goes bullets, numbers, none; Citace is a button of its own
 test('a formula opens for editing in the field and draws as it is typed', async ({ page }) => {
 	await text(page).click();
 	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
-	const latex = page.getByRole('textbox', { name: 'Vzorec v LaTeXu' });
-	await expect(latex).toBeFocused();
-	await latex.fill('x^2');
-	await latex.press('Enter');
+	await formulaReady(page);
+	await page.keyboard.type('x^2');
+	await page.keyboard.press('Enter');
 	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec x^2');
 	await text(page).locator('.math').click();
-	await expect(latex).toHaveValue('x^2');
+	await formulaReady(page);
+	await expect.poll(() => formulaValue(page)).toBe('x^2');
 	// An emptied formula is gone, not an empty pair of dollars.
-	await latex.fill('');
+	await page.keyboard.press('Control+a');
+	await page.keyboard.press('Backspace');
 	await page.getByRole('button', { name: 'Hotovo' }).click();
 	await expect(text(page).locator('.math')).toHaveCount(0);
+});
+
+test('a formula is typed without LaTeX, and the LaTeX is there for who wants it', async ({
+	page
+}) => {
+	await text(page).click();
+	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
+	await formulaReady(page);
+	// `/` makes a fraction; the arrow leaves the denominator.
+	await page.keyboard.type('1/2');
+	await page.keyboard.press('ArrowRight');
+	await page.keyboard.type('+x');
+	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec \\frac12+x');
+
+	// The on-screen keyboard types into the formula and leaves the row open.
+	await page.getByRole('button', { name: 'Klávesnice se značkami' }).click();
+	await page.locator('.MLK__keycap[aria-label="7"]').filter({ visible: true }).click();
+	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec \\frac12+x7');
+	await expect(formula(page)).toBeVisible();
+
+	// The LaTeX box edits the same formula, both ways.
+	await page.getByRole('button', { name: 'LaTeX', exact: true }).click();
+	const latex = page.getByRole('textbox', { name: 'Vzorec v LaTeXu' });
+	await expect(latex).toHaveValue('\\frac12+x7');
+	await latex.fill('x\\ne 1');
+	await expect.poll(() => formulaValue(page)).toBe('x\\ne 1');
+	await formula(page).click();
+	await formulaReady(page);
+	await page.keyboard.press('End');
+	await page.keyboard.type('0');
+	// ≠ is stored as `\not=`, which survives the app's `\n` line breaks in a text step.
+	await expect(latex).toHaveValue('x\\not=10');
+	await page.getByRole('button', { name: 'Hotovo' }).click();
+	expect(await markdownOf(page)).toBe('$x\\not=10$');
 });
 
 test('a paste from Google Docs keeps its bold and lists, and drops its fonts', async ({ page }) => {
@@ -252,11 +301,11 @@ test('a click back into the text closes the formula, and typing goes where it la
 	await text(page).click();
 	await page.keyboard.type('Plocha ');
 	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
-	const latex = page.getByRole('textbox', { name: 'Vzorec v LaTeXu' });
-	await latex.fill('x^2');
+	await formulaReady(page);
+	await page.keyboard.type('x^2');
 
 	await text(page).click({ position: { x: 2, y: 2 } });
-	await expect(latex).toBeHidden();
+	await expect(formula(page)).toBeHidden();
 	await expect(toolbar(page)).toBeVisible();
 	await page.keyboard.type('Velká ');
 	await expect(text(page)).toContainText('Velká Plocha');
@@ -267,10 +316,10 @@ test('a formula left empty by a click into the text is gone', async ({ page }) =
 	await text(page).click();
 	await page.keyboard.type('Plocha ');
 	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
-	await expect(page.getByRole('textbox', { name: 'Vzorec v LaTeXu' })).toBeFocused();
+	await formulaReady(page);
 
 	await text(page).click({ position: { x: 2, y: 2 } });
-	await expect(page.getByRole('textbox', { name: 'Vzorec v LaTeXu' })).toBeHidden();
+	await expect(formula(page)).toBeHidden();
 	await expect(text(page).locator('.math')).toHaveCount(0);
 });
 
@@ -278,12 +327,13 @@ test('undo while a formula is open closes its row with it', async ({ page }) => 
 	await text(page).click();
 	await page.keyboard.type('Plocha ');
 	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
-	const latex = page.getByRole('textbox', { name: 'Vzorec v LaTeXu' });
-	await latex.pressSequentially('x^2');
+	await formulaReady(page);
+	await page.keyboard.type('x^2');
 	await expect(text(page).locator('.math')).toHaveCount(1);
 
+	// Ctrl+Z is the course's, as in every other field: it closes the row with the formula.
 	await page.keyboard.press('Control+z');
-	await expect(latex).toBeHidden();
+	await expect(formula(page)).toBeHidden();
 });
 
 test('a formula and an image open from the keyboard, as they do with a click', async ({ page }) => {
@@ -294,11 +344,11 @@ test('a formula and an image open from the keyboard, as they do with a click', a
 	await expect(text(page).locator('.math')).toHaveCount(1);
 	await page.keyboard.press('ArrowLeft');
 	await page.keyboard.press('Enter');
-	const latex = page.getByRole('textbox', { name: 'Vzorec v LaTeXu' });
-	await expect(latex).toBeFocused();
-	await expect(latex).toHaveValue('x^2');
-	await latex.fill('x^3');
-	await latex.press('Enter');
+	await formulaReady(page);
+	await expect.poll(() => formulaValue(page)).toBe('x^2');
+	await page.keyboard.press('Control+a');
+	await page.keyboard.type('x^3');
+	await page.keyboard.press('Enter');
 	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', /x\^3/);
 	// Back in the text, after the formula: typing goes on where it was.
 	await page.keyboard.type(' m');

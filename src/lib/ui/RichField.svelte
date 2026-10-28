@@ -19,6 +19,7 @@
 		Heading,
 		Image as ImageIcon,
 		Italic,
+		Keyboard,
 		List,
 		ListOrdered,
 		Sigma,
@@ -38,7 +39,7 @@
 	import { pagePress } from './press';
 	import { createRichEditor, type RichEditor } from './rich/editor';
 	import { EditRun } from '$lib/state/edit-run';
-	import { renderMath } from './rich/math';
+	import { mathField, toggleMathKeyboard } from './rich/mathfield';
 	import { isImageAddress } from './rich/paste';
 
 	interface Props {
@@ -300,6 +301,9 @@
 	let mathLatex = $state('');
 	let mathDisplay = $state(false);
 	let mathInput = $state<HTMLTextAreaElement | null>(null);
+	let mathHost = $state<HTMLElement | null>(null);
+	/** The raw LaTeX box under the visual one, for whoever wants it. */
+	let showLatex = $state(false);
 
 	function openMath(pos: number) {
 		const node = editor()?.state.doc.nodeAt(pos);
@@ -308,7 +312,7 @@
 		mathPos = pos;
 		mathLatex = node.attrs.latex;
 		mathDisplay = node.attrs.display === true;
-		queueMicrotask(() => mathInput?.focus());
+		showLatex = false;
 	}
 
 	function insertMath() {
@@ -385,11 +389,6 @@
 			closeMath();
 			focusText();
 		}
-	}
-
-	function preview(node: HTMLElement, params: { latex: string; display: boolean }) {
-		renderMath(node, params.latex, params.display);
-		return { update: (next: typeof params) => renderMath(node, next.latex, next.display) };
 	}
 
 	// ─── Image row ──────────────────────────────────────────────────────────
@@ -516,46 +515,86 @@
 
 	{#if focused && !disabled}
 		{#if mathPos !== null}
-			<div class="row panel" role="group" aria-label="Vzorec">
-				<label class="math-source">
-					<span>Vzorec v LaTeXu</span>
-					<textarea
-						bind:this={mathInput}
-						bind:value={mathLatex}
-						rows={mathDisplay ? 2 : 1}
-						spellcheck="false"
-						data-undo="course"
-						oninput={updateMath}
-						onkeydown={mathKeys}></textarea>
-				</label>
-				<span class="math-preview" use:preview={{ latex: mathLatex, display: mathDisplay }}></span>
-				<div class="panel-actions">
-					{#if !inline}
-						<label class="check">
-							<input type="checkbox" bind:checked={mathDisplay} onchange={updateMath} />
-							Na samostatný řádek
-						</label>
+			{#key mathPos}
+				<div class="row panel" role="group" aria-label="Vzorec">
+					<div
+						class="math-field"
+						bind:this={mathHost}
+						use:mathField={{
+							latex: mathLatex,
+							label: 'Vzorec',
+							oninput: (latex) => {
+								mathLatex = latex;
+								updateMath();
+							},
+							ondone: () => {
+								closeMath();
+								focusText();
+							},
+							onunreadable: () => (showLatex = true)
+						}}
+					></div>
+					<button
+						type="button"
+						class="icon-button keyboard"
+						title="Klávesnice se značkami"
+						aria-label="Klávesnice se značkami"
+						onmousedown={keepFocus}
+						onclick={() => toggleMathKeyboard(mathHost)}><Keyboard size={16} /></button
+					>
+					<div class="panel-actions">
+						{#if !inline}
+							<label class="check">
+								<input type="checkbox" bind:checked={mathDisplay} onchange={updateMath} />
+								Na samostatný řádek
+							</label>
+						{/if}
+						<button
+							type="button"
+							class="text-button"
+							aria-pressed={showLatex}
+							title="Upravit vzorec jako LaTeX"
+							onclick={() => {
+								showLatex = !showLatex;
+								if (showLatex) queueMicrotask(() => mathInput?.focus());
+							}}>LaTeX</button
+						>
+						<button
+							type="button"
+							class="text-button"
+							onclick={() => {
+								closeMath();
+								focusText();
+							}}>Hotovo</button
+						>
+					</div>
+					{#if showLatex}
+						<div class="math-source">
+							<label>
+								<span>Vzorec v LaTeXu</span>
+								<textarea
+									bind:this={mathInput}
+									bind:value={mathLatex}
+									rows={mathDisplay ? 2 : 1}
+									spellcheck="false"
+									data-undo="course"
+									oninput={updateMath}
+									onkeydown={mathKeys}></textarea>
+							</label>
+							<button
+								type="button"
+								class="icon-button"
+								onclick={() =>
+									window.open('https://katex.org/docs/supported.html', '_blank', 'noopener')}
+								title="Nápověda k LaTeXu"
+								aria-label="Nápověda k LaTeXu"
+							>
+								<CircleQuestionMark size={14}></CircleQuestionMark>
+							</button>
+						</div>
 					{/if}
-					<button
-						type="button"
-						class="icon-button"
-						onclick={() =>
-							window.open('https://katex.org/docs/supported.html', '_blank', 'noopener')}
-						title="Nápověda k LaTeXu"
-						aria-label="Nápověda k LaTeXu"
-					>
-						<CircleQuestionMark size={14}></CircleQuestionMark>
-					</button>
-					<button
-						type="button"
-						class="text-button"
-						onclick={() => {
-							closeMath();
-							focusText();
-						}}>Hotovo</button
-					>
 				</div>
-			</div>
+			{/key}
 		{:else if imagePanel}
 			<form class="row panel" aria-label="Obrázek" onsubmit={placeImage}>
 				<label class="grow">
@@ -965,8 +1004,44 @@
 		align-items: center;
 		gap: 6px;
 	}
-	.math-source {
+	.math-field {
 		flex: 1 1 14rem;
+		min-width: 0;
+	}
+	.math-field :global(math-field) {
+		display: block;
+		width: 100%;
+		min-height: 32px;
+		padding: 2px 6px;
+		font-size: 1.15em;
+		border: 1px solid var(--e-border);
+		border-radius: var(--radius-xs);
+		background: var(--surface);
+		color: var(--e-text);
+		--caret-color: var(--primary);
+		--selection-background-color: var(--e-field-hover);
+		--contains-highlight-background-color: transparent;
+	}
+	.math-field :global(math-field:focus-within) {
+		outline: 2px solid var(--primary);
+		outline-offset: -1px;
+	}
+	/* One keyboard button and no menu: the row's own controls. */
+	.math-field :global(math-field::part(virtual-keyboard-toggle)),
+	.math-field :global(math-field::part(menu-toggle)) {
+		display: none;
+	}
+	.keyboard {
+		align-self: center;
+	}
+	.math-source {
+		flex-basis: 100%;
+		display: flex;
+		align-items: end;
+		gap: 4px;
+	}
+	.math-source label {
+		flex: 1;
 	}
 	.panel textarea,
 	.panel input:not([type='checkbox']) {
@@ -981,13 +1056,6 @@
 	.panel textarea {
 		font-family: var(--font-code);
 		resize: vertical;
-	}
-	.math-preview {
-		flex: 1 1 8rem;
-		min-height: 28px;
-		display: flex;
-		align-items: center;
-		overflow-x: auto;
 	}
 	.panel-actions {
 		display: flex;

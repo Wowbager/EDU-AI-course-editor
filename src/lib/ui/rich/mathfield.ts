@@ -1,0 +1,108 @@
+/**
+ * The formula row's visual editor: MathLive, where `1/2` becomes a fraction as it is
+ * typed and an on-screen keyboard holds what a keyboard lacks. Loaded the first time a
+ * formula is opened, so a course without any never fetches it.
+ *
+ * Its fonts are KaTeX's, which `katex.min.css` already brings in for the formulas in
+ * the text, so MathLive loads none of its own and nothing comes from its CDN.
+ */
+import type { MathfieldElement } from 'mathlive';
+import { toAppLatex } from '$lib/domain/app-latex';
+
+type MathLive = typeof import('mathlive');
+let mathlive: Promise<MathLive> | null = null;
+function loadMathLive(): Promise<MathLive> {
+	mathlive ??= Promise.all([import('mathlive'), import('katex/dist/katex.min.css')]).then(
+		([module]) => {
+			const { MathfieldElement } = module;
+			MathfieldElement.fontsDirectory = null;
+			MathfieldElement.soundsDirectory = null;
+			MathfieldElement.keypressSound = null;
+			MathfieldElement.plonkSound = null;
+			MathfieldElement.locale = 'cs';
+			MathfieldElement.strings = {
+				cs: { 'tooltip.undo': 'Zpět', 'tooltip.redo': 'Znovu', 'tooltip.menu': 'Nabídka' }
+			};
+			return module;
+		}
+	);
+	return mathlive;
+}
+
+export interface MathFieldParams {
+	latex: string;
+	label: string;
+	/** The formula as the app should store it, on every change in the field. */
+	oninput: (latex: string) => void;
+	/** Enter: the formula is done. */
+	ondone: () => void;
+	/** The field could not read the formula it was given. */
+	onunreadable: () => void;
+}
+
+/** Ctrl+Z and Ctrl+Y belong to the store, as in every other field. */
+const UNDO = new Set(['undo', 'redo']);
+
+/** Mount a MathLive field in `host` and keep it showing `latex`. */
+export function mathField(host: HTMLElement, initial: MathFieldParams) {
+	let params = initial;
+	let field: MathfieldElement | null = null;
+	let destroyed = false;
+
+	const written = () => (field ? toAppLatex(field.getValue('latex-expanded')) : params.latex);
+
+	void loadMathLive().then(({ MathfieldElement }) => {
+		if (destroyed) return;
+		const mf = new MathfieldElement();
+		mf.setAttribute('aria-label', params.label);
+		mf.dataset.undo = 'course';
+		mf.mathVirtualKeyboardPolicy = 'manual';
+		// Options read the field's state, so they are set once it is in the page.
+		host.append(mf);
+		mf.menuItems = [];
+		mf.keybindings = mf.keybindings.filter((binding) => {
+			const command = Array.isArray(binding.command) ? binding.command[0] : binding.command;
+			return !UNDO.has(String(command));
+		});
+		mf.value = params.latex;
+		mf.addEventListener('input', () => params.oninput(written()));
+		// On blur, as Hotovo is pressed: the keys it still held arrive with it.
+		mf.addEventListener('change', () => params.oninput(written()));
+		mf.addEventListener('keydown', (event) => {
+			if (event.key === 'Enter' && !event.shiftKey) {
+				event.preventDefault();
+				// MathLive holds typed keys a moment (for shortcuts like `sqrt`) before its
+				// `input`; a quick Enter would close the row on the formula before them.
+				params.oninput(written());
+				params.ondone();
+			}
+		});
+		field = mf;
+		if (mf.errors.length > 0) params.onunreadable();
+		mf.focus();
+	});
+
+	return {
+		update(next: MathFieldParams) {
+			params = next;
+			// A change from the LaTeX box; the field's own typing is already there.
+			if (field && next.latex !== written()) field.value = next.latex;
+		},
+		destroy() {
+			destroyed = true;
+			if (window.mathVirtualKeyboard?.visible) window.mathVirtualKeyboard.hide();
+			field?.remove();
+		}
+	};
+}
+
+/** Show or hide the on-screen keyboard for the field in `host`. */
+export function toggleMathKeyboard(host: HTMLElement | null) {
+	const keyboard = window.mathVirtualKeyboard;
+	if (!keyboard) return;
+	if (keyboard.visible) keyboard.hide();
+	else {
+		host?.querySelector<MathfieldElement>('math-field')?.focus();
+		keyboard.show({ animate: true });
+	}
+}
