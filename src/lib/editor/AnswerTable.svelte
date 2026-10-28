@@ -124,6 +124,17 @@
 		moved: boolean;
 	} | null>(null);
 
+	/** Ends the drag in progress without dropping, if there is one. */
+	let cancelDrag: (() => void) | null = null;
+	// A list that changes under a drag (an undo, an edit from elsewhere) ends it: the
+	// rows it measured at the press and the place it would drop into are gone.
+	// By the answers' ids in order: a press can re-derive the step with equal answers.
+	const optionOrder = $derived(options.map((o) => o.id).join('\n'));
+	$effect(() => {
+		void optionOrder;
+		untrack(() => cancelDrag?.());
+	});
+
 	/**
 	 * The answers in the order on screen: while one is carried, already in the order
 	 * the drop would give, as a step drag shows it. `index` stays the answer's place in
@@ -183,8 +194,9 @@
 			window.removeEventListener('pointermove', move);
 			window.removeEventListener('pointerup', release);
 			window.removeEventListener('pointercancel', cancel);
-			window.removeEventListener('blur', cancel);
+			window.removeEventListener('blur', left);
 			window.removeEventListener('keydown', escape, true);
+			cancelDrag = null;
 			const committed = drag;
 			drag = null;
 			if (!commit || committed === null || !committed.moved) return;
@@ -200,16 +212,25 @@
 		const ours = (e: Event) => !(e instanceof PointerEvent) || e.pointerId === event.pointerId;
 		const release = (e: Event) => ours(e) && end(true);
 		const cancel = (e?: Event) => (e === undefined || ours(e)) && end(false);
+		// The window losing focus, not focus moving into the preview's frame on this
+		// page (the player takes it when it redraws after an edit): the page still has
+		// focus then, once the move has settled.
+		const left = () =>
+			setTimeout(() => {
+				if (cancelDrag === own && !document.hasFocus()) end(false);
+			});
 		const escape = (e: KeyboardEvent) => {
 			if (e.key !== 'Escape') return;
 			e.preventDefault();
 			e.stopPropagation();
 			cancel();
 		};
+		const own = () => end(false);
+		cancelDrag = own;
 		window.addEventListener('pointermove', move);
 		window.addEventListener('pointerup', release);
 		window.addEventListener('pointercancel', cancel);
-		window.addEventListener('blur', cancel);
+		window.addEventListener('blur', left);
 		window.addEventListener('keydown', escape, true);
 	}
 

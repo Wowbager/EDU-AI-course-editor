@@ -278,19 +278,44 @@ test('an answer is reordered by dragging its handle, and the handle answers the 
 	await expect(page.locator('.rows .row.dragged')).toHaveCount(0);
 	await expect.poll(texts).toEqual([...before.slice(1), before[0]]);
 
+	// Takes the first answer by its handle and carries it under the last one, measuring
+	// both right before the press: the dropped row slides into place for a moment, and
+	// hovering waits for its handle to stop.
+	const carryFirst = async () => {
+		await grip(0).hover();
+		const handle = (await grip(0).boundingBox())!;
+		const end = (await rows.last().boundingBox())!;
+		await page.mouse.move(x, handle.y + handle.height / 2);
+		await page.mouse.down();
+		await page.mouse.move(x, handle.y + 20, { steps: 4 });
+		await page.mouse.move(x, end.y + end.height + 8, { steps: 10 });
+		await expect(page.locator('.rows .row.dragged')).toHaveCount(1);
+	};
+
 	// A drag the window takes away (a screenshot tool, another app) puts the answer
 	// back and leaves nothing in the dragging look.
 	const moved = await texts();
-	const top = (await grip(0).boundingBox())!;
-	await page.mouse.move(x, top.y + top.height / 2);
-	await page.mouse.down();
-	await page.mouse.move(x, top.y + 20, { steps: 4 });
-	await page.mouse.move(x, last.y + last.height + 8, { steps: 10 });
-	await expect(page.locator('.rows .row.dragged')).toHaveCount(1);
-	await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+	await carryFirst();
+	await page.evaluate(() => {
+		document.hasFocus = () => false;
+		window.dispatchEvent(new Event('blur'));
+	});
 	await expect(page.locator('.rows .row.dragged')).toHaveCount(0);
 	await expect.poll(texts).toEqual(moved);
 	await page.mouse.up();
+	await expect.poll(texts).toEqual(moved);
+	await page.evaluate(() => {
+		document.hasFocus = () => true;
+	});
+
+	// An undo while an answer is held ends the drag too, and the release drops nothing.
+	await carryFirst();
+	await page.keyboard.press('Control+z');
+	await expect(page.locator('.rows .row.dragged')).toHaveCount(0);
+	await expect.poll(texts).toEqual(before);
+	await page.mouse.up();
+	await expect.poll(texts).toEqual(before);
+	await page.keyboard.press('Control+y');
 	await expect.poll(texts).toEqual(moved);
 
 	// The handle answers the arrow keys too, and keeps its focus through the move. The
