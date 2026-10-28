@@ -7,6 +7,7 @@
 import type { BlockStep, BlockV2, CourseV2, LessonV2 } from './schema';
 import { GOTO_KEYWORDS } from './schema';
 import type { Ref } from './ref';
+import { optionOutcomesApply } from './derive';
 
 export type ReferenceKind = 'go_to' | 'binding' | 'prerequisite';
 
@@ -165,8 +166,9 @@ export function stepSuccessors(
 		if (stepId !== undefined) out.push({ stepId, viaOption });
 	};
 
-	// §6.2 / §9: branching is ignored in exercise blocks — flow is always linear.
-	const branching = block.type === 'question';
+	// §6.2 / §9: branching is ignored in exercise blocks — flow is always linear —
+	// and on a question whose pupil picks several answers (`optionOutcomesApply`).
+	const branching = block.type === 'question' && optionOutcomesApply(step.question);
 	const options = step.type === 'question' ? (step.question?.options ?? []) : [];
 
 	if (!branching || options.length === 0) {

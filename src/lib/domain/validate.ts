@@ -557,6 +557,9 @@ function checkGoToTargets(
 	question: QuestionConfig,
 	add: Add
 ) {
+	// Answers of a question with several picks lead nowhere: the app reads no option's
+	// "Kam dál" there, so its target can't block export (`W_OPTION_OUTCOMES_IGNORED`).
+	if (!optionOutcomesApply(question)) return;
 	const ownSteps = index.stepsByBlock.get(block.block_id);
 	const position = stepPosition(block, step);
 

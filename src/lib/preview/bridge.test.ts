@@ -99,6 +99,37 @@ describe('a played run never decides what the expanded view shows', () => {
 		expect(sent(bridge)?.remount).toBe(true);
 	});
 
+	it('starts a run over when a question asks for another answer, but not Náhled', () => {
+		const question = (allow_multiple: boolean) =>
+			({
+				block_id: 'B1',
+				steps: [
+					{
+						id: 's1',
+						question: {
+							type: 'multiple_choice',
+							allow_multiple,
+							options: [
+								{ id: 'a', is_correct: true },
+								{ id: 'b', is_correct: false }
+							]
+						}
+					}
+				]
+			}) as unknown as BlockV2;
+		for (const [view, remount] of [
+			['play', true],
+			['expanded', false]
+		] as const) {
+			const bridge = new PreviewBridge();
+			bridge.showBlock(question(false), 'course_v2', asIs, view);
+			bridge.showBlock(question(false), 'course_v2', asIs, view);
+			expect(sent(bridge)?.remount).toBe(false);
+			bridge.showBlock(question(true), 'course_v2', asIs, view);
+			expect(sent(bridge)?.remount).toBe(remount);
+		}
+	});
+
 	it('does not move because the author clicked something', () => {
 		const bridge = new PreviewBridge();
 		bridge.showBlock(card('s1', 's2', 's3'), 'course_v2', asIs, 'expanded', 's1');

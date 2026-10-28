@@ -26,6 +26,8 @@ import {
 	moveStep,
 	reorderBindings,
 	reorderOptions,
+	markCorrect,
+	setAllowMultiple,
 	reorderSteps,
 	setField,
 	setPractice,
@@ -697,6 +699,61 @@ describe('switching question type', () => {
 			.find((b) => b.block_id === 'L1_B3_poznej')!
 			.steps.find((s) => s.id === 's2')!.question!;
 		expect(question.options).toBeUndefined();
+	});
+});
+
+const question = (doc: CourseV2) =>
+	doc.blocks.find((b) => b.block_id === 'L1_B3_poznej')!.steps.find((s) => s.id === 's2')!
+		.question!;
+const correctIds = (doc: CourseV2) =>
+	question(doc)
+		.options!.filter((o) => o.is_correct)
+		.map((o) => o.id);
+
+describe('which answers are right', () => {
+	it('seeds true/false with one correct when the first answer was wrong', () => {
+		const wrongFirst = markCorrect(base(), 'L1_B3_poznej', 's2', 'b').doc;
+		const doc = setQuestionType(wrongFirst, 'L1_B3_poznej', 's2', 'true_false').doc;
+		expect(correctIds(doc)).toEqual(['false']);
+	});
+
+	it('makes the clicked answer the only right one where the pupil picks one', () => {
+		const doc = markCorrect(base(), 'L1_B3_poznej', 's2', 'c').doc;
+		expect(correctIds(doc)).toEqual(['c']);
+	});
+
+	it('leaves exactly one right answer even when an import had several', () => {
+		const several = setField(
+			base(),
+			{ blockId: 'L1_B3_poznej', stepId: 's2', optionId: 'b', field: 'is_correct' },
+			true
+		).doc;
+		expect(correctIds(markCorrect(several, 'L1_B3_poznej', 's2', 'a').doc)).toEqual(['a']);
+	});
+
+	it('is no edit to click the only right answer', () => {
+		const doc = base();
+		expect(markCorrect(doc, 'L1_B3_poznej', 's2', 'a').doc).toBe(doc);
+	});
+
+	it('toggles where several may be picked, but keeps the last right one', () => {
+		let doc = setAllowMultiple(base(), 'L1_B3_poznej', 's2', true).doc;
+		doc = markCorrect(doc, 'L1_B3_poznej', 's2', 'c').doc;
+		expect(correctIds(doc)).toEqual(['a', 'c']);
+		doc = markCorrect(doc, 'L1_B3_poznej', 's2', 'a').doc;
+		expect(correctIds(doc)).toEqual(['c']);
+		expect(markCorrect(doc, 'L1_B3_poznej', 's2', 'c').doc).toBe(doc);
+	});
+
+	it('keeps the first right answer when several are no longer allowed', () => {
+		let doc = setAllowMultiple(base(), 'L1_B3_poznej', 's2', true).doc;
+		doc = markCorrect(doc, 'L1_B3_poznej', 's2', 'd').doc;
+		doc = markCorrect(doc, 'L1_B3_poznej', 's2', 'b').doc;
+		doc = markCorrect(doc, 'L1_B3_poznej', 's2', 'a').doc;
+		expect(correctIds(doc)).toEqual(['b', 'd']);
+		doc = setAllowMultiple(doc, 'L1_B3_poznej', 's2', false).doc;
+		expect(correctIds(doc)).toEqual(['b']);
+		expect(question(doc)).not.toHaveProperty('allow_multiple');
 	});
 });
 

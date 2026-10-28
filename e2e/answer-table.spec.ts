@@ -271,10 +271,52 @@ test('an answer is reordered by dragging its handle, and the handle answers the 
 	await page.mouse.move(x, from.y + 20, { steps: 4 });
 	const last = (await rows.last().boundingBox())!;
 	await page.mouse.move(x, last.y + last.height + 8, { steps: 10 });
-	// The carried row fades and the gap under the last row shows where it will land.
+	// The carried row is lifted, and the list is already in the order the drop gives.
 	await expect(page.locator('.rows .row.dragged')).toHaveCount(1);
-	await page.mouse.up();
 	await expect.poll(texts).toEqual([...before.slice(1), before[0]]);
+	await page.mouse.up();
+	await expect(page.locator('.rows .row.dragged')).toHaveCount(0);
+	await expect.poll(texts).toEqual([...before.slice(1), before[0]]);
+
+	// Takes the first answer by its handle and carries it under the last one, measuring
+	// both right before the press: the dropped row slides into place for a moment, and
+	// hovering waits for its handle to stop.
+	const carryFirst = async () => {
+		await grip(0).hover();
+		const handle = (await grip(0).boundingBox())!;
+		const end = (await rows.last().boundingBox())!;
+		await page.mouse.move(x, handle.y + handle.height / 2);
+		await page.mouse.down();
+		await page.mouse.move(x, handle.y + 20, { steps: 4 });
+		await page.mouse.move(x, end.y + end.height + 8, { steps: 10 });
+		await expect(page.locator('.rows .row.dragged')).toHaveCount(1);
+	};
+
+	// A drag the window takes away (a screenshot tool, another app) puts the answer
+	// back and leaves nothing in the dragging look.
+	const moved = await texts();
+	await carryFirst();
+	await page.evaluate(() => {
+		document.hasFocus = () => false;
+		window.dispatchEvent(new Event('blur'));
+	});
+	await expect(page.locator('.rows .row.dragged')).toHaveCount(0);
+	await expect.poll(texts).toEqual(moved);
+	await page.mouse.up();
+	await expect.poll(texts).toEqual(moved);
+	await page.evaluate(() => {
+		document.hasFocus = () => true;
+	});
+
+	// An undo while an answer is held ends the drag too, and the release drops nothing.
+	await carryFirst();
+	await page.keyboard.press('Control+z');
+	await expect(page.locator('.rows .row.dragged')).toHaveCount(0);
+	await expect.poll(texts).toEqual(before);
+	await page.mouse.up();
+	await expect.poll(texts).toEqual(before);
+	await page.keyboard.press('Control+y');
+	await expect.poll(texts).toEqual(moved);
 
 	// The handle answers the arrow keys too, and keeps its focus through the move. The
 	// moved answer (now last) swaps back up one place.
@@ -288,6 +330,36 @@ test('an answer is reordered by dragging its handle, and the handle answers the 
 	await grip(0).focus();
 	await page.keyboard.press('ArrowUp');
 	await expect.poll(texts).toEqual(swappedUp);
+});
+
+test('the answer that makes way slides once, however the pointer keeps moving', async ({
+	page
+}) => {
+	await loadCourse(page);
+	const rows = page.locator('.answers .row');
+	// Counts the slides the second answer starts from here on: Svelte holds each slide's
+	// first frame with a 0 ms animation before running it, which is no slide.
+	await rows.nth(1).evaluate((row) => {
+		const counted = window as unknown as { slides: number };
+		counted.slides = 0;
+		const animate = row.animate.bind(row);
+		row.animate = (keyframes, options) => {
+			if (typeof options === 'object' && Number(options.duration) > 0) counted.slides += 1;
+			return animate(keyframes, options);
+		};
+	});
+	const grip = rows.nth(0).getByRole('button', { name: /^Přesunout odpověď/ });
+	const handle = (await grip.boundingBox())!;
+	const second = (await rows.nth(1).boundingBox())!;
+	const x = handle.x + handle.width / 2;
+	await page.mouse.move(x, handle.y + handle.height / 2);
+	await page.mouse.down();
+	// Past the second answer's middle in one move, then on in small ones while it slides.
+	await page.mouse.move(x, handle.y + handle.height / 2 + second.height * 1.2);
+	await page.mouse.move(x, handle.y + handle.height / 2 + second.height * 1.4, { steps: 8 });
+	await expect.poll(() => rows.nth(0).evaluate((row) => row.getAnimations().length)).toBe(0);
+	expect(await page.evaluate(() => (window as unknown as { slides: number }).slides)).toBe(1);
+	await page.mouse.up();
 });
 
 test('the heading row goes when "Odpověď" would be its only label', async ({ page }) => {

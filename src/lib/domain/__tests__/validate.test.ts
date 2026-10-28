@@ -416,4 +416,22 @@ describe('answers that lead somewhere or carry a grade, on a question with sever
 		expect(ignored(question(false, [{ go_to: 's2' }, { mark: '3' }]))).toEqual([]);
 		expect(ignored(question(true, [{}, { go_to: '' }]))).toEqual([]);
 	});
+
+	it('does not block export with a target the app never follows', () => {
+		const codes = (doc: ReturnType<typeof question>) => {
+			const { errors, warnings } = validate(doc, skillConfig);
+			return [...errors, ...warnings].map((i) => i.code);
+		};
+		expect(codes(question(false, [{ go_to: 'nikam' }, {}]))).toContain('E_GOTO_UNRESOLVED');
+		expect(codes(question(true, [{ go_to: 'nikam' }, {}]))).not.toContain('E_GOTO_UNRESOLVED');
+	});
+
+	it('walks the step graph as the app does: past every answer to the next step', () => {
+		// Both answers leave the card; with several picks the pupil still goes on to s2.
+		const leaves = [{ go_to: 'END' }, { go_to: 'END' }];
+		const unreachable = (doc: ReturnType<typeof question>) =>
+			validate(doc, skillConfig).warnings.filter((w) => w.ref.stepId === 's2');
+		expect(unreachable(question(false, leaves)).length).toBeGreaterThan(0);
+		expect(unreachable(question(true, leaves))).toEqual([]);
+	});
 });

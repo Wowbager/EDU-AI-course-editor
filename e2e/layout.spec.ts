@@ -269,6 +269,10 @@ test('a player that takes focus while it boots gives it back to the field being 
 	await name.click();
 	// Typing in a field is not asking for the player, however close to the steal.
 	await name.press('End');
+	// On a slow machine the keys typed right after the steal wait in the browser's queue,
+	// and a focus given back on a timer comes after them: slowed down here, they are lost.
+	const cdp = await page.context().newCDPSession(page);
+	await cdp.send('Emulation.setCPUThrottlingRate', { rate: 6 });
 
 	// What the real player does about two seconds after the page loads.
 	await player(page).evaluate((frame: HTMLIFrameElement) =>

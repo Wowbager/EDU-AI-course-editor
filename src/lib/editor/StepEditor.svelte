@@ -37,6 +37,7 @@
 		deleteStep,
 		duplicateStep,
 		planDeleteStep,
+		setAllowMultiple,
 		setField,
 		setQuestionType,
 		moveStep
@@ -811,7 +812,8 @@
 								label={multipleSpec?.label ?? 'Víc správných možností'}
 								hint={step.question.allow_multiple === true ? multipleSpec?.hint : undefined}
 								checked={step.question.allow_multiple === true}
-								onchange={(v) => set('question.allow_multiple', v || undefined)}
+								onchange={(v) =>
+									store.apply((d) => setAllowMultiple(d, block.block_id, step.id, v))}
 							/>
 						{/if}
 					{/if}

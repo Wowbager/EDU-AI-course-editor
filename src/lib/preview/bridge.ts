@@ -123,6 +123,8 @@ export class PreviewBridge {
 	#lastStepId: string | undefined;
 	/** The view last sent; switching views re-mounts, switching content does not. */
 	#lastView: PreviewView | undefined;
+	/** What each question last sent asks for (`answerShape`), to re-mount a run on change. */
+	#lastAnswerShape = '';
 	/**
 	 * The last card or lesson sent, so a player that announces itself a second time —
 	 * the frame reloaded, or crashed and came back — is given its content again
@@ -252,7 +254,17 @@ export class PreviewBridge {
 		blockLabels?: Record<string, string>
 	) {
 		const stepIds = blocks.flatMap((block) => block.steps.map((s) => s.id));
-		const remount = !sameIds(stepIds, this.#lastStepIds) || view !== this.#lastView;
+		// A run keeps the answers given so far as long as the step ids stay. An answer
+		// given to a question that now asks for something else (several picks instead
+		// of one, other answers, another right one) would be shown and graded against
+		// the new question, so the run starts over. Náhled answers nothing and keeps
+		// its place.
+		const answerShape = blocks.map(answerShapeOf).join('|');
+		const remount =
+			!sameIds(stepIds, this.#lastStepIds) ||
+			view !== this.#lastView ||
+			(view === 'play' && answerShape !== this.#lastAnswerShape);
+		this.#lastAnswerShape = answerShape;
 		// A selection can name a step in another card — the author clicked one card in
 		// the tree while the editor still pointed at a step of the last one. Step ids
 		// repeat across blocks, so an unchecked id would land on whatever step of
@@ -376,6 +388,17 @@ const isPlayerMessage = (value: unknown): value is PlayerMessage =>
 	typeof value === 'object' &&
 	value !== null &&
 	typeof (value as { type?: unknown }).type === 'string';
+
+/** What a pupil's answer to each question of a block depends on, as one string. */
+const answerShapeOf = (block: BlockV2): string =>
+	block.steps
+		.map((step) => {
+			const q = step.question;
+			if (q === undefined) return step.id;
+			const options = (q.options ?? []).map((o) => `${o.id}${o.is_correct ? '+' : '-'}`);
+			return `${step.id}:${q.type}:${q.allow_multiple === true}:${options.join(',')}:${q.correct_number ?? ''}:${q.tolerance ?? ''}`;
+		})
+		.join(';');
 
 const sameIds = (a: string[], b: string[]) =>
 	a.length === b.length && a.every((id, i) => id === b[i]);

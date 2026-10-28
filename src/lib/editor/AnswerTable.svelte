@@ -18,6 +18,7 @@
 	 * and says nothing after the next edit.
 	 */
 	import { tick, untrack } from 'svelte';
+	import { flip } from 'svelte/animate';
 	import type { BlockStep, BlockV2, CourseV2 } from '$lib/domain/schema';
 	import FocusField from '$lib/ui/FocusField.svelte';
 	import NumberField from '$lib/ui/NumberField.svelte';
@@ -32,7 +33,13 @@
 	import { allows } from '$lib/ui/fields';
 	import { madeUnreachable } from '$lib/ui/issue-visibility';
 	import type { UndoEntry } from '$lib/state/doc-store.svelte';
-	import { addOption, deleteOption, reorderOptions, setField } from '$lib/domain/commands';
+	import {
+		addOption,
+		deleteOption,
+		markCorrect,
+		reorderOptions,
+		setField
+	} from '$lib/domain/commands';
 	import { optionOutcomesApply } from '$lib/domain/derive';
 	import { appShowsFeedback } from '$lib/domain/course-feedback';
 	import { MIN_CHOICE_OPTIONS } from '$lib/domain/validate';
@@ -104,59 +111,133 @@
 	 * events here touch nothing shared, and the command is the same `reorderOptions`.
 	 */
 	let rowsEl = $state<HTMLDivElement | null>(null);
-	/** The carried answer: where it came from and the gap it would drop into. */
-	let drag = $state<{ id: string; from: number; to: number; moved: boolean } | null>(null);
+	/**
+	 * The carried answer: where it came from, the place it would drop into, and how far
+	 * the pointer has taken it from that place (`offset`, px), so it stays under the
+	 * pointer while the others slide aside.
+	 */
+	let drag = $state<{
+		id: string;
+		from: number;
+		to: number;
+		offset: number;
+		moved: boolean;
+	} | null>(null);
 
-	/** The index the carried answer would land in: how many rows end above the pointer. */
-	function dropIndexFor(clientY: number): number {
-		const rows = rowsEl?.querySelectorAll<HTMLElement>(':scope > .row') ?? [];
-		let to = 0;
-		for (const row of rows) {
-			const rect = row.getBoundingClientRect();
-			if (clientY > rect.top + rect.height / 2) to++;
-		}
-		return to;
-	}
+	/** Ends the drag in progress without dropping, if there is one. */
+	let cancelDrag: (() => void) | null = null;
+	// A list that changes under a drag (an undo, an edit from elsewhere) ends it: the
+	// rows it measured at the press and the place it would drop into are gone.
+	// By the answers' ids in order: a press can re-derive the step with equal answers.
+	const optionOrder = $derived(options.map((o) => o.id).join('\n'));
+	$effect(() => {
+		void optionOrder;
+		untrack(() => cancelDrag?.());
+	});
 
 	/**
-	 * The press on a handle, carried on the handle itself with pointer capture, so the
+	 * The answers in the order on screen: while one is carried, already in the order
+	 * the drop would give, as a step drag shows it. `index` stays the answer's place in
+	 * the document, which is what every command and id below is about.
+	 *
+	 * Read through `carriedFrom`/`carriedTo`, not `drag`: a new list restarts every
+	 * row's slide from where it is, so a pointer move that changes only the offset
+	 * must not make one, or the row sliding aside never finishes its slide.
+	 */
+	const carriedFrom = $derived(drag?.moved ? drag.from : -1);
+	const carriedTo = $derived(drag?.moved ? drag.to : -1);
+	const shown = $derived.by(() => {
+		const entries = options.map((option, index) => ({ option, index, key: optionKeys[index] }));
+		if (carriedFrom < 0) return entries;
+		const [carried] = entries.splice(carriedFrom, 1);
+		entries.splice(carriedTo, 0, carried);
+		return entries;
+	});
+
+	/**
+	 * The press on a handle, followed on the window: the carried row moves in the DOM
+	 * as the list reorders, which would drop a pointer capture on its handle, and the
 	 * row under the pointer is never the one that decides the drop. A press that moves
 	 * less than the threshold is not a drag, and a drop where it started is not an edit.
+	 *
+	 * Where the answer lands is read from the rows as they were at the press: the rows
+	 * that slide aside would otherwise move under the pointer and make it flicker. A
+	 * release commits; anything else that ends the press (Esc, the window losing focus
+	 * as a screenshot tool takes it, a release the page never saw) puts the answer back.
 	 */
 	function dragStart(event: PointerEvent, index: number) {
-		if (event.button !== 0) return;
+		if (event.button !== 0 || rowsEl === null) return;
 		const option = options[index];
 		if (option === undefined) return;
 		event.preventDefault();
-		const handle = event.currentTarget as HTMLElement;
-		handle.setPointerCapture(event.pointerId);
+		const list = rowsEl;
+		const top = () => list.getBoundingClientRect().top;
+		const rows = [...list.querySelectorAll<HTMLElement>(ROWS)].map((row) => ({
+			top: row.offsetTop - list.offsetTop,
+			height: row.offsetHeight
+		}));
+		const gap = parseFloat(getComputedStyle(list).rowGap) || 0;
+		const others = rows.filter((_, i) => i !== index);
 		const startY = event.clientY;
-		drag = { id: option.id, from: index, to: index, moved: false };
+		const grab = startY - top() - rows[index].top;
+		drag = { id: option.id, from: index, to: index, offset: 0, moved: false };
 
 		const move = (e: PointerEvent) => {
-			if (drag === null) return;
+			if (drag === null || e.pointerId !== event.pointerId) return;
+			if (e.buttons === 0) return cancel();
+			const carriedTop = e.clientY - top() - grab;
+			const middle = carriedTop + rows[index].height / 2;
+			const to = others.filter((row) => row.top + row.height / 2 < middle).length;
+			const slot = others.slice(0, to).reduce((sum, row) => sum + row.height + gap, 0);
 			drag = {
 				...drag,
-				to: dropIndexFor(e.clientY),
+				to,
+				offset: carriedTop - slot,
 				moved: drag.moved || Math.abs(e.clientY - startY) > 4
 			};
 		};
-		const finish = (e: PointerEvent) => {
-			handle.removeEventListener('pointermove', move);
-			handle.removeEventListener('pointerup', finish);
-			handle.removeEventListener('pointercancel', finish);
-			if (handle.hasPointerCapture(e.pointerId)) handle.releasePointerCapture(e.pointerId);
+		const end = (commit: boolean) => {
+			window.removeEventListener('pointermove', move);
+			window.removeEventListener('pointerup', release);
+			window.removeEventListener('pointercancel', cancel);
+			window.removeEventListener('blur', left);
+			window.removeEventListener('keydown', escape, true);
+			cancelDrag = null;
 			const committed = drag;
 			drag = null;
-			if (committed === null || !committed.moved) return;
+			if (!commit || committed === null || !committed.moved) return;
+			// By id, not by the index at the press: the list may have changed meanwhile.
 			const ids = options.map((o) => o.id);
-			const [moved] = ids.splice(committed.from, 1);
-			ids.splice(committed.to > committed.from ? committed.to - 1 : committed.to, 0, moved);
+			const from = ids.indexOf(committed.id);
+			if (from < 0) return;
+			ids.splice(from, 1);
+			ids.splice(Math.min(committed.to, ids.length), 0, committed.id);
 			store.apply((d) => reorderOptions(d, block.block_id, step.id, ids));
 		};
-		handle.addEventListener('pointermove', move);
-		handle.addEventListener('pointerup', finish);
-		handle.addEventListener('pointercancel', finish);
+		// Only the pointer that pressed ends the drag, not a second finger.
+		const ours = (e: Event) => !(e instanceof PointerEvent) || e.pointerId === event.pointerId;
+		const release = (e: Event) => ours(e) && end(true);
+		const cancel = (e?: Event) => (e === undefined || ours(e)) && end(false);
+		// The window losing focus, not focus moving into the preview's frame on this
+		// page (the player takes it when it redraws after an edit): the page still has
+		// focus then, once the move has settled.
+		const left = () =>
+			setTimeout(() => {
+				if (cancelDrag === own && !document.hasFocus()) end(false);
+			});
+		const escape = (e: KeyboardEvent) => {
+			if (e.key !== 'Escape') return;
+			e.preventDefault();
+			e.stopPropagation();
+			cancel();
+		};
+		const own = () => end(false);
+		cancelDrag = own;
+		window.addEventListener('pointermove', move);
+		window.addEventListener('pointerup', release);
+		window.addEventListener('pointercancel', cancel);
+		window.addEventListener('blur', left);
+		window.addEventListener('keydown', escape, true);
 	}
 
 	/**
@@ -310,37 +391,8 @@
 		...['1', '2', '3', '4', '5'].map((m) => ({ value: m, label: m }))
 	];
 
-	function toggleChecked(optionId: string) {
-		const option = options.find((o) => o.id === optionId);
-
-		if (fixedOptions) {
-			// True/false questions have exactly two options, one correct and one incorrect.
-			// Toggling one flips the other.
-			const other = options.find((o) => o.id !== optionId);
-			if (option && other) {
-				set(optionId, 'is_correct', true);
-				set(other.id, 'is_correct', false);
-			}
-			return;
-		}
-
-		if (option) {
-			if (option.is_correct && options.filter((o) => o.is_correct).length === 1) {
-				// Don't allow unchecking the last correct option.
-				return;
-			}
-
-			set(optionId, 'is_correct', !option.is_correct);
-
-			if (!multiple) {
-				for (const other of options) {
-					if (other.id !== optionId && other.is_correct) {
-						set(other.id, 'is_correct', false);
-					}
-				}
-			}
-		}
-	}
+	const toggleChecked = (optionId: string) =>
+		store.apply((d) => markCorrect(d, block.block_id, step.id, optionId));
 
 	const ROWS = ':scope > .row';
 
@@ -402,16 +454,13 @@
 	{/if}
 
 	<div class="rows" bind:this={rowsEl}>
-		{#each options as option, i (optionKeys[i])}
-			{@const key = optionKeys[i]}
+		{#each shown as { option, index: i, key } (key)}
+			{@const carried = drag !== null && drag.moved && drag.id === option.id}
 			<div
 				class="row"
-				class:dragged={drag !== null && drag.moved && drag.id === option.id}
-				class:drop-before={drag !== null && drag.moved && drag.to === i}
-				class:drop-after={drag !== null &&
-					drag.moved &&
-					drag.to === options.length &&
-					i === options.length - 1}
+				class:dragged={carried}
+				style:transform={carried ? `translateY(${drag!.offset}px)` : undefined}
+				animate:flip={{ duration: carried ? 0 : 150 }}
 			>
 				{#if movable}
 					<div class="cell grip-cell">
@@ -682,21 +731,23 @@
 		height: 36px;
 	}
 
-	/* Drag feedback: the carried row fades, and a line shows the gap it drops into. */
-	.dragged {
-		opacity: 0.4;
+	/*
+	 * The carried answer is lifted off the list and follows the pointer; the others
+	 * slide aside into the order the drop would give.
+	 */
+	.row.dragged {
+		position: relative;
+		z-index: 1;
+		background: var(--surface);
+		box-shadow: var(--shadow-medium);
+		transition: none;
+		/* On the white lift the fields keep their resting tint, not the hover's white. */
+		--e-field-rest: var(--primary-dark-06);
+		--e-field-hover: var(--primary-dark-08);
 	}
 
 	.row.dragged .grip {
 		cursor: grabbing;
-	}
-
-	.drop-before {
-		box-shadow: inset 0 2px 0 var(--e-focus-ring);
-	}
-
-	.drop-after {
-		box-shadow: inset 0 -2px 0 var(--e-focus-ring);
 	}
 
 	.row:hover .grip,
