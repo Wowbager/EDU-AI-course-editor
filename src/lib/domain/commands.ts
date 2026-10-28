@@ -940,9 +940,11 @@ export function setQuestionType(
 			const next: QuestionConfig = { ...previous, type };
 
 			if (type === 'true_false') {
+				// Exactly one of the two is right, whatever the options were before.
+				const yes = previous.options?.[0]?.is_correct ?? true;
 				next.options = [
-					{ id: 'true', text: 'Ano', is_correct: previous.options?.[0]?.is_correct ?? true },
-					{ id: 'false', text: 'Ne', is_correct: false }
+					{ id: 'true', text: 'Ano', is_correct: yes },
+					{ id: 'false', text: 'Ne', is_correct: !yes }
 				];
 				delete next.allow_multiple;
 			} else if (type === 'multiple_choice') {
@@ -964,6 +966,73 @@ export function setQuestionType(
 		}),
 		ref: { blockId, stepId },
 		description: `Typ otázky změněn na ${type}`
+	};
+}
+
+/**
+ * Allow several right answers, or go back to one. Going back keeps the first answer
+ * marked right and clears the others, so a one-pick question never has several.
+ */
+export function setAllowMultiple(
+	doc: CourseV2,
+	blockId: string,
+	stepId: string,
+	on: boolean
+): CommandResult {
+	return {
+		doc: mapStep(doc, blockId, stepId, (step) => {
+			if (step.question === undefined) return step;
+			const next: QuestionConfig = { ...step.question };
+			if (on) {
+				next.allow_multiple = true;
+				return { ...step, question: next };
+			}
+			delete next.allow_multiple;
+			const first = next.options?.findIndex((o) => o.is_correct === true) ?? -1;
+			if (next.options !== undefined && first >= 0) {
+				next.options = next.options.map((o, i) =>
+					o.is_correct === true && i !== first ? { ...o, is_correct: false } : o
+				);
+			}
+			return { ...step, question: next };
+		}),
+		ref: { blockId, stepId, field: 'question.allow_multiple' },
+		description: on ? 'Víc správných odpovědí' : 'Jedna správná odpověď'
+	};
+}
+
+/**
+ * The author clicks an answer's mark. Where the pupil picks one answer (choice, Ano/Ne)
+ * it becomes the only right one. Where several may be picked it toggles, but the last
+ * right answer stays: a question nobody can get right is not a question.
+ */
+export function markCorrect(
+	doc: CourseV2,
+	blockId: string,
+	stepId: string,
+	optionId: string
+): CommandResult {
+	const step = requireBlock(doc, blockId).steps.find((s) => s.id === stepId);
+	const options = step?.question?.options ?? [];
+	const option = options.find((o) => o.id === optionId);
+	const unchanged = { doc, description: 'Správnost odpovědi se nezměnila' };
+	if (step?.question === undefined || option === undefined) return unchanged;
+
+	const several = step.question.type === 'multiple_choice' && step.question.allow_multiple === true;
+	const next = several
+		? options.map((o) => (o.id === optionId ? { ...o, is_correct: !o.is_correct } : o))
+		: options.map((o) => {
+				const right = o.id === optionId;
+				return (o.is_correct === true) === right ? o : { ...o, is_correct: right };
+			});
+	if (!next.some((o) => o.is_correct === true) || sameSequence(options, next)) return unchanged;
+	return {
+		doc: mapStep(doc, blockId, stepId, (s) => ({
+			...s,
+			question: { ...s.question!, options: next }
+		})),
+		ref: { blockId, stepId, optionId, field: 'is_correct' },
+		description: 'Změněna správná odpověď'
 	};
 }
 

@@ -32,7 +32,13 @@
 	import { allows } from '$lib/ui/fields';
 	import { madeUnreachable } from '$lib/ui/issue-visibility';
 	import type { UndoEntry } from '$lib/state/doc-store.svelte';
-	import { addOption, deleteOption, reorderOptions, setField } from '$lib/domain/commands';
+	import {
+		addOption,
+		deleteOption,
+		markCorrect,
+		reorderOptions,
+		setField
+	} from '$lib/domain/commands';
 	import { optionOutcomesApply } from '$lib/domain/derive';
 	import { appShowsFeedback } from '$lib/domain/course-feedback';
 	import { MIN_CHOICE_OPTIONS } from '$lib/domain/validate';
@@ -310,37 +316,8 @@
 		...['1', '2', '3', '4', '5'].map((m) => ({ value: m, label: m }))
 	];
 
-	function toggleChecked(optionId: string) {
-		const option = options.find((o) => o.id === optionId);
-
-		if (fixedOptions) {
-			// True/false questions have exactly two options, one correct and one incorrect.
-			// Toggling one flips the other.
-			const other = options.find((o) => o.id !== optionId);
-			if (option && other) {
-				set(optionId, 'is_correct', true);
-				set(other.id, 'is_correct', false);
-			}
-			return;
-		}
-
-		if (option) {
-			if (option.is_correct && options.filter((o) => o.is_correct).length === 1) {
-				// Don't allow unchecking the last correct option.
-				return;
-			}
-
-			set(optionId, 'is_correct', !option.is_correct);
-
-			if (!multiple) {
-				for (const other of options) {
-					if (other.id !== optionId && other.is_correct) {
-						set(other.id, 'is_correct', false);
-					}
-				}
-			}
-		}
-	}
+	const toggleChecked = (optionId: string) =>
+		store.apply((d) => markCorrect(d, block.block_id, step.id, optionId));
 
 	const ROWS = ':scope > .row';
 
