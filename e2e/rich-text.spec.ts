@@ -101,6 +101,28 @@ test('a list also starts after a space and on a line begun with Shift+Enter', as
 	expect(await markdownOf(page)).toBe('1. a\n\nÚvod\n\n1. b\n\nDál\n\n* c');
 });
 
+test('one list button goes bullets, numbers, none; Citace is a button of its own', async ({
+	page
+}) => {
+	await text(page).click();
+	await page.keyboard.type('a');
+	const list = toolbar(page).getByRole('button', { name: 'Seznam' });
+	await list.click();
+	await expect(list).toHaveAccessibleName('Seznam: odrážky');
+	await expect(text(page).locator('ul li')).toHaveText('a');
+	await list.click();
+	await expect(list).toHaveAccessibleName('Seznam: číslování');
+	await expect(text(page).locator('ol li')).toHaveText('a');
+	await list.click();
+	await expect(list).toHaveAccessibleName('Seznam');
+	await expect(text(page).locator('ol, ul')).toHaveCount(0);
+
+	const quote = toolbar(page).getByRole('button', { name: 'Citace' });
+	await quote.click();
+	await expect(quote).toHaveAttribute('aria-pressed', 'true');
+	expect(await markdownOf(page)).toBe('> a');
+});
+
 test('a formula opens for editing in the field and draws as it is typed', async ({ page }) => {
 	await text(page).click();
 	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();

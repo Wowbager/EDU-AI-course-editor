@@ -23,7 +23,6 @@
 		ListOrdered,
 		Sigma,
 		Table,
-		TextQuote,
 		Trash,
 		Type,
 		CircleQuestionMark
@@ -270,6 +269,23 @@
 	};
 	/** Keep the editor's selection when a toolbar button is pressed. */
 	const keepFocus = (event: MouseEvent) => event.preventDefault();
+
+	/** The list button cycles: none → bullets → numbers → none. Its name says where it is. */
+	const LIST_STEPS = {
+		none: { title: 'Odrážky (napiš - a mezeru)', label: 'Seznam' },
+		bullet: { title: 'Změnit na číslování (napiš 1. a mezeru)', label: 'Seznam: odrážky' },
+		ordered: { title: 'Zrušit seznam', label: 'Seznam: číslování' }
+	} as const;
+	const list = $derived.by((): keyof typeof LIST_STEPS => {
+		void tick;
+		if (active('orderedList')) return 'ordered';
+		return active('bulletList') ? 'bullet' : 'none';
+	});
+	function cycleList() {
+		// Bullets → numbers converts the list in place; numbers → none lifts it out.
+		if (list === 'none') run((c) => c.toggleBulletList().run());
+		else run((c) => c.toggleOrderedList().run());
+	}
 
 	const inTable = $derived.by(() => {
 		void tick;
@@ -622,23 +638,23 @@
 					<button
 						type="button"
 						class="tool"
-						class:on={active('bulletList')}
-						aria-pressed={active('bulletList')}
-						title="Odrážky (napiš - a mezeru)"
-						aria-label="Odrážky"
+						class:on={list !== 'none'}
+						title={LIST_STEPS[list].title}
+						aria-label={LIST_STEPS[list].label}
 						onmousedown={keepFocus}
-						onclick={() => run((c) => c.toggleBulletList().run())}><List size={16} /></button
+						onclick={cycleList}
+						>{#if list === 'ordered'}<ListOrdered size={16} />{:else}<List size={16} />{/if}</button
 					>
 					<button
 						type="button"
 						class="tool"
-						class:on={active('orderedList')}
-						aria-pressed={active('orderedList')}
-						title="Číslování (napiš 1. a mezeru)"
-						aria-label="Číslování"
+						class:on={active('blockquote')}
+						aria-pressed={active('blockquote')}
+						title="Citace (napiš > a mezeru)"
+						aria-label="Citace"
 						onmousedown={keepFocus}
-						onclick={() => run((c) => c.toggleOrderedList().run())}
-						><ListOrdered size={16} /></button
+						onclick={() => run((c) => c.toggleBlockquote().run())}
+						><span class="quote-glyph" aria-hidden="true">„“</span></button
 					>
 				{/if}
 				<button
@@ -662,9 +678,6 @@
 				{/if}
 				<Menu label="Další formátování" icon={Ellipsis} placement="bottom-end">
 					{#if !inline}
-						<MenuItem icon={TextQuote} onclick={() => run((c) => c.toggleBlockquote().run())}>
-							Citace
-						</MenuItem>
 						{#if inTable}
 							<MenuItem
 								icon={BetweenHorizontalEnd}
@@ -914,6 +927,15 @@
 	.tool:hover {
 		background: var(--e-field-hover);
 		color: var(--e-text);
+	}
+	.quote-glyph {
+		font-family: Georgia, 'Times New Roman', serif;
+		font-size: 20px;
+		font-weight: 400;
+		line-height: 1;
+		letter-spacing: -1px;
+		/* The low „ and the high “ together sit centred, like an icon. */
+		transform: translateY(-1px);
 	}
 	.tool.on {
 		background: var(--e-field-rest);
