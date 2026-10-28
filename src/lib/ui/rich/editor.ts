@@ -23,6 +23,7 @@ import { NodeSelection, type Transaction } from '@tiptap/pm/state';
 import {
 	parseMarkdown,
 	serializeMarkdown,
+	typedText,
 	toOneLine,
 	type DocNode,
 	type MarkdownDialect
@@ -55,7 +56,7 @@ export interface RichEditorOptions {
 	/** Escape: whether the field took it (to revert the run of typing). */
 	onescape: () => boolean;
 	/** Enter in a one-line field. */
-	onenter?: () => void;
+	onenter?: (shift: boolean) => void;
 }
 
 const EXTERNAL = 'external-value';
@@ -96,11 +97,10 @@ export function createRichEditor(options: RichEditorOptions) {
 			},
 			transformPastedHTML: cleanPastedHtml,
 			clipboardTextParser: (text, $context, plain) => textToSlice(editor, text, plain, dialect),
-			clipboardTextSerializer: (slice) =>
-				serializeMarkdown(
-					{ type: 'doc', content: sliceBlocks(slice) as DocNode[] },
-					{ sniffed: true }
-				),
+			clipboardTextSerializer: (slice) => {
+				const copied: DocNode = { type: 'doc', content: sliceBlocks(slice) as DocNode[] };
+				return typedText(copied) ?? serializeMarkdown(copied, { sniffed: true });
+			},
 			handlePaste: (_view, event) => refuseFiles(event.clipboardData, options),
 			handleDrop: (_view, event) => refuseFiles((event as DragEvent).dataTransfer, options),
 			handleKeyDown: (_view, event) => {
@@ -133,7 +133,7 @@ export function createRichEditor(options: RichEditorOptions) {
 					}
 				}
 				if (event.key === 'Enter' && dialect.inline) {
-					options.onenter?.();
+					options.onenter?.(event.shiftKey);
 					return true;
 				}
 				return false;

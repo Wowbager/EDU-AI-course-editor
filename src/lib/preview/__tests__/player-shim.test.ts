@@ -1,6 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { fillShim } from '../../../../scripts/inject-player-shim.mjs';
+import { IMAGE_EXTENSIONS } from '../../../../scripts/image-extensions.mjs';
+import { IMAGE_URL } from '$lib/ui/rich/paste';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -10,7 +13,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * actual source text into a `vm` sandbox standing in for a browser global scope, so
  * what is tested is the real file that ships, not a re-implementation of its regex.
  */
-const source = readFileSync(fileURLToPath(new URL('../player-shim.js', import.meta.url)), 'utf-8');
+const raw = readFileSync(fileURLToPath(new URL('../player-shim.js', import.meta.url)), 'utf-8');
+/** As it ships: with the shared list of picture extensions filled in. */
+const source = fillShim(raw);
 
 class FakeRequest {
 	url: string;
@@ -162,6 +167,26 @@ describe('player-shim: an image written into a text', () => {
 			await sandbox.fetch(url);
 			expect(fetchMock.mock.calls.at(-1)?.[0]).toBe(url);
 		}
+	});
+});
+
+describe('one list of picture extensions (OPEN-PROBLEMS #59)', () => {
+	it('is read the same way by the shim and by the paste rule', async () => {
+		const { sandbox, fetchMock } = loadShim();
+		for (const ext of IMAGE_EXTENSIONS) {
+			const url = `https://example.com/obrazek.${ext}`;
+			await sandbox.fetch(url);
+			const routed = fetchMock.mock.calls.at(-1)?.[0] !== url;
+			expect(routed, ext).toBe(true);
+			expect(IMAGE_URL.test(url), ext).toBe(true);
+		}
+		// What neither reads as a picture.
+		expect(IMAGE_URL.test('https://example.com/stranka.html')).toBe(false);
+	});
+
+	it('has its list filled in before the shim ships', () => {
+		expect(raw).toContain('__IMAGE_EXTENSIONS__');
+		expect(source).not.toContain('__IMAGE_EXTENSIONS__');
 	});
 });
 

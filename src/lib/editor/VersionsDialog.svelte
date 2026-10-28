@@ -87,7 +87,7 @@
 		if (
 			versions.modified(doc) &&
 			!window.confirm(
-				`Rozpracované změny se nahradí verzí ${version.version}. Vrátit to půjde tlačítkem Zpět.`
+				`Rozpracované změny se nahradí verzí ${version.version}. Vrátit to půjde tlačítkem Vrátit v liště.`
 			)
 		)
 			return;
@@ -393,11 +393,11 @@
 	}
 
 	.message.error {
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 
 	.message.warning {
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 	}
 
 	.link {

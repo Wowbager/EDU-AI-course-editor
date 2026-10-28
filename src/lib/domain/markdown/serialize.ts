@@ -12,19 +12,16 @@
  *   printed rather than read.
  * - Escapes only where the character would otherwise be read as syntax.
  */
-import { looksLikeHtml, looksLikeMarkdown } from './app-dialect';
+import { escapePlainLines, looksLikeHtml, looksLikeMarkdown } from './app-dialect';
 import { sameDoc, sameMark, type DocNode, type Mark, type MarkdownDialect } from './doc';
 import { parseMarkdown } from './parse';
 
 export function serializeMarkdown(root: DocNode, dialect: MarkdownDialect): string {
 	const content = root.content ?? [];
 	const markdown = blocks(content, { table: false }).trim();
-	if (!dialect.sniffed || !isPlain(content)) return markdown;
-	const plain = content
-		.map((p) => (p.content ?? []).map((n) => (n.type === 'hardBreak' ? '\n' : n.text)).join(''))
-		.filter((p) => p.trim() !== '')
-		.join('\n\n');
-	if (!looksLikeMarkdown(plain) && !looksLikeHtml(plain)) return plain;
+	const plain = typedText(root);
+	if (!dialect.sniffed || plain === undefined) return markdown;
+	if (!looksLikeMarkdown(plain) && !looksLikeHtml(plain)) return escapePlainLines(plain);
 	// Escaping can take away the very character that makes the app read Markdown
 	// (`__` becomes `\_\_`, `![` becomes `!\[`), and the app would then print the
 	// backslashes. Of the ways to write a plain text, keep the first that reads back as
@@ -40,7 +37,7 @@ export function serializeMarkdown(root: DocNode, dialect: MarkdownDialect): stri
 			(_, backslashes: string, run: string) => backslashes + run.replace(/\\(?=[_[`])/g, '')
 		)
 	);
-	for (const candidate of [markdown, ...asTyped, plain]) {
+	for (const candidate of [markdown, ...asTyped, escapePlainLines(plain)]) {
 		const read = parseMarkdown(candidate, dialect);
 		if (read.unsupported.length === 0 && sameDoc(read.doc, root)) return candidate;
 	}
@@ -61,6 +58,19 @@ const TRIGGERS = [
 	/(?<!\\)((?:\\\\)*\\_)((?:\\_){2,})/,
 	/()(!\\\[)/
 ];
+
+/**
+ * A document with no formatting, as the teacher typed it. A copy puts this on the
+ * clipboard: the stored `\\- a` would show its backslash anywhere else.
+ */
+export function typedText(root: DocNode): string | undefined {
+	const content = root.content ?? [];
+	if (!isPlain(content)) return undefined;
+	return content
+		.map((p) => (p.content ?? []).map((n) => (n.type === 'hardBreak' ? '\n' : n.text)).join(''))
+		.filter((p) => p.trim() !== '')
+		.join('\n\n');
+}
 
 /** Paragraphs of unformatted text and line breaks: what the app could show as plain text. */
 function isPlain(content: DocNode[]): boolean {

@@ -239,7 +239,7 @@ function normaliseLesson(
 					notes.push(
 						note(
 							'IMPORT_HOISTED_BLOCK',
-							`Blok „${blockId}“ byl vložen přímo v lekci — přesunut do společného seznamu bloků.`,
+							`Karta „${blockId}“ byla vložena přímo v lekci — přesunuta do společného seznamu karet.`,
 							{
 								lessonId,
 								blockId
@@ -263,7 +263,7 @@ function normaliseLesson(
 		notes.push(
 			note(
 				'IMPORT_BLOCK_IDS',
-				`Lekce „${lessonId}“ používala starší zápis block_ids — převeden na seznam bloků.`,
+				`Lekce „${lessonId}“ používala starší zápis block_ids — převeden na seznam karet.`,
 				{ lessonId }
 			)
 		);
@@ -287,7 +287,7 @@ function normaliseBlock(raw: Json, notes: ImportNote[]): Json {
 		notes.push(
 			note(
 				'IMPORT_UNKNOWN_BLOCK_TYPE',
-				`Blok „${blockId}“ měl neznámý typ „${rawType}“ — načten jako výkladový.`,
+				`Karta „${blockId}“ měla neznámý typ „${rawType}“ — načtena jako výkladová.`,
 				{ blockId }
 			)
 		);
@@ -296,7 +296,7 @@ function normaliseBlock(raw: Json, notes: ImportNote[]): Json {
 			notes.push(
 				note(
 					'IMPORT_BLOCK_TYPE_ALIAS',
-					`Blok „${blockId}“: typ „${rawType}“ převeden na „${mapped}“.`,
+					`Karta „${blockId}“: typ „${rawType}“ převeden na „${mapped}“.`,
 					{ blockId }
 				)
 			);
@@ -326,7 +326,7 @@ function normaliseBlock(raw: Json, notes: ImportNote[]): Json {
 		notes.push(
 			note(
 				'IMPORT_FLAT_GPF',
-				`Blok „${blockId}“: GPF údaje byly rozsypané v samostatných polích — sloučeny.`,
+				`Karta „${blockId}“: GPF údaje byly rozsypané v samostatných polích — sloučeny.`,
 				{ blockId }
 			)
 		);
@@ -342,7 +342,7 @@ function normaliseBlock(raw: Json, notes: ImportNote[]): Json {
 			notes.push(
 				note(
 					'IMPORT_COMPETENCIES_SHAPE',
-					`Blok „${blockId}“ měl výstupy RVP zapsané seznamem bez vah — doplň je prosím znovu, jinak se blok nezapočítá do pokrytí učiva.`,
+					`Karta „${blockId}“ měla výstupy RVP zapsané seznamem bez vah — doplň je prosím znovu, jinak se karta nezapočítá do pokrytí učiva.`,
 					{ blockId }
 				)
 			);
@@ -360,7 +360,7 @@ function normaliseBlock(raw: Json, notes: ImportNote[]): Json {
 		notes.push(
 			note(
 				'IMPORT_STEPS_MAP',
-				`Blok „${blockId}“ měl kroky zapsané jako objekt — převedeny na seznam.`,
+				`Karta „${blockId}“ měla kroky zapsané jako objekt — převedeny na seznam.`,
 				{ blockId }
 			)
 		);
@@ -402,7 +402,7 @@ function flatBlockToSteps(raw: Json, notes: ImportNote[], blockId: string): Json
 		notes.push(
 			note(
 				'IMPORT_FLAT_BLOCK',
-				`Blok „${blockId}“ byl ve starém plochém formátu — obsah převeden na ${steps.length} krok(ů).`,
+				`Karta „${blockId}“ byla ve starém plochém formátu — obsah převeden na ${steps.length} krok(ů).`,
 				{ blockId }
 			)
 		);
@@ -608,7 +608,7 @@ function wrapSingleBlock(raw: Json, notes: ImportNote[]): Json {
 	notes.push(
 		note(
 			'IMPORT_SINGLE_BLOCK',
-			`Soubor obsahoval jeden blok — byl vložen do nového kurzu s jednou lekcí.`,
+			`Soubor obsahoval jednu kartu — byla vložena do nového kurzu s jednou lekcí.`,
 			{ blockId }
 		)
 	);
@@ -690,7 +690,7 @@ function normaliseV1Course(raw: Json, notes: ImportNote[]): Json {
 	notes.push(
 		note(
 			'IMPORT_V1',
-			`Kurz byl ve formátu V1: ${lectures.length} přednášek převedeno na lekce, každá s jedním blokem. Zkontroluj rozdělení na bloky — blok je jednotka opakování i XP.`
+			`Kurz byl ve formátu V1: ${lectures.length} přednášek převedeno na lekce, každá s jednou kartou. Zkontroluj rozdělení na karty — karta je jednotka opakování i XP.`
 		)
 	);
 

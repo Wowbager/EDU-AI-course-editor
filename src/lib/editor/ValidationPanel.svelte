@@ -8,10 +8,11 @@
 	import type { Issue } from '$lib/domain/validate';
 	import { issueLessonId, issuePlace } from '$lib/domain/issue-groups';
 	import { useStore } from '$lib/ui/context';
-	import { heldBack } from '$lib/ui/issue-visibility';
+	import { heldBack, issueKey } from '$lib/ui/issue-visibility';
 	import Button from '$lib/ui/Button.svelte';
 	import { CircleX, X } from '@lucide/svelte';
 	import Crumbs from '$lib/ui/Crumbs.svelte';
+	import { overlayOpen } from '$lib/ui/overlay';
 	import { plural } from '$lib/ui/plural';
 
 	interface Props {
@@ -20,9 +21,10 @@
 	let { onclose }: Props = $props();
 
 	const store = useStore();
-	let dismissed = $state<Set<string>>(new Set());
+	// Kept in the store, not here: closing the panel must not bring them back (#32).
+	const dismissed = $derived(store.dismissedWarnings);
 
-	const key = (issue: Issue) => `${issue.code}|${JSON.stringify(issue.ref)}`;
+	const key = issueKey;
 	const warnings = $derived(store.listed.warnings.filter((w) => !dismissed.has(key(w))));
 	// Advice about a field the Zpětná vazba toggle has hidden: said once, quietly,
 	// with the way to see it — not dropped, and not counted.
@@ -43,13 +45,17 @@
 	}
 
 	function dismiss(issue: Issue) {
-		dismissed = new Set([...dismissed, key(issue)]);
+		store.dismissWarning(issue);
 	}
 
 	// A teacher is never shown an id (§8); `issuePlace` names everything the way the
 	// rest of the editor does, and prints an id only for a reference nothing resolves.
 	const where = (issue: Issue): string[] => issuePlace(store.doc, issue.ref);
 </script>
+
+<svelte:window
+	onkeydown={(e) => e.key === 'Escape' && !e.defaultPrevented && !overlayOpen() && onclose()}
+/>
 
 <aside class="panel" aria-label="Kontrola kurzu">
 	<header>
@@ -60,11 +66,11 @@
 	</header>
 
 	{#if store.listed.errors.length === 0 && warnings.length === 0}
-		<p class="clean">Kurz je v pořádku. Můžeš publikovat.</p>
+		<p class="clean">Kurz je v pořádku, můžeš ho zveřejnit.</p>
 	{/if}
 
 	{#if store.listed.errors.length > 0}
-		<h3 class="error">Chyby — brání publikaci ({store.listed.errors.length})</h3>
+		<h3 class="error">Chyby — brání zveřejnění ({store.listed.errors.length})</h3>
 		<ul>
 			{#each store.listed.errors as issue (key(issue))}
 				<li>
@@ -78,7 +84,7 @@
 	{/if}
 
 	{#if warnings.length > 0}
-		<h3 class="warning">Upozornění — publikaci nebrání ({warnings.length})</h3>
+		<h3 class="warning">Upozornění — zveřejnění nebrání ({warnings.length})</h3>
 		<ul>
 			{#each warnings as issue (key(issue))}
 				<li>
@@ -145,11 +151,11 @@
 	}
 
 	h3.error {
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 
 	h3.warning {
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 	}
 
 	ul {
@@ -206,7 +212,7 @@
 
 	.close:hover,
 	.dismiss:hover {
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 
 	.held {
@@ -220,7 +226,7 @@
 
 	.clean {
 		margin: 12px 0;
-		color: var(--e-ok);
+		color: var(--e-ok-text);
 		font-size: var(--text-m);
 	}
 </style>

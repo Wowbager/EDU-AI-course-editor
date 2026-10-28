@@ -48,6 +48,31 @@ describe('what a card is called', () => {
 		expect(derivedBlockName(b)).toBe('Zlomek popisuje část celku.');
 	});
 
+	it('keeps underscores and stars that are part of the author’s words', () => {
+		const name = (content: string) =>
+			derivedBlockName(block({ steps: [{ id: 's1', type: 'text', content }] }));
+		expect(name('snake_case je jméno proměnné')).toBe('snake_case je jméno proměnné');
+		// Typed in the editor, a star is written escaped and stays a star; unescaped,
+		// the app shows a lone `2*3*4` as typed (it sniffs no Markdown there).
+		expect(name('Spočítej 2\\*3\\*4 a pak **tučně**')).toBe('Spočítej 2*3*4 a pak tučně');
+		expect(name('Spočítej 2*3*4')).toBe('Spočítej 2*3*4');
+		expect(name('Použij `print(x)` a _kurzívu_')).toBe('Použij print(x) a kurzívu');
+		expect(name('Řádek **s tučným** a snake_case')).toBe('Řádek s tučným a snake_case');
+	});
+
+	it('names a very long text from its start without reading all of it', () => {
+		const long = `Úvod je **důležitý** a snake_case\n\n${'Další odstavec. '.repeat(3_000)}`;
+		expect(long.length).toBeGreaterThan(40_000);
+		expect(derivedBlockName(block({ steps: [{ id: 's1', type: 'text', content: long }] }))).toBe(
+			'Úvod je důležitý a snake_case'
+		);
+		const oneLine = `Dlouhý ${'slovo '.repeat(9_000)}**tučně**`;
+		expect(oneLine.length).toBeGreaterThan(50_000);
+		expect(
+			derivedBlockName(block({ steps: [{ id: 's1', type: 'text', content: oneLine }] }), 20)
+		).toBe('Dlouhý slovo slovo s…');
+	});
+
 	it('treats an empty or blank title as no title at all', () => {
 		// Nothing should ever write `""` here, but a hand-edited document can carry
 		// one, and a card named "" would be invisible in the tree.
@@ -272,5 +297,16 @@ describe('XP (course_model.dart _calculateBlockMaxXp)', () => {
 			blocks: [block({ steps, xp: 50 })]
 		} as unknown as CourseV2;
 		expect(lessonTotals(doc.lessons[0], buildIndex(doc)).xp).toBe(10);
+	});
+});
+
+describe('a plain text stored with a backslash before a list marker (OPEN-PROBLEMS #55)', () => {
+	it.each([
+		['\\- a', '- a'],
+		['\\\\- a', '\\- a'],
+		['\\1. krok\nDruhý řádek', '1. krok'],
+		['a\\-b', 'a\\-b']
+	])('names %j as %j', (content, name) => {
+		expect(stepSummary({ id: 's1', type: 'text', content })).toBe(name);
 	});
 });

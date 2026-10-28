@@ -267,3 +267,19 @@ describe('legacy shapes', () => {
 		expect(codes).toContain('IMPORT_V1_INLINE_IMAGE');
 	});
 });
+
+describe('a file with two options sharing an id', () => {
+	it('still loads, and the duplicate is an error that blocks export only', () => {
+		const raw = JSON.parse(JSON.stringify(load('zlomky-5-trida.json'))) as {
+			blocks: { steps: { question?: { options?: { id: string }[] } }[] }[];
+		};
+		const options = raw.blocks.flatMap((b) => b.steps).find((s) => s.question?.options?.length)!
+			.question!.options!;
+		options[1].id = options[0].id;
+		const { doc } = importCourse(raw);
+		expect(doc.blocks.length).toBe(raw.blocks.length);
+		const result = validate(doc);
+		expect(result.errors.map((e) => e.code)).toContain('E_DUPLICATE_OPTION_ID');
+		expect(result.warnings.map((e) => e.code)).not.toContain('E_DUPLICATE_OPTION_ID');
+	});
+});

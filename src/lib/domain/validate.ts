@@ -17,6 +17,8 @@
  * and has to stay on screen, alongside a human name so the teacher can find the
  * place.
  */
+import { appShowsFeedback } from './course-feedback';
+import { hintOfferedSteps } from './hint-reach';
 import type { BlockStep, BlockV2, CourseV2, QuestionConfig } from './schema';
 import type { Ref } from './ref';
 import { buildIndex, isGoToKeyword, reachableSteps, type DocIndex } from './index-doc';
@@ -119,7 +121,7 @@ function checkUniqueIds(doc: CourseV2, add: Add) {
 				'error',
 				'E_DUPLICATE_BLOCK_ID',
 				{ blockId: block.block_id, field: 'block_id' },
-				`Dva bloky — „${blockLabel(doc, first)}“ a „${blockLabel(doc, block)}“ — mají stejné id „${block.block_id}“. Žákovi by se zobrazil jen jeden z nich a odkazy na ten druhý by nikam nevedly.`
+				`Dvě karty — „${blockLabel(doc, first)}“ a „${blockLabel(doc, block)}“ — mají stejné id „${block.block_id}“. Žákovi by se zobrazila jen jedna z nich a odkazy na tu druhou by nikam nevedly.`
 			);
 		}
 		seenBlocks.add(block.block_id);
@@ -132,7 +134,7 @@ function checkUniqueIds(doc: CourseV2, add: Add) {
 					'error',
 					'E_DUPLICATE_STEP_ID',
 					{ blockId: block.block_id, stepId: step.id, field: 'id' },
-					`Blok „${blockLabel(doc, block)}“ má dva kroky se stejným id „${step.id}“ — ${stepLabel(block, first)} a ${stepLabel(block, step)}. Odpověď žáka se uloží k jednomu z nich a větvení skočí na nesprávný krok.`
+					`Karta „${blockLabel(doc, block)}“ má dva kroky se stejným id „${step.id}“ — ${stepLabel(block, first)} a ${stepLabel(block, step)}. Odpověď žáka se uloží k jednomu z nich a větvení skočí na nesprávný krok.`
 				);
 			}
 			seenSteps.add(step.id);
@@ -142,10 +144,10 @@ function checkUniqueIds(doc: CourseV2, add: Add) {
 				if (seenOptions.has(option.id)) {
 					const first = (step.question?.options ?? []).find((o) => o.id === option.id)!;
 					add(
-						'warning',
-						'W_DUPLICATE_OPTION_ID',
+						'error',
+						'E_DUPLICATE_OPTION_ID',
 						{ blockId: block.block_id, stepId: step.id, optionId: option.id, field: 'id' },
-						`V bloku „${blockLabel(doc, block)}“ (${stepLabel(block, step)}) mají dvě odpovědi stejné id „${option.id}“ — ${optionLabel(step.question, first)} a ${optionLabel(step.question, option)}. Žákova volba se může uložit k té druhé a vyhodnotit se jinak, než čekáš.`
+						`V kartě „${blockLabel(doc, block)}“ (${stepLabel(block, step)}) mají dvě odpovědi stejné id „${option.id}“ — ${optionLabel(step.question, first)} a ${optionLabel(step.question, option)}. Žákova volba se může uložit k té druhé a vyhodnotit se jinak, než čekáš.`
 					);
 				}
 				seenOptions.add(option.id);
@@ -166,7 +168,7 @@ function checkBindings(doc: CourseV2, index: DocIndex, add: Add) {
 					'error',
 					'E_BINDING_UNRESOLVED',
 					{ lessonId: lesson.lesson_id, blockId: binding.block_id, field: 'block_id' },
-					`Lekce „${lessonName}“ odkazuje na blok „${binding.block_id}“, který v kurzu není. Žák uvidí lekci kratší, než jsi zamýšlel/a.`
+					`Lekce „${lessonName}“ odkazuje na kartu „${binding.block_id}“, která v kurzu není. Žák uvidí lekci kratší, než jsi zamýšlel/a.`
 				);
 			}
 		}
@@ -187,7 +189,7 @@ function checkBindings(doc: CourseV2, index: DocIndex, add: Add) {
 				'warning',
 				'W_LESSON_TOO_LONG',
 				{ lessonId: lesson.lesson_id },
-				`Lekce „${lessonName}“ má ${lesson.blocks.length} bloků. Žák ji pravděpodobně nedokončí na jeden zátah — zvaž rozdělení.`
+				`Lekce „${lessonName}“ má ${lesson.blocks.length} karet. Žák ji pravděpodobně nedokončí na jeden zátah — zvaž rozdělení.`
 			);
 		}
 
@@ -207,7 +209,7 @@ function checkBindings(doc: CourseV2, index: DocIndex, add: Add) {
 				'warning',
 				'W_PARTIAL_DURATION',
 				{ lessonId: lesson.lesson_id },
-				`V lekci „${lessonName}“ má délku vyplněno jen ${withDuration} z ${resolved} bloků. Na kartě lekce se žákovi ukáže součet jen z nich, takže čas bude výrazně nižší než skutečný.`
+				`V lekci „${lessonName}“ má délku vyplněno jen ${withDuration} z ${resolved} karet. Na kartě lekce se žákovi ukáže součet jen z nich, takže čas bude výrazně nižší než skutečný.`
 			);
 		}
 	}
@@ -222,6 +224,7 @@ function checkBlocks(
 	add: Add
 ) {
 	const courseEloMean = meanElo(doc);
+	const graded = appShowsFeedback(doc);
 
 	for (const block of doc.blocks) {
 		const blockRef: Ref = { blockId: block.block_id };
@@ -245,7 +248,7 @@ function checkBlocks(
 				'warning',
 				'W_BLOCK_TOO_MANY_STEPS',
 				blockRef,
-				`Blok „${cardName}“ má ${block.steps.length} kroků. Žák ztrácí přehled, kde v něm je — zvaž rozdělení na dva bloky.`
+				`Karta „${cardName}“ má ${block.steps.length} kroků. Žák ztrácí přehled, kde v ní je — zvaž rozdělení na dvě karty.`
 			);
 		}
 
@@ -256,21 +259,21 @@ function checkBlocks(
 				'warning',
 				'W_ORPHAN_BLOCK',
 				blockRef,
-				`Blok „${cardName}“ není v žádné lekci, nevede na něj žádné větvení ani není zařazen do cvičení. Žák se k němu nedostane.`
+				`Karta „${cardName}“ není v žádné lekci, nevede na ni žádné větvení ani není zařazena do opakování. Žák se k ní nedostane.`
 			);
 		}
 
 		const reachable = reachableSteps(block);
 		for (const step of block.steps) {
 			const stepRef: Ref = { blockId: block.block_id, stepId: step.id };
-			checkMedia(block, step, add);
+			checkMedia(block, step, add, graded);
 
 			if (!reachable.has(step.id)) {
 				add(
 					'warning',
 					'W_UNREACHABLE_STEP',
 					stepRef,
-					`${capitalize(stepLabel(block, step))} v bloku „${cardName}“ není z ničeho dosažitelný — nevede k němu žádná cesta ani větvení. Žák jej nikdy neuvidí.`
+					`${capitalize(stepLabel(block, step))} v kartě „${cardName}“ není z ničeho dosažitelný — nevede k němu žádná cesta ani větvení. Žák jej nikdy neuvidí.`
 				);
 			}
 
@@ -278,7 +281,7 @@ function checkBlocks(
 			if (question === undefined) continue;
 
 			checkGoToTargets(index, block, step, question, add);
-			checkFeedbackQuality(block, step, question, add);
+			if (graded) checkFeedbackQuality(block, step, question, add);
 			checkIgnoredOutcomes(block, step, question, add);
 		}
 
@@ -305,7 +308,7 @@ function checkHintReach(doc: CourseV2, block: BlockV2, add: Add) {
 	const filled = (text: string | undefined) => (text ?? '').trim() !== '';
 	const cardName = blockLabel(doc, block);
 	const oneBubble = block.type !== 'display';
-	const offered = block.steps.filter((step) => !oneBubble || step.type === 'question');
+	const offered = hintOfferedSteps(block);
 
 	for (const step of block.steps) {
 		const label = capitalize(stepLabel(block, step));
@@ -317,7 +320,7 @@ function checkHintReach(doc: CourseV2, block: BlockV2, add: Add) {
 					'warning',
 					'W_HINT_UNREACHABLE',
 					{ blockId: block.block_id, stepId: step.id, field },
-					`${label} v kartě „${cardName}“ má ${what}, kterou žák neuvidí: v kartě s otázkami se otazník ukazuje jen u otázek, ne u textu mezi nimi. Přesuň ji k otázce, které se týká.`
+					`${label} v kartě „${cardName}“ má ${what}, kterou žák neuvidí: v kartě s otázkami se otazník ukazuje jen u otázek (u karty s více otázkami najednou jen u první a poslední), ne u textu mezi nimi. Přesuň ji k otázce, které se týká.`
 				);
 			}
 			continue;
@@ -380,7 +383,7 @@ function checkStructuralCompleteness(doc: CourseV2, block: BlockV2, add: Add) {
 				'error',
 				'E_DISPLAY_NO_TEXT',
 				blockRef,
-				`Výkladový blok „${cardName}“ nemá žádný text. Žákovi se otevře prázdná karta.`
+				`Výkladová karta „${cardName}“ nemá žádný text. Žákovi se otevře prázdná karta.`
 			);
 		}
 	} else {
@@ -390,7 +393,7 @@ function checkStructuralCompleteness(doc: CourseV2, block: BlockV2, add: Add) {
 				'error',
 				'E_QUESTION_NO_QUESTION_STEP',
 				blockRef,
-				`Blok „${cardName}“ je typu ${block.type === 'exercise' ? 'cvičení' : 'otázka'}, ale neobsahuje žádnou otázku. Žák nemá co odpovědět a blok nelze dokončit.`
+				`Karta „${cardName}“ je typu ${block.type === 'exercise' ? 'Cvičení' : 'Otázka'}, ale neobsahuje žádnou otázku. Žák nemá co odpovědět a kartu nelze dokončit.`
 			);
 		}
 		for (const step of questionSteps) {
@@ -399,7 +402,7 @@ function checkStructuralCompleteness(doc: CourseV2, block: BlockV2, add: Add) {
 					'error',
 					'E_QUESTION_STEP_NO_CONFIG',
 					{ blockId: block.block_id, stepId: step.id },
-					`${capitalize(stepLabel(block, step))} v bloku „${cardName}“ je otázka, ale nemá zadané zadání ani odpovědi. Žák uvidí prázdnou otázku.`
+					`${capitalize(stepLabel(block, step))} v kartě „${cardName}“ je otázka, ale nemá zadané zadání ani odpovědi. Žák uvidí prázdnou otázku.`
 				);
 			}
 		}
@@ -475,6 +478,9 @@ function checkQuestionShape(block: BlockV2, step: BlockStep, question: QuestionC
 					`Otázka v kroku ${position} má jen ${options.length} možnost(í). Žák nemá z čeho vybírat.`
 				);
 			}
+			// `show_answers: false` is how the spec writes an opinion question with no right
+			// answer, in every course type. A test without evaluation hides the switch, but
+			// a poll written with it must not stop the course from exporting.
 			if (correct.length === 0 && question.show_answers !== false) {
 				add(
 					'error',
@@ -570,7 +576,7 @@ function checkGoToTargets(
 				'warning',
 				'W_GOTO_IN_EXERCISE',
 				ref,
-				`${optionName} v kroku ${position} má nastavené větvení, ale blok je typu cvičení — žák bude vždy pokračovat dál a na připravenou nápravu se nedostane.`
+				`${optionName} v kroku ${position} má nastavené větvení, ale karta je typu Cvičení — žák bude vždy pokračovat dál a na připravenou nápravu se nedostane.`
 			);
 			continue;
 		}
@@ -594,7 +600,7 @@ function checkGoToTargets(
 			'error',
 			'E_GOTO_UNRESOLVED',
 			ref,
-			`${optionName} v kroku ${position} vede na „${target}“, což není krok tohoto bloku ani blok v tomto kurzu. Žák, který ji zvolí, uvízne.`
+			`${optionName} v kroku ${position} vede na „${target}“, což není krok této karty ani karta v tomto kurzu. Žák, který ji zvolí, uvízne.`
 		);
 	}
 }
@@ -663,7 +669,7 @@ function checkFeedbackQuality(block: BlockV2, step: BlockStep, question: Questio
 }
 
 /** §14.5 — media must be playable for the student. */
-function checkMedia(block: BlockV2, step: BlockStep, add: Add) {
+function checkMedia(block: BlockV2, step: BlockStep, add: Add, graded: boolean) {
 	const ref: Ref = { blockId: block.block_id, stepId: step.id };
 	const position = stepPosition(block, step);
 
@@ -720,7 +726,7 @@ function checkMedia(block: BlockV2, step: BlockStep, add: Add) {
 		checkHttps(audio, { ...ref, field: 'audio.url' }, `Zvuk v kroku ${position}`, add);
 	}
 	const solutionImage = step.question?.solution_image?.url;
-	if (typeof solutionImage === 'string' && solutionImage !== '') {
+	if (graded && typeof solutionImage === 'string' && solutionImage !== '') {
 		checkHttps(
 			solutionImage,
 			{ ...ref, field: 'question.solution_image.url' },
@@ -791,7 +797,7 @@ function checkVectors(
 				'error',
 				'E_VECTOR_LENGTH',
 				ref,
-				`Vektor ${name} v bloku „${cardName}“ má ${vector.length} hodnot, kurz jich používá ${expected}. Výsledek žáka se do jeho profilu dovedností nezapíše.`
+				`Vektor ${name} v kartě „${cardName}“ má ${vector.length} hodnot, kurz jich používá ${expected}. Výsledek žáka se do jeho profilu dovedností nezapíše.`
 			);
 		}
 	}
@@ -805,7 +811,7 @@ function checkVectors(
 					'error',
 					'E_RELATION_VECTOR_VALUE',
 					ref,
-					`Vektor relation_vector v bloku „${cardName}“ má na pozici ${i} hodnotu ${value}; povolené jsou jen 0, 1 a 2. Výsledek žáka se nezapíše.`
+					`Vektor relation_vector v kartě „${cardName}“ má na pozici ${i} hodnotu ${value}; povolené jsou jen 0, 1 a 2. Výsledek žáka se nezapíše.`
 				);
 				break;
 			}
@@ -816,7 +822,7 @@ function checkVectors(
 				'warning',
 				'W_TOO_MANY_STRONG_RELATIONS',
 				ref,
-				`Blok „${cardName}“ tvrdí silný vztah k ${strong} dovednostem. Jedna odpověď žáka se rozmělní mezi všechny a profil dovedností bude nepřesný.`
+				`Karta „${cardName}“ tvrdí silný vztah k ${strong} dovednostem. Jedna odpověď žáka se rozmělní mezi všechny a profil dovedností bude nepřesný.`
 			);
 		}
 		if (relation.every((v) => v === 0) && gpf.elo_vector !== undefined) {
@@ -824,7 +830,7 @@ function checkVectors(
 				'warning',
 				'W_RELATION_VECTOR_ALL_ZERO',
 				ref,
-				`Blok „${cardName}“ má vyplněnou obtížnost, ale žádnou vazbu na dovednost. Žák jej vyřeší a v jeho profilu se nic nepohne.`
+				`Karta „${cardName}“ má vyplněnou obtížnost, ale žádnou vazbu na dovednost. Žák ji vyřeší a v jeho profilu se nic nepohne.`
 			);
 		}
 	}
@@ -838,7 +844,7 @@ function checkVectors(
 					'error',
 					'E_ELO_VECTOR_RANGE',
 					ref,
-					`Obtížnost v elo_vector bloku „${cardName}“ je na pozici ${i} rovna ${value}; povolený rozsah je ${ELO_MIN}–${ELO_MAX}. Adaptivní výběr úloh pro žáka přestane dávat smysl.`
+					`Obtížnost v elo_vector karty „${cardName}“ je na pozici ${i} rovna ${value}; povolený rozsah je ${ELO_MIN}–${ELO_MAX}. Adaptivní výběr úloh pro žáka přestane dávat smysl.`
 				);
 				break;
 			}
@@ -879,7 +885,7 @@ function checkEloOutlier(doc: CourseV2, block: BlockV2, courseMean: number | nul
 			'warning',
 			'W_ELO_OUTLIER',
 			{ blockId: block.block_id, field: 'gpf.elo_vector' },
-			`Blok „${blockLabel(doc, block)}“ je nastavený jako výrazně ${mean > courseMean ? 'těžší' : 'lehčí'} než zbytek kurzu (${mean.toFixed(1)} proti průměru ${courseMean.toFixed(1)}), ale nemá vyplněnou vlastní obtížnost. Než se obtížnost dopočítá z dat, může se žákovi nabídnout ve špatnou chvíli.`
+			`Karta „${blockLabel(doc, block)}“ je nastavená jako výrazně ${mean > courseMean ? 'těžší' : 'lehčí'} než zbytek kurzu (${mean.toFixed(1)} proti průměru ${courseMean.toFixed(1)}), ale nemá vyplněnou vlastní obtížnost. Než se obtížnost dopočítá z dat, může se žákovi nabídnout ve špatnou chvíli.`
 		);
 	}
 }
@@ -902,7 +908,7 @@ function checkPrerequisiteGraph(doc: CourseV2, index: DocIndex, add: Add) {
 					'error',
 					'E_PREREQ_UNRESOLVED',
 					ref,
-					`Blok „${cardName}“ vyžaduje zvládnutý blok „${rule.block_id}“, který v kurzu není. Žákovi se blok nikdy neodemkne.`
+					`Karta „${cardName}“ vyžaduje zvládnutou kartu „${rule.block_id}“, která v kurzu není. Žákovi se karta nikdy neodemkne.`
 				);
 			}
 			if (rule.min_level >= 0.9) {
@@ -910,7 +916,7 @@ function checkPrerequisiteGraph(doc: CourseV2, index: DocIndex, add: Add) {
 					'warning',
 					'W_PREREQ_MIN_LEVEL_HIGH',
 					ref,
-					`Blok „${cardName}“ se odemkne až při zvládnutí na ${Math.round(rule.min_level * 100)} %. Téměř žádný žák se k němu nedostane.`
+					`Karta „${cardName}“ se odemkne až při zvládnutí na ${Math.round(rule.min_level * 100)} %. Téměř žádný žák se k ní nedostane.`
 				);
 			}
 		}
@@ -933,9 +939,9 @@ function checkPrerequisiteGraph(doc: CourseV2, index: DocIndex, add: Add) {
  * drops; the names are then listed as a sentence rather than joined with arrows.
  */
 function cycleMessage(names: string[]): string {
-	if (names.length === 1) return `Blok ${names[0]} čeká sám na sebe. Žákovi se neodemkne.`;
+	if (names.length === 1) return `Karta ${names[0]} čeká sama na sebe. Žákovi se neodemkne.`;
 	const list = `${names.slice(0, -1).join(', ')} a ${names.at(-1)}`;
-	return `Bloky ${list} na sebe čekají navzájem. Žádný z nich se žákovi neodemkne.`;
+	return `Karty ${list} na sebe čekají navzájem. Žádná z nich se žákovi neodemkne.`;
 }
 
 /** Who waits for whom: each card to the cards named in its prerequisites. */
@@ -1018,7 +1024,7 @@ function checkCourseLevel(doc: CourseV2, index: DocIndex, options: ValidateOptio
 			'warning',
 			'W_VERSION_NOT_BUMPED',
 			{ field: 'version' },
-			`Verze kurzu je stále ${doc.version}, stejně jako u poslední publikace. Žáci, kteří kurz už mají stažený, novou verzi nedostanou.`
+			`Verze kurzu je stále ${doc.version}, stejně jako u posledního zveřejnění. Žáci, kteří kurz už mají stažený, novou verzi nedostanou.`
 		);
 	}
 
@@ -1033,7 +1039,7 @@ function checkCourseLevel(doc: CourseV2, index: DocIndex, options: ValidateOptio
 				'warning',
 				'W_ONLY_ONCE_WITH_PRACTICE',
 				{ field: 'only_once' },
-				`Kurz je nastavený na jediné projití, ale ${practice.length} blok(ů) je zařazeno do cvičení. Z kurzu na jedno projití aplikace nic nezařadí do denního opakování.`
+				`Kurz je nastavený na jediné projití, ale ${practice.length} karet je zařazeno do opakování. Z kurzu na jedno projití aplikace nic nezařadí do denního opakování.`
 			);
 		}
 	}

@@ -280,8 +280,8 @@
 		variant="ghost"
 		onclick={() => store.undo()}
 		disabled={!store.canUndo}
-		title="Zpět"
-		ariaLabel="Zpět"
+		title="Vrátit"
+		ariaLabel="Vrátit"
 	>
 		<Undo size={16}></Undo>
 	</Button>
@@ -434,11 +434,11 @@
 	}
 
 	.save-status.warning {
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 	}
 
 	.save-status.error {
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 
 	.save-status:hover {
@@ -467,6 +467,6 @@
 	}
 
 	.storage p.at-risk {
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 	}
 </style>

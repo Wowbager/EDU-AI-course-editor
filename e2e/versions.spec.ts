@@ -85,7 +85,7 @@ test('the history survives a reload, and restoring is an undoable edit', async (
 	await expect(page.locator('header .version')).toHaveText(/v1$/);
 	await expect(page.locator('.rich-content').first()).not.toContainText('věta navíc');
 
-	await page.getByRole('button', { name: 'Zpět', exact: true }).click();
+	await page.getByRole('button', { name: 'Vrátit', exact: true }).click();
 	await expect(page.locator('.rich-content').first()).toContainText('věta navíc');
 });
 
@@ -111,4 +111,16 @@ test('the metodik gets the editorial states, and they wrap on a narrow screen', 
 		.getByRole('radiogroup', { name: 'Kdo kurz uvidí' });
 	await expect(group.getByRole('radio')).toHaveCount(6);
 	await expect(group.getByRole('radio', { name: 'K revizi' })).toBeVisible();
+});
+
+test('Ctrl+Z in the version note undoes the typed note, not the course', async ({ page }) => {
+	await page.locator('header .version').click();
+	const dialog = page.getByRole('dialog', { name: 'Verze kurzu' });
+	const note = dialog.getByRole('textbox', { name: 'Poznámka k verzi' });
+	await note.click();
+	await page.keyboard.type('první verze');
+	await page.keyboard.press('Control+z');
+	await expect(note).not.toHaveValue('první verze');
+	await page.keyboard.press('Escape');
+	await expect(page.locator('.rich-content').first()).toContainText('Fotosyntéza je proces');
 });

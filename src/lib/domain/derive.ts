@@ -6,6 +6,8 @@
  */
 import type { BlockStep, BlockV2, CourseV2, LessonV2, QuestionConfig } from './schema';
 import type { DocIndex } from './index-doc';
+import { looksLikeMarkdown, parseMarkdown } from './markdown';
+import { ALWAYS_MARKDOWN, SNIFFED, type DocNode } from './markdown/doc';
 import { plainMath } from './plain-math';
 
 /** `"3 min"` / `"3"` / `3` → 3. Undefined when the block declares no duration. */
@@ -184,7 +186,7 @@ export function bindingFlagsPractice(doc: CourseV2, blockId: string): boolean {
 }
 
 /**
- * Whether a step's own "Zařadit do cvičení" is worth offering. The flag on a step is
+ * Whether a step's own "Zařadit do opakování" is worth offering. The flag on a step is
  * only a way to put the card into practice (`isPracticeBlock`); when the card's own
  * flag or a lesson's binding already does, the step's switch changes nothing, so it
  * stays out of the way. A step whose flag is already on keeps its switch, so it can
@@ -228,44 +230,72 @@ export function derivedBlockName(block: BlockV2, max = 70, position?: number): s
  * the two never disagree about what the author wrote.
  */
 export function plainFirstLine(markdown: string): string {
-	const escaped: string[] = [];
-	const line =
-		plainMath(
-			markdown
-				// A backslash escape keeps a typed `*` or `#` from being read as syntax; the
-				// character is the author's, the backslash is not. Set aside until the end,
-				// so the strips below leave an escaped `*` the star it was.
-				.replace(/\\([\\`*_{}[\]()#+\-.!|~<>&$])/g, (_, c: string) => {
-					escaped.push(c);
-					return `\u0000${escaped.length - 1}\u0001`;
-				})
-				// An image or a link reads as its words. The visual editor writes both, and a
-				// card called "![Kruh](https://…)" names an address, not what the author wrote.
-				.replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-				.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-		)
-			// Markdown and LaTeX delimiters are syntax, not words. A card called
-			// "Zlomek $\frac{a}{b}$ popisuje…" is harder to recognise than one called
-			// "Zlomek \frac{a}{b} popisuje…", and much harder than the prose around it.
-			.replace(/\$+/g, '')
-			// `#` and `>` are markers only at the start of a line. Stripping them
-			// everywhere ate them out of the author's own sentences — a card that opened
-			// "Cena je > 2 Kč" was called "Cena je 2 Kč", which is not a truncation of
-			// what they wrote, it is a different claim. Inline emphasis and code marks
-			// still go wherever they appear: they are always syntax and never prose.
-			.replace(/^[ \t]*[#>]+[ \t]?/gm, '')
-			.replace(/[*_`]/g, '')
-			.split('\n')
-			// The first line, not the whole card flattened. A card whose text is a
-			// paragraph and then a Markdown table used to be called
-			// "Části zlomku | Pozice | Název | Co říká | |---…", which names the table's
-			// syntax rather than the card. Everything after the first line is detail;
-			// the line the author opened with is the one they will recognise.
-			.map((line) => line.trim())
-			.find((line) => line !== '')
-			?.replace(/\s+/g, ' ')
-			.trim() ?? '';
-	return line.replace(/\u0000(\d+)\u0001/g, (_, i: string) => escaped[Number(i)]);
+	// The one reading of the text is the markdown domain's: what the visual editor
+	// would show, so a plain text keeps every `*` and `_` it was typed with and
+	// OPEN-PROBLEMS #55's escapes are undone there.
+	// Only the head is parsed: this runs for every tree row and step summary on every
+	// edit. Whether the app would show the whole text as Markdown is decided on all of it.
+	const dialect = looksLikeMarkdown(markdown) ? ALWAYS_MARKDOWN : SNIFFED;
+	const { doc } = parseMarkdown(head(markdown), dialect);
+	return (
+		docLines(doc)
+			.map((line) => line.replace(/\s+/g, ' ').trim())
+			.find((line) => line !== '') ?? ''
+	);
+}
+
+const HEAD_CHARS = 500;
+
+/**
+ * The start of a text that holds its first line: up to the first blank line, or
+ * `HEAD_CHARS`, whichever is shorter. A cut never lands inside a formula or a link.
+ */
+function head(markdown: string): string {
+	const text = markdown.replace(/^\s+/, '');
+	const blank = /\n[ \t]*\n/.exec(text);
+	let end = blank === null ? text.length : blank.index;
+	if (end > HEAD_CHARS) {
+		end = HEAD_CHARS;
+		const cut = text.slice(0, end);
+		if ((cut.match(/(?<!\\)\$/g)?.length ?? 0) % 2 === 1) {
+			const close = text.indexOf('$', end);
+			end = close < 0 ? text.length : close + 1;
+		} else if (cut.lastIndexOf('[') > cut.lastIndexOf(')')) {
+			const close = text.indexOf(')', end);
+			end = close < 0 ? end : close + 1;
+		}
+	}
+	return text.slice(0, end);
+}
+
+/**
+ * The document as lines of words: every block, table row and hard break starts a
+ * new one. An image reads as its description and a formula as its LaTeX, without the
+ * `$` that wrote it ("Zlomek \frac{a}{b} popisuje…" is easier to recognise than the
+ * same with delimiters). A link is its words; the address is not part of them.
+ */
+function docLines(root: DocNode): string[] {
+	const lines: string[] = [''];
+	const newLine = () => {
+		if (lines[lines.length - 1] !== '') lines.push('');
+	};
+	const walk = (node: DocNode) => {
+		if (node.type === 'text') lines[lines.length - 1] += node.text ?? '';
+		else if (node.type === 'math')
+			lines[lines.length - 1] += plainMath(String(node.attrs?.latex ?? ''));
+		else if (node.type === 'image') lines[lines.length - 1] += String(node.attrs?.alt ?? '');
+		else if (node.type === 'hardBreak') newLine();
+		else if (node.type === 'tableRow') {
+			const cells = (node.content ?? []).map((cell) => docLines(cell).join(' ').trim());
+			lines[lines.length - 1] += cells.join(' | ');
+			newLine();
+		} else {
+			node.content?.forEach(walk);
+			newLine();
+		}
+	};
+	walk(root);
+	return lines;
 }
 
 /**

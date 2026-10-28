@@ -35,7 +35,7 @@
 	): string {
 		if (value === undefined || value === null || value === '' || value === 'NEXT_STEP') return '';
 		if (value === 'AGAIN') return 'znovu tuto otázku';
-		if (value === 'END') return 'konec bloku';
+		if (value === 'END') return 'konec karty';
 		if (value === 'CHAT') return 'chat s lektorem';
 		const step = block.steps.find((s) => s.id === value);
 		if (step !== undefined) {
@@ -89,7 +89,7 @@
 	const KEYWORDS = [
 		{ value: '', label: 'Pokračovat dál' },
 		{ value: 'AGAIN', label: 'Zkusit tuto otázku znovu' },
-		{ value: 'END', label: 'Ukončit blok' },
+		{ value: 'END', label: 'Ukončit kartu' },
 		{ value: 'CHAT', label: 'Otevřít chat s AI lektorem' }
 	];
 
@@ -146,7 +146,7 @@
 		];
 		if (steps.length > 0) {
 			result.push({
-				heading: 'Krok v tomto bloku',
+				heading: 'Krok v této kartě',
 				items: steps.map((s) => ({ id: s.id, name: label(s), current: s.id === current }))
 			});
 		}
@@ -164,7 +164,7 @@
 		}
 		if (into !== undefined) {
 			result.push({
-				heading: 'Jiný blok v kurzu',
+				heading: 'Jiná karta v kurzu',
 				items: [{ id: into.value, name: into.label, current: true }]
 			});
 		}

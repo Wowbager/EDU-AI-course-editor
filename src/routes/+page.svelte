@@ -372,7 +372,8 @@
 		};
 	});
 
-	const togglePreview = () => (previewCollapsed = previewCollapsed !== true);
+	let preview = $state<ReturnType<typeof PreviewColumn>>();
+	const flipPreview = () => (previewCollapsed = previewCollapsed !== true);
 
 	function onkeydown(event: KeyboardEvent) {
 		if (event.defaultPrevented) return;
@@ -380,6 +381,11 @@
 		if (!meta) return;
 		// AltGr arrives as Ctrl+Alt on Czech keyboards; it types characters, not commands.
 		if (event.altKey) return;
+		// A plain text input keeps no store state of its own (FocusField, which does, has
+		// already consumed its Ctrl+Z), so its Ctrl+Z / Ctrl+Y are the browser's: they
+		// undo the characters typed there, not the last edit of the course (#37).
+		const undoKey = event.key === 'z' || event.key === 'y';
+		if (undoKey && typesPlainText(event.target)) return;
 		if (event.key === 'z' && !event.shiftKey) {
 			event.preventDefault();
 			store.undo();
@@ -390,7 +396,7 @@
 			// Plain Ctrl+B is "bold" to anyone typing; only Ctrl+Shift+B is ours there.
 			if (!event.shiftKey && typing(event.target)) return;
 			event.preventDefault();
-			if (event.shiftKey) togglePreview();
+			if (event.shiftKey) void preview?.toggle();
 			else sidebarCollapsed = !sidebarCollapsed;
 		} else if (event.key.toLowerCase() === 'e') {
 			event.preventDefault();
@@ -403,6 +409,21 @@
 			store.showFeedback = !store.showFeedback;
 		}
 	}
+
+	/**
+	 * A text-entry `input` or `textarea`: the element's own undo applies to it. A field
+	 * that writes into the course as it is typed (the formula row) says
+	 * `data-undo="course"` and keeps the course's undo.
+	 */
+	const typesPlainText = (target: EventTarget | null) => {
+		if (target instanceof Element && target.closest('[data-undo="course"]')) return false;
+		if (target instanceof HTMLTextAreaElement) return !target.readOnly;
+		return (
+			target instanceof HTMLInputElement &&
+			!target.readOnly &&
+			['text', 'search', 'number', 'url', 'email', 'tel', 'password'].includes(target.type)
+		);
+	};
 
 	/** Whether the keys go into a text: a field, a menu of choices, or the Markdown editor. */
 	const typing = (target: EventTarget | null) =>
@@ -577,11 +598,12 @@
 		</main>
 
 		<PreviewColumn
+			bind:this={preview}
 			{doc}
 			block={card}
 			lessonId={lesson?.lesson_id}
 			collapsed={previewCollapsed}
-			ontoggle={togglePreview}
+			ontoggle={flipPreview}
 		/>
 
 		<!-- Over the editor column, bottom left: where the eye is after clicking a card. -->
@@ -689,7 +711,7 @@
 	}
 
 	.crumb .warn {
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 	}
 
 	h1 {
@@ -757,7 +779,7 @@
 
 	.banner.error {
 		background: var(--e-error-bg);
-		color: var(--e-error);
+		color: var(--e-error-text);
 	}
 
 	.banner ul {
@@ -796,7 +818,7 @@
 	.recovery.stuck {
 		border-color: transparent;
 		background: var(--e-warning-bg);
-		color: var(--e-warning);
+		color: var(--e-warning-text);
 	}
 
 	.recovery p {

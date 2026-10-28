@@ -19,6 +19,9 @@
 			window.received = [];
 			let state = { view: 'expanded', content: 'none', shownStepIds: [], canGoBack: false };
 			const send = (message) => parent.postMessage(JSON.stringify(message), location.origin);
+			// A test plays the pupil by sending what the real player would (`stepChanged`,
+			// `completed`): `frame.evaluate((m) => window.emit(m), message)`.
+			window.emit = send;
 
 			addEventListener('message', (event) => {
 				if (event.source !== parent || typeof event.data !== 'string') return;
@@ -54,6 +57,13 @@
 			});
 
 			send({ type: 'ready' });
+
+			// Opt-in, for the suite about focus (OPEN-PROBLEMS #46): a test calls this to
+			// play the real player, which takes keyboard focus by itself while it boots.
+			window.stealFocus = () => {
+				document.body.tabIndex = -1;
+				document.body.focus();
+			};
 		</script>
 	</body>
 </html>
