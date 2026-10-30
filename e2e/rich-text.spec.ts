@@ -232,6 +232,10 @@ test("the keypad's icon keys keep their icon centred inside the key", async ({ p
 	await keypad.getByRole('button', { name: 'Zlomek' }).click();
 	// `#@` takes what is before the caret into the numerator.
 	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec \\frac{7}{}');
+	// The keypad's Potvrdit ends the formula, like the Enter key in the field.
+	await keypad.getByRole('button', { name: 'Potvrdit' }).click();
+	await expect(page.getByRole('group', { name: 'Vzorec' })).toHaveCount(0);
+	expect(await markdownOf(page)).toBe('$\\frac{7}{}$');
 });
 
 test('a formula opened and closed unchanged keeps its LaTeX as written', async ({ page }) => {

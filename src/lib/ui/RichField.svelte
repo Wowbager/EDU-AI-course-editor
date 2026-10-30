@@ -617,6 +617,8 @@
 							oninsert={(latex) => mathApi?.insert(latex)}
 							oncommand={(command) => mathApi?.command(command)}
 							ondone={() => {
+								// As the Enter key in the field: keys it still held arrive first.
+								mathApi?.flush();
 								closeMath();
 								focusText();
 							}}

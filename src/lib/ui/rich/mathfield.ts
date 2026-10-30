@@ -47,6 +47,8 @@ export interface MathFieldApi {
 	insert: (latex: string) => void;
 	/** An editing command, as MathLive's own keyboard sends it: `deleteBackward`, … */
 	command: (name: string) => void;
+	/** Write out what the field still holds back (typed keys before its `input`). */
+	flush: () => void;
 }
 
 export interface MathFieldParams {
@@ -120,7 +122,8 @@ export function mathField(host: HTMLElement, initial: MathFieldParams) {
 				command: (name) => {
 					field?.executeCommand(name as Selector);
 					send();
-				}
+				},
+				flush: send
 			});
 			mf.focus();
 		},
