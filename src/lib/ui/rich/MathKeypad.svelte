@@ -24,12 +24,14 @@
 		oninsert: (latex: string) => void;
 		/** An editing command of the formula field, e.g. `deleteBackward`. */
 		oncommand: (command: string) => void;
+		/** Enter: the formula is done, as the Enter key in the field itself. */
+		ondone: () => void;
 	}
-	let { oninsert, oncommand }: Props = $props();
+	let { oninsert, oncommand, ondone }: Props = $props();
 
 	interface Key {
-		/** Writes LaTeX into the field, or runs a command when `command` is set. */
-		kind: 'latex' | 'command';
+		/** Writes LaTeX into the field, runs a command, or ends the edit. */
+		kind: 'latex' | 'command' | 'enter';
 		label: string;
 		latex?: string;
 		command?: string;
@@ -66,7 +68,8 @@
 	const BACKSPACE = cmd(Delete, 'deleteBackward', 'Smazat znak');
 	const LEFT = cmd(ChevronLeft, 'moveToPreviousChar', 'Předchozí znak');
 	const RIGHT = cmd(ChevronRight, 'moveToNextChar', 'Další znak');
-	const ENTER = cmd(CornerDownLeft, 'commit', 'Enter');
+	/** Enter, like the key in the field itself: the formula is done. */
+	const ENTER: Key = { kind: 'enter', label: '', icon: CornerDownLeft, title: 'Potvrdit' };
 
 	const TABS: { label: string; rows: Cell[][] }[] = [
 		{
@@ -76,7 +79,7 @@
 					digit('7'),
 					digit('8'),
 					digit('9'),
-					op('·', '\\cdot', 'Krát'),
+					op('·', '\\cdot', 'Krát tečkou'),
 					'sep',
 					fn('frac', '\\frac{#@}{#?}', 'Zlomek'),
 					fn(undefined, '#@^{#?}', 'Mocnina', Superscript),
@@ -127,7 +130,7 @@
 				],
 				[
 					op('±', '\\pm', 'Plus minus'),
-					op('×', '\\times', 'Krát'),
+					op('×', '\\times', 'Krát křížkem'),
 					op('°', '^{\\circ}', 'Stupně'),
 					op('%', '\\%', 'Procento'),
 					'sep',
@@ -153,7 +156,8 @@
 	const keepFocus = (event: MouseEvent) => event.preventDefault();
 
 	function press(key: Key) {
-		if (key.kind === 'command' && key.command) oncommand(key.command);
+		if (key.kind === 'enter') ondone();
+		else if (key.kind === 'command' && key.command) oncommand(key.command);
 		else if (key.latex) oninsert(key.latex);
 	}
 </script>

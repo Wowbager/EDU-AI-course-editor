@@ -616,6 +616,10 @@
 						<MathKeypad
 							oninsert={(latex) => mathApi?.insert(latex)}
 							oncommand={(command) => mathApi?.command(command)}
+							ondone={() => {
+								closeMath();
+								focusText();
+							}}
 						/>
 					{/if}
 				</div>

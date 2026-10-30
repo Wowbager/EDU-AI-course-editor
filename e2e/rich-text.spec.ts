@@ -211,7 +211,7 @@ test("the keypad's icon keys keep their icon centred inside the key", async ({ p
 	await expect(keypad).toBeVisible();
 	// The command keys (delete, arrows, enter): their icon must sit inside the button,
 	// centred — MathLive's keyboard let the delete glyph overflow its keycap.
-	for (const name of ['Smazat znak', 'Předchozí znak', 'Další znak', 'Enter']) {
+	for (const name of ['Smazat znak', 'Předchozí znak', 'Další znak', 'Potvrdit']) {
 		const key = keypad.getByRole('button', { name, exact: true });
 		const icon = key.locator('svg');
 		await expect(icon).toBeVisible();
