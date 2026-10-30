@@ -180,7 +180,7 @@ test('a formula is typed without LaTeX, and the LaTeX is there for who wants it'
 	// The on-screen keyboard opens inside the row, types into the formula and leaves the
 	// row open.
 	await page.getByRole('button', { name: 'Klávesnice se značkami' }).click();
-	await row.getByRole('button', { name: '7', exact: true }).click();
+	await row.getByRole('button', { name: 'Číslice 7', exact: true }).click();
 	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec \\frac12+x7');
 	await expect(formula(page)).toBeVisible();
 
@@ -227,12 +227,14 @@ test("the keypad's icon keys keep their icon centred inside the key", async ({ p
 		).toBeLessThanOrEqual(2);
 	}
 	// The keypad types into the formula: a digit key and a function key.
-	await keypad.getByRole('button', { name: '7', exact: true }).click();
+	await keypad.getByRole('button', { name: 'Číslice 7', exact: true }).click();
 	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec 7');
 	await keypad.getByRole('button', { name: 'Zlomek' }).click();
 	// `#@` takes what is before the caret into the numerator.
 	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec \\frac{7}{}');
-	// The keypad's Potvrdit ends the formula, like the Enter key in the field.
+	// The keypad's Potvrdit is the next placeholder first, and ends the formula after
+	// the last one — like the Enter key in the field (§5.1). The caret already sits in
+	// the fraction's only (last) placeholder, so one press closes the row.
 	await keypad.getByRole('button', { name: 'Potvrdit' }).click();
 	await expect(page.getByRole('group', { name: 'Vzorec' })).toHaveCount(0);
 	expect(await markdownOf(page)).toBe('$\\frac{7}{}$');
