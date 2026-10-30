@@ -202,6 +202,20 @@ it is the app.
 The formula row's own field is MathLive, a third renderer; what it writes is passed
 through `domain/app-latex.ts` so the app can draw it (DECISIONS round 25).
 
+### 52. The app cannot draw `\ce{…}` (mhchem) — chemistry formulas fall back to source there
+**Reproduced by reading flutter_math_fork 0.7.4** (`lib/src/parser/tex`): it has the mhchem
+arrow *glyphs* (svg_geometry.dart mentions them) but no `\ce` function or macro, so
+`\ce{2 H2 + O2 -> 2 H2O}` is an unknown command in the app and the step shows the raw source.
+The editor draws `\ce` fine (KaTeX + its mhchem contrib, loaded in `ui/rich/math.ts`), and
+MathLive parses it, so the keyboard stores the canonical `\ce{…}` (math-input brief §4.3
+tab 8; the key definitions carry the note). App-side: port mhchem or expand `\ce` on the
+editor side. Until then the chemistry tab is editor-only in effect.
+
+### 53. The app has no ‰ glyph — per mille falls back to source there
+**Reproduced by reading flutter_math_fork 0.7.4**: no `\textperthousand`/`\permille` and no
+U+2030 in its symbol tables. KaTeX in the editor renders `5\,‰`; the app cannot. The
+keypad keeps the ‰ key (its data notes the gap); app-side fix is one symbol entry.
+
 ---
 
 ## Unconfirmed
