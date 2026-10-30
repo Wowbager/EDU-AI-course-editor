@@ -180,7 +180,7 @@ test('a formula is typed without LaTeX, and the LaTeX is there for who wants it'
 	// The on-screen keyboard opens inside the row, types into the formula and leaves the
 	// row open.
 	await page.getByRole('button', { name: 'Klávesnice se značkami' }).click();
-	await row.locator('.MLK__keycap[aria-label="7"]').filter({ visible: true }).click();
+	await row.getByRole('button', { name: '7', exact: true }).click();
 	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec \\frac12+x7');
 	await expect(formula(page)).toBeVisible();
 
@@ -200,6 +200,38 @@ test('a formula is typed without LaTeX, and the LaTeX is there for who wants it'
 	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec x\\not=10');
 	await page.getByRole('button', { name: 'Hotovo' }).click();
 	expect(await markdownOf(page)).toBe('$x\\not=10$');
+});
+
+test("the keypad's icon keys keep their icon centred inside the key", async ({ page }) => {
+	await text(page).click();
+	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
+	await formulaReady(page);
+	await page.getByRole('button', { name: 'Klávesnice se značkami' }).click();
+	const keypad = page.getByRole('group', { name: 'Klávesnice se značkami' });
+	await expect(keypad).toBeVisible();
+	// The command keys (delete, arrows, enter): their icon must sit inside the button,
+	// centred — MathLive's keyboard let the delete glyph overflow its keycap.
+	for (const name of ['Smazat znak', 'Předchozí znak', 'Další znak', 'Enter']) {
+		const key = keypad.getByRole('button', { name, exact: true });
+		const icon = key.locator('svg');
+		await expect(icon).toBeVisible();
+		const keyBox = (await key.boundingBox())!;
+		const iconBox = (await icon.boundingBox())!;
+		expect(iconBox.width).toBeLessThanOrEqual(keyBox.width);
+		expect(iconBox.height).toBeLessThanOrEqual(keyBox.height);
+		expect(
+			Math.abs(iconBox.x + iconBox.width / 2 - (keyBox.x + keyBox.width / 2))
+		).toBeLessThanOrEqual(2);
+		expect(
+			Math.abs(iconBox.y + iconBox.height / 2 - (keyBox.y + keyBox.height / 2))
+		).toBeLessThanOrEqual(2);
+	}
+	// The keypad types into the formula: a digit key and a function key.
+	await keypad.getByRole('button', { name: '7', exact: true }).click();
+	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec 7');
+	await keypad.getByRole('button', { name: 'Zlomek' }).click();
+	// `#@` takes what is before the caret into the numerator.
+	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec \\frac{7}{}');
 });
 
 test('a formula opened and closed unchanged keeps its LaTeX as written', async ({ page }) => {

@@ -2850,6 +2850,33 @@ box (smaller, but the teacher still reads LaTeX); writing our own structural edi
 - From the outside review of the reworked row: a soft highlight on the formula in the
   text while its row is open; Hotovo in the accent colour; „Symboly“ for „Značky“.
 
+## Round 26 — the formula row's own keypad instead of MathLive's keyboard
+
+The owner, using the math editor: the row did not look polished; the cursor, backspace
+and enter keys were not centred in their buttons; holding Shift made it worse — MathLive's
+keyboard switches to a shifted layer that draws backspace as a red delete-all glyph too
+big for its keycap. Scope was the math editor only; the engine could be replaced.
+
+**Decision: keep the MathLive field, replace its virtual keyboard with our own keypad**
+(`src/lib/ui/rich/MathKeypad.svelte`). The field is the good part — `/` makes a fraction
+as it is typed (round 25) — and the library keyboard in its shadow DOM was the source of
+every reported defect: command-key SVG glyphs sized by `--keycap-glyph-size` (default
+20 px + margins) inside 34 px keycaps, a Shift layer that redraws them, and operator
+labels in MathLive's math font. Our keypad is plain buttons — lucide icons for delete,
+arrows and enter at 16 px, flex-centred in 34 px keys — so every glyph fits and is
+centred by construction, and there is no Shift layer to misdraw. It drives the field
+through `mathField()`'s new `insert`/`command` API: `mf.insert('\\frac{#@}{#?}',
+{ selectionMode: 'placeholder' })` and `mf.executeCommand('deleteBackward' | …)`, the same
+strings and commands the old layout sent. `LAYOUTS`, `toggleMathKeyboard`/
+`hideMathKeyboard`, the dock `ResizeObserver` and all `--keycap-*` CSS are gone;
+`mathVirtualKeyboardPolicy` stays `manual`. The row keeps its contract: ⋯ → „Na
+samostatný řádek“ / „Upravit jako LaTeX“ (+ help), Hotovo, the LaTeX fallback when
+MathLive fails to load. Hotovo is now the primary button of the row (proposed by the
+round-25 outside review; the owner asked for a polished rework).
+Rejected: restyling MathLive's keyboard via its CSS variables (the Shift layer stays only
+partly controllable), and replacing the MathLive engine itself (round 25: teachers want
+structural editing, not raw LaTeX).
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

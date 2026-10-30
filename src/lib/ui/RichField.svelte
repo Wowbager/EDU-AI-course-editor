@@ -39,7 +39,8 @@
 	import { pagePress } from './press';
 	import { createRichEditor, type RichEditor } from './rich/editor';
 	import { EditRun } from '$lib/state/edit-run';
-	import { hideMathKeyboard, mathField, toggleMathKeyboard } from './rich/mathfield';
+	import { mathField, type MathFieldApi } from './rich/mathfield';
+	import MathKeypad from './rich/MathKeypad.svelte';
 	import { isImageAddress } from './rich/paste';
 
 	interface Props {
@@ -162,8 +163,6 @@
 
 	onDestroy(() => {
 		rich?.destroy();
-		// The keyboard is MathLive's one for the page: gone with the field it was in.
-		hideMathKeyboard(keyboardDock);
 	});
 
 	/** This field's run of typing, in whichever view: one undo entry, Escape's target. */
@@ -306,11 +305,10 @@
 	let mathDisplay = $state(false);
 	let mathInput = $state<HTMLTextAreaElement | null>(null);
 	let mathHost = $state<HTMLElement | null>(null);
-	/** Where the on-screen keyboard opens: inside the row, under the formula. */
-	let mathDock = $state<HTMLElement | null>(null);
+	/** The keypad's API into the MathLive field, bound while the row is open. */
+	let mathApi: MathFieldApi | null = null;
+	/** Whether the on-screen keypad is open: inside the row, under the formula. */
 	let keyboardOpen = $state(false);
-	/** The row the keyboard last opened in, kept past the row's unmount. */
-	let keyboardDock: HTMLElement | null = null;
 	/** The same field as raw LaTeX, for whoever wants it (the row's ⋯). */
 	let latexMode = $state(false);
 
@@ -326,7 +324,6 @@
 	}
 
 	function closeKeyboard() {
-		hideMathKeyboard(mathDock);
 		keyboardOpen = false;
 	}
 
@@ -573,7 +570,8 @@
 									closeMath();
 									focusText();
 								},
-								onunreadable: () => setLatexMode(true)
+								onunreadable: () => setLatexMode(true),
+								onbind: (api) => (mathApi = api)
 							}}
 						></div>
 						<button
@@ -584,10 +582,7 @@
 							title="Klávesnice se značkami"
 							aria-label="Klávesnice se značkami"
 							onmousedown={keepFocus}
-							onclick={() => {
-								keyboardDock = mathDock;
-								keyboardOpen = toggleMathKeyboard(mathHost, mathDock);
-							}}><Keyboard size={16} /></button
+							onclick={() => (keyboardOpen = !keyboardOpen)}><Keyboard size={16} /></button
 						>
 					{/if}
 					<Menu label="Další možnosti vzorce" icon={Ellipsis} placement="bottom-end">
@@ -610,13 +605,18 @@
 					</Menu>
 					<button
 						type="button"
-						class="text-button quiet"
+						class="text-button primary"
 						onclick={() => {
 							closeMath();
 							focusText();
 						}}>Hotovo</button
 					>
-					<div class="math-keyboard" bind:this={mathDock}></div>
+					{#if keyboardOpen}
+						<MathKeypad
+							oninsert={(latex) => mathApi?.insert(latex)}
+							oncommand={(command) => mathApi?.command(command)}
+						/>
+					{/if}
 				</div>
 			{/key}
 		{:else if imagePanel}
@@ -1054,56 +1054,7 @@
 		color: var(--e-text);
 		resize: none;
 	}
-	/* The on-screen keyboard, laid out in the row (`toggleMathKeyboard` sets its height). */
-	.math-keyboard {
-		flex-basis: 100%;
-		position: relative;
-		height: 0;
-		/* A pressed key sits 5 below this, so it must stay above the row. */
-		--keyboard-zindex: 10;
-		--keyboard-background: transparent;
-		--keyboard-border: transparent;
-		--keyboard-padding-top: 4px;
-		--keyboard-padding-bottom: 8px;
-		/* One compact block in the middle, not two halves at the field's edges. */
-		--keyboard-padding-horizontal: max(0px, (100% - 460px) / 2);
-		--keyboard-accent-color: var(--primary);
-		--keyboard-toolbar-text: var(--e-text);
-		--keyboard-toolbar-text-active: var(--primary-dark);
-		--keyboard-toolbar-background-hover: var(--e-field-hover);
-		--keyboard-toolbar-font-size: var(--text-s);
-		--keyboard-horizontal-rule: 1px solid var(--e-border);
-		--keycap-height: 34px;
-		--keycap-max-width: 56px;
-		--keycap-gap: 4px;
-		--keycap-font-size: 17px;
-		--keycap-small-font-size: 14px;
-		--keycap-background: var(--e-field-rest);
-		--keycap-background-hover: var(--e-field-hover);
-		--keycap-background-pressed: var(--primary-dark-12);
-		--keycap-border: transparent;
-		--keycap-border-bottom: transparent;
-		--keycap-text: var(--e-text);
-		--keycap-secondary-background: var(--e-field-hover);
-		--keycap-secondary-background-hover: var(--e-border);
-		--keycap-secondary-border: transparent;
-		--keycap-secondary-border-bottom: transparent;
-		--keycap-secondary-text: var(--e-text-muted);
-		--keycap-primary-background: var(--primary);
-		--keycap-primary-background-hover: var(--primary);
-		--keycap-primary-text: var(--e-text);
-		--placeholder-color: var(--e-text-faint);
-	}
-	.math-keyboard :global(.MLK__keycap),
-	.math-keyboard :global(.MLK__toolbar) {
-		border-radius: var(--radius-xs);
-		font-family: var(--font-body);
-	}
-	/* Operators in the digits' colour: MathLive draws them faint, as if disabled. */
-	.math-keyboard :global(.MLK__keycap),
-	.math-keyboard :global(.MLK__keycap *) {
-		color: var(--e-text);
-	}
+
 	.panel input {
 		font: inherit;
 		font-size: var(--text-s);
@@ -1135,15 +1086,6 @@
 	.text-button.primary {
 		background: var(--primary);
 		border-color: var(--primary);
-		color: var(--e-text);
-	}
-	.text-button.quiet {
-		border-color: transparent;
-		background: none;
-		color: var(--e-text-muted);
-	}
-	.text-button.quiet:hover {
-		background: var(--e-field-hover);
 		color: var(--e-text);
 	}
 	.text-button:disabled {
