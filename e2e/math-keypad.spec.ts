@@ -215,7 +215,7 @@ test('§4.2: the ⋯ menu switches the subject profile', async ({ page }) => {
 	await expect(
 		keypad.locator('.keypad-tabs').getByRole('button', { name: 'Chemie' })
 	).toBeVisible();
-	await keypad.getByRole('button', { name: 'Profil klávesnice' }).click();
+	await keypad.getByRole('button', { name: 'Nastavení klávesnice' }).click();
 	await page.getByRole('menuitemcheckbox', { name: 'Matematika ZŠ' }).click();
 	await expect(keypad.locator('.keypad-tabs').getByRole('button', { name: 'Chemie' })).toHaveCount(
 		0

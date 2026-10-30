@@ -375,6 +375,9 @@
 <style>
 	.keypad {
 		flex-basis: 100%;
+		/* Never wider than the row: the zones page horizontally inside instead. */
+		max-width: 100%;
+		min-width: 0;
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
@@ -497,6 +500,8 @@
 		align-items: flex-start;
 		gap: 4px;
 		overflow-x: auto;
+		/* Let the zones page horizontally instead of stretching the keypad past the row. */
+		min-width: 0;
 	}
 	.keypad-zone {
 		display: grid;
