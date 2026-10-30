@@ -159,7 +159,7 @@
 </script>
 
 <div class="keypad" role="group" aria-label="Klávesnice se značkami">
-	<div class="keypad-tabs" aria-label="Skupiny kláves">
+	<div class="keypad-tabs" role="group" aria-label="Skupiny kláves">
 		{#each TABS as t, i (t.label)}
 			<button
 				type="button"
