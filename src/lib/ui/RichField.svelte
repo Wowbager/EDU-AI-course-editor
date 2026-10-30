@@ -9,7 +9,7 @@
 	 * bottom edge: the text the teacher clicked never moves, and an untouched field is
 	 * just a field. The formula and image editors open in that same row.
 	 */
-	import { onDestroy, tick as settled, untrack } from 'svelte';
+	import { onDestroy, onMount, tick as settled, untrack } from 'svelte';
 	import {
 		Bold,
 		BetweenHorizontalEnd,
@@ -29,6 +29,7 @@
 		CircleQuestionMark
 	} from '@lucide/svelte';
 	import { canEditVisually, type MarkdownDialect } from '$lib/domain/markdown';
+	import { setField } from '$lib/domain/commands';
 	import type { Ref } from '$lib/domain/ref';
 	import type { Transaction } from '@tiptap/pm/state';
 	import { markdownEditor } from './codemirror';
@@ -41,6 +42,8 @@
 	import { EditRun } from '$lib/state/edit-run';
 	import { mathField, type MathFieldApi } from './rich/mathfield';
 	import MathKeypad from './rich/MathKeypad.svelte';
+	import type { ProfileId } from './rich/keypad-data';
+	import { mathSettingsOf } from '$lib/domain/math-settings';
 	import { isImageAddress } from './rich/paste';
 
 	interface Props {
@@ -312,6 +315,37 @@
 	/** The same field as raw LaTeX, for whoever wants it (the row's ⋯). */
 	let latexMode = $state(false);
 
+	/**
+	 * The keypad's subject profile (§4.2): the course's `math.profile`, overridden for
+	 * this teacher's session in the keypad's ⋯ menu (kept in localStorage).
+	 */
+	const PROFILE_OVERRIDE_KEY = 'edu-editor:math-keypad:profile';
+	let profileOverride = $state<string | null>(null);
+	onMount(() => {
+		try {
+			profileOverride = globalThis.localStorage?.getItem(PROFILE_OVERRIDE_KEY) ?? null;
+		} catch {
+			profileOverride = null;
+		}
+	});
+	const keypadProfile = $derived(
+		(profileOverride ?? mathSettingsOf(store.source).profile ?? 'vse') as ProfileId
+	);
+	function setKeypadProfile(profile: ProfileId) {
+		profileOverride = profile;
+		try {
+			globalThis.localStorage?.setItem(PROFILE_OVERRIDE_KEY, profile);
+		} catch {
+			// Private mode: the override just lives for this edit.
+		}
+	}
+	/** The keypad's search palette, opened with `\` in the formula (§5.3). */
+	function openKeypadSearch() {
+		keyboardOpen = true;
+		searchOpen = true;
+	}
+	let searchOpen = $state(false);
+
 	function openMath(pos: number) {
 		const node = editor()?.state.doc.nodeAt(pos);
 		if (node?.type.name !== 'math') return;
@@ -325,6 +359,7 @@
 
 	function closeKeyboard() {
 		keyboardOpen = false;
+		searchOpen = false;
 	}
 
 	function setLatexMode(on: boolean) {
@@ -562,6 +597,8 @@
 							use:mathField={{
 								latex: mathLatex,
 								label: 'Vzorec',
+								math: mathSettingsOf(store.source),
+								onsearch: openKeypadSearch,
 								oninput: (latex) => {
 									mathLatex = latex;
 									updateMath();
@@ -614,13 +651,26 @@
 					>
 					{#if keyboardOpen}
 						<MathKeypad
+							profile={keypadProfile}
+							onprofile={setKeypadProfile}
+							search={searchOpen}
+							onsearchclose={() => (searchOpen = false)}
 							oninsert={(latex) => mathApi?.insert(latex)}
 							oncommand={(command) => mathApi?.command(command)}
+							onchemstart={() => mathApi?.chem.start()}
+							onchem={(token) => mathApi?.chem.type(token)}
+							onchembackspace={() => mathApi?.chem.backspace()}
+							onchemstop={() => mathApi?.chem.stop()}
+							math={mathSettingsOf(store.source)}
+							onmath={(patch) =>
+								store.apply((d) =>
+									setField(d, { field: 'math' }, { ...mathSettingsOf(d), ...patch })
+								)}
 							ondone={() => {
-								// As the Enter key in the field: keys it still held arrive first.
+								// As the Enter key in the field: keys it still held arrive first;
+								// `done` is the next placeholder, and closes the row after the last one.
 								mathApi?.flush();
-								closeMath();
-								focusText();
+								mathApi?.done();
 							}}
 						/>
 					{/if}
