@@ -305,8 +305,8 @@
 	let mathDisplay = $state(false);
 	let mathInput = $state<HTMLTextAreaElement | null>(null);
 	let mathHost = $state<HTMLElement | null>(null);
-	/** The keypad's API into the MathLive field, bound while the row is open. */
-	let mathApi: MathFieldApi | null = null;
+	/** The keypad's API into the MathLive field, bound once the field has loaded. */
+	let mathApi = $state<MathFieldApi | null>(null);
 	/** Whether the on-screen keypad is open: inside the row, under the formula. */
 	let keyboardOpen = $state(false);
 	/** The same field as raw LaTeX, for whoever wants it (the row's ⋯). */
@@ -579,6 +579,7 @@
 							class="tool"
 							class:on={keyboardOpen}
 							aria-pressed={keyboardOpen}
+							disabled={mathApi === null}
 							title="Klávesnice se značkami"
 							aria-label="Klávesnice se značkami"
 							onmousedown={keepFocus}
@@ -973,9 +974,13 @@
 		color: var(--e-text-muted);
 		cursor: pointer;
 	}
-	.tool:hover {
+	.tool:hover:not(:disabled) {
 		background: var(--e-field-hover);
 		color: var(--e-text);
+	}
+	.tool:disabled {
+		opacity: 0.4;
+		cursor: default;
 	}
 	.quote-glyph {
 		font-family: Georgia, 'Times New Roman', serif;

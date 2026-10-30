@@ -159,14 +159,13 @@
 </script>
 
 <div class="keypad" role="group" aria-label="Klávesnice se značkami">
-	<div class="keypad-tabs" role="tablist" aria-label="Skupiny kláves">
+	<div class="keypad-tabs" aria-label="Skupiny kláves">
 		{#each TABS as t, i (t.label)}
 			<button
 				type="button"
 				class="keypad-tab"
 				class:on={tab === i}
-				role="tab"
-				aria-selected={tab === i}
+				aria-pressed={tab === i}
 				onmousedown={keepFocus}
 				onclick={() => (tab = i)}>{t.label}</button
 			>
@@ -182,7 +181,7 @@
 						type="button"
 						class="key"
 						title={key.title}
-						aria-label={key.icon || key.glyph ? key.title : key.label}
+						aria-label={key.title ?? key.label}
 						onmousedown={keepFocus}
 						onclick={() => press(key)}
 					>
