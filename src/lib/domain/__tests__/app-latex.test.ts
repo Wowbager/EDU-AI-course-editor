@@ -15,7 +15,8 @@ describe('toAppLatex', () => {
 		expect(toAppLatex('p\\roundimplies q')).toBe('p\\Rightarrow q');
 		expect(toAppLatex('p\\biconditional q')).toBe('p\\leftrightarrow q');
 		expect(toAppLatex('a\\Colon b')).toBe('a:: b');
-		expect(toAppLatex('a\\colon b')).toBe('a\\colon b');
+		// Czech division is a plain `:` (a ratio); the app has no `\colon`.
+		expect(toAppLatex('a\\colon b')).toBe('a: b');
 	});
 	it('does not take a row break for a command', () => {
 		expect(toAppLatex('\\begin{cases}a\\\\ne\\end{cases}')).toBe(
@@ -24,6 +25,18 @@ describe('toAppLatex', () => {
 		expect(toAppLatex('\\begin{cases}a\\\\\\neq b\\end{cases}')).toBe(
 			'\\begin{cases}a\\\\\\not= b\\end{cases}'
 		);
+	});
+	it('canonicalises operator names and unit groups (§6)', () => {
+		expect(toAppLatex('\\operatorname{\\mathrm{tg}} \\alpha')).toBe('\\operatorname{tg} \\alpha');
+		expect(toAppLatex('12\\,\\mathrm{m}\\cdot\\mathrm{s}^{-1}')).toBe(
+			'12\\,\\mathrm{m\\cdot s^{-1}}'
+		);
+		expect(toAppLatex('\\mathrm{m}\\cdot\\mathrm{s}\\cdot\\mathrm{kg}')).toBe(
+			'\\mathrm{m\\cdot s\\cdot kg}'
+		);
+		// A teacher-typed exponent on an upright group stays as written only when it
+		// is not a unit sequence — but this is MathLive output, so it folds.
+		expect(toAppLatex('\\mathrm{m}^{2}')).toBe('\\mathrm{m^{2}}');
 	});
 	it('leaves everything else as it is', () => {
 		expect(toAppLatex('\\frac{\\sqrt{x}}{2}\\cdot\\pi')).toBe('\\frac{\\sqrt{x}}{2}\\cdot\\pi');

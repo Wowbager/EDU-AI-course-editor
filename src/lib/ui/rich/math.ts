@@ -14,9 +14,13 @@ export interface MathOptions {
 type Katex = typeof import('katex').default;
 let katex: Promise<Katex> | null = null;
 function loadKatex(): Promise<Katex> {
-	katex ??= Promise.all([import('katex'), import('katex/dist/katex.min.css')]).then(
-		([module]) => module.default
-	);
+	katex ??= Promise.all([
+		import('katex'),
+		// mhchem (`\ce{}`, the chemistry formulas): KaTeX ships it as a contrib extension;
+		// it registers itself on the same KaTeX instance.
+		import('katex/contrib/mhchem'),
+		import('katex/dist/katex.min.css')
+	]).then(([module]) => module.default);
 	return katex;
 }
 

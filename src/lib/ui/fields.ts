@@ -1416,6 +1416,8 @@ export const FIELDS: readonly FieldSpec[] = [
  */
 export const NOT_EDITABLE: Record<string, string> = {
 	'course.course_id': 'Klíč úložiště a zápisu žáka. Po založení se nemění (§3 invariant 1).',
+	'course.math':
+		"Notation conventions of the course (decimal separator, keypad profile): set from the formula row's keypad ⋯ menu, not as a raw field — the teachers pick them while writing a formula, not in settings.",
 	'course.lessons': 'Struktura, ne pole — přidává se a přesouvá v postranním panelu.',
 	'course.blocks': 'Struktura, ne pole — karty se přidávají v lekci.',
 	'lesson.lesson_id': 'Klíč postupu žáka. Po zveřejnění se nemění (§3 invariant 1).',

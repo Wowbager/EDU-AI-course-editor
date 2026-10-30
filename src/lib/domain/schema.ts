@@ -232,6 +232,9 @@ export const courseSchema = z.looseObject({
 	stop_gambling: z.boolean().optional(),
 	stop_notice: z.string().optional(),
 	ai_context: z.string().optional(),
+	// Math conventions of the course (decimal separator, keypad profile): a loose
+	// object, so a newer editor's keys survive an older one. See domain/math-settings.ts.
+	math: z.looseObject({}).optional(),
 	lessons: z.array(lessonSchema),
 	blocks: z.array(blockSchema)
 });
@@ -292,6 +295,7 @@ export const KEY_ORDER = {
 		'stop_gambling',
 		'stop_notice',
 		'ai_context',
+		'math',
 		'header_image',
 		'lessons',
 		'blocks'
