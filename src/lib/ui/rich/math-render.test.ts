@@ -13,6 +13,7 @@ import 'katex/contrib/mhchem';
 import { validateLatex } from 'mathlive/ssr';
 import { ALL_KEYS, FIXED_KEYS, PROFILES, TABS, TAB_BY_ID } from './keypad-data';
 import { ACCEPTANCE } from './acceptance-rows';
+import { replaceSlots, toAppLatex } from '$lib/domain/app-latex';
 
 /** Placeholders of a key's insert become sample content, so the template renders. */
 function sample(insert: string): string {
@@ -119,4 +120,18 @@ describe('keypad data invariants (§4.1)', () => {
 		])
 			expect(TAB_BY_ID.has(id)).toBe(true);
 	});
+});
+
+describe('a template left empty draws its boxes in the text', () => {
+	for (const key of ALL_KEYS.filter((k) => /#@|#\?/.test(k.insert) && !k.insert.includes('\\ce'))) {
+		it(`${key.id} — ${key.name}`, () => {
+			// Stored as the field writes it, then drawn the way `renderMath` draws it.
+			const stored = toAppLatex(key.insert.replace(/#@|#\?/g, '\\placeholder{}'));
+			const html = katex.renderToString(replaceSlots(stored, '\\htmlClass{math-slot}{\\square}'), {
+				throwOnError: true,
+				trust: ({ command }) => command === '\\htmlClass'
+			});
+			expect(html).toContain('math-slot');
+		});
+	}
 });
