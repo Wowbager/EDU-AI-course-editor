@@ -245,3 +245,18 @@ test('§5.1: `=.` types ≐ (\\doteq), not a literal "=."', async ({ page }) => 
 	await page.keyboard.type('b');
 	await storedLatex(page, 'a\\doteqb');
 });
+
+test('a template left empty can still be filled after the formula is closed', async ({ page }) => {
+	// The boxes were dropped on the way out: a reopened `\vec{}` had nowhere to type,
+	// and the key typed went after the whole formula or replaced it.
+	const keypad = await openKeypad(page);
+	await tab(keypad, 'Geometrie a goniometrie');
+	await key(keypad, 'Vektor');
+	await page.getByRole('button', { name: 'Hotovo' }).click();
+	await storedLatex(page, '\\vec{}');
+
+	await text(page).locator('.math').click();
+	await formulaReady(page);
+	await page.keyboard.type('u');
+	await storedLatex(page, '\\vec{u}');
+});

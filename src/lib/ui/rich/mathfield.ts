@@ -11,7 +11,7 @@
  * `executeCommand` an editing command.
  */
 import type { MathfieldElement, Selector } from 'mathlive';
-import { toAppLatex } from '$lib/domain/app-latex';
+import { toAppLatex, withSlots } from '$lib/domain/app-latex';
 import { decimalLatex, type MathSettings } from '$lib/domain/math-settings';
 
 type MathLive = typeof import('mathlive');
@@ -127,7 +127,8 @@ export function mathField(host: HTMLElement, initial: MathFieldParams) {
 				const command = Array.isArray(binding.command) ? binding.command[0] : binding.command;
 				return !UNDO.has(String(command));
 			});
-			mf.value = params.latex;
+			// Its empty boxes come back as boxes, or a reopened `\vec{}` has nowhere to type.
+			mf.value = withSlots(params.latex);
 			// Czech division is a plain `:` (ratio), not MathLive's `\colon` (§3).
 			mf.keybindings = [...mf.keybindings, { key: ':', ifMode: 'math', command: ['insert', ':'] }];
 			// Physical `,` and `.` between digits both produce the course's decimal
@@ -314,7 +315,7 @@ export function mathField(host: HTMLElement, initial: MathFieldParams) {
 			params = next;
 			// A change from the LaTeX box; the field's own typing is already there.
 			if (field && next.latex !== written()) {
-				field.value = next.latex;
+				field.value = withSlots(next.latex);
 				seen = written();
 			}
 		},
