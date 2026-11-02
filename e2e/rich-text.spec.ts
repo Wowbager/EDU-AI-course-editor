@@ -437,6 +437,45 @@ test('undo while a formula is open closes its row with it', async ({ page }) => 
 	await expect(formula(page)).toBeHidden();
 });
 
+test('a deleted formula comes back with one undo, and the text before it stays', async ({
+	page
+}) => {
+	// One undo took back the whole run of typing in the field: the text typed before
+	// the formula went with it, and the formula never came back on its own.
+	await text(page).click();
+	await page.keyboard.type('Plocha ');
+	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
+	await formulaReady(page);
+	await page.keyboard.type('x+1');
+	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec x+1');
+	await page.getByRole('button', { name: 'Hotovo' }).click();
+	await page.keyboard.press('Backspace');
+	await expect(text(page).locator('.math')).toHaveCount(0);
+
+	await page.keyboard.press('Control+z');
+	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec x+1');
+	await expect(text(page)).toContainText('Plocha');
+	// The formula was a step of its own, too.
+	await page.keyboard.press('Control+z');
+	await expect(text(page).locator('.math')).toHaveCount(0);
+	await expect(text(page)).toContainText('Plocha');
+});
+
+test('a formula closed empty leaves no undo step behind', async ({ page }) => {
+	await text(page).click();
+	await page.keyboard.type('Plocha ');
+	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
+	await formulaReady(page);
+	await page.getByRole('button', { name: 'Hotovo' }).click();
+	await expect(text(page).locator('.math')).toHaveCount(0);
+
+	// Undo takes back the typing, not an empty formula that never was.
+	await page.keyboard.press('Control+z');
+	await expect(text(page)).not.toContainText('Plocha');
+	await expect(text(page).locator('.math')).toHaveCount(0);
+	await expect(text(page)).not.toContainText('$');
+});
+
 test('a formula and an image open from the keyboard, as they do with a click', async ({ page }) => {
 	// Copilot, PR #3: a formula inside the text was a button nobody could reach without
 	// a mouse. The arrows land on it like on a letter; Enter opens it.

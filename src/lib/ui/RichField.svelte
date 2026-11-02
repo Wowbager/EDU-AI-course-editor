@@ -38,7 +38,7 @@
 	import MenuItem from './MenuItem.svelte';
 	import MenuSeparator from './MenuSeparator.svelte';
 	import { pagePress } from './press';
-	import { createRichEditor, type RichEditor } from './rich/editor';
+	import { FORMULA_ROW, createRichEditor, type RichEditor } from './rich/editor';
 	import { EditRun } from '$lib/state/edit-run';
 	import { mathField, type MathFieldApi } from './rich/mathfield';
 	import MathKeypad from './rich/MathKeypad.svelte';
@@ -301,8 +301,6 @@
 
 	// ─── Formula row ────────────────────────────────────────────────────────
 
-	/** Marks the row's own edits, which are not the teacher leaving the formula. */
-	const FORMULA_ROW = 'formula-row';
 	let mathPos = $state<number | null>(null);
 	let mathLatex = $state('');
 	let mathDisplay = $state(false);
@@ -379,6 +377,8 @@
 		if (!e) return;
 		const pos = e.state.selection.from;
 		const selected = e.state.doc.textBetween(e.state.selection.from, e.state.selection.to);
+		// A formula is an undo step of its own, from here until it is closed.
+		endRun();
 		run((c) => c.insertContent({ type: 'math', attrs: { latex: selected, display: false } }).run());
 		openMath(pos);
 	}
@@ -418,8 +418,21 @@
 		const node = e.state.doc.nodeAt(pos);
 		// An empty formula is no formula.
 		if (node?.type.name === 'math' && String(node.attrs.latex).trim() === '')
-			e.view.dispatch(e.state.tr.delete(pos, pos + 1).setMeta('teacher', true));
+			e.view.dispatch(
+				e.state.tr
+					.delete(pos, pos + 1)
+					.setMeta('teacher', true)
+					.setMeta(FORMULA_ROW, true)
+			);
 		else if (node && caret) e.commands.setTextSelection(pos + 1);
+		// The formula's undo step ends with it; an empty one leaves none at all.
+		endRun();
+	}
+
+	/** Close the run of typing: what comes next is an undo step of its own. */
+	function endRun() {
+		rich?.end();
+		typing.end();
 	}
 
 	/**
