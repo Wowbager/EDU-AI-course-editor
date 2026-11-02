@@ -62,6 +62,17 @@ export interface RichEditorOptions {
 
 const EXTERNAL = 'external-value';
 
+/** Marks the formula row's own edits of the formula it has open. */
+export const FORMULA_ROW = 'formula-row';
+
+function formulaCount(doc: PMNode): number {
+	let count = 0;
+	doc.descendants((node) => {
+		if (node.type.name === 'math') count++;
+	});
+	return count;
+}
+
 export const IMAGE_FILE_REFUSED =
 	'Obrázek vlož jako adresu z webu: na obrázku klikni pravým tlačítkem, zvol „Kopírovat adresu obrázku“ a vlož ji sem.';
 
@@ -150,12 +161,19 @@ export function createRichEditor(options: RichEditorOptions) {
 				return;
 			const markdown = serializeMarkdown(editor.getJSON() as DocNode, dialect);
 			if (markdown === lastEmitted) return;
+			// Deleting a formula is an undo step of its own: one Backspace takes it, and one
+			// Ctrl+Z gives back just that formula, not the whole run of typing around it.
+			const removesFormula =
+				!transaction.getMeta(FORMULA_ROW) &&
+				formulaCount(transaction.before) > formulaCount(transaction.doc);
+			if (removesFormula) end();
 			if (!editing) {
 				editing = true;
 				options.onbeginedit();
 			}
 			lastEmitted = markdown;
 			options.onchange(markdown);
+			if (removesFormula) end();
 		},
 		onBlur: ({ event }) => {
 			// Focus moving to the field's own toolbar is not leaving the field.
