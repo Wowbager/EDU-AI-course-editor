@@ -990,6 +990,10 @@
 		text-align: center;
 		margin: 0.3em 0;
 	}
+	/* An empty box of a template, still to fill. */
+	.surface :global(.math .math-slot) {
+		color: var(--e-text-muted);
+	}
 	.surface :global(.math-empty),
 	.surface :global(.math-error) {
 		font-family: var(--font-code);

@@ -5,6 +5,7 @@
  * is shown, so a course without any never fetches it.
  */
 import { InputRule, Node, mergeAttributes } from '@tiptap/core';
+import { replaceSlots } from '$lib/domain/app-latex';
 
 export interface MathOptions {
 	/** The teacher clicked a formula: open it for editing. */
@@ -24,7 +25,11 @@ function loadKatex(): Promise<Katex> {
 	return katex;
 }
 
-/** Draw `latex` into `into`; a formula KaTeX cannot read stays as its source, quietly marked. */
+/**
+ * Draw `latex` into `into`; a formula KaTeX cannot read stays as its source, quietly marked.
+ * An empty box of a template is drawn as a faint □, so a formula left unfinished shows
+ * as one (the app draws nothing there: `\vec{}` is a lone arrow).
+ */
 export function renderMath(into: HTMLElement, latex: string, display: boolean): void {
 	into.textContent = latex.trim() === '' ? '…' : latex;
 	into.classList.toggle('math-empty', latex.trim() === '');
@@ -32,7 +37,11 @@ export function renderMath(into: HTMLElement, latex: string, display: boolean): 
 	void loadKatex().then((k) => {
 		if (into.textContent !== latex) return;
 		try {
-			k.render(latex, into, { displayMode: display, throwOnError: true });
+			k.render(replaceSlots(latex, '\\htmlClass{math-slot}{\\square}'), into, {
+				displayMode: display,
+				throwOnError: true,
+				trust: ({ command }) => command === '\\htmlClass'
+			});
 			into.classList.remove('math-error');
 		} catch {
 			into.textContent = latex;
