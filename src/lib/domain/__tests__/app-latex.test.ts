@@ -96,9 +96,18 @@ describe('withSlots', () => {
 		expect(withSlots('\\vec{}')).toBe('\\vec{\\placeholder{}}');
 		expect(withSlots('\\frac{1}{}')).toBe('\\frac{1}{\\placeholder{}}');
 		expect(withSlots('x^{}')).toBe('x^{\\placeholder{}}');
+		// A script after the box does not hide it.
+		expect(withSlots('\\sqrt{}^{2}')).toBe('\\sqrt{\\placeholder{}}^{2}');
+		expect(withSlots('\\vec{}_x')).toBe('\\vec{\\placeholder{}}_x');
 	});
 	it('leaves a spaced text and an empty base written on purpose alone', () => {
-		for (const latex of ['a\\text{ }b', '\\mathrm{ }', '\\mathrm{H}{}_2', '\\mathrm{C}{}^{14}'])
+		for (const latex of [
+			'a\\text{ }b',
+			'\\mathrm{ }',
+			'\\mathbb{ }',
+			'\\mathrm{H}{}_2',
+			'\\mathrm{C}{}^{14}'
+		])
 			expect(withSlots(latex)).toBe(latex);
 	});
 	it('leaves LaTeX empty groups, escaped braces and full formulas alone', () => {

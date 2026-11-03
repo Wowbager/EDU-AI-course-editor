@@ -78,13 +78,16 @@ export function replaceSlots(latex: string, box: string): string {
 }
 
 /**
- * - `{ }`, except as the argument of a text command: `\text{ }` is a space as written.
- * - `{}` right after `^` or `_`, or after a command, `}` or `]` — unless a `^` or `_`
- *   follows: `\mathrm{H}{}_2` is an empty base written on purpose (a box there is `{ }`).
+ * - `{ }`, except as the argument of a text or font command: `\text{ }` is a space as
+ *   written.
+ * - `{}` right after `^`, `_` or a command (`x^{}`, `\vec{}_x`).
+ * - `{}` right after `}` or `]` (`\frac{1}{}`), unless a `^` or `_` follows:
+ *   `\mathrm{H}{}_2` is an empty base written on purpose (a box there is `{ }`). An
+ *   empty denominator with an exponent, `\frac{a}{}^2`, reads the same and stays empty.
  * - `[]` right after `\sqrt`.
  */
 const SLOT =
-	/(?<!\\(?:text|textrm|textit|textbf|mbox|mathrm|mathit|mathbf|operatorname))\{ \}|(?<=[\^_])\{\}|(?<=\\[a-zA-Z]+|[}\]])\{\}(?![\^_])|(?<=\\sqrt)\[\]/g;
+	/(?<!\\(?:text|textrm|textit|textbf|textsf|texttt|mbox|mathrm|mathit|mathbf|mathsf|mathtt|mathbb|mathcal|boldsymbol|operatorname))\{ \}|(?<=[\^_]|\\[a-zA-Z]+)\{\}|(?<=[}\]])\{\}(?![\^_])|(?<=\\sqrt)\[\]/g;
 
 /** The formula as the visual editor should open it: every empty box fillable again. */
 export function withSlots(latex: string): string {
