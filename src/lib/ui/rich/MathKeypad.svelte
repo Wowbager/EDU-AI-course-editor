@@ -5,7 +5,7 @@
 	 * them.
 	 *
 	 * The keys come from `keypad-data.ts` (design brief §4): tabs in the profile's order,
-	 * symbols on the left and templates on the right, the fixed keys (cursor arrows as
+	 * each tab in small named groups of similar keys, the fixed keys (cursor arrows as
 	 * icons, backspace, enter) in the same position on every tab, a recently-used row on
 	 * top and a search field over Czech names. A press never takes the focus: `mousedown`
 	 * is cancelled, so the caret stays in the formula while the keypad is used.
@@ -32,10 +32,12 @@
 		TAB_BY_ID,
 		type KeyDef,
 		type ProfileId,
+		keyFace,
 		searchKeys,
 		type TabDef
 	} from './keypad-data';
 	import { readRecent, writeRecent, type RecentStore } from './recent-keys';
+	import { loadKatex, type Katex } from './math';
 
 	interface Props {
 		/** Insert LaTeX at the caret of the formula field. */
@@ -167,11 +169,51 @@
 		searching = false;
 	}
 
-	const zone = (t: TabDef, z: 'symbol' | 'template') => t.keys.filter((k) => k.zone === z);
+	const groupsOf = (t: TabDef) =>
+		t.groups.map((g) => ({
+			name: g.name,
+			columns: g.columns,
+			keys: g.keys.map((id) => KEY_BY_ID.get(id)).filter((k): k is KeyDef => !!k)
+		}));
+
+	/** Key faces drawn by KaTeX (`keyFace`), once it has loaded; the text label until then. */
+	let katex = $state<Katex | null>(null);
+	onMount(() => {
+		void loadKatex().then((k) => (katex = k));
+	});
+	const faces = new Map<string, string>();
+	function faceHtml(key: KeyDef): string | null {
+		const latex = keyFace(key);
+		if (latex === null || katex === null) return null;
+		let html = faces.get(key.id);
+		if (html === undefined) {
+			try {
+				html = katex.renderToString(latex, {
+					throwOnError: true,
+					trust: ({ command }) => command === '\\htmlClass'
+				});
+			} catch {
+				html = '';
+			}
+			faces.set(key.id, html);
+		}
+		return html || null;
+	}
 	const recentKeys = $derived(
 		recent.map((id) => KEY_BY_ID.get(id)).filter((k): k is KeyDef => !!k)
 	);
 </script>
+
+{#snippet face(key: KeyDef)}
+	{@const html = faceHtml(key)}
+	{#if html}
+		<span class="face" class:tall={key.insert.includes('\\\\')} aria-hidden="true"
+			>{@html html}</span
+		>
+	{:else}
+		{key.label}
+	{/if}
+{/snippet}
 
 <div class="keypad" role="group" aria-label="Klávesnice se značkami">
 	<div class="keypad-head">
@@ -250,7 +292,7 @@
 						onmousedown={keepFocus}
 						onclick={() => pick(hit)}
 					>
-						<span class="r-glyph" aria-hidden="true">{hit.key.label}</span>
+						<span class="r-glyph" aria-hidden="true">{@render face(hit.key)}</span>
 						<span class="r-name">{hit.key.name}</span>
 						<span class="r-tab">{hit.tab.name}</span>
 					</button>
@@ -272,66 +314,40 @@
 						onpointerdown={(e) => longPressStart(e, key)}
 						onpointerup={longPressEnd}
 						onpointercancel={longPressEnd}
-						onclick={() => press(key)}>{key.label}</button
+						onclick={() => press(key)}>{@render face(key)}</button
 					>
 				{/each}
 			</div>
 		{/if}
 
 		<div class="keypad-zones">
-			<div class="keypad-zone" role="group" aria-label="Značky — {tab.name}">
-				{#each zone(tab, 'symbol') as key (key.id)}
-					<button
-						type="button"
-						class="key"
-						title={key.name}
-						aria-label={key.name}
-						onmousedown={keepFocus}
-						onpointerdown={(e) => longPressStart(e, key)}
-						onpointerup={longPressEnd}
-						onpointercancel={longPressEnd}
-						onclick={() => press(key)}
+			{#each groupsOf(tab) as g, i (g.name)}
+				{#if i > 0}<span class="keypad-sep" aria-hidden="true"></span>{/if}
+				<div class="keypad-group" role="group" aria-label={g.name}>
+					<span class="keypad-group-name" aria-hidden="true">{g.name}</span>
+					<div
+						class="keypad-zone"
+						class:pad={g.columns !== undefined}
+						style:grid-template-columns={g.columns ? `repeat(${g.columns}, auto)` : undefined}
 					>
-						{#if key.glyph === 'frac'}
-							<span class="g-frac" aria-hidden="true"><i>a</i><i>b</i></span>
-						{:else if key.glyph === 'root' || key.glyph === 'nth-root'}
-							<span class="g-root" aria-hidden="true">√{key.glyph === 'nth-root' ? 'ⁿ' : ''}</span>
-						{:else if key.glyph === 'abs'}
-							<span class="g-abs" aria-hidden="true">|x|</span>
-						{:else}
-							{key.label}
-						{/if}
-					</button>
-				{/each}
-			</div>
-			<span class="keypad-sep" aria-hidden="true"></span>
-			<div class="keypad-zone" role="group" aria-label="Šablony — {tab.name}">
-				{#each zone(tab, 'template') as key (key.id)}
-					<button
-						type="button"
-						class="key"
-						title={key.name}
-						aria-label={key.name}
-						onmousedown={keepFocus}
-						onpointerdown={(e) => longPressStart(e, key)}
-						onpointerup={longPressEnd}
-						onpointercancel={longPressEnd}
-						onclick={() => press(key)}
-					>
-						{#if key.glyph === 'frac'}
-							<span class="g-frac" aria-hidden="true"><i>a</i><i>b</i></span>
-						{:else if key.glyph === 'root'}
-							<span class="g-root" aria-hidden="true">√</span>
-						{:else if key.glyph === 'nth-root'}
-							<span class="g-root" aria-hidden="true">ⁿ√</span>
-						{:else if key.glyph === 'abs'}
-							<span class="g-abs" aria-hidden="true">|x|</span>
-						{:else}
-							{key.label}
-						{/if}
-					</button>
-				{/each}
-			</div>
+						{#each g.keys as key (key.id)}
+							<button
+								type="button"
+								class="key"
+								title={key.name}
+								aria-label={key.name}
+								onmousedown={keepFocus}
+								onpointerdown={(e) => longPressStart(e, key)}
+								onpointerup={longPressEnd}
+								onpointercancel={longPressEnd}
+								onclick={() => press(key)}
+							>
+								{@render face(key)}
+							</button>
+						{/each}
+					</div>
+				</div>
+			{/each}
 		</div>
 
 		{#if variantsFor?.variants}
@@ -493,8 +509,8 @@
 		font-size: var(--text-s);
 		color: var(--e-text-muted);
 	}
-	/* Symbols left, templates right; each zone is 4 rows deep and pages horizontally
-	   when the row is too narrow for all its columns (§4.1). */
+	/* Named groups side by side, each 4 rows deep; the keypad pages horizontally when
+	   the row is too narrow for all their columns (§4.1). */
 	.keypad-zones {
 		display: flex;
 		align-items: flex-start;
@@ -503,11 +519,30 @@
 		/* Let the zones page horizontally instead of stretching the keypad past the row. */
 		min-width: 0;
 	}
+	.keypad-group {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+	/* The group's name: a quiet caption, never wider than it needs to be. */
+	.keypad-group-name {
+		font-size: var(--text-xs);
+		line-height: 1.3;
+		color: var(--e-text-muted);
+		white-space: nowrap;
+		padding-left: 2px;
+	}
 	.keypad-zone {
 		display: grid;
+		grid-auto-columns: max-content;
 		grid-auto-flow: column;
 		grid-template-rows: repeat(4, minmax(0, auto));
 		gap: 4px;
+	}
+	/* A number pad: row by row, as wide as the group says. */
+	.keypad-zone.pad {
+		grid-auto-flow: row;
+		grid-template-rows: none;
 	}
 	.keypad-sep {
 		width: 1px;
@@ -565,26 +600,23 @@
 	.key :global(svg) {
 		display: block;
 	}
-	/* A little stacked fraction, drawn in the key's own font and colour. */
-	.g-frac {
+	/* A face drawn by KaTeX: the template's own shape, scaled to sit inside the key. */
+	.face {
 		display: inline-flex;
-		flex-direction: column;
 		align-items: center;
-		font-style: italic;
+		font-size: 18px;
+		/* KaTeX may break a line after `;`: a key never does, so its column fits the face. */
+		white-space: nowrap;
+	}
+	/* Several rows (a matrix, a system): smaller, so it stays inside the key. */
+	.face.tall {
 		font-size: 11px;
-		line-height: 1.15;
 	}
-	.g-frac i {
-		font-style: italic;
-		padding: 0 4px;
+	.face :global(.katex) {
+		font-size: 1em;
 	}
-	.g-frac i:first-child {
-		border-bottom: 1.5px solid currentColor;
-	}
-	.g-abs {
-		font-size: 14px;
-	}
-	.g-root {
-		display: inline-flex;
+	/* A box still to fill: lighter than the shape around it. */
+	.face :global(.key-slot) {
+		color: var(--e-text-muted);
 	}
 </style>

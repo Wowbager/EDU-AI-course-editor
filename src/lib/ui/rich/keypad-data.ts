@@ -1,6 +1,6 @@
 /**
  * The on-screen math keypad as data (design brief §4.1): every key is a definition here —
- * id, the glyph drawn, its Czech name (tooltip, search, screen reader), search aliases,
+ * id, the label drawn, its Czech name (tooltip, search, screen reader), search aliases,
  * the LaTeX it inserts (`#@`/`#?` placeholders, `#0` the selection) or the editing
  * command it runs — never component code. The tab tables in §4.3 will change after
  * teacher feedback; they live here, not in the component.
@@ -11,26 +11,6 @@
  * not in the app's renderer, the key says so in `note` and the gap is in
  * `docs/OPEN-PROBLEMS.md` — the stored LaTeX stays canonical.
  */
-
-/** A drawn glyph the component can render instead of a text label. */
-export type KeyGlyph =
-	| 'frac'
-	| 'root'
-	| 'nth-root'
-	| 'abs'
-	| 'power'
-	| 'subscript'
-	| 'binom'
-	| 'sum'
-	| 'product'
-	| 'integral'
-	| 'limit'
-	| 'cases'
-	| 'interval'
-	| 'vector'
-	| 'angle'
-	| 'triangle'
-	| 'chem';
 
 export type KeyZone = 'symbol' | 'template';
 
@@ -43,7 +23,7 @@ export interface KeyVariant {
 export interface KeyDef {
 	/** Stable id: used by tests, search results and the recently-used row. */
 	id: string;
-	/** The glyph drawn on the key. */
+	/** The key's text: on the key itself unless `keyFace` draws it, and in search results. */
 	label: string;
 	/** Czech name: tooltip, `aria-label`, search. */
 	name: string;
@@ -52,8 +32,6 @@ export interface KeyDef {
 	/** LaTeX to insert at the caret; `#@`/`#?` placeholders, `#0` the selection. */
 	insert: string;
 	zone: KeyZone;
-	/** A drawn glyph instead of the label. */
-	glyph?: KeyGlyph;
 	/** Long-press variants (e.g. ε/ϵ). */
 	variants?: KeyVariant[];
 	/** Renderer-support note, when a command is not everywhere (kept with the key, §1). */
@@ -63,6 +41,21 @@ export interface KeyDef {
 	 * node — the rest of the tab types mhchem source into it (chem mode).
 	 */
 	outside?: boolean;
+}
+
+/** A box still to fill, as a key face draws it. */
+const FACE_BOX = '\\htmlClass{key-slot}{\\square}';
+/** A combining mark (u⃗, x̄): many fonts draw it as a box of their own. */
+const COMBINING = /[\u0300-\u036f\u20d0-\u20ff]/;
+
+/**
+ * The LaTeX a key's face is drawn from (with KaTeX), or `null` for a key drawn as its
+ * text label. A template shows the shape it inserts, a □ for each box to fill; so does
+ * a label that needs a combining mark, which a font cannot be trusted to draw.
+ */
+export function keyFace(key: KeyDef): string | null {
+	if (key.zone !== 'template' && !COMBINING.test(key.label)) return null;
+	return key.insert.replace(/#[@?0]/g, FACE_BOX);
 }
 
 /** The keys on every tab, in the same position (§4.1): arrows are icons, never `<` `>`. */
@@ -107,7 +100,29 @@ export interface TabDef {
 	/** Czech tab name, for search results and screen readers. */
 	name: string;
 	keys: KeyDef[];
+	/**
+	 * How the tab lays its keys out: small named groups of similar keys, so a teacher who
+	 * finds one symbol finds its relatives next to it. Every key is in exactly one.
+	 */
+	groups: KeyGroup[];
 }
+
+export interface KeyGroup {
+	/** Czech, short: it is written over the group. */
+	name: string;
+	/** Key ids, in the order drawn: down each 4-key column, or along each row with `columns`. */
+	keys: string[];
+	/** Drawn row by row, this many keys wide: a number pad. */
+	columns?: number;
+}
+
+const group = (name: string, ...keys: string[]): KeyGroup => ({ name, keys });
+/** The digits as a number pad: 7 8 9 / 4 5 6 / 1 2 3 / 0 and what follows it. */
+const numpad = (prefix: string, ...after: string[]): KeyGroup => ({
+	name: 'Číslice',
+	keys: [7, 8, 9, 4, 5, 6, 1, 2, 3, 0].map((d) => `${prefix}${d}`).concat(after),
+	columns: 3
+});
 
 const sym = (
 	id: string,
@@ -144,7 +159,7 @@ const TAB_ZAKLAD: TabDef = {
 		sym('cdot', '·', 'Krát tečkou', '\\cdot', ['nasobeni', 'krat', 'tecka']),
 		sym('colon-div', ':', 'Děleno dvěma tečkami', ':', ['deleno', 'pomer', 'ratio']),
 		sym('equals', '=', 'Rovná se', '=', ['rovna se']),
-		sym('lparen', '(', 'Levná závorka', '(', ['oteviraci zavorka']),
+		sym('lparen', '(', 'Levá závorka', '(', ['oteviraci zavorka', 'leva zavorka']),
 		sym('rparen', ')', 'Pravá závorka', ')', ['zaviraci zavorka']),
 		sym('pi', 'π', 'Pí', '\\pi', ['pi', 'pí']),
 		sym('percent', '%', 'Procento', '\\%', ['procenta']),
@@ -153,14 +168,17 @@ const TAB_ZAKLAD: TabDef = {
 		}),
 		sym('x', 'x', 'Písmeno x', 'x', ['x']),
 		sym('y', 'y', 'Písmeno y', 'y', ['y']),
-		tpl('frac', 'a/b', 'Zlomek', '\\frac{#@}{#?}', ['zlomek', 'deleno', 'fraction'], {
-			glyph: 'frac'
-		}),
-		tpl('power', 'x²', 'Mocnina', '#@^{#?}', ['mocnina', 'power', 'na druhou'], { glyph: 'power' }),
-		tpl('sqrt', '√', 'Odmocnina', '\\sqrt{#?}', ['odmocnina', 'sqrt', 'druhá odmocnina'], {
-			glyph: 'root'
-		}),
-		tpl('mixed', '2¾', 'Smíšené číslo', '#@\\frac{#?}{#@}', ['smisene cislo', 'mixed number'])
+		tpl('frac', 'a/b', 'Zlomek', '\\frac{#@}{#?}', ['zlomek', 'deleno', 'fraction']),
+		tpl('power', 'x²', 'Mocnina', '#@^{#?}', ['mocnina', 'power', 'na druhou']),
+		tpl('sqrt', '√', 'Odmocnina', '\\sqrt{#?}', ['odmocnina', 'sqrt', 'druhá odmocnina']),
+		tpl('mixed', '2¾', 'Smíšené číslo', '#@\\frac{#?}{#?}', ['smisene cislo', 'mixed number'])
+	],
+	groups: [
+		numpad('digit-', 'decimal-comma'),
+		group('Počty', 'plus', 'minus', 'cdot', 'colon-div', 'equals', 'lparen', 'rparen'),
+		group('Zlomky a mocniny', 'frac', 'power', 'sqrt', 'mixed'),
+		group('Procenta', 'percent', 'per-mille'),
+		group('Písmena', 'x', 'y', 'pi')
 	]
 };
 
@@ -202,59 +220,59 @@ const TAB_ALGEBRA: TabDef = {
 		sym('range', 'H(f)', 'Obor hodnot', 'H(f)', ['obor hodnot', 'range']),
 		sym('log', 'log', 'Logaritmus', '\\log #@', ['logaritmus']),
 		sym('ln', 'ln', 'Přirozený logaritmus', '\\ln #@', ['prirozeny logaritmus', 'ln']),
-		tpl(
-			'nth-root',
-			'ⁿ√',
-			'Obecná odmocnina',
-			'\\sqrt[#@]{#?}',
-			['odmocnina', 'n-ta odmocnina', 'sqrt'],
-			{
-				glyph: 'nth-root'
-			}
-		),
-		tpl('subscript', 'x₁', 'Index', '#@_{#?}', ['index', 'subscript', 'dolni index'], {
-			glyph: 'subscript'
-		}),
-		tpl('abs', '|x|', 'Absolutní hodnota', '\\lvert #@ \\rvert', ['absolutni hodnota', 'abs'], {
-			glyph: 'abs'
-		}),
+		tpl('nth-root', 'ⁿ√', 'Obecná odmocnina', '\\sqrt[#@]{#?}', [
+			'odmocnina',
+			'n-ta odmocnina',
+			'sqrt'
+		]),
+		tpl('subscript', 'x₁', 'Index', '#@_{#?}', ['index', 'subscript', 'dolni index']),
+		tpl('abs', '|x|', 'Absolutní hodnota', '\\lvert #@ \\rvert', ['absolutni hodnota', 'abs']),
 		tpl('log-base', 'logₐx', 'Logaritmus se základem', '\\log_{#@} #?', ['logaritmus se zakladem']),
-		tpl(
-			'interval-closed',
-			'⟨a;b⟩',
-			'Uzavřený interval',
-			'\\langle #@; #? \\rangle',
-			['interval', 'uzavreny', 'angle'],
-			{ glyph: 'interval' }
-		),
-		tpl('interval-open', '(a;b)', 'Otevřený interval', '(#@; #?)', ['interval', 'otevreny'], {
-			glyph: 'interval'
-		}),
-		tpl(
-			'interval-left-open',
-			'⟨a;b)',
-			'Interval otevřený vlevo',
-			'\\langle #@; #? )',
-			['interval', 'polouzavreny'],
-			{ glyph: 'interval' }
-		),
-		tpl(
-			'interval-right-open',
-			'(a;b⟩',
-			'Interval otevřený vpravo',
-			'(#@; #? \\rangle',
-			['interval', 'polouzavreny'],
-			{ glyph: 'interval' }
-		),
-		tpl(
+		tpl('interval-closed', '⟨a;b⟩', 'Uzavřený interval', '\\langle #@; #? \\rangle', [
+			'interval',
+			'uzavreny',
+			'angle'
+		]),
+		tpl('interval-open', '(a;b)', 'Otevřený interval', '(#@; #?)', ['interval', 'otevreny']),
+		tpl('interval-left-open', '⟨a;b)', 'Interval otevřený vlevo', '\\langle #@; #? )', [
+			'interval',
+			'polouzavreny'
+		]),
+		tpl('interval-right-open', '(a;b⟩', 'Interval otevřený vpravo', '(#@; #? \\rangle', [
+			'interval',
+			'polouzavreny'
+		]),
+		tpl('cases', '{…', 'Soustava rovnic', '\\begin{cases} #@ \\\\ #? \\end{cases}', [
+			'soustava',
 			'cases',
-			'{…',
-			'Soustava rovnic',
-			'\\begin{cases} #@ \\\\ #? \\end{cases}',
-			['soustava', 'cases', 'system'],
-			{ glyph: 'cases' }
-		),
+			'system'
+		]),
 		tpl('parens', '( )', 'Kulaté závorky', '\\left( #@ \\right)', ['zavorky', 'kulate zavorky'])
+	],
+	groups: [
+		group('Porovnání', 'lt', 'gt', 'le', 'ge', 'ne', 'doteq', 'pm'),
+		group(
+			'Číselné obory',
+			'nat',
+			'int',
+			'rat',
+			'real',
+			'complex',
+			'real-pos',
+			'real-nonneg',
+			'real-neg'
+		),
+		group(
+			'Intervaly',
+			'interval-closed',
+			'interval-open',
+			'interval-left-open',
+			'interval-right-open',
+			'infty'
+		),
+		group('Funkce', 'f-x', 'g-x', 'f-inv', 'domain', 'range'),
+		group('Logaritmy', 'log', 'ln', 'log-base', 'e'),
+		group('Výrazy', 'abs', 'nth-root', 'subscript', 'parens', 'cases')
 	]
 };
 
@@ -264,12 +282,8 @@ const TAB_GEOMETRIE: TabDef = {
 	label: '∢',
 	name: 'Geometrie a goniometrie',
 	keys: [
-		sym('measuredangle', '∢', 'Úhel', '\\measuredangle #@', ['uhel', 'measuredangle', 'angle'], {
-			glyph: 'angle'
-		}),
-		sym('triangle', '△', 'Trojúhelník', '\\triangle #@', ['trojuhelnik', 'triangle'], {
-			glyph: 'triangle'
-		}),
+		sym('measuredangle', '∢', 'Úhel', '\\measuredangle #@', ['uhel', 'measuredangle', 'angle']),
+		sym('triangle', '△', 'Trojúhelník', '\\triangle #@', ['trojuhelnik', 'triangle']),
 		sym('parallel', '∥', 'Rovnoběžné', '\\parallel', ['rovnobezne', 'parallel']),
 		sym('nparallel', '∦', 'Nerovnoběžné', '\\nparallel', ['nerovnobezne']),
 		sym('perp', '⊥', 'Kolmé', '\\perp', ['kolme', 'perpendicular']),
@@ -301,14 +315,11 @@ const TAB_GEOMETRIE: TabDef = {
 			'arkuskotangens',
 			'arccotg'
 		]),
-		tpl(
-			'segment-length',
-			'|AB|',
-			'Délka úsečky',
-			'\\lvert #@ \\rvert',
-			['delka usecky', 'abs', 'vzdalenost'],
-			{ glyph: 'abs' }
-		),
+		tpl('segment-length', '|AB|', 'Délka úsečky', '\\lvert #@ \\rvert', [
+			'delka usecky',
+			'abs',
+			'vzdalenost'
+		]),
 		tpl('overline', 'AB‾', 'Úsečka, oblouk, perioda', '\\overline{#@}', [
 			'preškrtnuto',
 			'usecka',
@@ -316,8 +327,8 @@ const TAB_GEOMETRIE: TabDef = {
 			'periodicke cislo',
 			'overline'
 		]),
-		tpl('vec', 'u⃗', 'Vektor', '\\vec{#@}', ['vektor', 'sipicka', 'vec'], { glyph: 'vector' }),
-		tpl('point', 'A[;]', 'Bod se souřadnicemi', '#@[#?; #@]', [
+		tpl('vec', 'u⃗', 'Vektor', '\\vec{#@}', ['vektor', 'sipicka', 'vec']),
+		tpl('point', 'A[;]', 'Bod se souřadnicemi', '#@[#?; #?]', [
 			'bod',
 			'souradnice',
 			'point',
@@ -327,10 +338,37 @@ const TAB_GEOMETRIE: TabDef = {
 			'souradnice vektoru',
 			'vektor 2d'
 		]),
-		tpl('vec-coords-3', '(u₁;u₂;u₃)', 'Souřadnice vektoru 3D', '(#@; #?; #@)', [
+		tpl('vec-coords-3', '(u₁;u₂;u₃)', 'Souřadnice vektoru 3D', '(#?; #?; #?)', [
 			'souradnice vektoru',
 			'vektor 3d'
 		])
+	],
+	groups: [
+		group('Úhly', 'measuredangle', 'degree', 'minute', 'second'),
+		group('Útvary a vztahy', 'triangle', 'parallel', 'nparallel', 'perp', 'cong', 'sim'),
+		group('Body a úsečky', 'point', 'segment-length', 'overline', 'mapsto'),
+		group('Vektory', 'vec', 'vec-coords-2', 'vec-coords-3', 'cdot-g', 'times-g'),
+		group(
+			'Goniometrické funkce',
+			'sin',
+			'cos',
+			'tg',
+			'cotg',
+			'arcsin',
+			'arccos',
+			'arctg',
+			'arccotg'
+		),
+		group(
+			'Řecká písmena',
+			'geo-alpha',
+			'geo-beta',
+			'geo-gamma',
+			'geo-delta',
+			'geo-phi',
+			'geo-omega',
+			'geo-pi'
+		)
 	]
 };
 
@@ -357,25 +395,28 @@ const TAB_MNOZINY: TabDef = {
 		sym('Leftrightarrow', '⇔', 'Ekvivalence', '\\Leftrightarrow', ['ekvivalence', 'iff', '⇔']),
 		sym('forall', '∀', 'Pro každé', '\\forall', ['pro kazde', 'for all', '∀']),
 		sym('exists', '∃', 'Existuje', '\\exists', ['existuje', 'exists', '∃']),
-		tpl('set-builder', '{x|…}', 'Množina zadaná podmínkou', '\\{#@; #@\\}', [
+		tpl('set-builder', '{x|…}', 'Množina zadaná podmínkou', '\\{#?; #?\\}', [
 			'mnozina',
 			'podminka',
 			'set builder',
 			'vycet podminky'
 		]),
-		tpl('set-list', '{…}', 'Množina výčtem prvků', '\\{#@, #@\\}', [
+		tpl('set-list', '{…}', 'Množina výčtem prvků', '\\{#?, #?\\}', [
 			'mnozina',
 			'vycet prvku',
 			'enumerated'
 		]),
-		tpl(
+		tpl('cardinality', '|M|', 'Mohutnost množiny', '\\lvert #@ \\rvert', [
+			'mohutnost',
 			'cardinality',
-			'|M|',
-			'Mohutnost množiny',
-			'\\lvert #@ \\rvert',
-			['mohutnost', 'cardinality', 'abs'],
-			{ glyph: 'abs' }
-		)
+			'abs'
+		])
+	],
+	groups: [
+		group('Prvky a podmnožiny', 'in', 'notin', 'subset', 'subseteq', 'nsubseteq'),
+		group('Operace', 'cup', 'cap', 'setminus', 'complement', 'emptyset'),
+		group('Zápis množin', 'set-builder', 'set-list', 'cardinality'),
+		group('Logika', 'wedge', 'vee', 'neg', 'Rightarrow', 'Leftrightarrow', 'forall', 'exists')
 	]
 };
 
@@ -398,48 +439,37 @@ const TAB_POKROCILE: TabDef = {
 		sym('dx', 'dx', 'Diferenciál dx', '\\mathrm{d}x', ['dx', 'diferencial']),
 		sym('approx', '≈', 'Přibližně rovno (≈)', '\\approx', ['priblizne', 'approx']),
 		sym('propto', '∝', 'Přímo úměrné', '\\propto', ['primo umerne', 'propto']),
-		tpl(
+		tpl('binom', '(n k)', 'Kombinační číslo „n nad k“', '\\binom{#@}{#?}', [
+			'n nad k',
+			'kombinacni cislo',
 			'binom',
-			'(n k)',
-			'Kombinační číslo „n nad k“',
-			'\\binom{#@}{#?}',
-			['n nad k', 'kombinacni cislo', 'binom', 'nad'],
-			{ glyph: 'binom' }
-		),
+			'nad'
+		]),
 		tpl('variation', 'V(k,n)', 'Variace', 'V(#@, #?)', ['variace', 'v', 'variation']),
 		tpl('combination', 'K(k,n)', 'Kombinace', 'K(#@, #?)', ['kombinace', 'k', 'combination']),
 		tpl('permutation', 'P(n)', 'Permutace', 'P(#@)', ['permutace', 'p']),
-		tpl('sum', 'Σ', 'Sumace', '\\sum_{#@}^{#?} #@', ['suma', 'soucet', 'sum', 'sigma'], {
-			glyph: 'sum'
-		}),
-		tpl('product', 'Π', 'Produkce', '\\prod_{#@}^{#?} #@', ['produkt', 'soucin', 'product'], {
-			glyph: 'product'
-		}),
+		tpl('sum', 'Σ', 'Součet (suma)', '\\sum_{#?}^{#?} #?', ['suma', 'soucet', 'sum', 'sigma']),
+		tpl('product', 'Π', 'Součin (produkt)', '\\prod_{#?}^{#?} #?', [
+			'produkt',
+			'soucin',
+			'product'
+		]),
 		tpl('seq-term', 'aₙ', 'Člen posloupnosti', 'a_{#@}', ['clen posloupnosti', 'a n']),
 		tpl('sequence', '(aₙ)', 'Posloupnost', '(a_{n})_{n=1}^{\\infty}', ['posloupnost', 'sequence']),
-		tpl('limit', 'lim', 'Limita', '\\lim_{#@ \\to #?} #@', ['limita', 'lim', 'limit'], {
-			glyph: 'limit'
-		}),
+		tpl('limit', 'lim', 'Limita', '\\lim_{#? \\to #?} #?', ['limita', 'lim', 'limit']),
 		tpl('derivative', 'f′(x)', 'Derivace', "#@'(#?)", ['derivace', 'derivative']),
 		tpl('derivative2', 'f″(x)', 'Druhá derivace', "#@''(#?)", ['druha derivace']),
-		tpl(
+		tpl('integral', '∫', 'Neurčitý integrál', '\\int #@ \\,\\mathrm{d}x', [
 			'integral',
-			'∫',
-			'Neurčitý integrál',
-			'\\int #@ \\,\\mathrm{d}x',
-			['integral', 'int', 'neurcity'],
-			{ glyph: 'integral' }
-		),
-		tpl(
-			'integral-def',
-			'∫ₐᵇ',
-			'Určitý integrál',
-			'\\int_{#@}^{#?} #@ \\,\\mathrm{d}x',
-			['urcity integral', 'definite'],
-			{ glyph: 'integral' }
-		),
+			'int',
+			'neurcity'
+		]),
+		tpl('integral-def', '∫ₐᵇ', 'Určitý integrál', '\\int_{#?}^{#?} #? \\,\\mathrm{d}x', [
+			'urcity integral',
+			'definite'
+		]),
 		tpl('conjugate', 'z̄', 'Komplexně sdružené', '\\bar{#@}', ['sdruzene', 'conjugate', 'carka']),
-		tpl('matrix-2', '2×2', 'Matice 2×2', '\\begin{pmatrix} #@ & #@ \\\\ #@ & #@ \\end{pmatrix}', [
+		tpl('matrix-2', '2×2', 'Matice 2×2', '\\begin{pmatrix} #? & #? \\\\ #? & #? \\end{pmatrix}', [
 			'matice',
 			'matrix',
 			'determinant',
@@ -449,9 +479,26 @@ const TAB_POKROCILE: TabDef = {
 			'matrix-3',
 			'3×3',
 			'Matice 3×3',
-			'\\begin{pmatrix} #@ & #@ & #@ \\\\ #@ & #@ & #@ \\\\ #@ & #@ & #@ \\end{pmatrix}',
+			'\\begin{pmatrix} #? & #? & #? \\\\ #? & #? & #? \\\\ #? & #? & #? \\end{pmatrix}',
 			['matice', 'matrix', 'determinant', '3x3']
 		)
+	],
+	groups: [
+		group('Kombinatorika', 'factorial', 'binom', 'variation', 'combination', 'permutation'),
+		group('Posloupnosti a řady', 'seq-term', 'sequence', 'sum', 'product'),
+		group(
+			'Limity, derivace, integrály',
+			'limit',
+			'derivative',
+			'derivative2',
+			'integral',
+			'integral-def',
+			'dx'
+		),
+		group('Komplexní čísla', 'imag-i', 're', 'im', 'conjugate'),
+		group('Statistika', 'prob', 'mean-x', 'sigma', 's2', 'mo', 'me'),
+		group('Matice', 'matrix-2', 'matrix-3'),
+		group('Vztahy', 'approx', 'propto')
 	]
 };
 
@@ -510,6 +557,47 @@ const TAB_RECKA: TabDef = {
 		),
 		...GREEK_UPPER.map(([id, label, name, insert, aliases]) =>
 			sym(id, label, name, insert, aliases)
+		)
+	],
+	groups: [
+		group(
+			'Malá písmena',
+			'gr-alpha',
+			'gr-beta',
+			'gr-gamma',
+			'gr-delta',
+			'gr-epsilon',
+			'gr-zeta',
+			'gr-eta',
+			'gr-theta',
+			'gr-iota',
+			'gr-kappa',
+			'gr-lambda',
+			'gr-mu',
+			'gr-nu',
+			'gr-xi',
+			'gr-omicron',
+			'gr-pi',
+			'gr-rho',
+			'gr-sigma',
+			'gr-tau',
+			'gr-upsilon',
+			'gr-phi',
+			'gr-chi',
+			'gr-psi',
+			'gr-omega'
+		),
+		group(
+			'Velká písmena',
+			'gr-Gamma',
+			'gr-Delta',
+			'gr-Theta',
+			'gr-Lambda',
+			'gr-Pi',
+			'gr-Sigma',
+			'gr-Phi',
+			'gr-Psi',
+			'gr-Omega'
 		)
 	]
 };
@@ -595,7 +683,7 @@ const TAB_FYZIKA: TabDef = {
 			'abs'
 		]),
 		tpl('delta', 'Δ', 'Změna', '\\Delta #@', ['změna', 'delta', 'rozdil']),
-		tpl('nuclide', '²³⁵₉₂U', 'Nuklid', '{}^{#@}_{#?}#@', ['nuklid', 'jadro', 'izotop']),
+		tpl('nuclide', '²³⁵₉₂U', 'Nuklid', '{}^{#?}_{#?}#?', ['nuklid', 'jadro', 'izotop']),
 		tpl('average', 'x̄', 'Průměrná hodnota', '\\bar{#@}', ['prumer', 'mean']),
 		...UNITS.map(([id, label, name, insert, aliases]) =>
 			sym(
@@ -641,6 +729,58 @@ const TAB_FYZIKA: TabDef = {
 		sym('f-nu', 'ν', 'Neutrino', '\\nu', ['neutrino']),
 		sym('f-beta-minus', 'β⁻', 'Beta záření (elektron)', '\\beta^{-}', ['beta minus']),
 		sym('f-beta-plus', 'β⁺', 'Beta plus (pozitron)', '\\beta^{+}', ['beta plus'])
+	],
+	groups: [
+		group(
+			'Zápis čísla a jednotky',
+			'sci-notation',
+			'sci-notation-x',
+			'number-unit',
+			'unit-of',
+			'u-cdot',
+			'u-slash',
+			'u-power',
+			'u-inv'
+		),
+		group(
+			'Jednotky',
+			'u-m',
+			'u-s',
+			'u-kg',
+			'u-g',
+			'u-N',
+			'u-J',
+			'u-W',
+			'u-Pa',
+			'u-V',
+			'u-A',
+			'u-ohm',
+			'u-Hz',
+			'u-K',
+			'u-degC',
+			'u-mol',
+			'u-l',
+			'u-C',
+			'u-T',
+			'u-eV',
+			'u-h',
+			'u-min'
+		),
+		group('Předpony', 'p-G', 'p-M', 'p-k', 'p-c', 'p-m', 'p-mu', 'p-n'),
+		group('Změna, průměr, vektor', 'delta', 'f-Delta', 'average', 'vec-f', 'vec-mag'),
+		group('Veličiny', 'f-lambda', 'f-rho', 'f-eta', 'f-omega', 'f-hbar', 'f-degree'),
+		group('Vztahy', 'f-doteq', 'f-sim', 'f-propto', 'f-to'),
+		group(
+			'Částice a jádra',
+			'nuclide',
+			'e-minus',
+			'p-plus',
+			'n-zero',
+			'f-gamma',
+			'f-nu',
+			'f-beta-minus',
+			'f-beta-plus'
+		)
 	]
 };
 
@@ -749,6 +889,38 @@ const TAB_CHEMIE: TabDef = {
 			outside: true
 		}),
 		sym('rate', 'v', 'Rychlost reakce', 'v', ['rychlost reakce'], { outside: true })
+	],
+	groups: [
+		numpad('cdigit-'),
+		group('Šipky', 'ce-arrow', 'ce-equilibrium', 'ce-resonance', 'ce-plus', 'ce-gas', 'ce-precip'),
+		group('Skupenství', 'ce-state-s', 'ce-state-l', 'ce-state-g', 'ce-state-aq'),
+		group(
+			'Náboje',
+			'ce-charge-plus',
+			'ce-charge-minus',
+			'ce-charge-2plus',
+			'ce-charge-2minus',
+			'ce-charge-3plus',
+			'ce-charge-3minus',
+			'ce-electron'
+		),
+		group(
+			'Oxidační čísla',
+			'ce-ox-I',
+			'ce-ox-II',
+			'ce-ox-III',
+			'ce-ox-IV',
+			'ce-ox-V',
+			'ce-ox-VI',
+			'ce-ox-VII',
+			'ce-ox-VIII',
+			'ce-ox-mI',
+			'ce-ox-mII',
+			'ce-ox-mIII',
+			'ce-ox-mIV'
+		),
+		group('Hydráty a závorky', 'ce-hydrate', 'ce-bracket-l', 'ce-bracket-r'),
+		group('Veličiny', 'ph', 'c-n-V', 'k-eq', 'kc', 'ka', 'rate')
 	]
 };
 

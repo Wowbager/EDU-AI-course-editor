@@ -12,9 +12,10 @@ export interface MathOptions {
 	onEdit: (pos: number) => void;
 }
 
-type Katex = typeof import('katex').default;
+export type Katex = typeof import('katex').default;
 let katex: Promise<Katex> | null = null;
-function loadKatex(): Promise<Katex> {
+/** KaTeX with mhchem and its stylesheet, loaded once, the first time a formula is drawn. */
+export function loadKatex(): Promise<Katex> {
 	katex ??= Promise.all([
 		import('katex'),
 		// mhchem (`\ce{}`, the chemistry formulas): KaTeX ships it as a contrib extension;

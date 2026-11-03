@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 import katex from 'katex';
 import 'katex/contrib/mhchem';
 import { validateLatex } from 'mathlive/ssr';
-import { ALL_KEYS, FIXED_KEYS, PROFILES, TABS, TAB_BY_ID } from './keypad-data';
+import { ALL_KEYS, FIXED_KEYS, PROFILES, TABS, TAB_BY_ID, keyFace } from './keypad-data';
 import { ACCEPTANCE } from './acceptance-rows';
 import { replaceSlots, toAppLatex } from '$lib/domain/app-latex';
 
@@ -66,6 +66,22 @@ describe('keypad data invariants (§4.1)', () => {
 	it('ids are unique across all tabs', () => {
 		const ids = ALL_KEYS.map((k) => k.id);
 		expect(new Set(ids).size).toBe(ids.length);
+	});
+	it('every key of a tab is in exactly one of its groups, and no group is empty', () => {
+		for (const tab of TABS) {
+			const grouped = tab.groups.flatMap((g) => g.keys);
+			expect([...grouped].sort(), tab.id).toEqual(tab.keys.map((k) => k.id).sort());
+			for (const g of tab.groups) {
+				expect(g.name.trim(), tab.id).not.toBe('');
+				expect(g.keys.length, `${tab.id}: ${g.name}`).toBeGreaterThan(0);
+			}
+		}
+	});
+	it('a template takes what was typed before it into one box at most', () => {
+		// MathLive fills every `#@` with what precedes the caret: `2x` then a 2×2 matrix
+		// was a matrix of four `2x`.
+		for (const key of ALL_KEYS)
+			expect((key.insert.match(/#@/g) ?? []).length, key.id).toBeLessThan(2);
 	});
 	it('every key has a Czech name and at least one alias word', () => {
 		for (const key of ALL_KEYS) {
@@ -134,4 +150,20 @@ describe('a template left empty draws its boxes in the text', () => {
 			expect(html).toContain('math-slot');
 		});
 	}
+});
+
+describe('every template key draws its own shape, with a box for each slot', () => {
+	for (const key of ALL_KEYS.filter((k) => keyFace(k) !== null)) {
+		it(`${key.id} — ${key.name}`, () => {
+			const html = katex.renderToString(keyFace(key)!, {
+				throwOnError: true,
+				trust: ({ command }) => command === '\\htmlClass'
+			});
+			if (/#[@?0]/.test(key.insert)) expect(html).toContain('key-slot');
+		});
+	}
+	it('draws the vector as an arrow over a box, never a font’s combining mark', () => {
+		const vec = ALL_KEYS.find((k) => k.id === 'vec')!;
+		expect(keyFace(vec)).toBe('\\vec{\\htmlClass{key-slot}{\\square}}');
+	});
 });
