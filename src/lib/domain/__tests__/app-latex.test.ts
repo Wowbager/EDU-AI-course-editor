@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toAppLatex, withSlots } from '../app-latex';
+import { toAppLatex, withSlots, withAppLimits } from '../app-latex';
 
 describe('toAppLatex', () => {
 	it('writes the empty boxes still to fill as nothing the app draws', () => {
@@ -121,5 +121,22 @@ describe('withSlots', () => {
 	it('leaves LaTeX empty groups, escaped braces and full formulas alone', () => {
 		for (const latex of ['{}^{14}_{6}\\mathrm{C}', '3{,}14', '\\{1;2\\}', '\\frac{1}{2}', 'a\\\\b'])
 			expect(withSlots(latex)).toBe(latex);
+	});
+});
+
+describe('withAppLimits', () => {
+	it('puts the limits of lim and its kin under the name, as the app does', () => {
+		expect(withAppLimits('\\lim_{x \\to 0} f')).toBe('\\lim\\limits_{x \\to 0} f');
+		expect(withAppLimits('\\max_{i} a_i')).toBe('\\max\\limits_{i} a_i');
+	});
+	it('leaves sums, a written choice and a bare name alone', () => {
+		for (const latex of [
+			'\\sum_{i}^{n} i',
+			'\\lim\\nolimits_{x}',
+			'\\lim\\limits_{x}',
+			'\\lim x',
+			'\\limsup_x'
+		])
+			expect(withAppLimits(latex)).toBe(latex);
 	});
 });
