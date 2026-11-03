@@ -77,8 +77,14 @@ export function replaceSlots(latex: string, box: string): string {
 	});
 }
 
-/** `{ }`; `{}` right after a command, `}`, `]`, `^` or `_`; `[]` right after `\sqrt`. */
-const SLOT = /\{ \}|(?<=\\[a-zA-Z]+|[}\]^_])\{\}|(?<=\\sqrt)\[\]/g;
+/**
+ * - `{ }`, except as the argument of a text command: `\text{ }` is a space as written.
+ * - `{}` right after `^` or `_`, or after a command, `}` or `]` — unless a `^` or `_`
+ *   follows: `\mathrm{H}{}_2` is an empty base written on purpose (a box there is `{ }`).
+ * - `[]` right after `\sqrt`.
+ */
+const SLOT =
+	/(?<!\\(?:text|textrm|textit|textbf|mbox|mathrm|mathit|mathbf|operatorname))\{ \}|(?<=[\^_])\{\}|(?<=\\[a-zA-Z]+|[}\]])\{\}(?![\^_])|(?<=\\sqrt)\[\]/g;
 
 /** The formula as the visual editor should open it: every empty box fillable again. */
 export function withSlots(latex: string): string {

@@ -97,6 +97,10 @@ describe('withSlots', () => {
 		expect(withSlots('\\frac{1}{}')).toBe('\\frac{1}{\\placeholder{}}');
 		expect(withSlots('x^{}')).toBe('x^{\\placeholder{}}');
 	});
+	it('leaves a spaced text and an empty base written on purpose alone', () => {
+		for (const latex of ['a\\text{ }b', '\\mathrm{ }', '\\mathrm{H}{}_2', '\\mathrm{C}{}^{14}'])
+			expect(withSlots(latex)).toBe(latex);
+	});
 	it('leaves LaTeX empty groups, escaped braces and full formulas alone', () => {
 		for (const latex of ['{}^{14}_{6}\\mathrm{C}', '3{,}14', '\\{1;2\\}', '\\frac{1}{2}', 'a\\\\b'])
 			expect(withSlots(latex)).toBe(latex);
