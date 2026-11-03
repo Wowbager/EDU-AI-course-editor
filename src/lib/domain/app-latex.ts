@@ -66,28 +66,123 @@ export function toAppLatex(latex: string): string {
 
 /**
  * The empty boxes `toAppLatex` wrote, found again: `{ }`, an empty argument of a
- * command (`\frac{1}{}`, `\vec{}`, `x^{}`) and an empty `\sqrt[]`. A bare `{}` that
- * follows no command, like the base of `{}^{14}_{6}C`, is LaTeX's empty group, not a box.
- * `box` is what each one becomes.
+ * command (`\frac{1}{}`, `\vec{}`, `x^{}`) and an empty `\sqrt[]`. A bare `{}` that is
+ * no command's argument, like the base of `{}^{14}_{6}C` or `\mathrm{H}{}_2`, is LaTeX's
+ * empty group, not a box. `box` is what each one becomes.
  */
 export function replaceSlots(latex: string, box: string): string {
-	return latex.replace(SLOT, (slot) => {
+	const args = emptyArguments(latex);
+	return latex.replace(SLOT, (slot, offset: number) => {
 		if (slot === '{ }') return box;
+		if (slot === '{}' && !isSlotAt(latex, offset, args)) return slot;
 		return slot.startsWith('[') ? `[${box}]` : `{${box}}`;
 	});
+}
+
+/** Commands whose arguments the keypad and MathLive fill: an empty one is a box. */
+const TAKES_ARGUMENTS = new Set([
+	'frac',
+	'dfrac',
+	'tfrac',
+	'cfrac',
+	'binom',
+	'dbinom',
+	'tbinom',
+	'overset',
+	'underset',
+	'stackrel',
+	'sqrt',
+	'vec',
+	'bar',
+	'overline',
+	'underline',
+	'overrightarrow',
+	'overleftarrow',
+	'overleftrightarrow',
+	'hat',
+	'widehat',
+	'tilde',
+	'widetilde',
+	'dot',
+	'ddot',
+	'boxed',
+	'cancel',
+	'mathrm',
+	'mathit',
+	'mathbf',
+	'mathsf',
+	'mathtt',
+	'mathbb',
+	'mathcal',
+	'boldsymbol',
+	'operatorname',
+	'text',
+	'ce',
+	'pu',
+	'xrightarrow',
+	'xleftarrow'
+]);
+
+/** How many `{…}` arguments a command reads, where it is more than one. */
+const ARITY: Record<string, number> = {
+	frac: 2,
+	dfrac: 2,
+	tfrac: 2,
+	cfrac: 2,
+	binom: 2,
+	dbinom: 2,
+	tbinom: 2,
+	overset: 2,
+	underset: 2,
+	stackrel: 2
+};
+
+/**
+ * Where an empty `{}` is an argument of a command that takes arguments: every
+ * argument of `\frac{a}{}`, so `\frac{a}{}^2` keeps its denominator box though
+ * `\mathrm{H}{}_2`, which reads the same to a pattern, is an empty base.
+ */
+function emptyArguments(latex: string): Set<number> {
+	const found = new Set<number>();
+	const command = /\\([a-zA-Z]+)/g;
+	for (let m = command.exec(latex); m; m = command.exec(latex)) {
+		if (!TAKES_ARGUMENTS.has(m[1])) continue;
+		let at = m.index + m[0].length;
+		if (m[1] === 'sqrt' && latex[at] === '[') at = skipGroup(latex, at, '[', ']');
+		for (let n = 0; n < (ARITY[m[1]] ?? 1); n += 1) {
+			while (latex[at] === ' ') at += 1;
+			if (latex[at] !== '{') break;
+			if (latex.startsWith('{}', at)) found.add(at);
+			at = skipGroup(latex, at, '{', '}');
+		}
+	}
+	return found;
+}
+
+/** The index just past the balanced group that opens at `at`. */
+function skipGroup(latex: string, at: number, open: string, close: string): number {
+	let depth = 0;
+	for (let i = at; i < latex.length; i += 1) {
+		if (latex[i] === '\\') i += 1;
+		else if (latex[i] === open) depth += 1;
+		else if (latex[i] === close && --depth === 0) return i + 1;
+	}
+	return latex.length;
+}
+
+/** `{}` after `^` or `_` is always a box; after a command or a group, only as an argument. */
+function isSlotAt(latex: string, offset: number, args: Set<number>): boolean {
+	return /[\^_]/.test(latex[offset - 1] ?? '') || args.has(offset);
 }
 
 /**
  * - `{ }`, except as the argument of a text or font command: `\text{ }` is a space as
  *   written.
- * - `{}` right after `^`, `_` or a command (`x^{}`, `\vec{}_x`).
- * - `{}` right after `}` or `]` (`\frac{1}{}`), unless a `^` or `_` follows:
- *   `\mathrm{H}{}_2` is an empty base written on purpose (a box there is `{ }`). An
- *   empty denominator with an exponent, `\frac{a}{}^2`, reads the same and stays empty.
+ * - `{}` that is an argument (`x^{}`, `\vec{}_x`, `\frac{1}{}^2`), see `emptyArguments`.
  * - `[]` right after `\sqrt`.
  */
 const SLOT =
-	/(?<!\\(?:text|textrm|textit|textbf|textsf|texttt|mbox|mathrm|mathit|mathbf|mathsf|mathtt|mathbb|mathcal|boldsymbol|operatorname))\{ \}|(?<=[\^_]|\\[a-zA-Z]+)\{\}|(?<=[}\]])\{\}(?![\^_])|(?<=\\sqrt)\[\]/g;
+	/(?<!\\(?:text|textrm|textit|textbf|textsf|texttt|mbox|mathrm|mathit|mathbf|mathsf|mathtt|mathbb|mathcal|boldsymbol|operatorname))\{ \}|\{\}|(?<=\\sqrt)\[\]/g;
 
 /** The formula as the visual editor should open it: every empty box fillable again. */
 export function withSlots(latex: string): string {
