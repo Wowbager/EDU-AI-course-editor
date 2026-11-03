@@ -206,6 +206,20 @@ test('a formula is typed without LaTeX, and the LaTeX is there for who wants it'
 	expect(await markdownOf(page)).toBe('$x\\not=10$');
 });
 
+test('a keypad the teacher hid stays hidden after the LaTeX view', async ({ page }) => {
+	await text(page).click();
+	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
+	await formulaReady(page);
+	const keypad = page.getByRole('group', { name: 'Klávesnice se značkami' });
+	await expect(keypad).toBeVisible();
+	await page.getByRole('button', { name: 'Klávesnice se značkami' }).click();
+	await expect(keypad).toHaveCount(0);
+	await formulaMenu(page, 'Upravit jako LaTeX');
+	await formulaMenu(page, 'Upravit vizuálně');
+	await formulaReady(page);
+	await expect(keypad).toHaveCount(0);
+});
+
 test("the keypad's icon keys keep their icon centred inside the key", async ({ page }) => {
 	await text(page).click();
 	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();

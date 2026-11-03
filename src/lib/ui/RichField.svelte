@@ -362,10 +362,13 @@
 		searchOpen = false;
 	}
 
+	/** Whether the keypad was open when the LaTeX view took its place. */
+	let keypadBeforeLatex = true;
 	function setLatexMode(on: boolean) {
+		// Back in the visual field, the keypad is as the teacher left it.
+		if (on) keypadBeforeLatex = keyboardOpen;
 		closeKeyboard();
-		// Back in the visual field, the keypad is back with it.
-		keyboardOpen = !on;
+		keyboardOpen = !on && keypadBeforeLatex;
 		latexMode = on;
 		// The visual field focuses itself once it is mounted.
 		if (on) queueMicrotask(() => mathInput?.focus());

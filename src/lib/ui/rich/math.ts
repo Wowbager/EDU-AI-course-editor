@@ -22,7 +22,14 @@ export function loadKatex(): Promise<Katex> {
 		// it registers itself on the same KaTeX instance.
 		import('katex/contrib/mhchem'),
 		import('katex/dist/katex.min.css')
-	]).then(([module]) => module.default);
+	]).then(
+		([module]) => module.default,
+		(error) => {
+			// A dropped connection: the next formula tries again.
+			katex = null;
+			throw error;
+		}
+	);
 	return katex;
 }
 
