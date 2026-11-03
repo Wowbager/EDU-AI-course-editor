@@ -39,10 +39,11 @@ test('writing a text, a formula and an image', async ({ page }) => {
 		)
 		.toBe(true);
 	await page.keyboard.type('x^2');
-	await expectAccessible(page, 'the formula row');
-	await page.getByRole('button', { name: 'Klávesnice se značkami' }).click();
 	await expect(page.getByRole('group', { name: 'Klávesnice se značkami' })).toBeVisible();
 	await expectAccessible(page, 'the formula row with its keyboard');
+	await page.getByRole('button', { name: 'Klávesnice se značkami' }).click();
+	await expect(page.getByRole('group', { name: 'Klávesnice se značkami' })).toHaveCount(0);
+	await expectAccessible(page, 'the formula row');
 	await page.locator('math-field').focus();
 	await page.keyboard.press('Enter');
 	await page.getByRole('button', { name: 'Obrázek', exact: true }).first().click();

@@ -171,15 +171,19 @@ test('a formula is typed without LaTeX, and the LaTeX is there for who wants it'
 	await page.keyboard.type('+x');
 	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec \\frac12+x');
 
-	// The row is the formula, its keyboard, ⋯ and Hotovo: nothing else until asked.
+	// The on-screen keyboard is open inside the row from the start; ⌨ hides it. Without it
+	// the row is the formula, ⌨, ⋯ and Hotovo: nothing else until asked.
 	const row = page.getByRole('group', { name: 'Vzorec' });
+	const keypadButton = page.getByRole('button', { name: 'Klávesnice se značkami' });
+	await expect(keypadButton).toHaveAttribute('aria-pressed', 'true');
+	await keypadButton.click();
+	await expect(row.getByRole('group', { name: 'Klávesnice se značkami' })).toHaveCount(0);
 	await expect(row.getByRole('button')).toHaveText(['', '', 'Hotovo']);
 	await expect(row.getByRole('textbox', { name: 'Vzorec v LaTeXu' })).toHaveCount(0);
 	await expect(row.getByRole('checkbox')).toHaveCount(0);
 
-	// The on-screen keyboard opens inside the row, types into the formula and leaves the
-	// row open.
-	await page.getByRole('button', { name: 'Klávesnice se značkami' }).click();
+	// Shown again, it types into the formula and leaves the row open.
+	await keypadButton.click();
 	await row.getByRole('button', { name: 'Číslice 7', exact: true }).click();
 	await expect(text(page).locator('.math')).toHaveAttribute('aria-label', 'Vzorec \\frac12+x7');
 	await expect(formula(page)).toBeVisible();
@@ -206,7 +210,6 @@ test("the keypad's icon keys keep their icon centred inside the key", async ({ p
 	await text(page).click();
 	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
 	await formulaReady(page);
-	await page.getByRole('button', { name: 'Klávesnice se značkami' }).click();
 	const keypad = page.getByRole('group', { name: 'Klávesnice se značkami' });
 	await expect(keypad).toBeVisible();
 	// The command keys (delete, arrows, enter): their icon must sit inside the button,
