@@ -1003,9 +1003,9 @@
 		text-align: center;
 		margin: 0.3em 0;
 	}
-	/* An empty box of a template, still to fill. */
+	/* An empty box of a template, still to fill: in the accent, so it reads as a gap. */
 	.surface :global(.math .math-slot) {
-		color: var(--e-text-muted);
+		color: var(--e-accent-text);
 	}
 	.surface :global(.math-empty),
 	.surface :global(.math-error) {
