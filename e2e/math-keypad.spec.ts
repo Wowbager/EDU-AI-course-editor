@@ -264,3 +264,15 @@ test('a template left empty can still be filled after the formula is closed', as
 	await page.keyboard.type('u');
 	await storedLatex(page, '\\vec{u}');
 });
+
+test('keys sit in named groups, and a template key draws its own shape', async ({ page }) => {
+	const keypad = await openKeypad(page);
+	await tab(keypad, 'Geometrie a goniometrie');
+	const vectors = keypad.getByRole('group', { name: 'Vektory', exact: true });
+	const vector = vectors.getByRole('button', { name: 'Vektor', exact: true });
+	// An arrow over a box, drawn by KaTeX — not a font's combining arrow on a letter.
+	await expect(vector.locator('.katex .key-slot')).toHaveCount(1);
+	await expect(vector).not.toContainText('u\u20d7');
+	await vector.click();
+	await storedLatex(page, '\\vec{}');
+});
