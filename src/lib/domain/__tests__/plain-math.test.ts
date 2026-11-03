@@ -71,12 +71,13 @@ describe('plainMath: commands it has no rule for', () => {
 		expect(plainMath('\\tfrac{1}{2}')).toBe('1/2');
 		expect(plainMath('\\binom{n}{k}')).toBe('(n nad k)');
 	});
-	it('keeps & and a double backslash outside a matrix', () => {
+	it('keeps & outside a matrix, and reads a line break as a space', () => {
 		expect(plainMath('Tom & Jerry')).toBe('Tom & Jerry');
 		expect(plainMath('Zlomky & desetinná čísla')).toBe('Zlomky & desetinná čísla');
 		expect(plainMath('a \\\\ b')).toBe('a b');
 		expect(plainMath('\\begin{cases}\\begin{matrix}a&b\\end{matrix}&x\\end{cases}')).toBe('a b x');
 		expect(plainMath('\\begin{aligned}x')).toBe('x');
+		expect(plainMath('Tom & Jerry $\\begin{matrix}a&b\\end{matrix}$')).toBe('Tom & Jerry a b');
 	});
 	it('subscripts digits', () => {
 		expect(plainMath('a_{12} + x_1')).toBe('a₁₂ + x₁');

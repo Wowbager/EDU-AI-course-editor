@@ -233,12 +233,20 @@ export function plainMath(text: string): string {
 		.replace(/\\[()[\]]/g, '')
 		.replace(/\$+/g, '')
 		.replace(/\\(?:left|right)(?![a-zA-Z])\s*/g, '')
-		// A matrix or cases block: its cells side by side. `&` with no block is text.
-		.replace(/&/g, (amp) => (/\\begin(?![a-zA-Z])/.test(text) ? ' ' : amp))
-		.replace(/\\(?:begin|end)\s*\{[^{}]*\}/g, ' ')
 		.replace(/\\\\/g, ' ')
-
 		.replace(/\\(?:limits|nolimits)(?![a-zA-Z])/g, '');
+
+	// A matrix or cases block: its cells side by side, innermost block first. An `&`
+	// outside every block is text ("Tom & Jerry"), and a tag left unpaired is dropped.
+	for (let guard = 0; guard < 20; guard += 1) {
+		const before = out;
+		out = out.replace(
+			/\\begin\s*\{[^{}]*\}((?:(?!\\begin(?![a-zA-Z]))[\s\S])*?)\\end\s*\{[^{}]*\}/,
+			(_, body: string) => ` ${body.replace(/&/g, ' ')} `
+		);
+		if (out === before) break;
+	}
+	out = out.replace(/\\(?:begin|end)\s*\{[^{}]*\}/g, ' ');
 
 	// Innermost first: a group with no braces inside is complete, so repeat until nothing
 	// is left to fold. That handles nesting without a parser.
