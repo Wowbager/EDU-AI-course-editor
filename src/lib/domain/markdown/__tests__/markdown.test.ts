@@ -56,6 +56,12 @@ describe('reading Markdown the way the app does', () => {
 		);
 	});
 
+	it('writes a formula still empty as nothing, never as two dollar signs', () => {
+		const empty = (display: boolean) => ({ type: 'math', attrs: { latex: '', display } });
+		expect(serializeMarkdown(p(text('Plocha '), empty(false)), SNIFFED)).toBe('Plocha');
+		expect(serializeMarkdown(p(empty(true)), SNIFFED)).toBe('');
+	});
+
 	it('reads $$…$$ before $…$, across lines', () => {
 		const math = parse('$$\\frac{a}{b}\n= c$$').content?.[0].content?.[0];
 		expect(math).toEqual({ type: 'math', attrs: { latex: '\\frac{a}{b}\n= c', display: true } });
