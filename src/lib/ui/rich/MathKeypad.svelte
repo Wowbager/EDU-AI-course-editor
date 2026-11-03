@@ -179,7 +179,11 @@
 	/** Key faces drawn by KaTeX (`keyFace`), once it has loaded; the text label until then. */
 	let katex = $state<Katex | null>(null);
 	onMount(() => {
-		void loadKatex().then((k) => (katex = k));
+		// Without KaTeX (a dropped connection) the keys keep their text labels.
+		loadKatex().then(
+			(k) => (katex = k),
+			() => {}
+		);
 	});
 	const faces = new Map<string, string>();
 	function faceHtml(key: KeyDef): string | null {
@@ -225,6 +229,7 @@
 					class:on={tab.id === t.id}
 					aria-pressed={tab.id === t.id}
 					aria-label={t.name}
+					title={t.name}
 					onmousedown={keepFocus}
 					onclick={() => {
 						tabId = t.id;
@@ -321,8 +326,7 @@
 		{/if}
 
 		<div class="keypad-zones">
-			{#each groupsOf(tab) as g, i (g.name)}
-				{#if i > 0}<span class="keypad-sep" aria-hidden="true"></span>{/if}
+			{#each groupsOf(tab) as g (g.name)}
 				<div class="keypad-group" role="group" aria-label={g.name}>
 					<span class="keypad-group-name" aria-hidden="true">{g.name}</span>
 					<div
@@ -509,14 +513,13 @@
 		font-size: var(--text-s);
 		color: var(--e-text-muted);
 	}
-	/* Named groups side by side, each 4 rows deep; the keypad pages horizontally when
-	   the row is too narrow for all their columns (§4.1). */
+	/* Named groups side by side, each 4 rows deep; a group that does not fit goes on the
+	   next line, so every group of the tab is in sight (§4.1). */
 	.keypad-zones {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: flex-start;
-		gap: 4px;
-		overflow-x: auto;
-		/* Let the zones page horizontally instead of stretching the keypad past the row. */
+		gap: 8px 14px;
 		min-width: 0;
 	}
 	.keypad-group {
@@ -543,12 +546,6 @@
 	.keypad-zone.pad {
 		grid-auto-flow: row;
 		grid-template-rows: none;
-	}
-	.keypad-sep {
-		width: 1px;
-		align-self: stretch;
-		margin: 3px 2px;
-		background: var(--e-border);
 	}
 	/* One key: the glyph centred by flex, whatever it is — text or icon. Touch target
 	   is at least 44×44 px (§7). */

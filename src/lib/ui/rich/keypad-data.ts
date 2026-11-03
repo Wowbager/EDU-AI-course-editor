@@ -414,8 +414,8 @@ const TAB_MNOZINY: TabDef = {
 	],
 	groups: [
 		group('Prvky a podmnožiny', 'in', 'notin', 'subset', 'subseteq', 'nsubseteq'),
-		group('Operace', 'cup', 'cap', 'setminus', 'complement', 'emptyset'),
-		group('Zápis množin', 'set-builder', 'set-list', 'cardinality'),
+		group('Operace', 'cup', 'cap', 'setminus', 'complement'),
+		group('Zápis množin', 'set-builder', 'set-list', 'cardinality', 'emptyset'),
 		group('Logika', 'wedge', 'vee', 'neg', 'Rightarrow', 'Leftrightarrow', 'forall', 'exists')
 	]
 };
@@ -834,38 +834,38 @@ const TAB_CHEMIE: TabDef = {
 		sym('ce-charge-2minus', 'x²⁻', 'Náboj 2−', '^{2-}', ['naboj 2 minus'], { note: CE_NOTE }),
 		sym('ce-charge-3plus', 'x³⁺', 'Náboj 3+', '^{3+}', ['naboj 3 plus'], { note: CE_NOTE }),
 		sym('ce-charge-3minus', 'x³⁻', 'Náboj 3−', '^{3-}', ['naboj 3 minus'], { note: CE_NOTE }),
-		sym('ce-ox-I', '^I', 'Oxidační číslo I', '^{I}', ['oxidacni cislo', 'jedna'], {
+		sym('ce-ox-I', 'I', 'Oxidační číslo I', '^{I}', ['oxidacni cislo', 'jedna'], {
 			note: CE_NOTE
 		}),
-		sym('ce-ox-II', '^II', 'Oxidační číslo II', '^{II}', ['oxidacni cislo', 'dve'], {
+		sym('ce-ox-II', 'II', 'Oxidační číslo II', '^{II}', ['oxidacni cislo', 'dve'], {
 			note: CE_NOTE
 		}),
-		sym('ce-ox-III', '^III', 'Oxidační číslo III', '^{III}', ['oxidacni cislo', 'tri'], {
+		sym('ce-ox-III', 'III', 'Oxidační číslo III', '^{III}', ['oxidacni cislo', 'tri'], {
 			note: CE_NOTE
 		}),
-		sym('ce-ox-IV', '^IV', 'Oxidační číslo IV', '^{IV}', ['oxidacni cislo', 'ctyri'], {
+		sym('ce-ox-IV', 'IV', 'Oxidační číslo IV', '^{IV}', ['oxidacni cislo', 'ctyri'], {
 			note: CE_NOTE
 		}),
-		sym('ce-ox-V', '^V', 'Oxidační číslo V', '^{V}', ['oxidacni cislo', 'pet'], { note: CE_NOTE }),
-		sym('ce-ox-VI', '^VI', 'Oxidační číslo VI', '^{VI}', ['oxidacni cislo', 'sest'], {
+		sym('ce-ox-V', 'V', 'Oxidační číslo V', '^{V}', ['oxidacni cislo', 'pet'], { note: CE_NOTE }),
+		sym('ce-ox-VI', 'VI', 'Oxidační číslo VI', '^{VI}', ['oxidacni cislo', 'sest'], {
 			note: CE_NOTE
 		}),
-		sym('ce-ox-VII', '^VII', 'Oxidační číslo VII', '^{VII}', ['oxidacni cislo', 'sedm'], {
+		sym('ce-ox-VII', 'VII', 'Oxidační číslo VII', '^{VII}', ['oxidacni cislo', 'sedm'], {
 			note: CE_NOTE
 		}),
-		sym('ce-ox-VIII', '^VIII', 'Oxidační číslo VIII', '^{VIII}', ['oxidacni cislo', 'osm'], {
+		sym('ce-ox-VIII', 'VIII', 'Oxidační číslo VIII', '^{VIII}', ['oxidacni cislo', 'osm'], {
 			note: CE_NOTE
 		}),
-		sym('ce-ox-mI', '^−I', 'Oxidační číslo −I', '^{-I}', ['oxidacni cislo minus jedna'], {
+		sym('ce-ox-mI', '−I', 'Oxidační číslo −I', '^{-I}', ['oxidacni cislo minus jedna'], {
 			note: CE_NOTE
 		}),
-		sym('ce-ox-mII', '^−II', 'Oxidační číslo −II', '^{-II}', ['oxidacni cislo minus dve'], {
+		sym('ce-ox-mII', '−II', 'Oxidační číslo −II', '^{-II}', ['oxidacni cislo minus dve'], {
 			note: CE_NOTE
 		}),
-		sym('ce-ox-mIII', '^−III', 'Oxidační číslo −III', '^{-III}', ['oxidacni cislo minus tri'], {
+		sym('ce-ox-mIII', '−III', 'Oxidační číslo −III', '^{-III}', ['oxidacni cislo minus tri'], {
 			note: CE_NOTE
 		}),
-		sym('ce-ox-mIV', '^−IV', 'Oxidační číslo −IV', '^{-IV}', ['oxidacni cislo minus ctyri'], {
+		sym('ce-ox-mIV', '−IV', 'Oxidační číslo −IV', '^{-IV}', ['oxidacni cislo minus ctyri'], {
 			note: CE_NOTE
 		}),
 		sym('ce-electron', 'e⁻', 'Elektron', 'e^{-}', ['elektron'], { note: CE_NOTE }),
