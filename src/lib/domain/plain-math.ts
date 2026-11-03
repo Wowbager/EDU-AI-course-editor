@@ -237,11 +237,12 @@ export function plainMath(text: string): string {
 		.replace(/\\(?:limits|nolimits)(?![a-zA-Z])/g, '');
 
 	// A matrix or cases block: its cells side by side, innermost block first. An `&`
-	// outside every block is text ("Tom & Jerry"), and a tag left unpaired is dropped.
-	for (let guard = 0; guard < 20; guard += 1) {
+	// outside every block is text ("Tom & Jerry"). A `\begin` never closed (a formula
+	// still being typed) runs to the end; an `\end` left unpaired is dropped.
+	for (let guard = 0; guard < 50; guard += 1) {
 		const before = out;
 		out = out.replace(
-			/\\begin\s*\{[^{}]*\}((?:(?!\\begin(?![a-zA-Z]))[\s\S])*?)\\end\s*\{[^{}]*\}/,
+			/\\begin\s*\{[^{}]*\}((?:(?!\\begin(?![a-zA-Z]))[\s\S])*?)(?:\\end\s*\{[^{}]*\}|$)/g,
 			(_, body: string) => ` ${body.replace(/&/g, ' ')} `
 		);
 		if (out === before) break;
