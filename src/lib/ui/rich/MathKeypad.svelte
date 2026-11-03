@@ -513,16 +513,37 @@
 		font-size: var(--text-s);
 		color: var(--e-text-muted);
 	}
-	/* Named groups side by side, each 4 rows deep; a group that does not fit goes on the
-	   next line, so every group of the tab is in sight (§4.1). */
+	/* Named groups side by side, each 4 rows deep, in one row that scrolls sideways when
+	   the tab has more than fits (§4.1). The scrollbar stays visible and a shadow sits
+	   on the edge that has more keys behind it, so a group off screen is never a secret
+	   (scroll shadows: the covers move with the content, the shadows stay at the edges). */
 	.keypad-zones {
 		display: flex;
-		flex-wrap: wrap;
 		align-items: flex-start;
-		gap: 8px 14px;
+		gap: 14px;
 		min-width: 0;
+		overflow-x: auto;
+		padding-bottom: 6px;
+		scrollbar-width: thin;
+		scrollbar-color: var(--e-border-strong) transparent;
+		background:
+			linear-gradient(to right, var(--surface), var(--surface)) left / 24px 100% no-repeat local,
+			linear-gradient(to left, var(--surface), var(--surface)) right / 24px 100% no-repeat local,
+			radial-gradient(
+					farthest-side at 0 50%,
+					color-mix(in srgb, var(--e-text) 22%, transparent),
+					transparent
+				)
+				left / 12px 100% no-repeat scroll,
+			radial-gradient(
+					farthest-side at 100% 50%,
+					color-mix(in srgb, var(--e-text) 22%, transparent),
+					transparent
+				)
+				right / 12px 100% no-repeat scroll;
 	}
 	.keypad-group {
+		flex: none;
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
