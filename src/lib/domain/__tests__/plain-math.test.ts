@@ -33,11 +33,40 @@ describe('plainMath', () => {
 		expect(plainMath('$\\left(1+2\\right)$')).toBe('(1+2)');
 		expect(plainMath('\\(a\\) a \\[b\\]')).toBe('a a b');
 	});
-	it('keeps unknown commands as their name and removes braces', () => {
-		expect(plainMath('\\alpha{x}')).toBe('alphax');
+	it('removes braces', () => {
+		expect(plainMath('\\alpha{x}')).toBe('αx');
 		expect(plainMath('{a}')).toBe('a');
 	});
 	it('leaves ordinary prose alone', () => {
 		expect(plainMath('Cena je > 2 Kč')).toBe('Cena je > 2 Kč');
+	});
+});
+
+describe('plainMath: commands it has no rule for', () => {
+	it('draws accents as combining marks the UI font has, and a vector as its letter', () => {
+		expect(plainMath('Vektor $\\vec{u}$')).toBe('Vektor u');
+		expect(plainMath('\\vec u')).toBe('u');
+		expect(plainMath('\\overline{AB}')).toBe('A\u0304B\u0304');
+		expect(plainMath('\\bar{x}')).toBe('x\u0304');
+		expect(plainMath('\\hat{a}')).toBe('a\u0302');
+	});
+	it('does not read a longer command as an accent', () => {
+		expect(plainMath('a \\doteq b')).toBe('a ≐ b');
+	});
+	it('writes Greek letters and symbols as characters', () => {
+		expect(plainMath('Změna $\\Delta{ }$ teploty')).toBe('Změna Δ teploty');
+		expect(plainMath('\\alpha + \\beta')).toBe('α + β');
+		expect(plainMath('x \\in \\mathbb{R}')).toBe('x ∈ ℝ');
+		expect(plainMath('\\lim\\limits_{x \\to \\infty} x')).toBe('lim_x → ∞ x');
+	});
+	it('drops commands it does not know and keeps their content', () => {
+		expect(plainMath('5\\,\\mathrm{m}')).toBe('5 m');
+		expect(plainMath('\\text{rychlost}')).toBe('rychlost');
+		expect(plainMath('\\ce{H2O}')).toBe('H2O');
+		expect(plainMath('\\foo x')).toBe('x');
+		expect(plainMath('\\begin{pmatrix} 1 & 2 \\end{pmatrix}')).toBe('1 2');
+	});
+	it('subscripts digits', () => {
+		expect(plainMath('a_{12} + x_1')).toBe('a₁₂ + x₁');
 	});
 });
