@@ -12,6 +12,8 @@
  * `docs/OPEN-PROBLEMS.md` — the stored LaTeX stays canonical.
  */
 
+import { withAppLimits } from '$lib/domain/app-latex';
+
 export type KeyZone = 'symbol' | 'template';
 
 export interface KeyVariant {
@@ -55,7 +57,7 @@ const COMBINING = /[\u0300-\u036f\u20d0-\u20ff]/;
  */
 export function keyFace(key: KeyDef): string | null {
 	if (key.zone !== 'template' && !COMBINING.test(key.label)) return null;
-	return key.insert.replace(/#[@?0]/g, FACE_BOX);
+	return withAppLimits(key.insert.replace(/#[@?0]/g, FACE_BOX));
 }
 
 /** The keys on every tab, in the same position (§4.1): arrows are icons, never `<` `>`. */

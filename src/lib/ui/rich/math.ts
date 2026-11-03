@@ -5,7 +5,7 @@
  * is shown, so a course without any never fetches it.
  */
 import { InputRule, Node, mergeAttributes } from '@tiptap/core';
-import { replaceSlots } from '$lib/domain/app-latex';
+import { replaceSlots, withAppLimits } from '$lib/domain/app-latex';
 
 export interface MathOptions {
 	/** The teacher clicked a formula: open it for editing. */
@@ -45,7 +45,7 @@ export function renderMath(into: HTMLElement, latex: string, display: boolean): 
 	void loadKatex().then((k) => {
 		if (into.textContent !== latex) return;
 		try {
-			k.render(replaceSlots(latex, '\\htmlClass{math-slot}{\\square}'), into, {
+			k.render(withAppLimits(replaceSlots(latex, '\\htmlClass{math-slot}{\\square}')), into, {
 				displayMode: display,
 				throwOnError: true,
 				trust: ({ command }) => command === '\\htmlClass'

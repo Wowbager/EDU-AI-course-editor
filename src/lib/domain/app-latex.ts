@@ -188,3 +188,17 @@ const SLOT =
 export function withSlots(latex: string): string {
 	return replaceSlots(latex, '\\placeholder{}');
 }
+
+/**
+ * The limits of `\lim`, `\max`, `\min`, `\sup`, `\inf`, `\det`, `\gcd` and `\Pr` drawn
+ * under the name, as the app does in a sentence too (flutter_math_fork 0.7.4,
+ * `parser/tex/functions/katex_base/op.dart`: `mathLimits` are parsed with
+ * `defaultLimits: true`). KaTeX puts them beside the name inline, so the editor's
+ * drawing says `\limits`. Display only; the stored LaTeX is not changed.
+ */
+export function withAppLimits(latex: string): string {
+	return latex.replace(
+		/\\(lim|max|min|sup|inf|det|gcd|Pr)(?![a-zA-Z])(?=\s*[_^])/g,
+		'\\$1\\limits'
+	);
+}

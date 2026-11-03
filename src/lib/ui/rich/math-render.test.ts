@@ -162,6 +162,12 @@ describe('every template key draws its own shape, with a box for each slot', () 
 			if (/#[@?0]/.test(key.insert)) expect(html).toContain('key-slot');
 		});
 	}
+	it('draws the limit under lim, as the app does', () => {
+		const html = katex.renderToString(keyFace(ALL_KEYS.find((k) => k.id === 'limit')!)!, {
+			trust: ({ command }) => command === '\\htmlClass'
+		});
+		expect(html).toContain('op-limits');
+	});
 	it('draws the vector as an arrow over a box, never a font’s combining mark', () => {
 		const vec = ALL_KEYS.find((k) => k.id === 'vec')!;
 		expect(keyFace(vec)).toBe('\\vec{\\htmlClass{key-slot}{\\square}}');
