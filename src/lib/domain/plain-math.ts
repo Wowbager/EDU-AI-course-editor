@@ -180,7 +180,42 @@ const SYMBOLS: Record<string, string> = {
 	int: '∫',
 	partial: '∂',
 	nabla: '∇',
-	percent: '%'
+	percent: '%',
+	ldots: '…',
+	dots: '…',
+	cdots: '⋯',
+	vdots: '⋮',
+	leftarrow: '←',
+	Leftarrow: '⇐',
+	leftrightarrow: '↔',
+	longrightarrow: '⟶',
+	Longrightarrow: '⟹',
+	uparrow: '↑',
+	downarrow: '↓',
+	rightleftharpoons: '⇌',
+	quad: ' ',
+	qquad: ' ',
+	degree: '°',
+	circledast: '⊛',
+	mid: '|',
+	nmid: '∤',
+	lt: '<',
+	gt: '>',
+	ll: '≪',
+	gg: '≫',
+	equiv: '≡',
+	nexists: '∄',
+	supset: '⊃',
+	supseteq: '⊇',
+	ast: '∗',
+	star: '⋆',
+	bullet: '•',
+	square: '□',
+	backslash: '∖',
+	lfloor: '⌊',
+	rfloor: '⌋',
+	lceil: '⌈',
+	rceil: '⌉'
 };
 
 /**
@@ -198,9 +233,11 @@ export function plainMath(text: string): string {
 		.replace(/\\[()[\]]/g, '')
 		.replace(/\$+/g, '')
 		.replace(/\\(?:left|right)(?![a-zA-Z])\s*/g, '')
-		.replace(/\\(?:begin|end)\s*\{[^{}]*\}/g, ' ')
-		.replace(/\\(?:limits|nolimits)(?![a-zA-Z])/g, '')
-		.replace(/\\\\|&/g, ' ');
+		// A matrix or cases block: its cells side by side. `&` and `\\\\` elsewhere are text.
+		.replace(/\\begin\s*\{[^{}]*\}([\s\S]*?)\\end\s*\{[^{}]*\}/g, (_, body: string) =>
+			body.replace(/\\\\|&/g, ' ')
+		)
+		.replace(/\\(?:limits|nolimits)(?![a-zA-Z])/g, '');
 
 	// Innermost first: a group with no braces inside is complete, so repeat until nothing
 	// is left to fold. That handles nesting without a parser.
@@ -208,9 +245,14 @@ export function plainMath(text: string): string {
 		const before = out;
 		out = out
 			.replace(
-				new RegExp(String.raw`\\d?frac\s*${ARG}\s*${ARG}`, 'g'),
+				new RegExp(String.raw`\\[dtc]?frac\s*${ARG}\s*${ARG}`, 'g'),
 				(_, a1?: string, a2?: string, b1?: string, b2?: string) =>
 					`${wrap((a1 ?? a2)!.trim())}/${wrap((b1 ?? b2)!.trim())}`
+			)
+			.replace(
+				new RegExp(String.raw`\\[dt]?binom\s*${ARG}\s*${ARG}`, 'g'),
+				(_, a1?: string, a2?: string, b1?: string, b2?: string) =>
+					`(${(a1 ?? a2)!.trim()} nad ${(b1 ?? b2)!.trim()})`
 			)
 			.replace(
 				new RegExp(String.raw`\\sqrt\s*${ARG}`, 'g'),

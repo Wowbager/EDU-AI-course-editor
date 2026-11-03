@@ -148,7 +148,8 @@ function emptyArguments(latex: string): Set<number> {
 	for (let m = command.exec(latex); m; m = command.exec(latex)) {
 		if (!TAKES_ARGUMENTS.has(m[1])) continue;
 		let at = m.index + m[0].length;
-		if (m[1] === 'sqrt' && latex[at] === '[') at = skipGroup(latex, at, '[', ']');
+		if (/^(?:sqrt|xrightarrow|xleftarrow)$/.test(m[1]) && latex[at] === '[')
+			at = skipGroup(latex, at, '[', ']');
 		for (let n = 0; n < (ARITY[m[1]] ?? 1); n += 1) {
 			while (latex[at] === ' ') at += 1;
 			if (latex[at] !== '{') break;
