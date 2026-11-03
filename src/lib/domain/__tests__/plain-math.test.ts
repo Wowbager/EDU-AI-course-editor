@@ -77,6 +77,8 @@ describe('plainMath: commands it has no rule for', () => {
 		expect(plainMath('a \\\\ b')).toBe('a b');
 		expect(plainMath('\\begin{cases}\\begin{matrix}a&b\\end{matrix}&x\\end{cases}')).toBe('a b x');
 		expect(plainMath('\\begin{aligned}x')).toBe('x');
+		expect(plainMath('\\begin{matrix}a&b')).toBe('a b');
+		expect(plainMath('\\begin{matrix}a&b\\end{matrix}'.repeat(30))).not.toContain('&');
 		expect(plainMath('Tom & Jerry $\\begin{matrix}a&b\\end{matrix}$')).toBe('Tom & Jerry a b');
 	});
 	it('subscripts digits', () => {
