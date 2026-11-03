@@ -101,6 +101,7 @@ describe('withSlots', () => {
 		expect(withSlots('\\vec{}_x')).toBe('\\vec{\\placeholder{}}_x');
 		// An empty denominator under an exponent is still the fraction's argument.
 		expect(withSlots('\\frac{a}{}^2')).toBe('\\frac{a}{\\placeholder{}}^2');
+		expect(withSlots('\\xrightarrow[a]{}')).toBe('\\xrightarrow[a]{\\placeholder{}}');
 		expect(withSlots('\\binom{}{}')).toBe('\\binom{\\placeholder{}}{\\placeholder{}}');
 		expect(withSlots('\\frac{\\mathrm{H}{}_2}{}')).toBe('\\frac{\\mathrm{H}{}_2}{\\placeholder{}}');
 	});

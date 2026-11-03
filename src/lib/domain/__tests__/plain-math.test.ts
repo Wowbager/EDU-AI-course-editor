@@ -66,6 +66,15 @@ describe('plainMath: commands it has no rule for', () => {
 		expect(plainMath('\\foo x')).toBe('x');
 		expect(plainMath('\\begin{pmatrix} 1 & 2 \\end{pmatrix}')).toBe('1 2');
 	});
+	it('reads fractions, binomials and dots it used to spell out', () => {
+		expect(plainMath('1, 2, \\ldots, n')).toBe('1, 2, …, n');
+		expect(plainMath('\\tfrac{1}{2}')).toBe('1/2');
+		expect(plainMath('\\binom{n}{k}')).toBe('(n nad k)');
+	});
+	it('keeps & and a double backslash outside a matrix', () => {
+		expect(plainMath('Tom & Jerry')).toBe('Tom & Jerry');
+		expect(plainMath('Zlomky & desetinná čísla')).toBe('Zlomky & desetinná čísla');
+	});
 	it('subscripts digits', () => {
 		expect(plainMath('a_{12} + x_1')).toBe('a₁₂ + x₁');
 	});
