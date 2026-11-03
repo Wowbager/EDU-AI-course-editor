@@ -233,10 +233,11 @@ export function plainMath(text: string): string {
 		.replace(/\\[()[\]]/g, '')
 		.replace(/\$+/g, '')
 		.replace(/\\(?:left|right)(?![a-zA-Z])\s*/g, '')
-		// A matrix or cases block: its cells side by side. `&` and `\\\\` elsewhere are text.
-		.replace(/\\begin\s*\{[^{}]*\}([\s\S]*?)\\end\s*\{[^{}]*\}/g, (_, body: string) =>
-			body.replace(/\\\\|&/g, ' ')
-		)
+		// A matrix or cases block: its cells side by side. `&` with no block is text.
+		.replace(/&/g, (amp) => (/\\begin(?![a-zA-Z])/.test(text) ? ' ' : amp))
+		.replace(/\\(?:begin|end)\s*\{[^{}]*\}/g, ' ')
+		.replace(/\\\\/g, ' ')
+
 		.replace(/\\(?:limits|nolimits)(?![a-zA-Z])/g, '');
 
 	// Innermost first: a group with no braces inside is complete, so repeat until nothing

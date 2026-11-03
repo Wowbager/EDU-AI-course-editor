@@ -74,6 +74,9 @@ describe('plainMath: commands it has no rule for', () => {
 	it('keeps & and a double backslash outside a matrix', () => {
 		expect(plainMath('Tom & Jerry')).toBe('Tom & Jerry');
 		expect(plainMath('Zlomky & desetinná čísla')).toBe('Zlomky & desetinná čísla');
+		expect(plainMath('a \\\\ b')).toBe('a b');
+		expect(plainMath('\\begin{cases}\\begin{matrix}a&b\\end{matrix}&x\\end{cases}')).toBe('a b x');
+		expect(plainMath('\\begin{aligned}x')).toBe('x');
 	});
 	it('subscripts digits', () => {
 		expect(plainMath('a_{12} + x_1')).toBe('a₁₂ + x₁');
