@@ -273,8 +273,11 @@ function inline(content: DocNode[], ctx: Context): string {
 				break;
 			}
 			case 'math': {
-				transition(node.marks ?? []);
 				const latex = String(node.attrs?.latex ?? '').replace(/\$/g, '');
+				// A formula still empty (just added, not typed yet) is nothing: written as
+				// `$$` it would read back as two dollar signs — in the card's name, on undo.
+				if (latex.trim() === '') break;
+				transition(node.marks ?? []);
 				out += node.attrs?.display ? `$$${latex}$$` : `$${latex.replace(/\n/g, ' ')}$`;
 				atLineStart = false;
 				break;
