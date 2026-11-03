@@ -99,6 +99,14 @@ describe('withSlots', () => {
 		// A script after the box does not hide it.
 		expect(withSlots('\\sqrt{}^{2}')).toBe('\\sqrt{\\placeholder{}}^{2}');
 		expect(withSlots('\\vec{}_x')).toBe('\\vec{\\placeholder{}}_x');
+		// An empty denominator under an exponent is still the fraction's argument.
+		expect(withSlots('\\frac{a}{}^2')).toBe('\\frac{a}{\\placeholder{}}^2');
+		expect(withSlots('\\binom{}{}')).toBe('\\binom{\\placeholder{}}{\\placeholder{}}');
+		expect(withSlots('\\frac{\\mathrm{H}{}_2}{}')).toBe('\\frac{\\mathrm{H}{}_2}{\\placeholder{}}');
+	});
+	it('leaves an empty group after a symbol alone', () => {
+		for (const latex of ['\\alpha{}_2', '\\Delta{}^{2}', '\\pi{}'])
+			expect(withSlots(latex)).toBe(latex);
 	});
 	it('leaves a spaced text and an empty base written on purpose alone', () => {
 		for (const latex of [
