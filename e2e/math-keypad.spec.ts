@@ -25,12 +25,16 @@ async function formulaReady(page: Page) {
 
 type Keypad = Locator;
 
-/** Open a new formula and the on-screen keypad. */
+/** Open a new formula; the on-screen keypad opens with it. */
 async function openKeypad(page: Page): Promise<Keypad> {
 	await text(page).click();
 	await toolbar(page).getByRole('button', { name: 'Vzorec' }).click();
 	await formulaReady(page);
-	await page.getByRole('button', { name: 'Klávesnice se značkami' }).click();
+	// The keypad opens with the formula.
+	await expect(page.getByRole('button', { name: 'Klávesnice se značkami' })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
 	return page.getByRole('group', { name: 'Klávesnice se značkami' });
 }
 

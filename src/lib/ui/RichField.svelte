@@ -308,7 +308,7 @@
 	let mathHost = $state<HTMLElement | null>(null);
 	/** The keypad's API into the MathLive field, bound once the field has loaded. */
 	let mathApi = $state<MathFieldApi | null>(null);
-	/** Whether the on-screen keypad is open: inside the row, under the formula. */
+	/** Whether the on-screen keypad is open: inside the row, under the formula. Open by default. */
 	let keyboardOpen = $state(false);
 	/** The same field as raw LaTeX, for whoever wants it (the row's ⋯). */
 	let latexMode = $state(false);
@@ -352,7 +352,9 @@
 		mathLatex = node.attrs.latex;
 		mathDisplay = node.attrs.display === true;
 		latexMode = false;
-		closeKeyboard();
+		// Most teachers type with the keypad: it opens with the formula; ⌨ hides it.
+		searchOpen = false;
+		keyboardOpen = true;
 	}
 
 	function closeKeyboard() {
@@ -362,6 +364,8 @@
 
 	function setLatexMode(on: boolean) {
 		closeKeyboard();
+		// Back in the visual field, the keypad is back with it.
+		keyboardOpen = !on;
 		latexMode = on;
 		// The visual field focuses itself once it is mounted.
 		if (on) queueMicrotask(() => mathInput?.focus());
