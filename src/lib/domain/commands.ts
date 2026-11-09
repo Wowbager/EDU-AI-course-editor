@@ -1393,3 +1393,113 @@ export function restoreVersion(doc: CourseV2, saved: CourseV2, number: number): 
 	else restored.logged_only = doc.logged_only;
 	return { doc: restored, description: `Obnovena verze ${number}` };
 }
+// ──────────────────────────────────────── images ──────────────────────────────────────────
+
+/**
+ * Checks whether candidate URL points to the specified image (by ID or URL).
+ */
+export function isImageReference(
+	candidate: string | undefined | null,
+	id: string,
+	url?: string
+): boolean {
+	if (!candidate || typeof candidate !== 'string') return false;
+	const trimmed = candidate.trim();
+	if (!trimmed) return false;
+	if (url && (trimmed === url.trim() || trimmed === url)) return true;
+	if (id) {
+		if (trimmed === id) return true;
+		if (trimmed.endsWith(`/images/file/${id}`)) return true;
+		if (trimmed.includes(`/images/file/${id}`)) return true;
+		const encoded = encodeURIComponent(id);
+		if (trimmed.endsWith(`/images/file/${encoded}`)) return true;
+		if (trimmed.includes(`/images/file/${encoded}`)) return true;
+		const pathWithoutQuery = trimmed.split('?')[0].split('#')[0];
+		if (pathWithoutQuery.endsWith(`/${id}`) || pathWithoutQuery.endsWith(`/${encoded}`))
+			return true;
+	}
+	return false;
+}
+
+/**
+ * Remove all references to a deleted image from the course document:
+ *  - Course header image
+ *  - Lesson header images and binding background images
+ *  - Steps with image media (cleared to empty for type === 'image', removed otherwise)
+ *  - Question solution images
+ *  - Option feedback images
+ */
+export function removeImageReferences(doc: CourseV2, id: string, url?: string): CommandResult {
+	let changed = false;
+	const match = (target: string | undefined | null) => isImageReference(target, id, url);
+
+	const nextDoc: CourseV2 = deepCopy(doc);
+
+	// 1. Course header image
+	if (match(nextDoc.header_image?.url)) {
+		delete nextDoc.header_image;
+		changed = true;
+	}
+
+	// 2. Lessons
+	if (Array.isArray(nextDoc.lessons)) {
+		for (const lesson of nextDoc.lessons) {
+			if (match(lesson.header_image?.url)) {
+				delete lesson.header_image;
+				changed = true;
+			}
+			if (Array.isArray(lesson.blocks)) {
+				for (const binding of lesson.blocks) {
+					if (match(binding.bg_image)) {
+						delete binding.bg_image;
+						changed = true;
+					}
+				}
+			}
+		}
+	}
+
+	// 3. Blocks & Steps
+	if (Array.isArray(nextDoc.blocks)) {
+		for (const block of nextDoc.blocks) {
+			if (Array.isArray(block.steps)) {
+				for (const step of block.steps) {
+					// step.image
+					if (match(step.image?.url)) {
+						if (step.type === 'image') {
+							step.image = { url: '', alt: '' };
+						} else {
+							delete step.image;
+						}
+						changed = true;
+					}
+
+					// step.question.solution_image
+					if (step.question && match(step.question.solution_image?.url)) {
+						delete step.question.solution_image;
+						changed = true;
+					}
+
+					// step.question.options[].feedback_image
+					if (step.question && Array.isArray(step.question.options)) {
+						for (const opt of step.question.options) {
+							if (match(opt.feedback_image?.url)) {
+								delete opt.feedback_image;
+								changed = true;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (!changed) {
+		return { doc, description: 'Smazání odkazu na obrázek' };
+	}
+
+	return {
+		doc: nextDoc,
+		description: 'Smazání odkazů na smazaný obrázek'
+	};
+}

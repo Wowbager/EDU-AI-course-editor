@@ -2902,6 +2902,18 @@ numbers, an empty `fsrs` as `[]`. The app reads all three; import now reads the 
 as numbers and `[]` as no `fsrs`, and the schema keeps the ids as numbers so they go back
 out unchanged. A file that still fails shows its few kinds of problem under „Podrobnosti“.
 
+## Round 28 — image upload and gallery picker (temporary server storage)
+
+**Uploaded images are stored on the editor's server under `DATA_DIR/owners/<owner>/images/`:**
+Each image is assigned a UUID filename (`<uuid>.<ext>`) and tracked in `index.json`. Served
+via `GET /images/file/<id>` on the editor's origin. This is temporary local storage until a
+Cloudflare service takes over; the client interface (`ImageMeta`) is designed to remain identical.
+
+**Image picker modal in image steps:** A "Vybrat obrázek" button opens a two-tab modal
+(`<dialog>` via `Modal.svelte`):
+- "Nahrát": drag-and-drop zone with file picker fallback, uploading immediately and setting `image.url`.
+- "Galerie": grid of previously uploaded pictures for the current workspace owner, setting `image.url` on click.
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

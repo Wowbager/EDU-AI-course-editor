@@ -52,6 +52,25 @@ export const GET: RequestHandler = async ({ url }) => {
 		});
 	}
 
+	const localMatch = target.match(
+		/\/images\/file\/([0-9a-f-]{36}(?:-[A-Za-z0-9_]{1,60})?\.[a-z0-9]{2,5})/i
+	);
+	if (localMatch) {
+		const { imageFiles } = await import('$lib/server/images/instance');
+		const served = await imageFiles().serveFile(localMatch[1]);
+		if (served) {
+			const { Readable } = await import('node:stream');
+			const web = Readable.toWeb(served.stream);
+			return new Response(web as unknown as BodyInit, {
+				status: 200,
+				headers: {
+					'content-type': served.contentType,
+					'cache-control': CACHE_CONTROL
+				}
+			});
+		}
+	}
+
 	const attempts: string[] = [];
 
 	const direct = await fetchImageSafely(target);

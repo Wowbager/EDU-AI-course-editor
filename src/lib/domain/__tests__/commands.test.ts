@@ -35,7 +35,9 @@ import {
 	unbindBlock,
 	setTopics,
 	blockTopics,
-	type Repair
+	type Repair,
+	isImageReference,
+	removeImageReferences
 } from '../commands';
 import { bindingFlagsPractice, isPracticeBlock } from '../derive';
 import { nextStepId, nextStepIds, stepReservation, type Reservations } from '../ids';
@@ -1248,5 +1250,74 @@ describe('moveLesson and moveStep', () => {
 		const block = doc.blocks.find((b) => b.steps.length > 1)!;
 		expect(moveStep(doc, block.block_id, block.steps[0].id, -1).doc).toBe(doc);
 		expect(moveStep(doc, block.block_id, block.steps[block.steps.length - 1].id, 1).doc).toBe(doc);
+	});
+});
+describe('removeImageReferences', () => {
+	it('matches image by direct URL, relative path, or filename ID', () => {
+		const id = '12345678-1234-1234-1234-123456789abc-obrazek.png';
+		const fullUrl = `https://example.com/images/file/${id}`;
+		const relUrl = `/images/file/${id}`;
+
+		expect(isImageReference(fullUrl, id)).toBe(true);
+		expect(isImageReference(relUrl, id)).toBe(true);
+		expect(isImageReference(id, id)).toBe(true);
+		expect(isImageReference(`http://localhost:5178/images/file/${id}?v=1`, id)).toBe(true);
+		expect(isImageReference('https://example.com/other.png', id)).toBe(false);
+		expect(isImageReference('', id)).toBe(false);
+		expect(isImageReference(undefined, id)).toBe(false);
+	});
+
+	it('clears image references from image step, leaving empty image object', () => {
+		const doc = base();
+		const id = '12345678-1234-1234-1234-123456789abc-fotka.png';
+		const url = `http://localhost:5178/images/file/${id}`;
+
+		doc.blocks[0].steps.push({
+			id: 'step_img',
+			type: 'image',
+			image: { url, alt: 'Popis' }
+		});
+
+		const result = removeImageReferences(doc, id, url);
+		const step = result.doc.blocks[0].steps.find((s) => s.id === 'step_img')!;
+		expect(step.image).toEqual({ url: '', alt: '' });
+	});
+
+	it('removes image references from text steps, course/lesson headers, and question feedback', () => {
+		const doc = base();
+		const id = '12345678-1234-1234-1234-123456789abc-diagram.png';
+		const url = `http://localhost:5178/images/file/${id}`;
+
+		doc.header_image = { url, alt: 'Kurz' };
+		doc.lessons[0].header_image = { url, alt: 'Lekce' };
+		doc.lessons[0].blocks[0].bg_image = url;
+		doc.blocks[0].steps[0].image = { url, alt: 'Textový krok s obrázkem' };
+
+		doc.blocks[0].steps.push({
+			id: 'step_q',
+			type: 'question',
+			question: {
+				type: 'multiple_choice',
+				solution: 'řešení',
+				solution_image: { url, alt: 'Řešení' },
+				options: [{ id: 'opt1', text: 'Možnost', feedback_image: { url, alt: 'Feedback' } }]
+			}
+		});
+
+		const result = removeImageReferences(doc, id, url);
+		expect(result.doc.header_image).toBeUndefined();
+		expect(result.doc.lessons[0].header_image).toBeUndefined();
+		expect(result.doc.lessons[0].blocks[0].bg_image).toBeUndefined();
+		expect(result.doc.blocks[0].steps[0].image).toBeUndefined();
+
+		const qStep = result.doc.blocks[0].steps.find((s) => s.id === 'step_q')!;
+		expect(qStep.question?.solution_image).toBeUndefined();
+		expect(qStep.question?.options?.[0].feedback_image).toBeUndefined();
+	});
+
+	it('returns the same doc reference if no references were found', () => {
+		const doc = base();
+		const result = removeImageReferences(doc, 'nonexistent.png');
+		expect(result.doc).toBe(doc);
 	});
 });

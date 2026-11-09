@@ -582,7 +582,12 @@ test('an image step asks for the picture first, and for its description once the
 	page
 }) => {
 	await addStep(page, 'Obrázek');
-	const url = page.getByRole('textbox', { name: 'Adresa obrázku', exact: true });
+	const selectBtn = page.getByRole('button', { name: 'Vybrat obrázek ze souborů nebo galerie' });
+	await expect(selectBtn).toBeVisible();
+	await expect(page.getByText('Není vybrán žádný obrázek.')).toBeVisible();
+
+	await page.getByRole('radio', { name: 'Metodik' }).click();
+	const url = page.getByRole('textbox', { name: 'Přímá adresa obrázku', exact: true });
 	const alt = page.getByRole('textbox', {
 		name: 'Popis obrázku pro čtečku obrazovky',
 		exact: true

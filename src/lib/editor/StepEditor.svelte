@@ -36,6 +36,7 @@
 		CommandError,
 		deleteStep,
 		duplicateStep,
+		isImageReference,
 		planDeleteStep,
 		setAllowMultiple,
 		setField,
@@ -51,9 +52,11 @@
 		Ellipsis,
 		Copy,
 		CornerDownRight,
+		FileImage,
 		GripVertical,
 		Grid2X2,
 		Hash,
+		ImagePlus,
 		PencilLine,
 		Trash
 	} from '@lucide/svelte';
@@ -68,6 +71,7 @@
 	import Menu from '$lib/ui/Menu.svelte';
 	import MenuItem from '$lib/ui/MenuItem.svelte';
 	import { fade } from 'svelte/transition';
+	import ImagePickerModal from './ImagePickerModal.svelte';
 
 	interface Props {
 		doc: CourseV2;
@@ -90,6 +94,7 @@
 
 	const store = useStore();
 	const mode = $derived(store.mode);
+	const isTeacher = $derived(mode === 'teacher');
 	/** Ids key a student's saved answers, so only the advanced mode ever shows one. */
 	const showIds = $derived(allows('step', 'id', mode));
 	const typeInfo = $derived(STEP_TYPES.find((t) => t.type === step.type));
@@ -399,6 +404,27 @@
 	const videoPreview = debouncedMediaPreview(() => step.video?.url);
 	const audioPreview = debouncedMediaPreview(() => step.audio?.url);
 
+	/** Whether the image picker modal is open. */
+	let imagePicker = $state(false);
+	const hasImage = $derived((step.image?.url ?? '').trim() !== '');
+	const currentImageName = $derived(imageFilename(step.image?.url));
+
+	/** Extracts a readable filename from an image URL for display. */
+	function imageFilename(url: string | undefined): string {
+		if (!url) return '';
+		try {
+			const withoutQuery = url.trim().split(/[?#]/)[0];
+			const segment = decodeURIComponent(withoutQuery.split('/').filter(Boolean).pop() ?? '');
+			const uuidNamed = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-(.+)$/i.exec(
+				segment
+			);
+			if (uuidNamed) return uuidNamed[1];
+			return segment;
+		} catch {
+			return url ?? '';
+		}
+	}
+
 	/** §14 E_MEDIA_NOT_DIRECT mirrors this same check — kept here too so the field can
 	 *  explain the mistake before validation ever runs, not only after. */
 	const VIDEO_PAGE_URL = /youtube\.com|youtu\.be|vimeo\.com/i;
@@ -651,38 +677,83 @@
 				{/if}
 			{:else if step.type === 'image'}
 				<div class="media">
-					<FocusField
-						label="Adresa obrázku"
-						value={step.image?.url}
-						emptyText="Vlož odkaz na obrázek (např. https://…/obrazek.jpg)"
-						monospace
-						onchange={(v) => {
-							set('image.url', v ?? '');
-							imagePreview.type(v ?? '');
-						}}
-						ref={{
-							blockId: block.block_id,
-							stepId: step.id,
-							field: 'image.url'
-						}}
-						onblur={() => imagePreview.flush(step.image?.url ?? '')}
-					/>
-					<!-- Nothing to describe until there is a picture. -->
-					{#if (step.image?.url ?? '') !== ''}
-						<FocusField
-							label="Popis obrázku pro čtečku obrazovky"
-							value={step.image?.alt}
-							emptyText="Popiš, co je na obrázku — přečte to čtečka obrazovky"
-							ref={{
-								blockId: block.block_id,
-								stepId: step.id,
-								field: 'image.alt'
-							}}
-							onchange={(v) => set('image.alt', v)}
-						/>
+					<div class="image-select-row">
+						<Button
+							variant="secondary"
+							size="m"
+							onclick={() => (imagePicker = true)}
+							ariaLabel={hasImage
+								? 'Změnit vybraný obrázek'
+								: 'Vybrat obrázek ze souborů nebo galerie'}
+						>
+							<ImagePlus size={14} />
+							{hasImage ? 'Změnit obrázek' : 'Vybrat obrázek'}
+						</Button>
+						{#if hasImage && currentImageName}
+							<span class="image-file-badge" title={currentImageName}>
+								<FileImage size={14} class="file-icon" />
+								<span class="file-name-text">{currentImageName}</span>
+							</span>
+						{:else}
+							<span class="image-no-file-error" role="alert"> Není vybrán žádný obrázek. </span>
+						{/if}
+					</div>
+
+					{#if !isTeacher}
+						<div class="deprioritized-field">
+							<FocusField
+								label="Přímá adresa obrázku"
+								value={step.image?.url}
+								emptyText="Vlož odkaz na obrázek (např. https://…/obrazek.jpg)"
+								monospace
+								density="compact"
+								onchange={(v) => {
+									set('image.url', v ?? '');
+									imagePreview.type(v ?? '');
+								}}
+								ref={hasImage
+									? {
+											blockId: block.block_id,
+											stepId: step.id,
+											field: 'image.url'
+										}
+									: undefined}
+								onblur={() => imagePreview.flush(step.image?.url ?? '')}
+							/>
+						</div>
+						{#if hasImage}
+							<FocusField
+								label="Popis obrázku pro čtečku obrazovky"
+								value={step.image?.alt}
+								emptyText="Popiš, co je na obrázku — přečte to čtečka obrazovky"
+								ref={{
+									blockId: block.block_id,
+									stepId: step.id,
+									field: 'image.alt'
+								}}
+								onchange={(v) => set('image.alt', v)}
+							/>
+						{/if}
 					{/if}
+
 					{#if imagePreview.value}
 						<img src={imagePreview.value} alt={step.image?.alt ?? ''} />
+					{/if}
+
+					{#if imagePicker}
+						<ImagePickerModal
+							onselect={(url) => {
+								set('image.url', url);
+								imagePreview.flush(url);
+								imagePicker = false;
+							}}
+							ondelete={(item) => {
+								if (isImageReference(step.image?.url, item.id, item.url)) {
+									imagePreview.flush('');
+								}
+							}}
+							onclose={() => (imagePicker = false)}
+						/>
 					{/if}
 				</div>
 			{:else if step.type === 'video'}
@@ -1089,6 +1160,52 @@
 		border-radius: var(--radius-s);
 		object-fit: contain;
 		background: var(--surface-light);
+	}
+
+	.image-select-row {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		flex-wrap: wrap;
+	}
+
+	.image-file-badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		max-width: 360px;
+		padding: 3px 10px;
+		border: 1px solid var(--e-border);
+		border-radius: var(--radius-pill);
+		background: var(--surface-light);
+		color: var(--e-text);
+		font: var(--type-meta);
+	}
+
+	.image-file-badge :global(.file-icon) {
+		flex-shrink: 0;
+		color: var(--e-text-muted);
+	}
+
+	.file-name-text {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.image-no-file-error {
+		font-size: var(--text-xs);
+		color: var(--e-error-text);
+		display: inline-flex;
+		align-items: center;
+	}
+
+	.deprioritized-field {
+		opacity: 0.85;
+	}
+
+	.deprioritized-field:focus-within {
+		opacity: 1;
 	}
 
 	.question,
