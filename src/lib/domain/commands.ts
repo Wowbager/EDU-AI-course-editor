@@ -622,18 +622,26 @@ export function duplicateBlock(
 	};
 }
 
+/** Where a copied card or step came from: its course, and for a step its card. */
+export interface CopiedFrom {
+	courseId?: string;
+	blockId?: string;
+}
+
 /**
  * Paste a card copied from this course or another one, after `afterBlockId` in the
  * lesson (at its end when that card isn't in it). The copy is a new card in every way
- * `duplicateBlock` makes one: a fresh id, steps from `s1`. A branch or prerequisite
- * naming a card this course doesn't have is dropped rather than left dangling.
+ * `duplicateBlock` makes one: a fresh id, steps from `s1`. A branch or prerequisite to
+ * another card is kept only when the card came from this course and that card is still
+ * here: another course's card ids name other cards, even when one happens to match.
  */
 export function pasteBlock(
 	doc: CourseV2,
 	card: BlockV2,
 	lessonId?: string,
 	afterBlockId?: string,
-	reserved?: Reservations
+	reserved?: Reservations,
+	from: CopiedFrom = {}
 ): CommandResult {
 	const copyId = nextBlockId(card.block_id, doc, reserved);
 	// A copied block of a question card is its own card here, never a member of the
@@ -647,8 +655,7 @@ export function pasteBlock(
 	void _members;
 	const copy = duplicateBlockValue(rest as BlockV2, copyId);
 
-	const known = blockIdsOf(doc);
-	known.add(copyId);
+	const known = from.courseId === doc.course_id ? blockIdsOf(doc) : new Set<string>();
 	const own = new Set(copy.steps.map((s) => s.id));
 	copy.steps = copy.steps.map((step) => dropDanglingGoTo(step, own, known));
 	const prerequisites = copy.learning?.prerequisites;
@@ -861,20 +868,27 @@ export function duplicateStep(
 
 /**
  * Paste a copied step into a card, after `afterStepId` (at the end when that step
- * isn't in the card). It gets a fresh id; a jump to a step or card that isn't here is
- * dropped.
+ * isn't in the card). It gets a fresh id. Step ids are the card's own, so a jump to a
+ * step is kept only when pasting into the card the step came from, and a jump to a
+ * card only within the course it came from; anything else is dropped.
  */
 export function pasteStep(
 	doc: CourseV2,
 	blockId: string,
 	step: BlockStep,
 	afterStepId?: string,
-	reserved?: Reservations
+	reserved?: Reservations,
+	from: CopiedFrom = {}
 ): CommandResult {
 	const block = requireBlock(doc, blockId);
 	const id = nextStepId(block.steps, blockId, reserved);
-	const own = new Set(block.steps.map((s) => s.id));
-	const copy = dropDanglingGoTo({ ...deepCopy(step), id }, own, blockIdsOf(doc));
+	const sameCourse = from.courseId === doc.course_id;
+	const own =
+		sameCourse && from.blockId === blockId
+			? new Set(block.steps.map((s) => s.id))
+			: new Set<string>();
+	const cards = sameCourse ? blockIdsOf(doc) : new Set<string>();
+	const copy = dropDanglingGoTo({ ...deepCopy(step), id }, own, cards);
 
 	return {
 		doc: mapBlock(doc, blockId, (b) => {
