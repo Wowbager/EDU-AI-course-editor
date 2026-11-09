@@ -48,7 +48,9 @@ export function parseCourse(raw: unknown): CourseV2 {
 			path: i.path.join('.'),
 			message: i.message
 		}));
-		throw new ParseError(`Dokument nelze načíst (${issues.length} problém(ů)).`, issues);
+		const n = issues.length;
+		const problems = n === 1 ? 'problém' : n < 5 ? 'problémy' : 'problémů';
+		throw new ParseError(`Dokument nelze načíst (${n} ${problems}).`, issues);
 	}
 	return result.data;
 }

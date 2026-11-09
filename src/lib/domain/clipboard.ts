@@ -8,25 +8,47 @@
 import { z } from 'zod';
 import { blockSchema, blockStepSchema, type BlockStep, type BlockV2 } from './schema';
 import { deepCopy } from './clone';
+import type { CopiedFrom } from './commands';
 
 const MARK = 'edu_ai_editor';
 const VERSION = 1;
 
-export type Clipboard = { kind: 'card'; block: BlockV2 } | { kind: 'step'; step: BlockStep };
+export type Clipboard = { from: CopiedFrom } & (
+	{ kind: 'card'; block: BlockV2 } | { kind: 'step'; step: BlockStep }
+);
 
+const origin = {
+	course_id: z.string().optional(),
+	block_id: z.string().optional()
+};
 const payloadSchema = z.discriminatedUnion('kind', [
-	z.looseObject({ [MARK]: z.literal(VERSION), kind: z.literal('card'), block: blockSchema }),
-	z.looseObject({ [MARK]: z.literal(VERSION), kind: z.literal('step'), step: blockStepSchema })
+	z.looseObject({
+		[MARK]: z.literal(VERSION),
+		kind: z.literal('card'),
+		...origin,
+		block: blockSchema
+	}),
+	z.looseObject({
+		[MARK]: z.literal(VERSION),
+		kind: z.literal('step'),
+		...origin,
+		step: blockStepSchema
+	})
 ]);
 
-/** A card (as the teacher sees it, `store.doc`) or one of its steps, as clipboard text. */
-export function toClipboard(block: BlockV2, stepId?: string): string | null {
+/**
+ * A card (as the teacher sees it, `store.doc`) or one of its steps, as clipboard text.
+ * It says which course and card it came from: step and card ids mean something only
+ * there (`pasteBlock`, `pasteStep`).
+ */
+export function toClipboard(courseId: string, block: BlockV2, stepId?: string): string | null {
+	const head = { [MARK]: VERSION, course_id: courseId, block_id: block.block_id };
 	if (stepId !== undefined) {
 		const step = block.steps.find((s) => s.id === stepId);
 		if (step === undefined) return null;
-		return JSON.stringify({ [MARK]: VERSION, kind: 'step', step: deepCopy(step) }, null, 2);
+		return JSON.stringify({ ...head, kind: 'step', step: deepCopy(step) }, null, 2);
 	}
-	return JSON.stringify({ [MARK]: VERSION, kind: 'card', block: deepCopy(block) }, null, 2);
+	return JSON.stringify({ ...head, kind: 'card', block: deepCopy(block) }, null, 2);
 }
 
 /** A copied card or step, or null for any other text — that is pasted as text. */
@@ -40,7 +62,9 @@ export function fromClipboard(text: string): Clipboard | null {
 	}
 	const parsed = payloadSchema.safeParse(raw);
 	if (!parsed.success) return null;
-	return parsed.data.kind === 'card'
-		? { kind: 'card', block: parsed.data.block as BlockV2 }
-		: { kind: 'step', step: parsed.data.step as BlockStep };
+	const data = parsed.data;
+	const from: CopiedFrom = { courseId: data.course_id, blockId: data.block_id };
+	return data.kind === 'card'
+		? { from, kind: 'card', block: data.block as BlockV2 }
+		: { from, kind: 'step', step: data.step as BlockStep };
 }

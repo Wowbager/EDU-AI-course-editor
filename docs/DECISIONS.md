@@ -2889,9 +2889,12 @@ a copied card puts a new card after the open one (`pasteBlock`), of a step after
 step the cursor is in (`pasteStep`), even with the cursor in a field; any other text
 pastes as before. The card is taken from the view (`store.doc`), so a card of several
 questions pastes as one new card whose blocks `fromView` splits under fresh ids. A
-pasted card is a new card the way a duplicate is; jumps and prerequisites to cards the
-target course lacks are dropped. Copy says „Karta zkopírována.“ because nothing else on
-screen changes; paste says nothing, like Duplikovat. Rejected: `navigator.clipboard`
+pasted card is a new card the way a duplicate is. The clipboard says which course and
+card the copy came from, because ids mean something only there: a jump to a step is kept
+only when a step goes back into its own card, a jump or prerequisite to another card only
+within its own course and while that card exists. Everything else is dropped. Neither says anything, like a copy anywhere else and
+like Duplikovat: a „Karta zkopírována.“ notice was built and taken out after the outside
+review (an unasked toast, DESIGN.md 9). Rejected: `navigator.clipboard`
 (permission prompt, HTTPS only) and an in-page clipboard (would not cross tabs).
 
 **Admin exports are PHP-encoded:** vector items as numeric strings, GPF taxonomy ids as

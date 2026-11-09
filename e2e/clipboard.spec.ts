@@ -34,7 +34,7 @@ test('a card is copied with Ctrl+C and pasted after the selected card; Ctrl+Z ta
 	await expect(cards(page)).toHaveCount(3);
 	await cards(page).nth(2).click();
 	await page.keyboard.press('Control+c');
-	await expect(page.locator('.toast')).toContainText('Karta zkopírována');
+	expect(await clipboardText(page)).toContain('"kind": "card"');
 
 	await cards(page).nth(0).click();
 	await page.keyboard.press('Control+v');
@@ -56,7 +56,7 @@ test('a step is copied from inside it and pasted after the step the cursor is in
 	const first = steps(page).nth(0).locator('.rich-content').first();
 	await first.click();
 	await page.keyboard.press('Control+c');
-	await expect(page.locator('.toast')).toContainText('Krok zkopírován');
+	expect(await clipboardText(page)).toContain('"kind": "step"');
 
 	await steps(page).nth(2).locator('.rich-content').first().click();
 	await page.keyboard.press('Control+v');
@@ -74,7 +74,6 @@ test('selected text still copies and pastes as text', async ({ page }) => {
 	await page.keyboard.press('Control+a');
 	await page.keyboard.press('Control+c');
 	expect(await clipboardText(page)).not.toContain('edu_ai_editor');
-	await expect(page.locator('.toast')).toHaveCount(0);
 
 	await page.evaluate(() => navigator.clipboard.writeText(' a ještě tohle'));
 	await page.keyboard.press('End');

@@ -447,6 +447,7 @@
 	/**
 	 * Ctrl+C with no text selected copies what the teacher is in: the step when the
 	 * cursor is in one, else the card. Selected text copies as text, as anywhere.
+	 * Silent, as a copy is anywhere else (DESIGN.md: no toast nobody asked for).
 	 */
 	function oncopy(event: ClipboardEvent) {
 		if (event.defaultPrevented || event.clipboardData === null || card === undefined) return;
@@ -456,11 +457,10 @@
 		if (target instanceof Element && target.closest('math-field') !== null) return;
 		if (selectsText(target)) return;
 		const stepId = stepAt(target);
-		const text = toClipboard(card, stepId);
+		const text = toClipboard(doc.course_id, card, stepId);
 		if (text === null) return;
 		event.preventDefault();
 		event.clipboardData.setData('text/plain', text);
-		notices.show({ text: stepId !== undefined ? 'Krok zkopírován.' : 'Karta zkopírována.' });
 	}
 
 	/**
@@ -479,7 +479,7 @@
 		if (copied.kind === 'card') {
 			const lessonId = lesson?.lesson_id;
 			const after = card?.block_id;
-			store.apply((d, r) => pasteBlock(d, copied.block, lessonId, after, r));
+			store.apply((d, r) => pasteBlock(d, copied.block, lessonId, after, r, copied.from));
 			void focusSelectedCard();
 			return;
 		}
@@ -491,7 +491,7 @@
 		const after =
 			stepAt(event.target) ??
 			(store.selection?.blockId === blockId ? store.selection.stepId : undefined);
-		const result = store.apply((d, r) => pasteStep(d, blockId, copied.step, after, r));
+		const result = store.apply((d, r) => pasteStep(d, blockId, copied.step, after, r, copied.from));
 		const stepId = result?.ref?.stepId;
 		if (stepId === undefined) return;
 		await tick();
@@ -891,8 +891,11 @@
 		cursor: pointer;
 	}
 
+	.import-details ul {
+		color: var(--e-text-muted);
+	}
+
 	.import-details li {
-		font-family: var(--font-code);
 		overflow-wrap: anywhere;
 	}
 
