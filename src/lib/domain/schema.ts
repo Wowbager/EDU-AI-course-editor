@@ -98,9 +98,10 @@ export const prerequisiteRuleSchema = z.looseObject({
 });
 
 export const gpfSchema = z.looseObject({
-	domain: z.string().optional(),
-	construct: z.string().optional(),
-	subconstruct: z.string().optional(),
+	// The admin writes its taxonomy ids here as numbers; kept as they came.
+	domain: z.union([z.string(), z.number()]).optional(),
+	construct: z.union([z.string(), z.number()]).optional(),
+	subconstruct: z.union([z.string(), z.number()]).optional(),
 	grade: z.number().int().nullable().optional(),
 	level: z.number().int().optional(),
 	vector: z.array(z.number()).optional(),

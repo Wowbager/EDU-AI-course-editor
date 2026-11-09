@@ -332,6 +332,17 @@ function normaliseBlock(raw: Json, notes: ImportNote[]): Json {
 		);
 	}
 
+	// The admin's exports are PHP-encoded: vector items as numeric strings and an
+	// empty `fsrs` as `[]`. The app reads both the same as numbers and as no `fsrs`.
+	if (isObj(out.gpf)) {
+		const gpf: Json = { ...(out.gpf as Json) };
+		for (const key of ['vector', 'kb_vector', 'relation_vector', 'elo_vector']) {
+			if (Array.isArray(gpf[key])) gpf[key] = (gpf[key] as unknown[]).map(numericString);
+		}
+		out.gpf = gpf;
+	}
+	if (Array.isArray(raw.fsrs) && raw.fsrs.length === 0) delete out.fsrs;
+
 	// `competencies: []` is how older documents write "none"; the format wants a map.
 	if (isObj(raw.learning) && Array.isArray((raw.learning as Json).competencies)) {
 		const list = (raw.learning as Json).competencies as unknown[];
@@ -373,6 +384,13 @@ function normaliseBlock(raw: Json, notes: ImportNote[]): Json {
 	out.steps = steps.map((step, i) => normaliseStep(step, i, blockId, notes));
 	for (const key of LEGACY_BLOCK_KEYS) delete out[key];
 	return out;
+}
+
+/** `"5.5"` → `5.5`; anything that isn't a plain number string is left for the schema. */
+function numericString(v: unknown): unknown {
+	if (typeof v !== 'string' || v.trim() === '') return v;
+	const n = Number(v);
+	return Number.isFinite(n) ? n : v;
 }
 
 /** Sorts `s1, s2, s10` numerically; falls back to lexicographic for other keys. */

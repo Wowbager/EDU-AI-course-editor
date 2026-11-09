@@ -1,0 +1,284 @@
+{
+  "export_type": "course_v2",
+  "course_id": "ADM-Rovnice_c1",
+  "version": 3,
+  "name": "Rovnice",
+  "language": "cs",
+  "author": "PedF",
+  "updated": "2026-11-06T06:45:19.077Z",
+  "status": "private",
+  "lessons": [
+    {
+      "lesson_id": "ADM-Rovnice_l1",
+      "version": 1,
+      "name": "Rovnice 1",
+      "order": 1,
+      "blocks": [
+        {
+          "block_id": "ADM-Rovnice_01",
+          "order": 1,
+          "default_practice": false
+        },
+        {
+          "block_id": "ADM-Rovnice_02",
+          "order": 2,
+          "default_practice": false
+        },
+        {
+          "block_id": "NXJSH2KSSS",
+          "order": 3
+        }
+      ]
+    }
+  ],
+  "blocks": [
+    {
+      "export_type": "block_v2",
+      "block_id": "ADM-Rovnice_01",
+      "version": 1,
+      "language": "cs",
+      "author": "JM",
+      "updated": "2026-08-16T12:10:45.076Z",
+      "status": "approved",
+      "type": "display",
+      "practice": false,
+      "duration": 1,
+      "gpf": {
+        "domain": 5,
+        "construct": 3,
+        "subconstruct": 3,
+        "grade": 4,
+        "level": 2,
+        "relation_vector": [
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "2",
+          "0",
+          "0"
+        ],
+        "elo_vector": [
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "4.5",
+          "0",
+          "0"
+        ]
+      },
+      "learning": {
+        "concepts": [],
+        "competencies": [],
+        "bloom_leve": null,
+        "difficulty": null,
+        "prerequisites": []
+      },
+      "fsrs": [],
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Rovnice je rovnováha na vahách."
+        }
+      ]
+    },
+    {
+      "export_type": "block_v2",
+      "block_id": "ADM-Rovnice_02",
+      "version": 1,
+      "language": "cs",
+      "author": "JM",
+      "updated": "2026-08-16T12:10:45.076Z",
+      "status": "approved",
+      "type": "question",
+      "practice": false,
+      "duration": 1,
+      "gpf": {
+        "domain": 5,
+        "construct": 3,
+        "subconstruct": 3,
+        "grade": 4,
+        "level": 2,
+        "relation_vector": [
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "2",
+          "0",
+          "0"
+        ],
+        "elo_vector": [
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "0",
+          "4.5",
+          "0",
+          "0"
+        ]
+      },
+      "learning": {
+        "concepts": [],
+        "competencies": [],
+        "bloom_leve": null,
+        "difficulty": null,
+        "prerequisites": []
+      },
+      "fsrs": [],
+      "steps": [
+        {
+          "id": "s1",
+          "type": "question",
+          "order": 1,
+          "content": "Kolik je $x$, když $x+2=5$?",
+          "question": {
+            "type": "numeric",
+            "correct_answer": "3"
+          }
+        }
+      ]
+    },
+    {
+      "block_id": "NXJSH2KSSS",
+      "type": "display",
+      "gpf": {
+        "domain": null,
+        "construct": null,
+        "subconstruct": null,
+        "grade": null,
+        "level": 2,
+        "relation_vector": [],
+        "elo_vector": []
+      },
+      "fsrs": {
+        "initial_difficulty": 0.3,
+        "initial_stability": 2.5,
+        "weight": 5
+      },
+      "steps": [
+        {
+          "id": "s1",
+          "type": "text",
+          "order": 1,
+          "content": "Shrnutí."
+        }
+      ]
+    }
+  ]
+}

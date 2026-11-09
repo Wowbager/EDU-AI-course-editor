@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { importCourse, serialise } from '../document';
+import { importCourse, serialise, summariseIssues } from '../document';
 import { validate } from '../validate';
 import { UNKNOWN_SKILL_CONFIG } from '../skill-config';
 
@@ -83,6 +83,35 @@ describe('already-V2 documents round-trip unchanged', () => {
 	it.each(alreadyV2)('%s', (name) => {
 		const raw = load(name) as Record<string, unknown>;
 		expect(serialise(importCourse(raw).doc)).toEqual(raw);
+	});
+});
+
+describe('admin exports (PHP-encoded types)', () => {
+	// The admin writes vector items as numeric strings, taxonomy ids as numbers and an
+	// empty `fsrs` as `[]`. A whole course used to fail to load over these.
+	const { doc } = importCourse(load('adm-php-types.json'));
+	const block = doc.blocks.find((b) => b.block_id === 'ADM-Rovnice_02')!;
+
+	it('reads vector items as numbers', () => {
+		expect(block.gpf?.relation_vector?.[32]).toBe(2);
+		expect(block.gpf?.elo_vector?.[32]).toBe(4.5);
+		expect(block.gpf?.elo_vector?.every((v) => typeof v === 'number')).toBe(true);
+	});
+
+	it('keeps taxonomy ids as they came', () => {
+		expect(block.gpf?.domain).toBe(5);
+		expect(serialise(doc)).toHaveProperty('blocks.1.gpf.subconstruct', 3);
+	});
+
+	it('reads an empty `fsrs: []` as no fsrs', () => {
+		expect(block.fsrs).toBeUndefined();
+		expect(doc.blocks.find((b) => b.block_id === 'NXJSH2KSSS')?.fsrs?.weight).toBe(5);
+	});
+
+	it('still rejects a vector item that is not a number', () => {
+		const raw = load('adm-php-types.json') as { blocks: { gpf: { elo_vector: unknown[] } }[] };
+		raw.blocks[0].gpf.elo_vector[0] = 'hodně';
+		expect(() => importCourse(raw)).toThrow();
 	});
 });
 
@@ -281,5 +310,20 @@ describe('a file with two options sharing an id', () => {
 		const result = validate(doc);
 		expect(result.errors.map((e) => e.code)).toContain('E_DUPLICATE_OPTION_ID');
 		expect(result.warnings.map((e) => e.code)).not.toContain('E_DUPLICATE_OPTION_ID');
+	});
+});
+
+describe('summariseIssues', () => {
+	it('groups the same problem across blocks and positions, most frequent first', () => {
+		const issues = [
+			{ path: 'blocks.0.fsrs', message: 'expected object' },
+			{ path: 'blocks.2.gpf.elo_vector.0', message: 'expected number' },
+			{ path: 'blocks.2.gpf.elo_vector.1', message: 'expected number' },
+			{ path: 'blocks.7.gpf.elo_vector.34', message: 'expected number' }
+		];
+		expect(summariseIssues(issues)).toEqual([
+			{ path: 'blocks.*.gpf.elo_vector.*', message: 'expected number', count: 3 },
+			{ path: 'blocks.*.fsrs', message: 'expected object', count: 1 }
+		]);
 	});
 });
