@@ -172,7 +172,7 @@ test('the sidebar’s card buttons offer the same choice as the ⋯ menu', async
 });
 
 for (const mode of ['Učitel', 'Pokročilý']) {
-	test(`${mode}: focus stays on the card's tile after „Všechny otázky v jedné kartě“ in the rail (issue #8)`, async ({
+	test(`${mode}: focus stays on the card's tile after „Všechny otázky v jedné kartě“ in the rail`, async ({
 		page
 	}) => {
 		await page.getByRole('radio', { name: mode }).click();

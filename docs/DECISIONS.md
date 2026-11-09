@@ -1790,7 +1790,7 @@ for "the more advanced settings and features" of Nastavení karty, the step and 
 extras, and course and lesson settings to be simple and intuitive, "without big visual
 load". Fields nothing reads yet "will have effect", so they are planned for and "I
 wouldn't keep them in just one group". Containers: "Keep dialogs, restructure". The
-design brief (`docs/DESIGN.md`, PR #1) is proposed, not merged; principles 1, 3, 5, 6 and
+design brief (`docs/DESIGN.md`) is proposed, not merged; principles 1, 3, 5, 6 and
 8 were followed. This entry covers the dialogs and, below, the step and answer extras.
 
 ### The registry decides where a field sits, not only who sees it
@@ -2227,7 +2227,7 @@ a search field always open in Učitel (visual load for a dialog of three fields)
 
 ## Round 14 — the AI assistant stays on its branch
 
-PR #2 (`claude/ai-surface`, merging `claude/screen-model`, `claude/ai-provider` and
+The branch `claude/ai-surface` (merging `claude/screen-model`, `claude/ai-provider` and
 `claude/ai-simulator`) built a "screen model" (one `store.screen` that both the UI and an
 AI assistant read, replacing per-component derivations) and, on top of it, an in-app AI
 chat: a provider adapter (OpenRouter/DeepSeek), tools in MCP shape gated by mode, size and
@@ -2365,7 +2365,7 @@ web works only for hosts that send CORS headers. `player-shim.js` now sends a cr
 
 ### Review findings, and the checks that now catch their kind
 
-Copilot's review of PR #3 found six defects; each now has a check that failed on the code
+A code review of the round's work found six defects; each now has a check that failed on the code
 before its fix:
 
 | Finding | Fix | Caught by |
@@ -2393,7 +2393,7 @@ Markdown syntax character, so a failure is a real one).
 - Placeholders in these fields are faint italic, distinct from written text (a known gap
   in DESIGN.md).
 - An answer gets the same row as other fields, with fewer buttons, rather than no row.
-- OPEN-PROBLEMS #39 closed: PR #1 is merged and `docs/DESIGN.md` is on `main`.
+- OPEN-PROBLEMS #39 closed: the brief is merged and `docs/DESIGN.md` is on `main`.
 
 ### Proposed, not built
 
@@ -2408,7 +2408,7 @@ The owner, after `npm run dev -- --host` answered the page with an error: *"add 
 check for every recommended way to run the server (docker, npm) for CI, so that every
 way to run it is at least able to start the server and load the page."*
 
-The error was a checkout whose `node_modules` predated PR #3: Vite started, said
+The error was a checkout whose `node_modules` predated a dependency change: Vite started, said
 "Failed to run dependency scan" among its other lines, and every page was a 500
 (`Cannot find module 'marked'`). `--host` had nothing to do with it.
 
@@ -2566,7 +2566,7 @@ was never committed. Redone against the current code and measured again:
 
 ## Round 20 — the first load pushed further, and a returning teacher asks for one page
 
-The owner: *"Merge PR 5, then build the three further steps: versioned player path,
+The owner, after the previous round was merged: *"Build the three further steps: versioned player path,
 dropping the MSAL scripts from the image's player, and lazy-loading CodeMirror."*
 Measured as a browser loads the editor with the preview open, before → after Round 19 →
 now: 5.7 MB → 3.64 MB → 3.56 MB brotli on first load, 58 → 48 same-origin requests;
@@ -2738,8 +2738,8 @@ recommendation is what is recorded.
 
 **Decided, nothing to build.**
 - **No sign-in for now.** Versions stay per browser. The app's developers should give the
-  editor an easy way to reuse the app's sign-in (issue #19). The mode stays the
-  teacher's own choice, not a role. "Still open" 2 and 3 wait on that issue.
+  editor an easy way to reuse the app's sign-in (asked of them). The mode stays the
+  teacher's own choice, not a role. "Still open" 2 and 3 wait on that.
 - **Publishing a Cvičení or Test, and image upload for teachers (#56, #48):** not a
   problem while most users are admins. They wait for sign-in.
 - **The Opakování fields stay** although the app reads other keys (#14): they are in the
@@ -2931,8 +2931,8 @@ citation still resolves. `0` is one of the numbers, not a placeholder.
    post-mortem both point at it.
 
 1. **RVP → GPF mapping table (M6)** — *closed in Round 24:* dropped by the owner.
-2. **Publish (M7)** — *blocker:* waits for sign-in, which waits for the app (issue #19). `api/client.ts` has the upload; no button is wired.
-3. **Auth and roles** — *closed in Round 24:* no editor login; the app's developers are asked for a shared sign-in (issue #19). The mode stays a personal choice.
+2. **Publish (M7)** — *blocker:* waits for sign-in, which waits for the app. `api/client.ts` has the upload; no button is wired.
+3. **Auth and roles** — *closed in Round 24:* no editor login; the app's developers are asked for a shared sign-in. The mode stays a personal choice.
 5. **Id reuse beyond a session** — *closed in Round 24:* new step ids are random (`ids.ts`).
 6. **`W_DUPLICATE_OPTION_ID`** — *closed in Round 24:* now the error `E_DUPLICATE_OPTION_ID`.
 7. **`relation_vector: 1` is inert in the app** — *settled in Round 23:* the editor

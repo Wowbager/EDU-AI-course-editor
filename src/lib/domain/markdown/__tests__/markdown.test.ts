@@ -119,7 +119,7 @@ describe('writing Markdown the app shows the same way', () => {
 	});
 
 	it('keeps a blank as typed after a typed backslash', () => {
-		// CI, PR #4 (fast-check): the backslash's own escape hid the run from the rule above.
+		// Found by fast-check in CI: the backslash's own escape hid the run from the rule above.
 		for (const typed of ['\\__Ř', 'a \\\\____ b']) {
 			const md = serializeMarkdown(p(text(typed)), SNIFFED);
 			expect(parse(md), md).toEqual(p(text(typed)));

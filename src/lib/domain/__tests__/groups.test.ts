@@ -556,7 +556,7 @@ describe('which cards the pupil checks in one tap (`_isBatchBlock`)', () => {
 	});
 });
 
-describe('which hints the "?" opens, through the teacher’s view (issue 12)', () => {
+describe('which hints the "?" opens, through the teacher’s view', () => {
 	const three = () =>
 		course([
 			{
