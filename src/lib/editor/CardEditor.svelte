@@ -474,7 +474,7 @@
 		{onfinalize}
 	>
 		{#each items as item, i (item.id)}
-			<div class="step-wrap">
+			<div class="step-wrap" data-step-id={item.step.id}>
 				<StepEditor
 					{doc}
 					{block}

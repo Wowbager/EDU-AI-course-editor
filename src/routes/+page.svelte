@@ -34,7 +34,11 @@
 	import LessonSettings from '$lib/editor/LessonSettings.svelte';
 	import CardSettings from '$lib/editor/CardSettings.svelte';
 	import FocusField from '$lib/ui/FocusField.svelte';
-	import { addBlock, setField } from '$lib/domain/commands';
+	import { addBlock, pasteBlock, pasteStep, setField } from '$lib/domain/commands';
+	import { fromClipboard, toClipboard } from '$lib/domain/clipboard';
+	import { notices } from '$lib/state/notice.svelte';
+	import { firstField, focusSelectedCard } from '$lib/ui/focus-after';
+	import { tick } from 'svelte';
 	import { importCourseJson, emptyCourse, ParseError, summariseIssues } from '$lib/domain/document';
 	import { newCourseId } from '$lib/domain/ids';
 	import { looksLikeGpfTaxonomy, skillConfigFromGpfTaxonomy } from '$lib/domain/skill-config';
@@ -418,6 +422,82 @@
 		}
 	}
 
+	/** The step of the card in the editor column that `target` is in. */
+	const stepAt = (target: EventTarget | null): string | undefined => {
+		const id =
+			target instanceof Element
+				? target.closest<HTMLElement>('[data-step-id]')?.dataset.stepId
+				: undefined;
+		return card?.steps.some((s) => s.id === id) ? id : undefined;
+	};
+
+	/** Whether there is text selected for the browser's own copy to take. */
+	const selectsText = (target: EventTarget | null) => {
+		if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+			try {
+				return target.selectionStart !== target.selectionEnd;
+			} catch {
+				return false; // an input type without a text selection
+			}
+		}
+		const selection = window.getSelection();
+		return selection !== null && !selection.isCollapsed && selection.toString() !== '';
+	};
+
+	/**
+	 * Ctrl+C with no text selected copies what the teacher is in: the step when the
+	 * cursor is in one, else the card. Selected text copies as text, as anywhere.
+	 */
+	function oncopy(event: ClipboardEvent) {
+		if (event.defaultPrevented || event.clipboardData === null || card === undefined) return;
+		if (notices.modals > 0) return;
+		const target = event.target;
+		// A formula field copies its own selection, from inside its shadow root.
+		if (target instanceof Element && target.closest('math-field') !== null) return;
+		if (selectsText(target)) return;
+		const stepId = stepAt(target);
+		const text = toClipboard(card, stepId);
+		if (text === null) return;
+		event.preventDefault();
+		event.clipboardData.setData('text/plain', text);
+		notices.show({ text: stepId !== undefined ? 'Krok zkopírován.' : 'Karta zkopírována.' });
+	}
+
+	/**
+	 * Ctrl+V of a copied card puts it after the card in the editor column; of a step,
+	 * after the step the cursor is in, else at the end of the card. Runs before the
+	 * fields' own paste, so a copied card never lands in a field as text. Anything
+	 * else on the clipboard is pasted by the field as before.
+	 */
+	async function onpaste(event: ClipboardEvent) {
+		if (event.defaultPrevented || notices.modals > 0) return;
+		const copied = fromClipboard(event.clipboardData?.getData('text/plain') ?? '');
+		if (copied === null) return;
+		event.preventDefault();
+		event.stopPropagation();
+
+		if (copied.kind === 'card') {
+			const lessonId = lesson?.lesson_id;
+			const after = card?.block_id;
+			store.apply((d, r) => pasteBlock(d, copied.block, lessonId, after, r));
+			void focusSelectedCard();
+			return;
+		}
+		if (card === undefined) {
+			notices.show({ text: 'Vyber kartu, kam krok vložit.' });
+			return;
+		}
+		const blockId = card.block_id;
+		const after =
+			stepAt(event.target) ??
+			(store.selection?.blockId === blockId ? store.selection.stepId : undefined);
+		const result = store.apply((d, r) => pasteStep(d, blockId, copied.step, after, r));
+		const stepId = result?.ref?.stepId;
+		if (stepId === undefined) return;
+		await tick();
+		firstField(document.querySelector(`[data-step-id="${CSS.escape(stepId)}"]`))?.focus();
+	}
+
 	/**
 	 * A text-entry `input` or `textarea`: the element's own undo applies to it. A field
 	 * that writes into the course as it is typed (the formula row) says
@@ -439,7 +519,7 @@
 		(target.isContentEditable || target.closest('input, textarea, select') !== null);
 </script>
 
-<svelte:window {onkeydown} />
+<svelte:window {onkeydown} {oncopy} onpastecapture={onpaste} />
 
 <div class="shell">
 	<Topbar
