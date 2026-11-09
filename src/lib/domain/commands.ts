@@ -28,6 +28,7 @@ import { ELO_BASELINE } from './skill-config';
 import {
 	buildIndex,
 	isGoToKeyword,
+	MEMBERS_KEY,
 	referencesToBlock,
 	referencesToStep,
 	type Reference
@@ -621,6 +622,83 @@ export function duplicateBlock(
 	};
 }
 
+/**
+ * Paste a card copied from this course or another one, after `afterBlockId` in the
+ * lesson (at its end when that card isn't in it). The copy is a new card in every way
+ * `duplicateBlock` makes one: a fresh id, steps from `s1`. A branch or prerequisite
+ * naming a card this course doesn't have is dropped rather than left dangling.
+ */
+export function pasteBlock(
+	doc: CourseV2,
+	card: BlockV2,
+	lessonId?: string,
+	afterBlockId?: string,
+	reserved?: Reservations
+): CommandResult {
+	const copyId = nextBlockId(card.block_id, doc, reserved);
+	// A copied block of a question card is its own card here, never a member of the
+	// group it came from (`groups.ts`). The view's member list is the source's business.
+	const {
+		group: _group,
+		[MEMBERS_KEY]: _members,
+		...rest
+	} = deepCopy(card) as BlockV2 & Record<string, unknown>;
+	void _group;
+	void _members;
+	const copy = duplicateBlockValue(rest as BlockV2, copyId);
+
+	const known = blockIdsOf(doc);
+	known.add(copyId);
+	const own = new Set(copy.steps.map((s) => s.id));
+	copy.steps = copy.steps.map((step) => dropDanglingGoTo(step, own, known));
+	const prerequisites = copy.learning?.prerequisites;
+	if (prerequisites !== undefined) {
+		copy.learning = {
+			...copy.learning,
+			prerequisites: prerequisites.filter((p) => p.block_id === undefined || known.has(p.block_id))
+		};
+	}
+
+	let next: CourseV2 = { ...doc, blocks: [...doc.blocks, copy] };
+	if (lessonId !== undefined) {
+		const lesson = requireLesson(next, lessonId);
+		const at = lesson.blocks.findIndex((b) => b.block_id === afterBlockId);
+		next = bindBlock(next, lessonId, copyId, at >= 0 ? at + 1 : undefined).doc;
+	}
+	return { doc: next, ref: { lessonId, blockId: copyId }, description: 'Vložena karta' };
+}
+
+/** Every id a `go_to` or prerequisite here can name: cards, and the blocks behind them. */
+function blockIdsOf(doc: CourseV2): Set<string> {
+	const ids = new Set<string>();
+	for (const block of doc.blocks) {
+		ids.add(block.block_id);
+		const members = (block as Record<string, unknown>)[MEMBERS_KEY];
+		if (Array.isArray(members)) for (const m of members) ids.add(String(m));
+	}
+	return ids;
+}
+
+/** Drop option jumps to a step not in `steps` or a card not in `blocks`. */
+function dropDanglingGoTo(step: BlockStep, steps: Set<string>, blocks: Set<string>): BlockStep {
+	const options = step.question?.options;
+	if (options === undefined) return step;
+	const resolves = (to: string) => isGoToKeyword(to) || steps.has(to) || blocks.has(to);
+	if (options.every((o) => typeof o.go_to !== 'string' || resolves(o.go_to))) return step;
+	return {
+		...step,
+		question: {
+			...step.question!,
+			options: options.map((o) => {
+				if (typeof o.go_to !== 'string' || resolves(o.go_to)) return o;
+				const { go_to: _dropped, ...kept } = o;
+				void _dropped;
+				return kept as QuestionOption;
+			})
+		}
+	};
+}
+
 /** Everything that would break if this block went away. */
 export function planDeleteBlock(doc: CourseV2, blockId: string): Reference[] {
 	const index = buildIndex(doc);
@@ -778,6 +856,35 @@ export function duplicateStep(
 		}),
 		ref: { blockId, stepId: id },
 		description: `Duplikován krok „${stepId}“`
+	};
+}
+
+/**
+ * Paste a copied step into a card, after `afterStepId` (at the end when that step
+ * isn't in the card). It gets a fresh id; a jump to a step or card that isn't here is
+ * dropped.
+ */
+export function pasteStep(
+	doc: CourseV2,
+	blockId: string,
+	step: BlockStep,
+	afterStepId?: string,
+	reserved?: Reservations
+): CommandResult {
+	const block = requireBlock(doc, blockId);
+	const id = nextStepId(block.steps, blockId, reserved);
+	const own = new Set(block.steps.map((s) => s.id));
+	const copy = dropDanglingGoTo({ ...deepCopy(step), id }, own, blockIdsOf(doc));
+
+	return {
+		doc: mapBlock(doc, blockId, (b) => {
+			const steps = [...b.steps];
+			const after = steps.findIndex((s) => s.id === afterStepId);
+			steps.splice(after >= 0 ? after + 1 : steps.length, 0, copy);
+			return { ...b, steps: renumberOrder(steps) };
+		}),
+		ref: { blockId, stepId: id },
+		description: 'Vložen krok'
 	};
 }
 
