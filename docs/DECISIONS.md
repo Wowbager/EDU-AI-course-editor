@@ -2877,6 +2877,28 @@ Rejected: restyling MathLive's keyboard via its CSS variables (the Shift layer s
 partly controllable), and replacing the MathLive engine itself (round 25: teachers want
 structural editing, not raw LaTeX).
 
+## Round 27 — Ctrl+C / Ctrl+V of whole cards and steps; admin exports load
+
+The owner: copy and paste whole blocks and steps through the clipboard, with Ctrl+C and
+Ctrl+V. And a course exported from the admin (`A2-Rovnice_c1-v168`) would not load.
+
+**Copy-paste goes through the system clipboard as marked JSON** (`domain/clipboard.ts`),
+so it works between tabs and courses. Ctrl+C with no text selected copies the step the
+cursor is in, else the card in the editor column; selected text copies as text. Ctrl+V of
+a copied card puts a new card after the open one (`pasteBlock`), of a step after the
+step the cursor is in (`pasteStep`), even with the cursor in a field; any other text
+pastes as before. The card is taken from the view (`store.doc`), so a card of several
+questions pastes as one new card whose blocks `fromView` splits under fresh ids. A
+pasted card is a new card the way a duplicate is; jumps and prerequisites to cards the
+target course lacks are dropped. Copy says „Karta zkopírována.“ because nothing else on
+screen changes; paste says nothing, like Duplikovat. Rejected: `navigator.clipboard`
+(permission prompt, HTTPS only) and an in-page clipboard (would not cross tabs).
+
+**Admin exports are PHP-encoded:** vector items as numeric strings, GPF taxonomy ids as
+numbers, an empty `fsrs` as `[]`. The app reads all three; import now reads the strings
+as numbers and `[]` as no `fsrs`, and the schema keeps the ids as numbers so they go back
+out unchanged. A file that still fails shows its few kinds of problem under „Podrobnosti“.
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today
