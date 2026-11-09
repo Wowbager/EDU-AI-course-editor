@@ -1,6 +1,6 @@
 # AGENTS.md — EDU-AI course editor
 
-For any agent working in this repository (`github.com/Wowbager/EDU-AI-course-editor`).
+For any agent working in this repository.
 Several people and agents push to `main`.
 
 ## What this is

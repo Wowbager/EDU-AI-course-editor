@@ -444,17 +444,17 @@ answered correctly. The fork's version was dropped so that Vyzkoušet is the pup
 again (DECISIONS Round 21). In such a card a per-question `go_to` is ignored — recorded
 for the editor's warnings in Round 21's follow-ups.
 
-### 39. The design brief agents are told to follow is not on `main` — closed (PR #1 merged)
+### 39. The design brief agents are told to follow is not on `main` — closed (brief merged)
 **Verified by reading the repo.** The standing instructions every agent on this project
 gets — the workspace `AGENTS.md`, which sits outside this repository, next to the
 checkouts — tell them: *"For anything a teacher sees, follow `docs/DESIGN.md`"* (in this
 repo). That file does not exist on `main`. It was written by the 2026-09-29 design review
-and pushed as branch `claude/design-brief`, which is open as **PR #1** and unmerged. So
+and pushed as branch `claude/design-brief`, which is open for review and unmerged. So
 the standing instructions point at a document the repository does not contain, and an
 agent that checks will find nothing; one that does not check will invent a design
 authority from the current UI — which is exactly what the brief was written to stop.
 
-This is the owner's call, not a fix to make here. Either **merge PR #1** (the brief then
+This is the owner's call, not a fix to make here. Either **merge that branch** (the brief then
 becomes real authority and this entry goes away), or **rewrite the instruction** to say
 the brief is a *proposal pending approval* and the current UI is not yet the target.
 Until one of those happens the reference in the workspace instructions is marked as
@@ -465,7 +465,7 @@ their post-review state, so merging it is not a docs-only change: it is a decisi
 which of those files is canonical. That is why it was not merged as part of the
 2026-09-30 workspace tidy.
 
-**Closed in Round 15.** PR #1 was merged (`842c8ad`); `docs/DESIGN.md` is on `main` and is
+**Closed in Round 15.** The brief was merged; `docs/DESIGN.md` is on `main` and is
 the authority `AGENTS.md` says it is.
 
 ### 1. An empty lesson is invisible to validation — fixed (Round 4)

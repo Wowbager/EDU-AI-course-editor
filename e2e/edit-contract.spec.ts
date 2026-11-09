@@ -88,7 +88,7 @@ for (const surface of surfaces) {
 test('switching to Markdown mid-run ends the run, and the source view keeps its own', async ({
 	page
 }) => {
-	// Copilot, PR #3: the switch closed the store's session but not the field's, so
+	// From code review: the switch closed the store's session but not the field's, so
 	// every keystroke in the source view became an undo entry of its own.
 	const visual = page.locator('.rich-content').first();
 	await typeAtEnd(page, visual, ' Vizuálně');

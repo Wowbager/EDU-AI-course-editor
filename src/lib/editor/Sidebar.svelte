@@ -264,7 +264,7 @@
 	/**
 	 * „Všechny otázky v jedné kartě“ can take its own button away (a card left with
 	 * fewer than two questions no longer offers it), and with it the focus. Focus that
-	 * was on the card's buttons then goes to the card's row (issue #8).
+	 * was on the card's buttons then goes to the card's row.
 	 */
 	async function toggleTogether(block: BlockV2, lessonId: string) {
 		const inside = document.activeElement?.closest('.tree-actions') != null;

@@ -54,7 +54,7 @@ describe('a run of typing', () => {
 	it('opens a new run when the store closed the old one elsewhere', () => {
 		// Undo, an import, the view switching or another field end the store's session
 		// without telling the field. Its next change must open a new one, not be lost
-		// as an entry of its own per keystroke (Copilot, PR #3).
+		// as an entry of its own per keystroke (found in code review).
 		const store = fakeStore();
 		const run = new EditRun(store);
 		run.begin('a');

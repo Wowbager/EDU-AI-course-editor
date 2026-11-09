@@ -97,7 +97,7 @@
 					lastEmitted = dom.trim() === '' ? undefined : dom;
 					onchange(lastEmitted);
 					// A field already left before hydration will never blur: its session ends
-					// here, and the text goes back to what the document holds (issue #18).
+					// here, and the text goes back to what the document holds.
 					// No `beginEdit` was made for this text, so there is no `endEdit` to owe;
 					// `onblur` only tells the caller its field is no longer being typed in.
 					if (document.activeElement !== element) {
@@ -139,7 +139,7 @@
 		store.endEdit();
 		editing = false;
 		// Spaces alone are no text: nothing was sent for them, so nothing would
-		// replace them either (issue #18).
+		// replace them either.
 		if (lastEmitted === undefined) draft = '';
 		baseline = draft;
 		// Leaving a field is what lets its "not filled in yet" show as a problem.

@@ -494,7 +494,7 @@ test('a formula closed empty leaves no undo step behind', async ({ page }) => {
 });
 
 test('a formula and an image open from the keyboard, as they do with a click', async ({ page }) => {
-	// Copilot, PR #3: a formula inside the text was a button nobody could reach without
+	// From code review: a formula inside the text was a button nobody could reach without
 	// a mouse. The arrows land on it like on a letter; Enter opens it.
 	await text(page).click();
 	await page.keyboard.type('Plocha $x^2$');

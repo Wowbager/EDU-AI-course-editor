@@ -1,5 +1,5 @@
 /**
- * Which steps of a card the app's "?" can open (GitHub issue 12).
+ * Which steps of a card the app's "?" can open.
  *
  * The "?" reads `BlockModel.hintForStep(step)` for the step the engine is on
  * (`BlockStepEngine._currentStep`):
