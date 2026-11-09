@@ -35,7 +35,7 @@
 	import CardSettings from '$lib/editor/CardSettings.svelte';
 	import FocusField from '$lib/ui/FocusField.svelte';
 	import { addBlock, setField } from '$lib/domain/commands';
-	import { importCourseJson, emptyCourse } from '$lib/domain/document';
+	import { importCourseJson, emptyCourse, ParseError, summariseIssues } from '$lib/domain/document';
 	import { newCourseId } from '$lib/domain/ids';
 	import { looksLikeGpfTaxonomy, skillConfigFromGpfTaxonomy } from '$lib/domain/skill-config';
 	import { derivedBlockName } from '$lib/domain/derive';
@@ -127,6 +127,8 @@
 	 */
 	let inherited = $state(false);
 	let importError = $state<string | null>(null);
+	/** What a file that failed to load got wrong, for whoever has to fix the file. */
+	let importDetails = $state<string[]>([]);
 
 	/**
 	 * Which settings panel is open, if any. One variable rather than three booleans,
@@ -200,6 +202,7 @@
 
 	async function onimport(file: File) {
 		importError = null;
+		importDetails = [];
 		try {
 			const text = await file.text();
 
@@ -242,6 +245,11 @@
 			void loadConfig();
 		} catch (error) {
 			importError = error instanceof Error ? error.message : String(error);
+			if (error instanceof ParseError) {
+				importDetails = summariseIssues(error.issues).map(
+					(i) => `${i.path}: ${i.message}${i.count > 1 ? ` (${i.count}×)` : ''}`
+				);
+			}
 		}
 	}
 
@@ -491,6 +499,14 @@
 				<div class="banner error">
 					<strong>Soubor se nepodařilo načíst.</strong>
 					{importError}
+					{#if importDetails.length > 0}
+						<details class="import-details">
+							<summary>Podrobnosti</summary>
+							<ul>
+								{#each importDetails as line (line)}<li>{line}</li>{/each}
+							</ul>
+						</details>
+					{/if}
 					<button type="button" aria-label="Zavřít" onclick={() => (importError = null)}
 						><X size={16} aria-hidden="true"></X></button
 					>
@@ -785,6 +801,19 @@
 	.banner ul {
 		margin: 6px 0 0;
 		padding-left: 18px;
+	}
+
+	.import-details {
+		margin-top: 6px;
+	}
+
+	.import-details summary {
+		cursor: pointer;
+	}
+
+	.import-details li {
+		font-family: var(--font-code);
+		overflow-wrap: anywhere;
 	}
 
 	.banner button {

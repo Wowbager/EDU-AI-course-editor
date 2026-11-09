@@ -20,6 +20,26 @@ export class ParseError extends Error {
 	}
 }
 
+/**
+ * The few kinds of problem behind a `ParseError`, most frequent first: every
+ * `blocks.12.gpf.elo_vector.3` counts as `blocks.*.gpf.elo_vector.*`. A file that
+ * fails on thousands of values usually fails for two or three reasons.
+ */
+export function summariseIssues(
+	issues: ParseError['issues'],
+	max = 3
+): { path: string; message: string; count: number }[] {
+	const groups = new Map<string, { path: string; message: string; count: number }>();
+	for (const issue of issues) {
+		const path = issue.path.replace(/(^|\.)\d+(?=\.|$)/g, '$1*');
+		const key = `${path}\u0000${issue.message}`;
+		const group = groups.get(key) ?? { path, message: issue.message, count: 0 };
+		group.count++;
+		groups.set(key, group);
+	}
+	return [...groups.values()].sort((a, b) => b.count - a.count).slice(0, max);
+}
+
 /** Parse an already-V2 document. Throws `ParseError` when the shape is unusable. */
 export function parseCourse(raw: unknown): CourseV2 {
 	const result = courseSchema.safeParse(raw);
