@@ -23,7 +23,7 @@
  *  - a card nobody touched keeps its blocks as they were, object for object.
  */
 import type { BlockStep, BlockV2, CourseV2, LessonBlockBinding, LessonV2 } from './schema';
-import { isMerged, MEMBERS_KEY, membersOf } from './card-view';
+import { MEMBERS_KEY, membersOf } from './card-view';
 import { isGoToKeyword } from './index-doc';
 import type { Reservations } from './ids';
 
@@ -339,8 +339,9 @@ function writeCard(card: BlockV2, previous: BlockV2[], takenIds: Set<string>): W
 }
 
 function stripView(card: BlockV2): BlockV2 {
-	if (!isMerged(card)) return card;
-	const { [MEMBERS_KEY]: _members, ...rest } = card;
+	// Whatever the key holds, not only a well-formed list: it never reaches the file.
+	if (!(MEMBERS_KEY in card)) return card;
+	const { [MEMBERS_KEY]: _members, ...rest } = card as BlockV2 & { [MEMBERS_KEY]?: unknown };
 	return rest;
 }
 
