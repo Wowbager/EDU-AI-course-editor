@@ -2,7 +2,7 @@
 # every PR, so a commit that breaks it shows up before anyone builds on it:
 # the type check, the unit tests, and the `editor` Playwright project.
 #
-# The `editor` project is every suite about the editor (12 files, ~113 tests) with a
+# The `editor` project is every suite about the editor, with a
 # fake player in the preview column, so it needs no player build — `vite build` and
 # the run both succeed with `PLAYER_BUILD` pointing nowhere. It used to be excluded
 # along with the `player` project, which was one job then and skipped the preview
