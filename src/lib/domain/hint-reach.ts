@@ -15,7 +15,8 @@
  *    An open question is an AI round trip, so a card holding one is not a batch and
  *    stops on each question in turn.
  */
-import { checksQuestionsInOneTap, membersOf } from './groups';
+import { membersOf } from './card-view';
+import { checksQuestionsInOneTap } from './groups';
 import type { BlockStep, BlockV2 } from './schema';
 
 /**

@@ -23,14 +23,15 @@
  *  - a card nobody touched keeps its blocks as they were, object for object.
  */
 import type { BlockStep, BlockV2, CourseV2, LessonBlockBinding, LessonV2 } from './schema';
-import { isGoToKeyword, MEMBERS_KEY } from './index-doc';
+import { isMerged, MEMBERS_KEY, membersOf } from './card-view';
+import { isGoToKeyword } from './index-doc';
 import type { Reservations } from './ids';
 
 /** The key the blocks of one teacher's card share. Its value is the card's id. */
 export const GROUP_KEY = 'group';
 /** Set by the advanced author: this block's questions are one graded item on purpose. */
 export const TOGETHER_KEY = 'multi_question';
-export { MEMBERS_KEY };
+export { MEMBERS_KEY, membersOf };
 
 type Loose = Record<string, unknown>;
 
@@ -52,11 +53,6 @@ export const groupOf = (block: BlockV2): string | undefined => {
 };
 
 export const keepsQuestionsTogether = (block: BlockV2): boolean => block[TOGETHER_KEY] === true;
-
-export const membersOf = (block: BlockV2): string[] | undefined => {
-	const value = (block as Loose)[MEMBERS_KEY];
-	return Array.isArray(value) ? (value as string[]) : undefined;
-};
 
 const isQuestion = (step: BlockStep) => step.type === 'question';
 
@@ -343,9 +339,9 @@ function writeCard(card: BlockV2, previous: BlockV2[], takenIds: Set<string>): W
 }
 
 function stripView(card: BlockV2): BlockV2 {
-	if (!(MEMBERS_KEY in card)) return card;
-	const { [MEMBERS_KEY]: _members, ...rest } = card as Loose;
-	return rest as BlockV2;
+	if (!isMerged(card)) return card;
+	const { [MEMBERS_KEY]: _members, ...rest } = card;
+	return rest;
 }
 
 /** Deep equality regardless of key order (`serialise` puts the keys in order). */

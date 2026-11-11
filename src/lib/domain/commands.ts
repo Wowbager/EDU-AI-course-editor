@@ -24,11 +24,11 @@ import type {
 import type { Ref } from './ref';
 import { lessonLabel } from './naming';
 import { deepCopy } from './clone';
+import { MEMBERS_KEY, membersOf } from './card-view';
 import { ELO_BASELINE } from './skill-config';
 import {
 	buildIndex,
 	isGoToKeyword,
-	MEMBERS_KEY,
 	referencesToBlock,
 	referencesToStep,
 	type Reference
@@ -680,8 +680,7 @@ function blockIdsOf(doc: CourseV2): Set<string> {
 	const ids = new Set<string>();
 	for (const block of doc.blocks) {
 		ids.add(block.block_id);
-		const members = (block as Record<string, unknown>)[MEMBERS_KEY];
-		if (Array.isArray(members)) for (const m of members) ids.add(String(m));
+		for (const m of membersOf(block) ?? []) ids.add(String(m));
 	}
 	return ids;
 }
