@@ -532,12 +532,11 @@ export function splitQuestionCards(
 	if (split.length === 0) return { doc: base, split, keptTogether };
 	// Writing the unchanged view back splits exactly the blocks that need it.
 	const view = toView(base);
-	// A card counts as edited only when it is a new object, so the ones to split are.
-	const edited = {
-		...view,
-		blocks: view.blocks.map((b) => (split.includes(b.block_id) ? { ...b } : b))
+	return {
+		doc: rewriteCards(base, view, (b) => split.includes(b.block_id), reserved),
+		split,
+		keptTogether
 	};
-	return { doc: fromView(base, view, edited, reserved), split, keptTogether };
 }
 
 /**
@@ -618,6 +617,23 @@ export function mergeQuestionCard(doc: CourseV2, key: string): CourseV2 {
 }
 
 /**
+ * Write the cards `pick` chooses back through the view of `doc`. A card counts as edited
+ * only when it is a new object (`fromView`), so each chosen card is cloned.
+ */
+function rewriteCards(
+	doc: CourseV2,
+	view: CourseV2,
+	pick: (card: BlockV2) => boolean,
+	reserved?: Reservations
+): CourseV2 {
+	const edited = {
+		...view,
+		blocks: view.blocks.map((card) => (pick(card) ? { ...card } : card))
+	};
+	return fromView(doc, view, edited, reserved);
+}
+
+/**
  * After an edit made on the document itself (the advanced mode edits it directly),
  * write every card the edit touched back through the view, so a question added to a
  * block becomes its own block there too. Blocks kept together are left whole.
@@ -641,11 +657,7 @@ export function resplitChanged(
 		(card) => touched.has(card.block_id) && (membersOf(card) !== undefined || splits(card))
 	);
 	if (!needs) return after;
-	const edited = {
-		...view,
-		blocks: view.blocks.map((card) => (touched.has(card.block_id) ? { ...card } : card))
-	};
-	return fromView(after, view, edited, reserved);
+	return rewriteCards(after, view, (card) => touched.has(card.block_id), reserved);
 }
 
 /** „Všechny otázky v jedné kartě“ turned off: split a block kept together into its group. */
@@ -658,12 +670,7 @@ export function splitQuestionCard(
 	if (block === undefined || !keepsQuestionsTogether(block)) return doc;
 	const { [TOGETHER_KEY]: _together, ...rest } = block;
 	const base = { ...doc, blocks: doc.blocks.map((b) => (b === block ? rest : b)) };
-	const view = toView(base);
-	const edited = {
-		...view,
-		blocks: view.blocks.map((b) => (b.block_id === blockId ? { ...b } : b))
-	};
-	return fromView(base, view, edited, reserved);
+	return rewriteCards(base, toView(base), (b) => b.block_id === blockId, reserved);
 }
 
 // ───────────────────────────────────── refs ─────────────────────────────────────
