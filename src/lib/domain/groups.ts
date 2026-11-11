@@ -47,12 +47,11 @@ const OWN_FIELDS = new Set(['block_id', 'type', 'steps', GROUP_KEY, MEMBERS_KEY]
 const FIRST_ONLY = new Set(['duration', 'xp']);
 
 export const groupOf = (block: BlockV2): string | undefined => {
-	const value = (block as Loose)[GROUP_KEY];
+	const value = block[GROUP_KEY];
 	return typeof value === 'string' && value !== '' ? value : undefined;
 };
 
-export const keepsQuestionsTogether = (block: BlockV2): boolean =>
-	(block as Loose)[TOGETHER_KEY] === true;
+export const keepsQuestionsTogether = (block: BlockV2): boolean => block[TOGETHER_KEY] === true;
 
 export const membersOf = (block: BlockV2): string[] | undefined => {
 	const value = (block as Loose)[MEMBERS_KEY];
@@ -661,8 +660,8 @@ export function splitQuestionCard(
 ): CourseV2 {
 	const block = doc.blocks.find((b) => b.block_id === blockId);
 	if (block === undefined || !keepsQuestionsTogether(block)) return doc;
-	const { [TOGETHER_KEY]: _together, ...rest } = block as Loose;
-	const base = { ...doc, blocks: doc.blocks.map((b) => (b === block ? (rest as BlockV2) : b)) };
+	const { [TOGETHER_KEY]: _together, ...rest } = block;
+	const base = { ...doc, blocks: doc.blocks.map((b) => (b === block ? rest : b)) };
 	const view = toView(base);
 	const edited = {
 		...view,
