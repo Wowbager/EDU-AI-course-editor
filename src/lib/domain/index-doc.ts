@@ -6,6 +6,7 @@
  */
 import type { BlockStep, BlockV2, CourseV2, LessonV2 } from './schema';
 import { GOTO_KEYWORDS } from './schema';
+import { membersOf } from './card-view';
 import type { Ref } from './ref';
 import { optionOutcomesApply } from './derive';
 
@@ -36,13 +37,6 @@ export interface DocIndex {
 
 const stepKey = (blockId: string, stepId: string) => `${blockId}::${stepId}`;
 
-/**
- * View only (`groups.ts`): the blocks a merged question card stands for. The index
- * resolves each of them to the card, so a branch from another card into the card's
- * second question still resolves, and deleting the card finds it.
- */
-export const MEMBERS_KEY = '_members';
-
 export const isGoToKeyword = (value: string): boolean =>
 	(GOTO_KEYWORDS as readonly string[]).includes(value);
 
@@ -65,8 +59,8 @@ export function buildIndex(doc: CourseV2): DocIndex {
 	/** A merged card's blocks, each resolving to the card. */
 	const cardOf = new Map<string, string>();
 	for (const block of doc.blocks) {
-		const members = (block as Record<string, unknown>)[MEMBERS_KEY];
-		if (!Array.isArray(members)) continue;
+		const members = membersOf(block);
+		if (members === undefined) continue;
 		for (const member of members) {
 			if (typeof member !== 'string' || blocksById.has(member)) continue;
 			blocksById.set(member, block);
