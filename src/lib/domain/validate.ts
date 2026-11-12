@@ -695,7 +695,7 @@ function checkMedia(block: BlockV2, step: BlockStep, add: Add, graded: boolean) 
 			'error',
 			'E_IMAGE_NO_URL',
 			{ ...ref, field: 'image.url' },
-			`Obrázek v kroku ${position} zatím nemá žádnou adresu. Dokud ji nevyplníš, žákovi se na jeho místě nezobrazí nic.`
+			`Krok ${position} zatím nemá obrázek. Dokud ho nevybereš, žákovi se na jeho místě nezobrazí nic.`
 		);
 	}
 	if (step.type === 'audio' && (step.audio?.url ?? '').trim() === '') {

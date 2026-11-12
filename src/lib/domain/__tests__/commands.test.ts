@@ -37,7 +37,9 @@ import {
 	blockTopics,
 	type Repair,
 	isImageReference,
-	removeImageReferences
+	imageInUse,
+	removeImageReferences,
+	removeStepImage
 } from '../commands';
 import { bindingFlagsPractice, isPracticeBlock } from '../derive';
 import { nextStepId, nextStepIds, stepReservation, type Reservations } from '../ids';
@@ -1319,5 +1321,52 @@ describe('removeImageReferences', () => {
 		const doc = base();
 		const result = removeImageReferences(doc, 'nonexistent.png');
 		expect(result.doc).toBe(doc);
+	});
+
+	it('takes a deleted picture out of the texts it was placed in, and leaves other pictures', () => {
+		const doc = base();
+		const id = '12345678-1234-1234-1234-123456789abc-diagram.png';
+		const url = `https://editor.example/images/file/${id}`;
+		const other = 'https://example.com/jiny.png';
+		const step = doc.blocks[0].steps[0];
+		step.content = `Před ![graf](${url}) po a ![jiný](${other}).`;
+		step.hint = `![](${url} "titulek")`;
+		doc.blocks[0].steps.push({
+			id: 'step_q',
+			type: 'question',
+			question: {
+				type: 'multiple_choice',
+				text: `Co ukazuje ![graf](${url})?`,
+				solution: 'řešení',
+				options: [{ id: 'opt1', text: 'Možnost', feedback: `Viz ![graf](${url})` }]
+			}
+		});
+
+		expect(imageInUse(doc, id, url)).toBe(true);
+		const result = removeImageReferences(doc, id, url).doc;
+		expect(result.blocks[0].steps[0].content).toBe(`Před  po a ![jiný](${other}).`);
+		expect(result.blocks[0].steps[0].hint).toBe('');
+		const question = result.blocks[0].steps.find((s) => s.id === 'step_q')!.question!;
+		expect(question.text).toBe('Co ukazuje ?');
+		expect(question.options?.[0].feedback).toBe('Viz ');
+		expect(imageInUse(result, id, url)).toBe(false);
+		// The document it was asked about is not written to.
+		expect(doc.blocks[0].steps[0].content).toContain(url);
+	});
+});
+
+describe('removeStepImage', () => {
+	it('empties the picture of an image step, description included, and keeps the step', () => {
+		const doc = base();
+		const block = doc.blocks[0];
+		block.steps.push({
+			id: 'step_img',
+			type: 'image',
+			image: { url: 'https://x.cz/a.png', alt: 'A' }
+		});
+		const result = removeStepImage(doc, { blockId: block.block_id, stepId: 'step_img' });
+		const step = result.doc.blocks[0].steps.find((s) => s.id === 'step_img')!;
+		expect(step.image).toEqual({ url: '', alt: '' });
+		expect(step.type).toBe('image');
 	});
 });

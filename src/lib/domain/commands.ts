@@ -1420,8 +1420,50 @@ export function isImageReference(
 	return false;
 }
 
+/** `![popis](adresa)` or `![popis](adresa "titulek")`, as the text editor writes it. */
+const TEXT_IMAGE = /!\[[^\]\n]*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"\n]*")?\s*\)/g;
+
+/** Takes matching pictures out of every text under `node`. Says whether it took any. */
+function stripTextImages(node: unknown, match: (url: string) => boolean): boolean {
+	if (node === null || typeof node !== 'object') return false;
+	let changed = false;
+	const holder = node as Record<string, unknown>;
+	for (const key of Object.keys(holder)) {
+		const value = holder[key];
+		if (typeof value === 'string') {
+			if (!value.includes('![')) continue;
+			const next = value.replace(TEXT_IMAGE, (whole, url: string) => (match(url) ? '' : whole));
+			if (next !== value) {
+				holder[key] = next;
+				changed = true;
+			}
+		} else if (stripTextImages(value, match)) changed = true;
+	}
+	return changed;
+}
+
+/** Whether deleting this picture would change the course: it is used somewhere in it. */
+export function imageInUse(doc: CourseV2, id: string, url?: string): boolean {
+	return removeImageReferences(doc, id, url).doc !== doc;
+}
+
+/** The picture of an image step is taken out; the step stays, asking for one again. */
+export function removeStepImage(doc: CourseV2, ref: Ref): CommandResult {
+	if (ref.blockId === undefined || ref.stepId === undefined)
+		throw new CommandError('Chybí krok.', ref);
+	return {
+		doc: mapStep(doc, ref.blockId, ref.stepId, (step) => ({
+			...step,
+			image: { url: '', alt: '' }
+		})),
+		ref,
+		description: 'Odebrání obrázku'
+	};
+}
+
 /**
  * Remove all references to a deleted image from the course document:
+ *  - Pictures placed in texts (Markdown)
  *  - Course header image
  *  - Lesson header images and binding background images
  *  - Steps with image media (cleared to empty for type === 'image', removed otherwise)
@@ -1463,6 +1505,10 @@ export function removeImageReferences(doc: CourseV2, id: string, url?: string): 
 		for (const block of nextDoc.blocks) {
 			if (Array.isArray(block.steps)) {
 				for (const step of block.steps) {
+					// Pictures placed in a text: the step's own texts, its question's and
+					// its answers', wherever Markdown is written.
+					if (stripTextImages(step, match)) changed = true;
+
 					// step.image
 					if (match(step.image?.url)) {
 						if (step.type === 'image') {
