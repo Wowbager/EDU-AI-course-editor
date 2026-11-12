@@ -1353,6 +1353,20 @@ describe('removeImageReferences', () => {
 		// The document it was asked about is not written to.
 		expect(doc.blocks[0].steps[0].content).toContain(url);
 	});
+
+	it("takes a deleted picture out of the card's own hint and help", () => {
+		const doc = base();
+		const id = '12345678-1234-1234-1234-123456789abc-diagram.png';
+		const url = `https://editor.example/images/file/${id}`;
+		doc.blocks[0].hint = `Podívej se: ![graf](${url})`;
+		doc.blocks[0].help = `![graf](${url}) a text`;
+
+		expect(imageInUse(doc, id, url)).toBe(true);
+		const result = removeImageReferences(doc, id, url).doc;
+		expect(result.blocks[0].hint).toBe('Podívej se: ');
+		expect(result.blocks[0].help).toBe(' a text');
+		expect(imageInUse(result, id, url)).toBe(false);
+	});
 });
 
 describe('removeStepImage', () => {
