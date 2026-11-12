@@ -513,6 +513,7 @@
 
 	/** Uploads on their way; the line under the field stays until the last one is done. */
 	let uploads = 0;
+	const UPLOADING = 'Nahrávám obrázek…';
 
 	/**
 	 * A picture file pasted or dropped into the text: uploaded, then placed where the
@@ -524,16 +525,19 @@
 			return;
 		}
 		uploads++;
-		refused = 'Nahrávám obrázek…';
+		refused = UPLOADING;
+		let failed: string | null = null;
 		try {
 			const src = imageAddress(await uploadImage(files[0]));
-			uploads--;
 			run((c) => c.insertContent({ type: 'image', attrs: { src, alt: '' } }).run());
-			refused = uploads > 0 ? 'Nahrávám obrázek…' : null;
 		} catch (e) {
+			failed = imageErrorText(e, 'upload');
+		} finally {
 			uploads--;
-			refused = imageErrorText(e, 'upload');
 		}
+		// What went wrong stays to be read; only the "on its way" line is taken down.
+		if (failed) refused = failed;
+		else if (refused === UPLOADING && uploads === 0) refused = null;
 	}
 
 	// ─── Source view ────────────────────────────────────────────────────────
