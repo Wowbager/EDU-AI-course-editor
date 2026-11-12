@@ -746,7 +746,7 @@ function v1Step(
 		notes.push(
 			note(
 				'IMPORT_V1_INLINE_IMAGE',
-				`Krok „${id}“ měl obrázek vložený přímo v datech (base64). Nahraj jej prosím znovu přes správce médií — jinak se studentovi nezobrazí.`,
+				`Krok „${id}“ měl obrázek vložený přímo v datech (base64). Vyber ho v tom kroku znovu tlačítkem „Vybrat obrázek“ — jinak se žákovi nezobrazí.`,
 				ref
 			)
 		);

@@ -793,7 +793,7 @@ student. Hints are not free, and that is deliberate.
 ### Content
 - Markdown + LaTeX editor with live preview that matches the app's renderer exactly (KaTeX,
   GFM tables, raw HTML, inline `<video>`).
-- Asset picker wired to the platform's upload endpoint, so authors stop pasting arbitrary URLs;
+- Asset picker wired to the platform's upload endpoint, so authors stop pasting arbitrary URLs (the editor now has its own picker on its own temporary storage, DECISIONS Round 28);
   inline preview for images, MP4 and audio so a broken link is visible at authoring time.
 - Accessibility nudges: missing `alt`, contrast warning on `bg_color`.
 

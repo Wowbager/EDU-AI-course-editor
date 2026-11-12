@@ -44,7 +44,9 @@
 	import MathKeypad from './rich/MathKeypad.svelte';
 	import type { ProfileId } from './rich/keypad-data';
 	import { mathSettingsOf } from '$lib/domain/math-settings';
-	import { isImageAddress } from './rich/paste';
+	import ImagePickerModal from './ImagePickerModal.svelte';
+	import { imageAddress, imageErrorText, uploadImage } from '$lib/api/images';
+	import { IMAGE_PROBLEM_TEXT } from '$lib/images/limits';
 
 	interface Props {
 		value: string | undefined;
@@ -133,6 +135,7 @@
 				onmath: openMath,
 				onimage: () => openImage(),
 				onrefused: (message) => (refused = message),
+				onimagefiles: (files) => void uploadInto(files),
 				onstate: (transaction) => {
 					tick++;
 					followRows(transaction);
@@ -475,40 +478,66 @@
 
 	// ─── Image row ──────────────────────────────────────────────────────────
 
-	let imagePanel = $state<{
-		src: string;
-		alt: string;
-		editing: boolean;
-		error: string | null;
-	} | null>(null);
+	/**
+	 * A picture is chosen in the picker, the same one an image step opens. The row under
+	 * the text is for a picture already there: its description, and a way to change it.
+	 */
+	let imagePanel = $state<{ alt: string } | null>(null);
+	/** The picker is open: for a new picture, or to change the selected one. */
+	let picking = $state<'new' | 'change' | null>(null);
 
 	function openImage() {
 		closeMath();
 		const e = editor();
-		const selected = e?.isActive('image') ? e.getAttributes('image') : null;
-		imagePanel = {
-			src: selected?.src ?? '',
-			alt: selected?.alt ?? '',
-			editing: selected !== null,
-			error: null
-		};
+		if (e?.isActive('image')) imagePanel = { alt: e.getAttributes('image').alt ?? '' };
+		else picking = 'new';
 	}
 
-	function placeImage(event: SubmitEvent) {
+	function saveImage(event: SubmitEvent) {
 		event.preventDefault();
 		if (!imagePanel) return;
-		const src = imagePanel.src.trim();
-		if (!isImageAddress(src)) {
-			imagePanel.error = 'Adresa obrázku musí začínat https:// — jinak se v aplikaci nenačte.';
+		const alt = imagePanel.alt.trim();
+		run((c) => c.updateAttributes('image', { alt }).run());
+		imagePanel = null;
+	}
+
+	function placeImage(src: string) {
+		const change = picking === 'change';
+		picking = null;
+		run((c) =>
+			change
+				? c.updateAttributes('image', { src }).run()
+				: c.insertContent({ type: 'image', attrs: { src, alt: '' } }).run()
+		);
+	}
+
+	/** Uploads on their way; the line under the field stays until the last one is done. */
+	let uploads = 0;
+	const UPLOADING = 'Nahrávám obrázek…';
+
+	/**
+	 * A picture file pasted or dropped into the text: uploaded, then placed where the
+	 * caret is by then. The teacher may have gone on writing; the picture follows them.
+	 */
+	async function uploadInto(files: File[]) {
+		if (files.length > 1) {
+			refused = IMAGE_PROBLEM_TEXT.several;
 			return;
 		}
-		const attrs = { src, alt: imagePanel.alt.trim() };
-		run((c) =>
-			imagePanel?.editing
-				? c.updateAttributes('image', attrs).run()
-				: c.insertContent({ type: 'image', attrs }).run()
-		);
-		imagePanel = null;
+		uploads++;
+		refused = UPLOADING;
+		let failed: string | null = null;
+		try {
+			const src = imageAddress(await uploadImage(files[0]));
+			run((c) => c.insertContent({ type: 'image', attrs: { src, alt: '' } }).run());
+		} catch (e) {
+			failed = imageErrorText(e, 'upload');
+		} finally {
+			uploads--;
+		}
+		// What went wrong stays to be read; only the "on its way" line is taken down.
+		if (failed) refused = failed;
+		else if (refused === UPLOADING && uploads === 0) refused = null;
 	}
 
 	// ─── Source view ────────────────────────────────────────────────────────
@@ -697,24 +726,16 @@
 				</div>
 			{/key}
 		{:else if imagePanel}
-			<form class="row panel" aria-label="Obrázek" onsubmit={placeImage}>
+			<form class="row panel" aria-label="Obrázek" onsubmit={saveImage}>
 				<label class="grow">
-					<span>Webová adresa obrázku</span>
+					<span>Popis obrázku</span>
 					<!-- svelte-ignore a11y_autofocus -->
-					<input
-						type="url"
-						bind:value={imagePanel.src}
-						placeholder="https://…/obrazek.jpg"
-						autofocus
-					/>
-				</label>
-				<label class="grow">
-					<span>Popis (nepovinný)</span>
-					<input bind:value={imagePanel.alt} placeholder="Co na obrázku je" />
+					<input bind:value={imagePanel.alt} placeholder="Popiš, co je na obrázku" autofocus />
 				</label>
 				<div class="panel-actions">
-					<button type="submit" class="text-button primary"
-						>{imagePanel.editing ? 'Uložit' : 'Vložit'}</button
+					<button type="submit" class="text-button primary">Uložit</button>
+					<button type="button" class="text-button" onclick={() => (picking = 'change')}
+						>Změnit obrázek</button
 					>
 					<button
 						type="button"
@@ -725,7 +746,6 @@
 						}}>Zrušit</button
 					>
 				</div>
-				{#if imagePanel.error}<p class="note error">{imagePanel.error}</p>{/if}
 			</form>
 		{:else if source}
 			{#if chosenSource}
@@ -810,7 +830,7 @@
 						type="button"
 						class="tool"
 						class:on={active('image')}
-						title="Obrázek z webu"
+						title="Obrázek"
 						aria-label="Obrázek"
 						onmousedown={keepFocus}
 						onclick={openImage}><ImageIcon size={16} /></button
@@ -850,6 +870,11 @@
 				</Menu>
 			</div>
 		{/if}
+	{/if}
+
+	<!-- Inside the field, so that the focus the dialog takes is not the teacher leaving it. -->
+	{#if picking}
+		<ImagePickerModal onselect={placeImage} onclose={() => (picking = null)} />
 	{/if}
 
 	{#if refused}<p class="note quiet" role="status">{refused}</p>{/if}
@@ -1183,10 +1208,6 @@
 		padding: 2px 8px 4px;
 		font-size: var(--text-xs);
 		line-height: 1.45;
-	}
-	.panel .note {
-		flex-basis: 100%;
-		padding: 0;
 	}
 	.note.quiet {
 		color: var(--e-text-muted);

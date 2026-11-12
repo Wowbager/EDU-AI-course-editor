@@ -48,8 +48,10 @@ export interface RichEditorOptions {
 	onmath: (pos: number) => void;
 	/** An image was chosen with the keyboard: open it for editing. */
 	onimage: () => void;
-	/** Something the field cannot take was pasted or dropped, such as an image file. */
+	/** Something the field cannot take was pasted or dropped, such as a document. */
 	onrefused: (message: string) => void;
+	/** Picture files were pasted or dropped into a text that takes pictures. */
+	onimagefiles: (files: File[]) => void;
 	/** Selection or formatting changed: the toolbar redraws, the formula row follows. */
 	onstate: (transaction: Transaction) => void;
 	/** Ctrl+Z / Ctrl+Y: the store undoes, after the run of typing is closed. */
@@ -72,9 +74,6 @@ function formulaCount(doc: PMNode): number {
 	});
 	return count;
 }
-
-export const IMAGE_FILE_REFUSED =
-	'Obrázek vlož jako adresu z webu: na obrázku klikni pravým tlačítkem, zvol „Kopírovat adresu obrázku“ a vlož ji sem.';
 
 export function createRichEditor(options: RichEditorOptions) {
 	const { dialect } = options;
@@ -113,8 +112,15 @@ export function createRichEditor(options: RichEditorOptions) {
 				const copied: DocNode = { type: 'doc', content: sliceBlocks(slice) as DocNode[] };
 				return typedText(copied) ?? serializeMarkdown(copied, { sniffed: true });
 			},
-			handlePaste: (_view, event) => refuseFiles(event.clipboardData, options),
-			handleDrop: (_view, event) => refuseFiles((event as DragEvent).dataTransfer, options),
+			handlePaste: (_view, event) => takeFiles(event.clipboardData, options),
+			handleDrop: (view, event) => {
+				const drop = event as DragEvent;
+				// The picture goes where it was dropped, not where the caret happened to be.
+				const at = view.posAtCoords({ left: drop.clientX, top: drop.clientY });
+				return takeFiles(drop.dataTransfer, options, () => {
+					if (at) editor.commands.setTextSelection(at.pos);
+				});
+			},
 			handleKeyDown: (_view, event) => {
 				if (event.isComposing) return false;
 				const key = event.key.toLowerCase();
@@ -365,17 +371,27 @@ function textToSlice(
 	return Slice.maxOpen(node.content);
 }
 
-/** Image files: the app shows images from the web only, so say how to bring one. */
-function refuseFiles(data: DataTransfer | null, options: RichEditorOptions): boolean {
+/**
+ * Files pasted or dropped. Pictures are handed over to be uploaded, in a text that
+ * takes pictures; anything else is refused with a line saying what the field holds.
+ */
+function takeFiles(
+	data: DataTransfer | null,
+	options: RichEditorOptions,
+	place?: () => void
+): boolean {
 	if (!data) return false;
 	const files = [...data.files];
 	if (files.length === 0) return false;
 	// A drag from another tab carries the image's address along with the file.
 	if (data.getData('text/html') || data.getData('text/uri-list')) return false;
-	options.onrefused(
-		files.some((f) => f.type.startsWith('image/'))
-			? IMAGE_FILE_REFUSED
-			: 'Soubor sem vložit nejde — do textu patří text, vzorce a obrázky z webu.'
-	);
+	if (options.dialect.inline) {
+		options.onrefused('Soubor sem vložit nejde — sem patří jen text a vzorce.');
+	} else if (files.every((file) => file.type.startsWith('image/'))) {
+		place?.();
+		options.onimagefiles(files);
+	} else {
+		options.onrefused('Soubor sem vložit nejde — do textu patří text, vzorce a obrázky.');
+	}
 	return true;
 }

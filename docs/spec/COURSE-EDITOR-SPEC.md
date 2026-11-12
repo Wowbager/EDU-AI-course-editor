@@ -702,7 +702,7 @@ Beyond field-by-field editing, these are the capabilities the format and the run
 **Content**
 - Markdown + LaTeX editor with live preview matching the app's renderer (KaTeX, GFM tables,
   raw HTML, `<video>` embeds).
-- Asset picker wired to `POST /api/admin/assets/upload`, so authors stop pasting arbitrary URLs.
+- Asset picker wired to `POST /api/admin/assets/upload`, so authors stop pasting arbitrary URLs (the editor now has its own picker on its own temporary storage, DECISIONS Round 28).
 - Media preview inline (image, MP4, audio) — a broken URL should be visible at authoring time.
 
 **Question authoring**

@@ -18,30 +18,17 @@ import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { join, extname, basename } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { IMAGE_TYPES, MAX_IMAGE_BYTES } from '../../images/limits';
 
-export const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB per file
+export { MAX_IMAGE_BYTES };
 export const MAX_IMAGES_PER_OWNER = 500;
 
-export const ALLOWED_MIME = new Set([
-	'image/jpeg',
-	'image/png',
-	'image/gif',
-	'image/webp',
-	'image/svg+xml',
-	'image/avif',
-	'image/bmp'
-]);
+export const ALLOWED_MIME = new Set<string>(IMAGE_TYPES.map((type) => type.mime));
 
 /** Extension to serve back for each MIME type. */
-export const MIME_TO_EXT: Record<string, string> = {
-	'image/jpeg': '.jpg',
-	'image/png': '.png',
-	'image/gif': '.gif',
-	'image/webp': '.webp',
-	'image/svg+xml': '.svg',
-	'image/avif': '.avif',
-	'image/bmp': '.bmp'
-};
+export const MIME_TO_EXT: Record<string, string> = Object.fromEntries(
+	IMAGE_TYPES.map((type) => [type.mime, type.ext])
+);
 
 export const EXT_TO_MIME: Record<string, string> = {
 	'.jpg': 'image/jpeg',
@@ -56,7 +43,7 @@ export const EXT_TO_MIME: Record<string, string> = {
 
 export class ImageError extends Error {
 	constructor(
-		readonly status: 400 | 404 | 413 | 429,
+		readonly status: 400 | 404 | 413 | 415 | 429,
 		message: string
 	) {
 		super(message);
@@ -140,7 +127,7 @@ export class ImageFiles {
 		mimeType: string
 	): Promise<ImageMeta> {
 		if (!ALLOWED_MIME.has(mimeType)) {
-			throw new ImageError(400, `Nepodporovaný typ souboru: ${mimeType}`);
+			throw new ImageError(415, `Nepodporovaný typ souboru: ${mimeType}`);
 		}
 		if (bytes.byteLength > MAX_IMAGE_BYTES) {
 			throw new ImageError(413, `Soubor je větší než ${MAX_IMAGE_BYTES / 1024 / 1024} MB.`);

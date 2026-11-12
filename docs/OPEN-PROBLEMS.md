@@ -175,12 +175,6 @@ the file with no field to clear them, except by switching the option off and on 
 branch of `_confirmAnswer` skips an option's `score_koef` too (`block_step_engine.dart:597-601`),
 which the advanced "Podíl bodů" field still offers. Not changed here.
 
-### 48. Teachers cannot upload an image; the visual editor takes web addresses only
-**Verified by reading the API.** The only upload is `POST /api/admin/assets/upload`
-(S3, public URL), and it is admin-only. So an image in a text, like an image step, is a
-public `https://` address; a pasted or dropped image *file* gets one line saying how to
-copy an image's address instead. Opening that endpoint to teachers is API-side.
-
 ### 49. Links in a text cannot be tapped in the app
 **Reproduced by reading the app.** `MarkdownLatexWidget` sets no `onTapLink`, so a link
 is styled but dead. The visual editor keeps the links a text already has and offers no
@@ -222,6 +216,34 @@ keypad keeps the ‰ key (its data notes the gap); app-side fix is one symbol en
 
 Entries not reproduced, or reproduced only from the code. They stay until someone sees
 them, or until enough rounds pass that the behaviour would have surfaced.
+
+### 61. Ctrl+Z after deleting a picture from the gallery restores links to a file that is gone
+**Reasoned from the code, not reproduced.** Undo brings back the step's address, but the
+file was deleted. Other courses and saved versions that used the picture keep dead links
+too. Needs a storage decision: soft delete, or an "in use" check across courses.
+
+### 62. The gallery belongs to this browser's workspace key
+**By the current storage, not a defect to reproduce.** On another browser or device the
+gallery is empty, though the pictures still load in the course. Waits for sign-in.
+
+### 63. An exported course points at pictures on the editor's own server
+**Known limit.** Those pictures load only while that server keeps them. Until the planned
+storage service takes over.
+
+### 64. Uploaded SVG files are served unsanitised, and the file type is the browser's word
+**Read from the code, not exploited.** The editor's origin serves an uploaded SVG as it
+came, and the type is taken from what the browser says, not from the bytes. Needs a
+security review.
+
+### 65. On a plain-http dev server an uploaded picture is flagged „není na adrese https://“
+**Seen on a development server, not checked on a deployed build.** `E_MEDIA_NOT_HTTPS` is
+right but confusing there, and a picture placed in a text does not show in Náhled (the
+image step's does): the player and the shim take text pictures from `https://` only. On an
+https deployment the address is https; that both then show is expected, not yet seen.
+
+### 66. HEIC photos (the iPhone default) are refused
+**Reproduced** (`e2e/image-picker.spec.ts`). The sentence tells the teacher to use JPG, PNG, GIF or
+WebP. Converting in the browser was proposed, not built.
 
 ### 7. A possible transition artifact in "Vyzkoušet" — likely fixed (Round 5)
 **Verified: no.** One scripted author flagged it and was explicit about not being sure
@@ -415,6 +437,10 @@ Fixed (Round 24): one list in `scripts/image-extensions.mjs`. An address with no
 
 ### 60. A card named from its text loses underscores and stars inside words
 Fixed (Round 24): the name comes from the parsed document.
+
+### 48. Teachers cannot upload an image; the visual editor takes web addresses only
+Fixed in the editor (Round 28): its own picker and storage (#61–#66 are what that leaves).
+Still true: the app's only upload, `POST /api/admin/assets/upload`, is admin-only.
 
 ### 15. A card's own XP is shown as its reward, and the app ignores it — fixed (Round 23)
 The card chip and the lesson and course totals show the most the steps can earn, the
