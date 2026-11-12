@@ -1503,12 +1503,12 @@ export function removeImageReferences(doc: CourseV2, id: string, url?: string): 
 	// 3. Blocks & Steps
 	if (Array.isArray(nextDoc.blocks)) {
 		for (const block of nextDoc.blocks) {
+			// Pictures placed in a text: the card's own hint and help, each step's
+			// texts, its question's and its answers', wherever Markdown is written.
+			if (stripTextImages(block, match)) changed = true;
+
 			if (Array.isArray(block.steps)) {
 				for (const step of block.steps) {
-					// Pictures placed in a text: the step's own texts, its question's and
-					// its answers', wherever Markdown is written.
-					if (stripTextImages(step, match)) changed = true;
-
 					// step.image
 					if (match(step.image?.url)) {
 						if (step.type === 'image') {
