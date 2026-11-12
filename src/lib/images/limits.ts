@@ -23,15 +23,21 @@ export const IMAGE_ACCEPT = IMAGE_TYPES.map((type) => type.mime).join(',');
 
 const MEGABYTES = MAX_IMAGE_BYTES / 1024 / 1024;
 
+/**
+ * The kinds a teacher is told about, under the upload button and when a file is
+ * refused: the four a phone or a computer saves. The rest of the list is taken too.
+ */
+const COMMON_TYPES = 'JPG, PNG, GIF nebo WebP';
+
 /** The line under the upload button. */
-export const IMAGE_LIMITS_TEXT = `${IMAGE_TYPES.map((type) => type.label).join(', ')} — nejvýš ${MEGABYTES} MB`;
+export const IMAGE_LIMITS_TEXT = `${COMMON_TYPES}, nejvýš ${MEGABYTES} MB`;
 
 /** Why a picture was not taken, in the words a teacher is told. */
 export type ImageProblem = 'too-big' | 'wrong-type' | 'full' | 'several';
 
 export const IMAGE_PROBLEM_TEXT: Record<ImageProblem, string> = {
 	'too-big': `Obrázek je větší než ${MEGABYTES} MB. Zmenši ho a zkus to znovu.`,
-	'wrong-type': 'Tenhle soubor nahrát nejde. Použij obrázek JPG, PNG, GIF nebo WebP.',
+	'wrong-type': `Tenhle soubor nahrát nejde. Použij obrázek ${COMMON_TYPES}.`,
 	full: 'Galerie je plná. Smaž obrázky, které už nepotřebuješ, a zkus to znovu.',
 	several: 'Vyber jen jeden obrázek.'
 };

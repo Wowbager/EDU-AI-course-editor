@@ -1330,7 +1330,7 @@ describe('removeImageReferences', () => {
 		const other = 'https://example.com/jiny.png';
 		const step = doc.blocks[0].steps[0];
 		step.content = `Před ![graf](${url}) po a ![jiný](${other}).`;
-		step.hint = `![](${url} "titulek")`;
+		step.hint = `![graf \\[1\\]](${url} "řekl \\"ano\\"")`;
 		doc.blocks[0].steps.push({
 			id: 'step_q',
 			type: 'question',

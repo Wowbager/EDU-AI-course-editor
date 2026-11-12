@@ -236,8 +236,10 @@ came, and the type is taken from what the browser says, not from the bytes. Need
 security review.
 
 ### 65. On a plain-http dev server an uploaded picture is flagged „není na adrese https://“
-**Seen on a development server, not checked on a deployed build.** `E_MEDIA_NOT_HTTPS` is right but
-confusing there; on an https deployment the address is https.
+**Seen on a development server, not checked on a deployed build.** `E_MEDIA_NOT_HTTPS` is
+right but confusing there, and a picture placed in a text does not show in Náhled (the
+image step's does): the player and the shim take text pictures from `https://` only. On an
+https deployment the address is https; that both then show is expected, not yet seen.
 
 ### 66. HEIC photos (the iPhone default) are refused
 **Reproduced** (`e2e/image-picker.spec.ts`). The sentence tells the teacher to use JPG, PNG, GIF or

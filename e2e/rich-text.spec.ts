@@ -345,7 +345,7 @@ test('the image row closes when the teacher clicks back into the text', async ({
 	await expect(text(page).locator('img:not(.ProseMirror-separator)')).toHaveCount(1);
 	await page.keyboard.press('ArrowLeft');
 	await page.keyboard.press('Enter');
-	const description = page.getByRole('textbox', { name: 'Popis (nepovinný)' });
+	const description = page.getByRole('textbox', { name: 'Popis obrázku' });
 	await expect(description).toBeVisible();
 	// A click into the text, away from where the caret is.
 	await text(page).click({ position: { x: 4, y: 8 } });
@@ -380,7 +380,7 @@ test('an image goes in by its web address, and a file that is no picture is refu
 	// Its description is written at the picture, in the row under the text.
 	await page.keyboard.press('ArrowLeft');
 	await page.keyboard.press('Enter');
-	await page.getByRole('textbox', { name: 'Popis (nepovinný)' }).fill('Kruh');
+	await page.getByRole('textbox', { name: 'Popis obrázku' }).fill('Kruh');
 	await page.getByRole('button', { name: 'Uložit', exact: true }).click();
 	await expect(image).toHaveAttribute('alt', 'Kruh');
 
@@ -543,7 +543,7 @@ test('a formula and an image open from the keyboard, as they do with a click', a
 	await expect(text(page).locator('img:not(.ProseMirror-separator)')).toHaveCount(1);
 	await page.keyboard.press('ArrowLeft');
 	await page.keyboard.press('Enter');
-	await expect(page.getByRole('textbox', { name: 'Popis (nepovinný)' })).toBeVisible();
+	await expect(page.getByRole('textbox', { name: 'Popis obrázku' })).toBeVisible();
 });
 
 test.describe('the system clipboard', () => {

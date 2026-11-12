@@ -693,7 +693,7 @@
 						<FocusField
 							label="Popis obrázku pro čtečku obrazovky"
 							value={step.image?.alt}
-							emptyText="Popiš, co je na obrázku — přečte to čtečka obrazovky"
+							emptyText="Popiš, co je na obrázku"
 							ref={{
 								blockId: block.block_id,
 								stepId: step.id,

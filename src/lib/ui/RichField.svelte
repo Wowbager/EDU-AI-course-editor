@@ -511,18 +511,27 @@
 		);
 	}
 
-	/** A picture file pasted or dropped into the text: uploaded, then placed at the caret. */
+	/** Uploads on their way; the line under the field stays until the last one is done. */
+	let uploads = 0;
+
+	/**
+	 * A picture file pasted or dropped into the text: uploaded, then placed where the
+	 * caret is by then. The teacher may have gone on writing; the picture follows them.
+	 */
 	async function uploadInto(files: File[]) {
 		if (files.length > 1) {
 			refused = IMAGE_PROBLEM_TEXT.several;
 			return;
 		}
+		uploads++;
 		refused = 'Nahrávám obrázek…';
 		try {
 			const src = imageAddress(await uploadImage(files[0]));
-			refused = null;
+			uploads--;
 			run((c) => c.insertContent({ type: 'image', attrs: { src, alt: '' } }).run());
+			refused = uploads > 0 ? 'Nahrávám obrázek…' : null;
 		} catch (e) {
+			uploads--;
 			refused = imageErrorText(e, 'upload');
 		}
 	}
@@ -715,9 +724,9 @@
 		{:else if imagePanel}
 			<form class="row panel" aria-label="Obrázek" onsubmit={saveImage}>
 				<label class="grow">
-					<span>Popis (nepovinný)</span>
+					<span>Popis obrázku</span>
 					<!-- svelte-ignore a11y_autofocus -->
-					<input bind:value={imagePanel.alt} placeholder="Co na obrázku je" autofocus />
+					<input bind:value={imagePanel.alt} placeholder="Popiš, co je na obrázku" autofocus />
 				</label>
 				<div class="panel-actions">
 					<button type="submit" class="text-button primary">Uložit</button>

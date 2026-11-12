@@ -1421,7 +1421,7 @@ export function isImageReference(
 }
 
 /** `![popis](adresa)` or `![popis](adresa "titulek")`, as the text editor writes it. */
-const TEXT_IMAGE = /!\[[^\]\n]*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"\n]*")?\s*\)/g;
+const TEXT_IMAGE = /!\[(?:\\.|[^\]\\\n])*\]\(\s*<?([^)\s>]+)>?(?:\s+"(?:\\.|[^"\\\n])*")?\s*\)/g;
 
 /** Takes matching pictures out of every text under `node`. Says whether it took any. */
 function stripTextImages(node: unknown, match: (url: string) => boolean): boolean {
