@@ -64,10 +64,10 @@ describe('ImageFiles', () => {
 			expect(items[1].name).toBe('first.png');
 		});
 
-		it('rejects an unsupported MIME type with a 400 error', async () => {
+		it('rejects an unsupported MIME type with a 415 error', async () => {
 			await expect(
 				store.upload(FAKE_OWNER, PNG_1PX, 'doc.pdf', 'application/pdf')
-			).rejects.toMatchObject({ status: 400 });
+			).rejects.toMatchObject({ status: 415 });
 		});
 
 		it('rejects a file that exceeds the size cap with a 413 error', async () => {

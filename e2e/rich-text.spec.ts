@@ -321,15 +321,35 @@ test('a paste from Google Docs keeps its bold and lists, and drops its fonts', a
 	expect(await markdownOf(page)).toBe('Pizza má **8 dílků**\n\n* *jeden*\n* dva');
 });
 
+/** The picker's third source: a picture by its address on the web. */
+async function placeWebImage(page: Page, url: string) {
+	await toolbar(page).getByRole('button', { name: 'Obrázek' }).click();
+	await page.getByRole('radio', { name: 'Z webu' }).click();
+	await page.getByRole('textbox', { name: 'Webová adresa obrázku' }).fill(url);
+	await page.getByRole('button', { name: 'Vložit', exact: true }).click();
+}
+
+const emptySvg = (page: Page) =>
+	page.route('https://example.com/**', (route) =>
+		route.fulfill({
+			contentType: 'image/svg+xml',
+			body: '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="40"><rect width="80" height="40" fill="orange"/></svg>'
+		})
+	);
+
 test('the image row closes when the teacher clicks back into the text', async ({ page }) => {
+	await emptySvg(page);
 	await text(page).click();
 	await page.keyboard.type('Kruh: ');
-	await toolbar(page).getByRole('button', { name: 'Obrázek' }).click();
-	const address = page.getByRole('textbox', { name: 'Webová adresa obrázku' });
-	await expect(address).toBeVisible();
+	await placeWebImage(page, 'https://example.com/kruh.svg');
+	await expect(text(page).locator('img:not(.ProseMirror-separator)')).toHaveCount(1);
+	await page.keyboard.press('ArrowLeft');
+	await page.keyboard.press('Enter');
+	const description = page.getByRole('textbox', { name: 'Popis (nepovinný)' });
+	await expect(description).toBeVisible();
 	// A click into the text, away from where the caret is.
 	await text(page).click({ position: { x: 4, y: 8 } });
-	await expect(address).toHaveCount(0);
+	await expect(description).toHaveCount(0);
 });
 
 test('pasted Markdown text is read as Markdown', async ({ page }) => {
@@ -340,39 +360,41 @@ test('pasted Markdown text is read as Markdown', async ({ page }) => {
 	await expect(text(page).locator('.math')).toHaveCount(1);
 });
 
-test('an image goes in by its web address, and an image file says how', async ({ page }) => {
-	await page.route('https://example.com/**', (route) =>
-		route.fulfill({
-			contentType: 'image/svg+xml',
-			body: '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="40"><rect width="80" height="40" fill="orange"/></svg>'
-		})
-	);
+test('an image goes in by its web address, and a file that is no picture is refused', async ({
+	page
+}) => {
+	await emptySvg(page);
 	await text(page).click();
 	await page.keyboard.type('Kruh: ');
 	await toolbar(page).getByRole('button', { name: 'Obrázek' }).click();
+	await page.getByRole('radio', { name: 'Z webu' }).click();
 	const address = page.getByRole('textbox', { name: 'Webová adresa obrázku' });
 	await address.fill('http://example.com/kruh.svg');
 	await page.getByRole('button', { name: 'Vložit', exact: true }).click();
 	await expect(page.getByText('musí začínat https://')).toBeVisible();
 	await address.fill('https://example.com/kruh.svg');
-	await page.getByRole('textbox', { name: 'Popis (nepovinný)' }).fill('Kruh');
 	await page.getByRole('button', { name: 'Vložit', exact: true }).click();
-	await expect(text(page).locator('img:not(.ProseMirror-separator)')).toHaveAttribute(
-		'src',
-		'https://example.com/kruh.svg'
-	);
+	const image = text(page).locator('img:not(.ProseMirror-separator)');
+	await expect(image).toHaveAttribute('src', 'https://example.com/kruh.svg');
+
+	// Its description is written at the picture, in the row under the text.
+	await page.keyboard.press('ArrowLeft');
+	await page.keyboard.press('Enter');
+	await page.getByRole('textbox', { name: 'Popis (nepovinný)' }).fill('Kruh');
+	await page.getByRole('button', { name: 'Uložit', exact: true }).click();
+	await expect(image).toHaveAttribute('alt', 'Kruh');
 
 	await page.evaluate(() => {
 		const transfer = new DataTransfer();
-		transfer.items.add(new File([new Uint8Array([137, 80])], 'snimek.png', { type: 'image/png' }));
+		transfer.items.add(new File(['x'], 'pisemka.pdf', { type: 'application/pdf' }));
 		document.activeElement!.dispatchEvent(
 			new ClipboardEvent('paste', { clipboardData: transfer, bubbles: true, cancelable: true })
 		);
 	});
 	await expect(
-		page.getByRole('status').filter({ hasText: 'Kopírovat adresu obrázku' })
+		page.getByRole('status').filter({ hasText: 'Soubor sem vložit nejde' })
 	).toBeVisible();
-	await expect(text(page).locator('img:not(.ProseMirror-separator)')).toHaveCount(1);
+	await expect(image).toHaveCount(1);
 
 	expect(await markdownOf(page)).toBe('Kruh: ![Kruh](https://example.com/kruh.svg)');
 });
@@ -517,17 +539,11 @@ test('a formula and an image open from the keyboard, as they do with a click', a
 			body: '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"/>'
 		})
 	);
-	await toolbar(page).getByRole('button', { name: 'Obrázek' }).click();
-	await page
-		.getByRole('textbox', { name: 'Webová adresa obrázku' })
-		.fill('https://example.com/a.svg');
-	await page.keyboard.press('Enter');
+	await placeWebImage(page, 'https://example.com/a.svg');
 	await expect(text(page).locator('img:not(.ProseMirror-separator)')).toHaveCount(1);
 	await page.keyboard.press('ArrowLeft');
 	await page.keyboard.press('Enter');
-	await expect(page.getByRole('textbox', { name: 'Webová adresa obrázku' })).toHaveValue(
-		'https://example.com/a.svg'
-	);
+	await expect(page.getByRole('textbox', { name: 'Popis (nepovinný)' })).toBeVisible();
 });
 
 test.describe('the system clipboard', () => {

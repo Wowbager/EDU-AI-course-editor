@@ -582,30 +582,35 @@ test('an image step asks for the picture first, and for its description once the
 	page
 }) => {
 	await addStep(page, 'Obrázek');
-	const selectBtn = page.getByRole('button', { name: 'Vybrat obrázek ze souborů nebo galerie' });
-	await expect(selectBtn).toBeVisible();
-	await expect(page.getByText('Není vybrán žádný obrázek.')).toBeVisible();
-
-	await page.getByRole('radio', { name: 'Metodik' }).click();
-	const url = page.getByRole('textbox', { name: 'Přímá adresa obrázku', exact: true });
+	const step = page.getByRole('group', { name: 'Obsah kroku 2' });
+	await expect(step.getByRole('button', { name: 'Vybrat obrázek', exact: true })).toBeVisible();
+	// Nothing is wrong yet: the step was only just added.
+	await expect(step.getByText('zatím nemá obrázek')).toHaveCount(0);
 	const alt = page.getByRole('textbox', {
 		name: 'Popis obrázku pro čtečku obrazovky',
 		exact: true
 	});
-	await expect(url).toBeVisible();
-	await expect(url).toHaveAttribute(
-		'placeholder',
-		'Vlož odkaz na obrázek (např. https://…/obrazek.jpg)'
-	);
 	await expect(alt).toHaveCount(0);
+	// The address shows an uploaded picture's id, so only the mode that shows ids has it.
+	const url = page.getByRole('textbox', { name: 'Adresa obrázku', exact: true });
+	await expect(url).toHaveCount(0);
+	await page.getByRole('radio', { name: 'Metodik' }).click();
+	await expect(url).toHaveCount(0);
 
+	await page.getByRole('radio', { name: 'Pokročilý' }).click();
 	await url.fill('https://example.com/zlomek.png');
 	await url.press('Enter');
 	await expect(alt).toBeVisible();
+	// The description is the teacher's to write in every mode.
+	await page.getByRole('radio', { name: 'Učitel' }).click();
+	await expect(alt).toBeVisible();
+	await expect(step.getByRole('button', { name: 'Změnit obrázek', exact: true })).toBeVisible();
 
-	await url.fill('');
-	await url.press('Enter');
+	await step.getByRole('button', { name: 'Odebrat obrázek', exact: true }).click();
 	await expect(alt).toHaveCount(0);
+	await expect(step.getByRole('button', { name: 'Vybrat obrázek', exact: true })).toBeVisible();
+	await page.getByRole('button', { name: 'Vrátit zpět' }).click();
+	await expect(alt).toBeVisible();
 });
 
 test("the card title's placeholder is a name, not a cue: upright, while a cue stays italic", async ({

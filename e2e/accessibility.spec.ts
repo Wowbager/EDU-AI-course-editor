@@ -47,7 +47,10 @@ test('writing a text, a formula and an image', async ({ page }) => {
 	await page.locator('math-field').focus();
 	await page.keyboard.press('Enter');
 	await page.getByRole('button', { name: 'Obrázek', exact: true }).first().click();
-	await expectAccessible(page, 'the image row');
+	await expect(page.getByRole('button', { name: 'Vybrat soubor' })).toBeVisible();
+	await expectAccessible(page, 'the image picker, from the computer');
+	await page.getByRole('radio', { name: 'Z webu' }).click();
+	await expectAccessible(page, 'the image picker, from the web');
 });
 
 test('the Markdown view', async ({ page }) => {

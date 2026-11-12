@@ -1,23 +1,33 @@
 <script lang="ts">
 	/**
-	 * Modal for uploading and picking images.
+	 * The one place a picture is chosen, for an image step and for a text alike.
 	 *
-	 * Two tabs:
-	 *  - Nahrát: a drag-and-drop zone + file browser button. Uploads immediately,
-	 *    then calls `onselect(url)` and closes.
-	 *  - Galerie: a grid of previously uploaded images. Clicking one calls
-	 *    `onselect(url)` and closes.
+	 * Three sources, one result (`onselect(address)`, then the caller closes it):
+	 *  - Z počítače: a file, dropped anywhere on the dialog or picked. It is uploaded
+	 *    at once.
+	 *  - Galerie: what this browser's workspace uploaded before. It is where the dialog
+	 *    opens once there is something in it.
+	 *  - Z webu: an `https://` address, the only kind the app loads.
 	 *
-	 * The workspace key is read from `state/versions/server.ts` — the same key the
-	 * version backend uses, so no second identity is introduced.
+	 * Closing the dialog while a file is on its way cancels the upload: a picture must
+	 * not appear in the course after the teacher said no.
 	 */
-	import Modal from '$lib/ui/Modal.svelte';
-	import Button from '$lib/ui/Button.svelte';
-	import { uploadImage, listImages, deleteImage, type ImageMeta } from '$lib/api/images';
-	import { workspaceKey } from '$lib/state/versions/server';
-	import { ImagePlus, Images, Upload, Loader, Trash } from '@lucide/svelte';
-	import { useStore } from '$lib/ui/context';
-	import { removeImageReferences } from '$lib/domain/commands';
+	import Modal from './Modal.svelte';
+	import Button from './Button.svelte';
+	import Segmented from './Segmented.svelte';
+	import {
+		deleteImage,
+		imageAddress,
+		imageErrorText,
+		listImages,
+		uploadImage,
+		type ImageMeta
+	} from '$lib/api/images';
+	import { IMAGE_ACCEPT, IMAGE_LIMITS_TEXT, IMAGE_PROBLEM_TEXT } from '$lib/images/limits';
+	import { imageInUse, removeImageReferences } from '$lib/domain/commands';
+	import { isImageAddress } from './rich/paste';
+	import { ImagePlus, Trash } from '@lucide/svelte';
+	import { useStore } from './context';
 
 	interface Props {
 		onselect: (url: string) => void;
@@ -28,300 +38,254 @@
 
 	const store = useStore();
 
-	type Tab = 'upload' | 'gallery';
-	let activeTab = $state<Tab>('upload');
+	type Source = 'computer' | 'gallery' | 'web';
+	const SOURCES: { value: Source; label: string }[] = [
+		{ value: 'computer', label: 'Z počítače' },
+		{ value: 'gallery', label: 'Galerie' },
+		{ value: 'web', label: 'Z webu' }
+	];
+	/** `null` until the gallery has answered: it decides where the dialog opens. */
+	let source = $state<Source | null>(null);
 
-	// ── Upload tab state ──────────────────────────────────────────────────────
+	// ── Gallery ───────────────────────────────────────────────────────────────
+	let items = $state<ImageMeta[]>([]);
+	let galleryError = $state<string | null>(null);
+	/** Thumbnails that did not load. */
+	let broken = $state<Record<string, true>>({});
+
+	async function loadGallery() {
+		galleryError = null;
+		try {
+			items = (await listImages()).items;
+		} catch (e) {
+			items = [];
+			galleryError = imageErrorText(e, 'gallery');
+		}
+	}
+
+	$effect(() => {
+		void loadGallery().then(() => {
+			source ??= items.length > 0 ? 'gallery' : 'computer';
+		});
+	});
+
+	// ── From the computer ─────────────────────────────────────────────────────
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let dragOver = $state(false);
-	let uploading = $state(false);
+	let upload = $state<AbortController | null>(null);
 	let uploadError = $state<string | null>(null);
 
-	function openFilePicker() {
-		fileInput?.click();
-	}
-
-	function toPublicUrl(url: string): string {
-		if (url.startsWith('http://') || url.startsWith('https://')) return url;
-		if (typeof window !== 'undefined' && url.startsWith('/')) {
-			return `${window.location.origin}${url}`;
+	async function take(files: FileList | null | undefined) {
+		if (!files || files.length === 0 || upload) return;
+		source = 'computer';
+		if (files.length > 1) {
+			uploadError = IMAGE_PROBLEM_TEXT.several;
+			return;
 		}
-		return url;
-	}
-
-	async function handleFiles(files: FileList | null) {
-		if (!files || files.length === 0) return;
-		const file = files[0];
 		uploadError = null;
-		uploading = true;
+		const mine = new AbortController();
+		upload = mine;
 		try {
-			const key = workspaceKey();
-			if (!key) throw new Error('Klíč pracovního prostoru není k dispozici.');
-			const meta = await uploadImage(file, key);
-			onselect(toPublicUrl(meta.url));
+			const meta = await uploadImage(files[0], mine.signal);
+			if (!mine.signal.aborted) onselect(imageAddress(meta));
 		} catch (e) {
-			uploadError = e instanceof Error ? e.message : 'Nahrávání selhalo.';
+			if (!mine.signal.aborted) uploadError = imageErrorText(e, 'upload');
 		} finally {
-			uploading = false;
+			if (upload === mine) upload = null;
+			// The same file can be chosen again after an error.
+			if (fileInput) fileInput.value = '';
 		}
 	}
 
-	function onFileInputChange(event: Event) {
-		handleFiles((event.currentTarget as HTMLInputElement).files);
+	function close() {
+		upload?.abort();
+		onclose();
 	}
+	// Unmounted by the owner without `close`: the upload goes with the dialog.
+	$effect(() => () => upload?.abort());
 
-	function onDragOver(event: DragEvent) {
+	const carriesFiles = (event: DragEvent) => event.dataTransfer?.types.includes('Files') ?? false;
+
+	// A file dropped beside the drop zone would otherwise replace the editor with the
+	// picture, so the whole window takes it while the dialog is open.
+	function ondragover(event: DragEvent) {
+		if (!carriesFiles(event)) return;
 		event.preventDefault();
 		dragOver = true;
 	}
-
-	function onDragLeave() {
-		dragOver = false;
-	}
-
-	function onDrop(event: DragEvent) {
+	function ondrop(event: DragEvent) {
+		if (!carriesFiles(event)) return;
 		event.preventDefault();
 		dragOver = false;
-		handleFiles(event.dataTransfer?.files ?? null);
+		void take(event.dataTransfer?.files);
 	}
 
-	// ── Gallery tab state ─────────────────────────────────────────────────────
-	let galleryItems = $state<ImageMeta[]>([]);
-	let galleryLoading = $state(false);
-	let galleryError = $state<string | null>(null);
-	let galleryLoaded = $state(false);
-	let itemToDelete = $state<ImageMeta | null>(null);
+	// ── From the web ──────────────────────────────────────────────────────────
+	let address = $state('');
+	let addressError = $state<string | null>(null);
+
+	function placeAddress(event: SubmitEvent) {
+		event.preventDefault();
+		const url = address.trim();
+		if (!isImageAddress(url)) {
+			addressError = 'Adresa obrázku musí začínat https:// — jinak se v aplikaci nenačte.';
+			return;
+		}
+		onselect(url);
+	}
+
+	// ── Deleting from the gallery ─────────────────────────────────────────────
+	let toDelete = $state<ImageMeta | null>(null);
 	let deleting = $state(false);
 	let deleteError = $state<string | null>(null);
-
-	async function loadGallery() {
-		if (galleryLoaded) return;
-		galleryLoading = true;
-		galleryError = null;
-		try {
-			const key = workspaceKey();
-			if (!key) throw new Error('Klíč pracovního prostoru není k dispozici.');
-			const index = await listImages(key);
-			galleryItems = index.items;
-			galleryLoaded = true;
-		} catch (e) {
-			galleryError = e instanceof Error ? e.message : 'Galerie se nepodařila načíst.';
-		} finally {
-			galleryLoading = false;
-		}
-	}
+	const usedHere = $derived(
+		toDelete !== null && imageInUse(store.doc, toDelete.id, imageAddress(toDelete))
+	);
 
 	async function confirmDelete() {
-		if (!itemToDelete) return;
+		const item = toDelete;
+		if (!item || deleting) return;
 		deleting = true;
 		deleteError = null;
 		try {
-			const key = workspaceKey();
-			if (!key) throw new Error('Klíč pracovního prostoru není k dispozici.');
-			await deleteImage(itemToDelete.id, key);
-			if (store) {
-				store.apply((d) => removeImageReferences(d, itemToDelete!.id, itemToDelete!.url));
-			}
-			ondelete?.(itemToDelete);
-			galleryItems = galleryItems.filter((i) => i.id !== itemToDelete!.id);
-			itemToDelete = null;
+			await deleteImage(item.id);
+			store.apply((d) => removeImageReferences(d, item.id, imageAddress(item)));
+			ondelete?.(item);
+			items = items.filter((i) => i.id !== item.id);
+			toDelete = null;
 		} catch (e) {
-			deleteError = e instanceof Error ? e.message : 'Smazání se nezdařilo.';
+			deleteError = imageErrorText(e, 'delete');
 		} finally {
 			deleting = false;
 		}
 	}
-
-	function switchTab(tab: Tab) {
-		activeTab = tab;
-		if (tab === 'gallery') loadGallery();
-	}
-
-	function pickFromGallery(item: ImageMeta) {
-		onselect(toPublicUrl(item.url));
-	}
-
-	/** Human-readable file size. */
-	function formatSize(bytes: number): string {
-		if (bytes < 1024) return `${bytes} B`;
-		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} kB`;
-		return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-	}
 </script>
 
-<Modal title="Vybrat obrázek" size="l" {onclose}>
-	<div class="picker">
-		<!-- Tab bar -->
-		<div class="tabs" role="tablist">
-			<button
-				type="button"
-				role="tab"
-				class="tab"
-				class:active={activeTab === 'upload'}
-				aria-selected={activeTab === 'upload'}
-				onclick={() => switchTab('upload')}
-			>
-				<Upload size={14} />
-				Nahrát
-			</button>
-			<button
-				type="button"
-				role="tab"
-				class="tab"
-				class:active={activeTab === 'gallery'}
-				aria-selected={activeTab === 'gallery'}
-				onclick={() => switchTab('gallery')}
-			>
-				<Images size={14} />
-				Galerie
-			</button>
-		</div>
+<svelte:window {ondragover} {ondrop} ondragleave={() => (dragOver = false)} />
 
-		<!-- Upload tab -->
-		{#if activeTab === 'upload'}
-			<div class="tab-panel" role="tabpanel" aria-label="Nahrát obrázek">
-				<!-- Hidden file input -->
+<Modal title="Vybrat obrázek" size="l" onclose={close}>
+	<div class="picker">
+		{#if source === null}
+			<p class="status">Načítám…</p>
+		{:else}
+			<Segmented
+				label="Odkud obrázek vzít"
+				options={SOURCES}
+				value={source}
+				onchange={(next) => (source = next)}
+			/>
+
+			{#if source === 'computer'}
 				<input
 					bind:this={fileInput}
 					type="file"
-					accept="image/*"
+					accept={IMAGE_ACCEPT}
 					class="file-input"
-					aria-hidden="true"
+					aria-label="Soubor s obrázkem"
 					tabindex="-1"
-					onchange={onFileInputChange}
+					onchange={(event) => void take(event.currentTarget.files)}
 				/>
-
-				<!-- Drop zone -->
-				<div
-					class="dropzone"
-					class:drag-over={dragOver}
-					class:busy={uploading}
-					role="button"
-					tabindex="0"
-					aria-label="Přetáhni obrázek sem nebo stiskni pro výběr souboru"
-					ondragover={onDragOver}
-					ondragleave={onDragLeave}
-					ondrop={onDrop}
-					onclick={openFilePicker}
-					onkeydown={(e) => {
-						if (e.key === 'Enter' || e.key === ' ') {
-							e.preventDefault();
-							openFilePicker();
-						}
-					}}
-				>
-					{#if uploading}
-						<div class="drop-content">
-							<Loader size={32} class="spin" />
-							<span>Nahrávání…</span>
-						</div>
+				<div class="dropzone" class:drag-over={dragOver}>
+					{#if upload}
+						<p class="status" role="status">Nahrávám…</p>
 					{:else}
-						<div class="drop-content">
-							<ImagePlus size={32} />
-							<span class="drop-primary">Přetáhni sem obrázek</span>
-							<span class="drop-secondary">nebo</span>
-							<Button variant="secondary" size="s" onclick={openFilePicker}>
-								Vybrat ze souborů
-							</Button>
-							<span class="drop-hint">JPG, PNG, WebP, GIF, SVG, AVIF — max. 10 MB</span>
-						</div>
+						<ImagePlus size={32} />
+						<span class="drop-primary">Přetáhni sem obrázek</span>
+						<span class="drop-secondary">nebo</span>
+						<Button variant="secondary" onclick={() => fileInput?.click()}>Vybrat soubor</Button>
+						<span class="drop-hint">{IMAGE_LIMITS_TEXT}</span>
 					{/if}
 				</div>
-
-				{#if uploadError}
-					<p class="error-msg" role="alert">{uploadError}</p>
-				{/if}
-			</div>
-
-			<!-- Gallery tab -->
-		{:else}
-			<div class="tab-panel" role="tabpanel" aria-label="Galerie obrázků">
-				{#if galleryLoading}
-					<div class="gallery-status">
-						<Loader size={24} class="spin" />
-						<span>Načítání galerie…</span>
-					</div>
-				{:else if galleryError}
+				{#if uploadError}<p class="error-msg" role="alert">{uploadError}</p>{/if}
+			{:else if source === 'gallery'}
+				{#if galleryError}
 					<p class="error-msg" role="alert">{galleryError}</p>
-				{:else if galleryItems.length === 0}
-					<div class="gallery-status">
-						<Images size={32} />
-						<span>Zatím jsi nenahrál žádný obrázek.</span>
-						<Button variant="secondary" size="s" onclick={() => switchTab('upload')}>
-							Nahrát první obrázek
-						</Button>
-					</div>
+				{:else if items.length === 0}
+					<p class="status">Zatím tu není žádný obrázek.</p>
 				{:else}
-					<div class="gallery-grid">
-						{#each galleryItems as item (item.id)}
-							<div class="gallery-card">
+					<ul class="gallery" aria-label="Galerie obrázků">
+						{#each items as item (item.id)}
+							<li class="card">
 								<button
 									type="button"
-									class="gallery-select"
-									title={`${item.name} (${formatSize(item.size)})`}
-									onclick={() => pickFromGallery(item)}
+									class="pick"
+									aria-label={item.name}
+									onclick={() => onselect(imageAddress(item))}
 								>
-									<img src={item.url} alt={item.name} class="gallery-thumb" loading="lazy" />
-									<span class="gallery-name">{item.name}</span>
+									{#if broken[item.id]}
+										<span class="thumb unloaded">Obrázek se nenačetl</span>
+									{:else}
+										<img
+											src={imageAddress(item)}
+											alt=""
+											class="thumb"
+											loading="lazy"
+											onerror={() => (broken[item.id] = true)}
+										/>
+									{/if}
+									<span class="name" title={item.name}>{item.name}</span>
 								</button>
 								<button
 									type="button"
-									class="gallery-delete-btn"
+									class="delete"
 									title="Smazat obrázek"
 									aria-label={`Smazat obrázek ${item.name}`}
-									onclick={(e) => {
-										e.stopPropagation();
+									onclick={() => {
 										deleteError = null;
-										itemToDelete = item;
+										toDelete = item;
 									}}
 								>
 									<Trash size={14} />
 								</button>
-							</div>
+							</li>
 						{/each}
-					</div>
+					</ul>
 				{/if}
-			</div>
+			{:else}
+				<form class="web" onsubmit={placeAddress}>
+					<label>
+						<span>Webová adresa obrázku</span>
+						<!-- svelte-ignore a11y_autofocus -->
+						<input
+							type="url"
+							bind:value={address}
+							placeholder="https://…/obrazek.jpg"
+							autofocus
+							aria-invalid={addressError !== null || undefined}
+							oninput={() => (addressError = null)}
+						/>
+					</label>
+					<Button type="submit" variant="secondary">Vložit</Button>
+				</form>
+				{#if addressError}<p class="error-msg" role="alert">{addressError}</p>{/if}
+			{/if}
 		{/if}
 	</div>
 
 	{#snippet footer(notice)}
 		{@render notice()}
-		<Button variant="ghost" onclick={onclose}>Zrušit</Button>
+		<Button variant="ghost" onclick={close}>Zrušit</Button>
 	{/snippet}
 </Modal>
 
-{#if itemToDelete}
+{#if toDelete}
 	<Modal
 		title="Smazat obrázek?"
 		onclose={() => {
-			if (!deleting) itemToDelete = null;
+			if (!deleting) toDelete = null;
 		}}
 	>
 		<p class="delete-prompt">
-			Opravdu chceš smazat obrázek <strong>{itemToDelete.name}</strong> z galerie?
+			Obrázek <strong>{toDelete.name}</strong> zmizí z galerie{usedHere
+				? ' i ze všech míst v tomto kurzu, kde je použitý'
+				: ''}. Nejde to vrátit.
 		</p>
-		{#if deleteError}
-			<p class="error-msg" role="alert">{deleteError}</p>
-		{/if}
+		{#if deleteError}<p class="error-msg" role="alert">{deleteError}</p>{/if}
 		{#snippet footer(notice)}
 			{@render notice()}
-			<Button
-				variant="ghost"
-				disabled={deleting}
-				onclick={() => {
-					itemToDelete = null;
-				}}
-			>
-				Zrušit
-			</Button>
+			<Button variant="ghost" disabled={deleting} onclick={() => (toDelete = null)}>Zrušit</Button>
 			<Button variant="danger-solid" disabled={deleting} onclick={confirmDelete}>
-				{#if deleting}
-					<Loader size={14} class="spin" />
-					Smazání…
-				{:else}
-					Smazat
-				{/if}
+				{deleting ? 'Mažu…' : 'Smazat'}
 			</Button>
 		{/snippet}
 	</Modal>
@@ -332,52 +296,13 @@
 		display: flex;
 		flex-direction: column;
 		gap: 16px;
+		min-height: 300px;
 	}
 
-	/* ── Tabs ────────────────────────────────────────────────────────────────── */
-
-	.tabs {
-		display: flex;
-		gap: 4px;
-		border-bottom: 1px solid var(--e-border);
-		padding-bottom: 0;
-		margin-bottom: 4px;
-	}
-
-	.tab {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		padding: 6px 12px;
-		border: 1px solid transparent;
-		border-bottom: none;
-		border-radius: var(--radius-xs) var(--radius-xs) 0 0;
-		background: none;
+	.status {
+		margin: auto;
 		color: var(--e-text-muted);
-		font: var(--type-meta-bold);
-		cursor: pointer;
-		transition: background 100ms;
-		margin-bottom: -1px;
-	}
-
-	.tab:hover {
-		background: var(--primary-dark-06);
-		color: var(--e-text);
-	}
-
-	.tab.active {
-		background: var(--surface);
-		border-color: var(--e-border);
-		color: var(--e-text);
-	}
-
-	/* ── Tab panels ──────────────────────────────────────────────────────────── */
-
-	.tab-panel {
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-		min-height: 240px;
+		text-align: center;
 	}
 
 	.file-input {
@@ -388,47 +313,28 @@
 		pointer-events: none;
 	}
 
-	/* ── Drop zone ───────────────────────────────────────────────────────────── */
-
 	.dropzone {
 		display: flex;
+		flex: 1;
+		flex-direction: column;
 		align-items: center;
 		justify-content: center;
+		gap: 10px;
 		min-height: 220px;
+		padding: 24px;
 		border: 2px dashed var(--e-border-strong);
 		border-radius: var(--radius-m);
 		background: var(--primary-dark-06);
-		cursor: pointer;
+		color: var(--e-text-muted);
+		text-align: center;
 		transition:
 			border-color 150ms,
 			background 150ms;
 	}
 
-	.dropzone:hover,
-	.dropzone:focus-visible {
-		border-color: var(--primary);
-		background: var(--primary-dark-08);
-		outline: none;
-	}
-
 	.dropzone.drag-over {
-		border-color: var(--gradient-purple);
+		border-color: var(--primary);
 		background: var(--primary-dark-12);
-	}
-
-	.dropzone.busy {
-		cursor: default;
-		pointer-events: none;
-	}
-
-	.drop-content {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 10px;
-		color: var(--e-text-muted);
-		text-align: center;
-		padding: 24px;
 	}
 
 	.drop-primary {
@@ -447,8 +353,6 @@
 		margin-top: 4px;
 	}
 
-	/* ── Error ───────────────────────────────────────────────────────────────── */
-
 	.error-msg {
 		margin: 0;
 		padding: 8px 12px;
@@ -458,60 +362,77 @@
 		font-size: var(--text-s);
 	}
 
-	/* ── Gallery ─────────────────────────────────────────────────────────────── */
-
-	.gallery-status {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 12px;
-		min-height: 220px;
-		color: var(--e-text-muted);
-		text-align: center;
-	}
-
-	.gallery-grid {
+	.gallery {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
 		gap: 10px;
+		margin: 0;
+		padding: 0;
+		list-style: none;
 	}
 
-	.gallery-card {
+	.card {
 		position: relative;
 		display: flex;
 		flex-direction: column;
 	}
 
-	.gallery-select {
+	.pick {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		gap: 6px;
+		width: 100%;
 		padding: 6px;
 		border: 1px solid var(--e-border);
 		border-radius: var(--radius-s);
 		background: var(--surface);
 		cursor: pointer;
-		width: 100%;
+		text-align: center;
 		transition:
 			border-color 120ms,
 			background 120ms;
-		text-align: center;
 	}
 
-	.gallery-select:hover,
-	.gallery-select:focus-visible {
+	.pick:hover,
+	.pick:focus-visible {
 		border-color: var(--primary);
 		background: var(--primary-dark-06);
 		outline: none;
 	}
 
-	.gallery-delete-btn {
+	.thumb {
+		width: 100%;
+		height: 90px;
+		object-fit: cover;
+		border-radius: var(--radius-xs);
+		background: var(--surface-light);
+	}
+
+	.thumb.unloaded {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0 6px;
+		box-sizing: border-box;
+		font: var(--type-caption);
+		color: var(--e-text-faint);
+	}
+
+	.name {
+		width: 100%;
+		font: var(--type-caption);
+		color: var(--e-text-muted);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	/* An action of the thumbnail: there when the thumbnail is pointed at or focused. */
+	.delete {
 		position: absolute;
-		top: 6px;
-		right: 6px;
-		z-index: 2;
+		top: 10px;
+		right: 10px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -523,7 +444,7 @@
 		background: var(--surface);
 		color: var(--e-text-muted);
 		cursor: pointer;
-		opacity: 0.7;
+		opacity: 0;
 		transition:
 			opacity 120ms,
 			color 120ms,
@@ -531,18 +452,50 @@
 			border-color 120ms;
 	}
 
-	.gallery-card:hover .gallery-delete-btn,
-	.gallery-delete-btn:focus-visible {
+	.card:hover .delete,
+	.card:focus-within .delete {
 		opacity: 1;
 	}
 
-	.gallery-delete-btn:hover,
-	.gallery-delete-btn:focus-visible {
-		opacity: 1;
+	.delete:hover,
+	.delete:focus-visible {
 		color: var(--e-error-text);
 		background: var(--e-error-bg);
 		border-color: var(--e-error);
 		outline: none;
+	}
+
+	.web {
+		display: flex;
+		align-items: flex-end;
+		gap: 10px;
+	}
+
+	.web label {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		gap: 4px;
+		font: var(--type-meta);
+		color: var(--e-text-muted);
+	}
+
+	.web input {
+		box-sizing: border-box;
+		width: 100%;
+		min-height: 34px;
+		padding: 6px 8px;
+		border: 1px solid transparent;
+		border-bottom-color: var(--e-field-rest-rule);
+		border-radius: var(--radius-xs);
+		background: var(--e-field-rest);
+		font: var(--type-body);
+		color: var(--e-text);
+	}
+
+	.web input::placeholder {
+		color: var(--e-text-faint);
+		font-style: italic;
 	}
 
 	.delete-prompt {
@@ -554,34 +507,5 @@
 
 	.delete-prompt strong {
 		word-break: break-all;
-	}
-
-	.gallery-thumb {
-		width: 100%;
-		height: 90px;
-		object-fit: cover;
-		border-radius: var(--radius-xs);
-		background: var(--surface-light);
-	}
-
-	.gallery-name {
-		width: 100%;
-		font: var(--type-caption);
-		color: var(--e-text-muted);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	/* ── Spinner animation ───────────────────────────────────────────────────── */
-
-	:global(.spin) {
-		animation: spin 0.9s linear infinite;
-	}
-
-	@keyframes spin {
-		to {
-			transform: rotate(360deg);
-		}
 	}
 </style>
