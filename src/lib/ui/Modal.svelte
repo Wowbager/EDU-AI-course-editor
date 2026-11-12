@@ -35,7 +35,10 @@
 		if (element === null) return;
 		// Whatever had focus opened us; it is where focus belongs again afterwards.
 		const opener = document.activeElement;
-		element.showModal();
+		// Opening moves the focus, and whatever loses it answers at once, inside this
+		// effect. What that code reads and writes is its own business: tracked here, a
+		// text field counting its transactions would rerun the opening without end.
+		untrack(() => element.showModal());
 		// Counted without being read: the effect must not rerun because the count moved.
 		untrack(() => (notices.modals += 1));
 		return () => {
