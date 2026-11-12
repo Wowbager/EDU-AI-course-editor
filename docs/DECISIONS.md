@@ -2290,7 +2290,7 @@ The owner: *"The editor needs easy to use WYSIWYG editor the current markdown is
 suitable for most users, make sure it works well and supports things like using system
 copy/paste. … ease of use and minimal visual load."* In answers to questions: a slim
 toolbar that **must support images**; every Markdown field; raw Markdown only through the
-⋯ menu; images by web address only, no upload.
+⋯ menu; images by web address only, no upload (superseded in Round 28).
 
 ### What a teacher sees
 
@@ -2343,7 +2343,7 @@ wrapper and its `font-weight:700` spans, Word's `MsoListParagraph` lists and `ms
 parsed as Markdown; Ctrl+Shift+V pastes words and line breaks. Copying out puts HTML on
 the clipboard for Word and Markdown on the plain-text one, so a formula survives a trip
 through a chat. A pasted image file is refused with one line saying how to copy the
-image's address (#48).
+image's address (superseded in Round 28: it is uploaded and placed).
 
 ### Keys and undo
 
@@ -2398,7 +2398,7 @@ Markdown syntax character, so a failure is a real one).
 ### Proposed, not built
 
 - A link button (links are not tappable in the app, #49).
-- Image upload (#48).
+- Image upload (#48; built in Round 28).
 - Giving focus back when the player takes it at boot (#46).
 - Table row and column controls beyond the ⋯ menu's.
 
@@ -2741,7 +2741,8 @@ recommendation is what is recorded.
   editor an easy way to reuse the app's sign-in (asked of them). The mode stays the
   teacher's own choice, not a role. "Still open" 2 and 3 wait on that.
 - **Publishing a Cvičení or Test, and image upload for teachers (#56, #48):** not a
-  problem while most users are admins. They wait for sign-in.
+  problem while most users are admins. They wait for sign-in. (Upload no longer does:
+  Round 28.)
 - **The Opakování fields stay** although the app reads other keys (#14): they are in the
   V2 schema and may be used later. Their hints say plainly which ones the app uses
   today (#44, #41).
@@ -2904,15 +2905,42 @@ out unchanged. A file that still fails shows its few kinds of problem under „P
 
 ## Round 28 — image upload and gallery picker (temporary server storage)
 
-**Uploaded images are stored on the editor's server under `DATA_DIR/owners/<owner>/images/`:**
-Each image is assigned a UUID filename (`<uuid>.<ext>`) and tracked in `index.json`. Served
-via `GET /images/file/<id>` on the editor's origin. This is temporary local storage until a
-Cloudflare service takes over; the client interface (`ImageMeta`) is designed to remain identical.
+**Uploads live on the editor's own server, not the app's.** The files sit in
+`DATA_DIR/images/<id>`, public so the app and any `<img>` can load them; each owner's
+gallery index is `DATA_DIR/owners/<owner>/images/index.json`. Temporary until a storage
+service takes over; `ImageMeta` is meant to stay the same. The stored address is built on
+the browser's origin, not the one the server reports (`http://` behind a proxy).
 
-**Image picker modal in image steps:** A "Vybrat obrázek" button opens a two-tab modal
-(`<dialog>` via `Modal.svelte`):
-- "Nahrát": drag-and-drop zone with file picker fallback, uploading immediately and setting `image.url`.
-- "Galerie": grid of previously uploaded pictures for the current workspace owner, setting `image.url` on click.
+**One picker serves the image step and the text's „Obrázek“ button** (`ui/ImagePickerModal`,
+tabs by `Segmented`): „Z počítače“ (upload; drop anywhere on the dialog), „Galerie“ (the
+opening tab when it has pictures), „Z webu“ (an https address). A picture file pasted or
+dropped into a text is uploaded and placed; other files are still refused. Answer texts
+take no pictures. Closing the dialog during an upload aborts it.
+
+**Image step.** No red message on a new step: „Krok N zatím nemá obrázek…“ is
+`E_IMAGE_NO_URL` from `validate()`, with its usual timing. The picture is shown with
+„Změnit obrázek“ and „Odebrat obrázek“ (undo notice). „Popis obrázku pro čtečku obrazovky“
+shows in every mode once there is a picture. „Adresa obrázku“ shows only where ids show
+(Pokročilý), since an uploaded address carries its id; `fields.ts` is unchanged so the
+export review never sends a teacher to another mode for a missing picture.
+
+**Errors never show the server's text.** Kinds (too big, wrong type, gallery full, several
+files, failed) map to Czech sentences in `images/limits.ts`; type and size are checked
+before sending. The limit is one constant for server and client, 8 MB, because the
+deployment's body limits are 8 MB (the dialog used to promise 10).
+
+**Deleting from the gallery asks first**: the dialog says the picture leaves the gallery
+and, if used, every place in this course, and cannot be undone.
+`removeImageReferences` also clears Markdown texts. The trash button shows on hover or
+focus of a thumbnail only.
+
+Rejected: two image tools (an address row in text, the picker in the step); a file-name
+pill; an address field in Učitel/Metodik („Z webu“ is the one place); raising the body
+limit to keep "10 MB" (not verifiable without building the image); an undo toast for
+gallery delete (the file is gone, so undo would restore dead links; a dialog is the rule
+for what cannot be undone); hand-made tabs.
+
+Open: OPEN-PROBLEMS #61–#66.
 
 ## Still open
 
