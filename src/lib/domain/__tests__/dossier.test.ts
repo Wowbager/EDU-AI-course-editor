@@ -206,6 +206,16 @@ describe('buildDossier', () => {
 		for (const id of ids) expect(out).not.toContain(id);
 	});
 
+	it('drops every link target, not only web addresses', () => {
+		const doc = small();
+		const card = doc.blocks.find((b) => b.block_id === 'B_T1')!;
+		card.steps[0].content =
+			'Viz [tabulka](img/a.png), [napiš](mailto:a@b.cz) nebo mailto:c@d.cz a [x](javascript:alert(1)).';
+		const out = buildDossier(doc, 'B_T1');
+		expect(out).toContain('Viz tabulka, napiš nebo [odkaz] a x.');
+		for (const leak of ['img/a.png', 'mailto', 'javascript', '@']) expect(out).not.toContain(leak);
+	});
+
 	it('skips empty cards in the outline, but shows the current empty card', () => {
 		const out = buildDossier(small(), 'B_EMPTY');
 		expect(out.split('## Outline')[1].split('# Earlier')[0]).not.toContain('Výklad:\n');

@@ -33,11 +33,11 @@ const text = (value: unknown): string => (typeof value === 'string' ? value.trim
 /** Markdown with the links and pictures made safe: no URL survives. */
 function clean(value: unknown): string {
 	return text(value)
-		.replace(/!\[([^\]]*)\]\([^)]*\)/g, (_, alt: string) =>
+		.replace(/!\[([^\]]*)\]\((?:[^()]|\([^()]*\))*\)/g, (_, alt: string) =>
 			alt.trim() === '' ? '[obrázek]' : `[obrázek: ${alt.trim()}]`
 		)
-		.replace(/\[([^\]]*)\]\((?:https?:|\/|data:)[^)]*\)/gi, '$1')
-		.replace(/(?:https?:\/\/|data:)\S+/gi, '[odkaz]');
+		.replace(/\[([^\]]*)\]\((?:[^()]|\([^()]*\))*\)/g, '$1')
+		.replace(/(?:https?:\/\/|data:|mailto:|javascript:)\S+/gi, '[odkaz]');
 }
 
 const firstLine = (value: string, max: number): string => {
