@@ -94,10 +94,12 @@ export function locationOf(sections: readonly Section[]): string {
 	return out.join(', ');
 }
 
-const withoutExtension = (name: string): string => name.replace(/\.[A-Za-z0-9]{1,5}$/, '');
+/** A file's name as the teacher reads it: without its extension. */
+export const displayName = (name: string): string =>
+	name.replace(/\.[A-Za-z0-9]{1,5}$/, '') || name;
 
 /**
- * The quiet line under a proposed card: „Z podkladů: Učebnice, str. 12–14“. Keys that are
+ * The quiet line under a proposed card: „Učebnice · str. 12–14“, „Prezentace · snímek 5“, or just the name for a whole file. Keys that are
  * no longer among the sections are left out; with none left the line is empty.
  */
 export function sourceLine(sections: readonly Section[], keys: readonly string[]): string {
@@ -110,9 +112,9 @@ export function sourceLine(sections: readonly Section[], keys: readonly string[]
 	if (byFile.size === 0) return '';
 	const parts = [...byFile].map(([file, list]) => {
 		const place = locationOf(list);
-		return place === '' ? withoutExtension(file) : `${withoutExtension(file)}, ${place}`;
+		return place === '' ? displayName(file) : `${displayName(file)} · ${place}`;
 	});
-	return `Z podkladů: ${parts.join('; ')}`;
+	return parts.join('; ');
 }
 
 // ───────────────────────────────── what the model reads ─────────────────────────────────

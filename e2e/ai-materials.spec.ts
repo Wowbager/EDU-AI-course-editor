@@ -63,14 +63,14 @@ test('a proposal made from materials shows where each card comes from, and the c
 	await expect(create(page)).toBeEnabled();
 	// A card with sources has one quiet line under its name; one without has none.
 	const first = page.locator('.row.card').filter({ hasText: 'Co to je' });
-	await expect(first.locator('.source')).toHaveText('Z podkladů: handout');
+	await expect(first.locator('.source')).toHaveText('handout');
 	await expect(
 		page.locator('.row.card').filter({ hasText: 'Procvičení' }).locator('.source')
 	).toHaveCount(0);
 	await expect(page.locator('.source')).toHaveCount(2);
 	await expect(
 		page.locator('.row.card').filter({ hasText: 'Jak se to používá' }).locator('.source')
-	).toHaveText('Z podkladů: handout; page');
+	).toHaveText('handout; page');
 
 	await create(page).click();
 	await expect(panel(page).locator('.queue-row.done')).toHaveCount(5);

@@ -169,10 +169,9 @@
 					>
 				{/if}
 			</div>
-			{#if card.sources !== undefined && sourceLine(materials.sections, card.sources) !== ''}
-				<div class="source" class:off={!card.on}>
-					{sourceLine(materials.sections, card.sources)}
-				</div>
+			{@const from = card.sources === undefined ? '' : sourceLine(materials.sections, card.sources)}
+			{#if from !== ''}
+				<div class="source" class:off={!card.on} title={from}>{from}</div>
 			{/if}
 		</div>
 		<button

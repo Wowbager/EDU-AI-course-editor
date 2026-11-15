@@ -63,10 +63,10 @@ describe('where a section came from', () => {
 			section({ key: 'b.0', file: 'Prezentace.pptx', unit: 'slide', from: 5, to: 5 }),
 			section({ key: 'c.0', file: 'Zápis.docx', unit: undefined, from: undefined, to: undefined })
 		];
-		expect(sourceLine(sections, ['a.0', 'a.1'])).toBe('Z podkladů: Učebnice, str. 3–4');
-		expect(sourceLine(sections, ['b.0', 'c.0'])).toBe('Z podkladů: Prezentace, snímek 5; Zápis');
+		expect(sourceLine(sections, ['a.0', 'a.1'])).toBe('Učebnice · str. 3–4');
+		expect(sourceLine(sections, ['b.0', 'c.0'])).toBe('Prezentace · snímek 5; Zápis');
 		// A key that is not there (a file taken out since) is left out, and with none left, no line.
-		expect(sourceLine(sections, ['a.0', 'gone'])).toBe('Z podkladů: Učebnice, str. 3');
+		expect(sourceLine(sections, ['a.0', 'gone'])).toBe('Učebnice · str. 3');
 		expect(sourceLine(sections, ['gone'])).toBe('');
 		expect(sourceLine(sections, [])).toBe('');
 	});
