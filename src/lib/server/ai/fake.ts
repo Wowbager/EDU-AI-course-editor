@@ -139,7 +139,7 @@ export const fakeComplete: Complete = async (messages) => {
 const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** Between two lessons of a streamed proposal, so a browser suite can see it growing. */
-export const FAKE_LESSON_DELAY_MS = 150;
+export const FAKE_LESSON_DELAY_MS = 400;
 
 /** The proposal as the stream carries it: the scope line, then a lesson or card per line. */
 export const fakeStream: Stream = async (messages, onText) => {

@@ -83,21 +83,24 @@ class AiPanel {
 		const fresh = previous === null;
 		this.incoming = fresh;
 		const unticked = untickedOf(previous ?? undefined);
+		// A fresh proposal is built in `this.draft` itself, so what the teacher ticks or
+		// renames while it is still arriving is not lost to the next lesson.
 		let building: Draft | null = null;
 		const outcome = await askOutline(request, (event) => {
 			if (generation !== this.#generation) return;
-			building =
-				event.type === 'scope'
-					? emptyDraft(event.scope, this.#key)
-					: building === null
-						? null
-						: addToDraft(building, event, this.#key, unticked);
-			if (fresh) this.draft = building;
+			if (event.type === 'scope') {
+				building = emptyDraft(event.scope, this.#key);
+				if (fresh) this.draft = building;
+				return;
+			}
+			if (fresh) {
+				if (this.draft !== null) this.draft = addToDraft(this.draft, event, this.#key, unticked);
+			} else if (building !== null) building = addToDraft(building, event, this.#key, unticked);
 		});
 		if (generation !== this.#generation) return;
 		this.asking = false;
 		this.incoming = false;
-		const got = building as Draft | null;
+		const got = (fresh ? this.draft : building) as Draft | null;
 		const some = got !== null && got.lessons.some((l) => l.cards.length > 0);
 		if (outcome !== 'done') {
 			this.problem = this.#say(outcome.problem);

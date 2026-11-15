@@ -19,8 +19,6 @@
 		explain?: boolean;
 		/** Id of a line elsewhere that describes the whole group. */
 		describedby?: string;
-		/** Tighter buttons, for a header that has to fit three choices and more beside them. */
-		compact?: boolean;
 	}
 	let {
 		options,
@@ -29,8 +27,7 @@
 		onchange,
 		wrap = false,
 		explain = false,
-		describedby,
-		compact = false
+		describedby
 	}: Props = $props();
 	const explanation = $derived(explain ? options.find((o) => o.value === value)?.title : undefined);
 	const explainId = $props.id();
@@ -40,7 +37,6 @@
 	<div
 		class="segmented"
 		class:wrap
-		class:compact
 		role="radiogroup"
 		aria-label={label}
 		aria-describedby={explanation ? explainId : describedby}
@@ -135,20 +131,6 @@
 
 	.icon {
 		padding-left: 40px;
-	}
-
-	.compact button {
-		padding-right: 8px;
-		padding-left: 8px;
-	}
-
-	.compact .icon {
-		padding-left: 28px;
-	}
-
-	.compact span {
-		left: 8px;
-		width: calc(100% - 16px);
 	}
 
 	span {

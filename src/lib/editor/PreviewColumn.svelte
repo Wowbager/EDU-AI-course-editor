@@ -75,6 +75,8 @@
 	}
 	let { doc, block, lessonId, collapsed, ontoggle, aiTab = false, onaiTab }: Props = $props();
 	const aiShown = $derived(aiTab && ai.available);
+	/** The switch has nothing chosen while the AI tab is on. */
+	const NO_VIEW = '' as PreviewView;
 
 	const store = useStore();
 	const stepView = useStepView();
@@ -550,10 +552,30 @@
 				</Button>
 			</div>
 
+			{#if ai.available}
+				<!-- Its own button, not a third view: AI is a place to write in, the other two show the card. -->
+				<Button
+					variant="ghost"
+					size="s"
+					ariaLabel="AI"
+					title="Napiš, co chceš vytvořit. AI navrhne lekce nebo karty, ty je upravíš a ona je dopíše. Náhled běží dál a po návratu je hned tam."
+					pressed={aiShown}
+					onclick={() => {
+						if (aiShown) return onaiTab?.(false);
+						// Leaving a run behind, as Náhled does.
+						stepView.endRun();
+						finished = null;
+						view = 'expanded';
+						onaiTab?.(true);
+					}}
+				>
+					<AiIcon size={16} />
+				</Button>
+			{/if}
+
 			<Segmented
 				label="Co je v náhledu"
-				compact={ai.available}
-				value={aiShown ? 'ai' : view}
+				value={aiShown ? NO_VIEW : view}
 				options={[
 					{
 						value: 'expanded',
@@ -566,28 +588,9 @@
 						label: 'Vyzkoušet',
 						title:
 							'Projdi lekci od vybrané karty tak, jak ji potká žák: kroky se odkrývají po jednom, další se objeví až tlačítkem pod kartou. Zpětem se vrátíš a můžeš zkusit druhou větev.'
-					},
-					...(ai.available
-						? [
-								{
-									value: 'ai' as const,
-									label: 'AI',
-									icon: AiIcon,
-									title:
-										'Napiš, co chceš vytvořit. AI navrhne lekce nebo karty, ty je upravíš a ona je dopíše. Náhled běží dál a po návratu je hned tam.'
-								}
-							]
-						: [])
+					}
 				]}
 				onchange={(next) => {
-					if (next === 'ai') {
-						// Leaving a run behind, as Náhled does.
-						stepView.endRun();
-						finished = null;
-						view = 'expanded';
-						onaiTab?.(true);
-						return;
-					}
 					onaiTab?.(false);
 					if (next === 'play') {
 						playStart = block === undefined ? undefined : blocksOfCard(block.block_id)[0]?.block_id;
@@ -678,7 +681,7 @@
 				{/if}
 			</div>
 			{#if aiShown}
-				<div class="ai-slot"><AiPanel /></div>
+				<div class="ai-slot" inert={collapsed === true}><AiPanel /></div>
 			{/if}
 		</div>
 		{#if view === 'play' && finished !== null}
@@ -704,8 +707,23 @@
 			onclick={toggle}
 		>
 			<PanelRightOpen size={18}></PanelRightOpen>
-			<span class="rail-text" aria-hidden="true">Náhled</span>
+			<span class="rail-text" class:below={ai.available} aria-hidden="true">Náhled</span>
 		</button>
+		{#if ai.available}
+			<!-- Under the open button; opens the column straight into AI. -->
+			<button
+				type="button"
+				class="rail-ai"
+				aria-label="Otevřít AI"
+				title="Otevřít AI"
+				onclick={() => {
+					onaiTab?.(true);
+					void toggle();
+				}}
+			>
+				<AiIcon size={18} />
+			</button>
+		{/if}
 	{/if}
 </aside>
 
@@ -738,6 +756,7 @@
 
 	.rail {
 		position: absolute;
+		z-index: 2;
 		inset: 0;
 		display: flex;
 		flex-direction: column;
@@ -752,6 +771,35 @@
 
 	.rail:hover {
 		background: var(--surface-light);
+		color: var(--e-text);
+	}
+
+	/* Room for the AI button between the open icon and the label. */
+	.rail-text.below {
+		margin-top: 40px;
+	}
+
+	.rail-ai {
+		position: absolute;
+		z-index: 3;
+		top: 44px;
+		left: 50%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 30px;
+		height: 30px;
+		padding: 0;
+		border: none;
+		border-radius: var(--radius-pill);
+		background: none;
+		color: var(--e-text-muted);
+		cursor: pointer;
+		transform: translateX(-50%);
+	}
+
+	.rail-ai:hover {
+		background: var(--primary-dark-06);
 		color: var(--e-text);
 	}
 
@@ -798,6 +846,11 @@
 		inset: 0;
 		z-index: 1;
 		background: var(--surface);
+	}
+
+	/* A folded column shows the strip and nothing of the panel (only the player stays painted). */
+	.preview.collapsed .ai-slot {
+		visibility: hidden;
 	}
 
 	iframe {

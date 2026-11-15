@@ -9,7 +9,7 @@ import { test, expect, openEditor, type Page } from './fixtures';
  * proposal and adds a card called „Změna: …“.
  */
 
-const aiTab = (page: Page) => page.getByRole('radio', { name: 'AI', exact: true });
+const aiTab = (page: Page) => page.getByRole('button', { name: 'AI', exact: true });
 const box = (page: Page) => page.getByRole('textbox', { name: /^Co (mám vytvořit|změnit)\?$/ });
 const send = (page: Page) => page.getByRole('button', { name: 'Odeslat', exact: true });
 const create = (page: Page) => page.getByRole('button', { name: 'Vytvořit vybrané', exact: true });
@@ -41,10 +41,102 @@ test('the AI tab replaces Náhled in the column and the player stays mounted', a
 	await expect(page.locator('iframe[title="Náhled kurzu očima žáka"]')).toHaveCount(1);
 });
 
+test('the AI button is its own, between the fold button and the switch, and presses back to the preview', async ({
+	page
+}) => {
+	const header = page.locator('aside.preview header');
+	const buttons = header.getByRole('button');
+	await expect(buttons.nth(0)).toHaveAccessibleName('Skrýt náhled');
+	await expect(buttons.nth(1)).toHaveAccessibleName('AI');
+	// The switch has two choices only, and none is chosen while AI is on.
+	const group = page.getByRole('radiogroup', { name: 'Co je v náhledu' });
+	await expect(group.getByRole('radio')).toHaveCount(2);
+	await expect(group.getByRole('radio', { checked: true })).toHaveCount(0);
+
+	await aiTab(page).click();
+	await expect(panel(page)).toHaveCount(0);
+	await expect(group.getByRole('radio', { name: 'Náhled' })).toBeChecked();
+	await aiTab(page).click();
+	await expect(panel(page)).toBeVisible();
+	await page.getByRole('radio', { name: 'Vyzkoušet', exact: true }).click();
+	await expect(panel(page)).toHaveCount(0);
+	await expect(group.getByRole('radio', { name: 'Vyzkoušet' })).toBeChecked();
+});
+
+test('folding the column on the AI tab leaves nothing of the panel, and the strip opens straight into AI', async ({
+	page
+}) => {
+	await page.getByRole('button', { name: 'Skrýt náhled' }).click();
+	await expect(panel(page)).toBeHidden();
+	await expect(box(page)).toBeHidden();
+	await expect(page.locator('.ai-slot')).toHaveCSS('visibility', 'hidden');
+	await expect(page.locator('.ai-slot')).toHaveAttribute('inert', '');
+	await expect(page.getByRole('button', { name: 'Ukázat náhled' })).toBeVisible();
+
+	await page.getByRole('button', { name: 'Otevřít AI' }).click();
+	await expect(panel(page)).toBeVisible();
+	await expect(box(page)).toBeVisible();
+	await expect(aiTab(page)).toHaveAttribute('aria-pressed', 'true');
+
+	// From Náhled: fold, then the strip's AI button opens AI, not Náhled.
+	await aiTab(page).click();
+	await page.getByRole('button', { name: 'Skrýt náhled' }).click();
+	await page.getByRole('button', { name: 'Otevřít AI' }).click();
+	await expect(panel(page)).toBeVisible();
+	// The strip's other button opens the column as it was left.
+	await page.getByRole('button', { name: 'Skrýt náhled' }).click();
+	await page.getByRole('button', { name: 'Ukázat náhled' }).click();
+	await expect(panel(page)).toBeVisible();
+});
+
+test('a proposal appears lesson by lesson, and can be created when it is complete', async ({
+	page
+}) => {
+	await ask(page, 'Kurz o zlomcích');
+	await expect(page.getByRole('checkbox', { name: 'Vytvořit lekci: První lekce' })).toBeVisible();
+	// The second lesson has not arrived: the model is still writing.
+	await expect(panel(page).getByText('Píšu…')).toBeVisible();
+	await expect(create(page)).toBeDisabled();
+	await expect(page.getByRole('checkbox', { name: 'Vytvořit lekci: Druhá lekce' })).toBeVisible();
+	await expect(panel(page).getByText('Píšu…')).toHaveCount(0);
+	await expect(create(page)).toBeEnabled();
+});
+
+test('a card still waiting for AI shows no errors, however often it is opened', async ({
+	page
+}) => {
+	let release!: () => void;
+	const gate = new Promise<void>((resolve) => (release = resolve));
+	await page.route('**/ai/block', async (route) => {
+		if (route.request().method() === 'POST') await gate;
+		await route.continue();
+	});
+	await page.locator('.tree-card').first().click();
+	await ask(page, 'Dej mi karty na procvičení');
+	await expect(create(page)).toBeEnabled();
+	await create(page).click();
+	const waiting = page.locator('.tree-card').filter({ hasText: 'Kvíz na závěr' });
+	await expect(waiting).toBeVisible();
+	await waiting.click();
+	await expect(page.locator('.step').first()).toBeVisible();
+	// Leave it and come back: it was seen, and it is still not an error.
+	await page.locator('.tree-card').first().click();
+	await waiting.click();
+	await expect(page.locator('.step.invalid')).toHaveCount(0);
+	// (The empty first card the teacher left is theirs, and does show its own.)
+	await expect(waiting.locator('.chip.error')).toHaveCount(0);
+	await expect(panel(page).locator('.queue-row.done')).toHaveCount(0);
+
+	release();
+	await expect(panel(page).locator('.queue-row.done')).toHaveCount(3);
+	await expect(page.locator('.step.invalid')).toHaveCount(0);
+	await expect(waiting.locator('.chip.error')).toHaveCount(0);
+});
+
 test('the choice is remembered after a reload', async ({ page }) => {
 	await page.reload();
 	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
-	await expect(aiTab(page)).toBeChecked();
+	await expect(aiTab(page)).toHaveAttribute('aria-pressed', 'true');
 	await expect(panel(page)).toBeVisible();
 });
 

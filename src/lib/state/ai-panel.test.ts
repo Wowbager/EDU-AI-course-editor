@@ -181,8 +181,11 @@ describe('a streamed proposal', () => {
 		expect(aiPanel.incoming).toBe(true);
 		aiPanel.create(store);
 		expect(store.doc.lessons).toHaveLength(1);
+		// What the teacher does while the rest is arriving is not lost to the next lesson.
+		aiPanel.draft = setCardTick(aiPanel.draft!, aiPanel.draft!.lessons[0].cards[0].key, false);
 		await m.line(lesson('Druhá'));
 		expect(aiPanel.draft?.lessons.map((l) => l.name)).toEqual(['První', 'Druhá']);
+		expect(aiPanel.draft?.lessons[0].cards[0].on).toBe(false);
 		await m.line({ type: 'done' });
 		m.close();
 		await pending;
