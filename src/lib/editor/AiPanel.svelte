@@ -552,7 +552,7 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 4px;
-		max-height: 84px;
+		max-height: 100px;
 		margin: 0;
 		padding: 0;
 		overflow-y: auto;
@@ -572,6 +572,7 @@
 	}
 
 	.chip-name {
+		max-width: 150px;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;

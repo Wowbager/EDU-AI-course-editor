@@ -85,17 +85,16 @@ async function pptx(picture) {
 		`<?xml version="1.0" encoding="UTF-8"?><p:notes xmlns:a="${A}" xmlns:p="${P}"><p:cSld><p:spTree>${sp('sldImg', 1, [])}${sp('body', 2, [text])}${sp('sldNum', 3, ['1'])}</p:spTree></p:cSld></p:notes>`;
 	const rels = (items) =>
 		`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="${REL}">${items
-			.map(([id, type, target]) => `<Relationship Id="${id}" Type="${R}/${type}" Target="${target}"/>`)
+			.map(
+				([id, type, target]) => `<Relationship Id="${id}" Type="${R}/${type}" Target="${target}"/>`
+			)
 			.join('')}</Relationships>`;
 	const zip = new JSZip();
 	zip.file(
 		'[Content_Types].xml',
 		`<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/></Types>`
 	);
-	zip.file(
-		'_rels/.rels',
-		rels([['rId1', 'officeDocument', 'ppt/presentation.xml']])
-	);
+	zip.file('_rels/.rels', rels([['rId1', 'officeDocument', 'ppt/presentation.xml']]));
 	// The deck lists the slides in the order 2, 1, 3, so that file order and deck order differ.
 	zip.file(
 		'ppt/presentation.xml',
@@ -111,14 +110,20 @@ async function pptx(picture) {
 	);
 	zip.file(
 		'ppt/slides/slide1.xml',
-		slide(sp('title', 2, ['Zlomky & čísla']) + sp('body', 3, ['Čitatel nad čarou', 'Jmenovatel pod čarou']))
+		slide(
+			sp('title', 2, ['Zlomky & čísla']) +
+				sp('body', 3, ['Čitatel nad čarou', 'Jmenovatel pod čarou'])
+		)
 	);
 	zip.file(
 		'ppt/slides/_rels/slide1.xml.rels',
 		rels([['rId1', 'notesSlide', '../notesSlides/notesSlide1.xml']])
 	);
 	zip.file('ppt/notesSlides/notesSlide1.xml', notes('Zdůrazni, že jmenovatel nesmí být nula.'));
-	zip.file('ppt/slides/slide2.xml', slide(sp('title', 2, ['Úvod']) + sp('body', 3, ['Dnes se naučíme zlomky.'])));
+	zip.file(
+		'ppt/slides/slide2.xml',
+		slide(sp('title', 2, ['Úvod']) + sp('body', 3, ['Dnes se naučíme zlomky.']))
+	);
 	zip.file(
 		'ppt/slides/_rels/slide2.xml.rels',
 		rels([['rId1', 'notesSlide', '../notesSlides/notesSlide2.xml']])

@@ -78,7 +78,11 @@ export async function readMaterial(
 	else out = await (await import('./image')).readImage(file as Blob & { name: string }, io);
 
 	if (out.pieces.length === 0)
-		throw new Refused(`V souboru ${file.name} jsem nenašel žádný text, který by šel přečíst.`);
+		throw new Refused(
+			out.unread.length > 0
+				? `Soubor ${file.name} se nepodařilo přečíst.`
+				: `V souboru ${file.name} jsem nenašel žádný text, který by šel přečíst.`
+		);
 	const pieces = out.pieces.map((p) => ({ ...p, text: p.text.slice(0, MAX_SECTION_CHARS) }));
 	return materialFileSchema.parse({
 		hash,

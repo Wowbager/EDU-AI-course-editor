@@ -53,7 +53,7 @@ A name is short, in the words a pupil or teacher would use, and never numbered (
 Rules:
 - Language: course.language (Czech when empty). Vocabulary and ambition fit audience.grade and audience.purpose; do not plan what audience.prior_knowledge says the pupils already know, and do not repeat what the existing lessons in the dossier already teach.
 - Build up: explain first, then practise, then check. A lesson usually has 3 to 7 cards, mixing the three kinds with more "display" and "exercise" than "question"; honour the numbers the teacher states (lessons, cards, "a quiz at the end").
-- With materials, cover what they cover, in their order, and do not plan what they do not contain. Do not invent facts, and never mention files, images or links in a name.
+- With materials, cover what they cover, in their order. Each attached file is there for a reason: give the topic of every file at least one lesson or card, unless the prompt says to leave something out (a different grade than a file's is no reason to drop it; adapt it). Do not plan what they do not contain. Do not invent facts, and never mention files, images or links in a name.
 - At most 12 lessons and 15 cards per lesson.
 ${formatRules({ fields: false })}`;
 
