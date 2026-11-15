@@ -370,6 +370,19 @@ export function canGenerate(block: BlockV2): boolean {
 
 // ───────────────────────────────── checking the answer ─────────────────────────────────
 
+/**
+ * Why a text that is shown as typed (an open answer, a card or lesson name) cannot hold
+ * what it holds, or `undefined`. The app draws these fields as plain text: a `$`, a LaTeX
+ * command or Markdown would reach the pupil, and the teacher, as raw characters.
+ */
+export function plainTextProblem(value: string): string | undefined {
+	if (/\$/.test(value)) return 'it holds a $ sign';
+	if (/\\[a-zA-Z]+/.test(value)) return 'it holds a LaTeX command';
+	if (/\*\*|__|`/.test(value)) return 'it holds Markdown (**, __ or a backtick)';
+	if (/^\s*(#{1,6}\s|[-*+]\s)/m.test(value)) return 'a line starts as a heading or a list';
+	return undefined;
+}
+
 /** The right number of right answers for the type; the model's word is not taken for it. */
 export function questionIsSound(gen: GenQuestion): boolean {
 	if (gen.type === 'mcq_1') return gen.options.filter((o) => o.correct).length === 1;
@@ -400,6 +413,8 @@ function fillProblem(step: RequestStep, fill: Fill): string | undefined {
 		if (step.question_type !== undefined && fill.question.type !== step.question_type)
 			return `Step "${step.id}": use the question type "${step.question_type}".`;
 		if (!questionIsSound(fill.question)) return unsound(step.id);
+		const plain = plainAnswer(fill.question, `Step "${step.id}"`);
+		if (plain !== undefined) return plain;
 	}
 	if (fill.option_feedback !== undefined) {
 		const options = (step.question as { options?: unknown[] } | undefined)?.options ?? [];
@@ -408,6 +423,14 @@ function fillProblem(step: RequestStep, fill: Fill): string | undefined {
 	}
 	return undefined;
 }
+
+const plainAnswer = (gen: GenQuestion, where: string): string | undefined => {
+	if (gen.type !== 'open') return undefined;
+	const why = plainTextProblem(gen.answer);
+	return why === undefined
+		? undefined
+		: `${where}: the answer of an open question is plain text, but ${why}. Write it as typed text, such as 21/30 or x = 5, one accepted answer per line.`;
+};
 
 const unsound = (where: string) =>
 	`${where}: the number of correct options does not fit the question type (mcq_1: exactly one; mcq_n: at least two, and at least one wrong).`;
@@ -445,6 +468,8 @@ export function cardProblem(request: GenRequest, answer: GeneratedCard): string 
 			if (request.card.kind === 'display')
 				return 'A "display" card has text steps only; do not add question steps.';
 			if (!questionIsSound(item.question)) return unsound('A new question step');
+			const plain = plainAnswer(item.question, 'A new question step');
+			if (plain !== undefined) return plain;
 		}
 	}
 

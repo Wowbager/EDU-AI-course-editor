@@ -167,7 +167,7 @@ describe('generateCard', () => {
 	});
 
 	it('states in the prompt what the card kinds hold and that a stated count wins', () => {
-		expect(SPEC_VERSION).toBe('2');
+		expect(SPEC_VERSION).toBe('3');
 		expect(SYSTEM_PROMPT).toContain('"display"');
 		expect(SYSTEM_PROMPT).toContain('2 to 8 question steps');
 		expect(SYSTEM_PROMPT).toContain('it wins');
@@ -230,7 +230,14 @@ describe('settings and the provider call', () => {
 
 	it('asks OpenRouter for hosts that do not keep the text', () => {
 		const body = buildBody(readAiConfig({ AI_API_KEY: 'k' }), []);
-		expect(body.provider).toEqual({ require_parameters: true, data_collection: 'deny' });
+		expect(body.provider).toEqual({
+			require_parameters: true,
+			data_collection: 'deny',
+			max_price: { prompt: 0.5, completion: 2 }
+		});
+		// Thinking stays on, at the low setting.
+		expect(body.reasoning).toEqual({ effort: 'low' });
+		expect(body.model).toBe('deepseek/deepseek-v4.1-flash:nitro');
 		expect(body.response_format).toEqual({ type: 'json_object' });
 		expect(buildBody(readAiConfig({ AI_PROVIDER: 'deepseek', AI_API_KEY: 'k' }), []).provider).toBe(
 			undefined
@@ -268,5 +275,48 @@ describe('settings and the provider call', () => {
 		await expect(failing(401)).rejects.toMatchObject({ kind: 'auth' });
 		await expect(failing(429)).rejects.toMatchObject({ kind: 'busy' });
 		await expect(failing(500)).rejects.toBeInstanceOf(ProviderError);
+	});
+});
+
+describe('plain-text fields', () => {
+	const open = (answer: string) => ({
+		steps: [
+			{
+				keep: 's1',
+				fill: { help_md: 'Polovina je jedna ze dvou částí.' }
+			},
+			{
+				kind: 'question',
+				content_md: 'Sečti zlomky.',
+				question: { type: 'open', answer },
+				hint_md: 'h',
+				help_md: 'p',
+				solution_md: 's'
+			}
+		]
+	});
+
+	it.each(['$\\frac{21}{30}$ a $\\frac{4}{30}$', '\\frac{1}{2}', '**3/4**', '- 3/4\n- 0,75'])(
+		'sends an open answer such as %j back with the reason',
+		async (bad) => {
+			const model = scripted(open(bad), open('21/30 a 4/30'));
+			const { response } = await generateCard(request(), model);
+			expect(response.status).toBe('ok');
+			expect(model.calls).toBe(2);
+			expect(model.seen[1].at(-1)!.content).toMatch(/plain text/);
+		}
+	);
+
+	it('takes typed fractions and equations', async () => {
+		const model = scripted(open('21/30\nx = 5'));
+		expect((await generateCard(request(), model)).response.status).toBe('ok');
+	});
+
+	it('puts the field rules and the length limits in the prompt', () => {
+		expect(SYSTEM_PROMPT).toMatch(/- open answer[^\n]*plain text/);
+		expect(SYSTEM_PROMPT).toMatch(/a hint is one sentence/);
+		expect(SYSTEM_PROMPT).toMatch(
+			/Use "number" only when the pupil types a whole or decimal number/
+		);
 	});
 });

@@ -32,7 +32,10 @@ export type AiConfig = {
 type Env = Readonly<Record<string, string | undefined>>;
 
 const DEFAULTS: Record<Provider, { model: string; baseURL: string }> = {
-	openrouter: { model: 'deepseek/deepseek-v4.1-flash', baseURL: 'https://openrouter.ai/api/v1' },
+	openrouter: {
+		model: 'deepseek/deepseek-v4.1-flash:nitro',
+		baseURL: 'https://openrouter.ai/api/v1'
+	},
 	deepseek: { model: 'deepseek-flash', baseURL: 'https://api.deepseek.com' },
 	fake: { model: 'fake', baseURL: '' }
 };
@@ -41,7 +44,7 @@ const PROVIDERS: readonly string[] = ['openrouter', 'deepseek', 'fake'];
 const EFFORTS: readonly string[] = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 
 export const DEFAULT_DAILY_TOKEN_BUDGET = 20_000_000;
-export const DEFAULT_MAX_REQUESTS_PER_MINUTE = 20;
+export const DEFAULT_MAX_REQUESTS_PER_MINUTE = 40;
 
 function positiveInt(value: string | undefined, fallback: number): number {
 	if (value === undefined || value.trim() === '') return fallback;

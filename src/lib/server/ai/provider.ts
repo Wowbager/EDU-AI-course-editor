@@ -4,12 +4,21 @@
  * else sees `Complete`.
  */
 import type { AiConfig } from './config';
-import { fakeComplete } from './fake';
+import { fakeComplete, fakeStream } from './fake';
 import { weightedTokens, type Usage } from './limits';
 
 export type Message = { role: 'system' | 'user' | 'assistant'; content: string };
 export type Completion = { text: string; tokens: number };
 export type Complete = (messages: readonly Message[]) => Promise<Completion>;
+/**
+ * The same call, answered in pieces as the model writes. `text` goes to `onText` as it
+ * arrives; the promise ends with what the call used. Without `json`, the model is not
+ * held to one JSON object (a proposal is one object per line).
+ */
+export type Stream = (
+	messages: readonly Message[],
+	onText: (piece: string) => void
+) => Promise<{ tokens: number }>;
 
 /** Why a call failed, in the terms the route answers with. */
 export class ProviderError extends Error {
@@ -25,18 +34,31 @@ export class ProviderError extends Error {
 /** A whole card with a long dossier and some thinking: more than a single step took. */
 const TIMEOUT_MS = 150_000;
 
-export function buildBody(config: AiConfig, messages: readonly Message[]): Record<string, unknown> {
-	const body: Record<string, unknown> = {
-		model: config.model,
-		messages,
-		response_format: { type: 'json_object' }
-	};
+/** What a request costs at most, $ per million tokens: rules out the one host priced 10 times higher. */
+export const MAX_PRICE = { prompt: 0.5, completion: 2 } as const;
+
+export function buildBody(
+	config: AiConfig,
+	messages: readonly Message[],
+	options: { stream?: boolean } = {}
+): Record<string, unknown> {
+	const body: Record<string, unknown> = { model: config.model, messages };
+	// One JSON object. A stream is lines of them, which the mode would refuse.
+	if (options.stream !== true) body.response_format = { type: 'json_object' };
+	else {
+		body.stream = true;
+		body.stream_options = { include_usage: true };
+	}
 	if (config.provider === 'deepseek') {
 		body.thinking = { type: config.reasoningEffort === 'none' ? 'disabled' : 'enabled' };
 	} else {
 		body.reasoning = { effort: config.reasoningEffort };
 		// Only hosts that honour the parameters above, and none that train on what they see.
-		body.provider = { require_parameters: true, data_collection: 'deny' };
+		body.provider = {
+			require_parameters: true,
+			data_collection: 'deny',
+			max_price: MAX_PRICE
+		};
 	}
 	return body;
 }
@@ -77,5 +99,85 @@ export function completer(config: AiConfig, fetcher: typeof fetch = fetch): Comp
 		const content = data?.choices?.[0]?.message?.content;
 		if (typeof content !== 'string') throw new ProviderError('failed', 'no message content');
 		return { text: content, tokens: weightedTokens(data?.usage) };
+	};
+}
+
+/** Pieces of text out of an OpenAI-style event stream, and the usage it ends with. */
+export function sseReader(onText: (piece: string) => void): {
+	feed(chunk: string): void;
+	end(): { tokens: number };
+} {
+	let buffer = '';
+	let usage: Usage | undefined;
+	const line = (raw: string) => {
+		const text = raw.trim();
+		// Comments (": OPENROUTER PROCESSING") and other fields are not data.
+		if (!text.startsWith('data:')) return;
+		const data = text.slice(5).trim();
+		if (data === '' || data === '[DONE]') return;
+		try {
+			const event = JSON.parse(data) as {
+				choices?: { delta?: { content?: unknown } }[];
+				usage?: Usage;
+			};
+			const piece = event.choices?.[0]?.delta?.content;
+			if (typeof piece === 'string' && piece !== '') onText(piece);
+			if (event.usage !== undefined) usage = event.usage;
+		} catch {
+			// A damaged event is skipped; the answer is checked as a whole afterwards.
+		}
+	};
+	return {
+		feed(chunk) {
+			buffer += chunk;
+			let at: number;
+			while ((at = buffer.indexOf('\n')) >= 0) {
+				line(buffer.slice(0, at));
+				buffer = buffer.slice(at + 1);
+			}
+		},
+		end() {
+			line(buffer);
+			buffer = '';
+			return { tokens: weightedTokens(usage) };
+		}
+	};
+}
+
+export function streamer(config: AiConfig, fetcher: typeof fetch = fetch): Stream {
+	if (config.provider === 'fake') return fakeStream;
+	return async (messages, onText) => {
+		let response: Response;
+		try {
+			response = await fetcher(`${config.baseURL}/chat/completions`, {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					authorization: `Bearer ${config.apiKey}`,
+					...(config.provider === 'openrouter'
+						? { 'HTTP-Referer': 'https://edu-ai.eu', 'X-Title': 'EDU-AI course editor' }
+						: {})
+				},
+				body: JSON.stringify(buildBody(config, messages, { stream: true })),
+				signal: AbortSignal.timeout(TIMEOUT_MS)
+			});
+		} catch (e) {
+			throw new ProviderError('network', e instanceof Error ? e.message : String(e));
+		}
+		if (!response.ok || response.body === null) {
+			const detail = `${response.status} ${(await response.text().catch(() => '')).slice(0, 300)}`;
+			if ([401, 402, 403].includes(response.status)) throw new ProviderError('auth', detail);
+			if ([429, 503, 529].includes(response.status)) throw new ProviderError('busy', detail);
+			throw new ProviderError('failed', detail);
+		}
+		const reader = sseReader(onText);
+		const decoder = new TextDecoder();
+		try {
+			for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>)
+				reader.feed(decoder.decode(chunk, { stream: true }));
+		} catch (e) {
+			throw new ProviderError('network', e instanceof Error ? e.message : String(e));
+		}
+		return reader.end();
 	};
 }
