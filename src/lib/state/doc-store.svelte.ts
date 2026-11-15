@@ -288,8 +288,19 @@ export class DocStore {
 		this.touchedFields = new Set([...this.touchedFields, key]);
 	}
 
+	/**
+	 * The cards waiting for AI to write them: read, never kept here. The page points it at
+	 * the AI queue's own set, so there is one source for "waiting".
+	 */
+	awaiting: () => ReadonlySet<string> = () => new Set();
+
 	#shown = (issue: Issue) =>
-		isVisible(issue, { cards: this.touchedCards, fields: this.touchedFields }, this.#reviewed);
+		isVisible(
+			issue,
+			{ cards: this.touchedCards, fields: this.touchedFields },
+			this.#reviewed,
+			this.awaiting()
+		);
 
 	/**
 	 * The issues the editor lists while the author is writing: every error, and the

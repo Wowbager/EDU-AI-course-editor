@@ -18,6 +18,7 @@
 	import { readLayout, writeLayout } from '$lib/state/layout-prefs';
 	import { DocStore } from '$lib/state/doc-store.svelte';
 	import { ai } from '$lib/state/ai.svelte';
+	import { aiPanel } from '$lib/state/ai-panel.svelte';
 	import { setStepView, setStore, setVersions } from '$lib/ui/context';
 	import { StepView } from '$lib/state/step-view.svelte';
 	import { VersionStore } from '$lib/state/versions/version-store.svelte';
@@ -315,6 +316,14 @@
 			lessonId: current.lesson_id,
 			blockId: current.blocks[0].block_id
 		};
+	});
+
+	// The cards the AI queue has yet to write show no complaints (`issue-visibility.ts`), and
+	// the one the teacher opens is written next.
+	store.awaiting = () => aiPanel.queue.pending;
+	$effect(() => {
+		const opened = store.selection?.blockId;
+		if (opened !== undefined) untrack(() => aiPanel.queue.prioritise(opened));
 	});
 
 	onMount(() => {

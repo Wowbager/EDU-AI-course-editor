@@ -24,22 +24,49 @@ function manual() {
 const states = (q: WriteQueue) => q.rows.map((r) => r.state);
 
 describe('the write queue', () => {
-	it('starts three at a time, in course order, and the next one as one finishes', async () => {
+	it('starts four at a time by default, in course order, and the next one as one finishes', async () => {
 		const m = manual();
 		const q = new WriteQueue(m.run);
-		q.start(cards(5));
-		expect(m.started).toEqual(['B0', 'B1', 'B2']);
-		expect(states(q)).toEqual(['writing', 'writing', 'writing', 'waiting', 'waiting']);
-		await m.finish('B1');
+		q.start(cards(6));
 		expect(m.started).toEqual(['B0', 'B1', 'B2', 'B3']);
-		await m.finish('B0');
-		await m.finish('B2');
-		await m.finish('B3');
-		await m.finish('B4');
-		expect(states(q)).toEqual(Array(5).fill('done'));
+		expect(states(q)).toEqual(['writing', 'writing', 'writing', 'writing', 'waiting', 'waiting']);
+		await m.finish('B1');
+		expect(m.started).toEqual(['B0', 'B1', 'B2', 'B3', 'B4']);
+		for (const id of ['B0', 'B2', 'B3', 'B4', 'B5']) await m.finish(id);
+		expect(states(q)).toEqual(Array(6).fill('done'));
 		expect(q.running).toBe(false);
 		expect(q.writing).toBe(false);
-		expect(m.started.length).toBe(5);
+	});
+
+	it('knows which cards are waiting for AI: the waiting and the writing ones, until they are written or failed', async () => {
+		const m = manual();
+		const q = new WriteQueue(m.run, { concurrency: 1 });
+		q.start(cards(3));
+		expect([...q.pending]).toEqual(['B0', 'B1', 'B2']);
+		await m.finish('B0');
+		expect([...q.pending]).toEqual(['B1', 'B2']);
+		await m.finish('B1', { problem: 'other' });
+		expect([...q.pending]).toEqual(['B2']);
+		await m.finish('B2');
+		expect(q.pending.size).toBe(0);
+	});
+
+	it('a card that is opened goes to the front of the cards still waiting', async () => {
+		const m = manual();
+		const q = new WriteQueue(m.run, { concurrency: 1 });
+		q.start(cards(4));
+		q.prioritise('B3');
+		expect(q.rows.map((r) => r.blockId)).toEqual(['B0', 'B3', 'B1', 'B2']);
+		// Not for a card already being written, finished, or unknown.
+		q.prioritise('B0');
+		q.prioritise('nope');
+		expect(q.rows.map((r) => r.blockId)).toEqual(['B0', 'B3', 'B1', 'B2']);
+		await m.finish('B0');
+		expect(m.started).toEqual(['B0', 'B3']);
+		await m.finish('B3');
+		await m.finish('B1');
+		await m.finish('B2');
+		expect(states(q)).toEqual(Array(4).fill('done'));
 	});
 
 	it('never has more than the limit in flight', async () => {
@@ -62,7 +89,7 @@ describe('the write queue', () => {
 
 	it('stop starts nothing new, lets the running ones finish, and resume writes the rest', async () => {
 		const m = manual();
-		const q = new WriteQueue(m.run);
+		const q = new WriteQueue(m.run, { concurrency: 3 });
 		q.start(cards(6));
 		q.stop();
 		await m.finish('B0');
@@ -81,7 +108,7 @@ describe('the write queue', () => {
 
 	it('resume with cards still being written does not start more than the limit', async () => {
 		const m = manual();
-		const q = new WriteQueue(m.run);
+		const q = new WriteQueue(m.run, { concurrency: 3 });
 		q.start(cards(6));
 		q.stop();
 		q.resume();
@@ -92,7 +119,7 @@ describe('the write queue', () => {
 
 	it('marks a failed card and goes on; resume tries it again', async () => {
 		const m = manual();
-		const q = new WriteQueue(m.run);
+		const q = new WriteQueue(m.run, { concurrency: 3 });
 		q.start(cards(2));
 		await m.finish('B0', { problem: 'other' });
 		await m.finish('B1');
@@ -140,7 +167,7 @@ describe('the write queue', () => {
 
 	it('a spent day stops the queue and says why', async () => {
 		const m = manual();
-		const q = new WriteQueue(m.run);
+		const q = new WriteQueue(m.run, { concurrency: 3 });
 		q.start(cards(5));
 		await m.finish('B0', { problem: 'budget' });
 		expect(q.stoppedBy).toBe('budget');
@@ -166,7 +193,7 @@ describe('the write queue', () => {
 
 	it('clear forgets the rows; a card that finishes afterwards changes nothing', async () => {
 		const m = manual();
-		const q = new WriteQueue(m.run);
+		const q = new WriteQueue(m.run, { concurrency: 3 });
 		q.start(cards(2));
 		q.clear();
 		await m.finish('B0');
@@ -175,7 +202,7 @@ describe('the write queue', () => {
 
 	it('a new batch keeps the unfinished rows of the old one and does not lose their results', async () => {
 		const m = manual();
-		const q = new WriteQueue(m.run);
+		const q = new WriteQueue(m.run, { concurrency: 3 });
 		q.start(cards(2));
 		await m.finish('B0', { problem: 'other' });
 		// B1 is still being written when the next batch comes.
@@ -196,7 +223,7 @@ describe('the write queue', () => {
 
 	it('a new batch drops the finished rows', async () => {
 		const m = manual();
-		const q = new WriteQueue(m.run);
+		const q = new WriteQueue(m.run, { concurrency: 3 });
 		q.start(cards(1));
 		await m.finish('B0');
 		q.start([{ blockId: 'N0', lessonId: 'L1' }]);

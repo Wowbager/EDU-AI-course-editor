@@ -21,7 +21,7 @@ export interface Row {
 	state: RowState;
 }
 
-export const CONCURRENCY = 3;
+export const CONCURRENCY = 4;
 /** Without a `Retry-After`, and at most, in seconds. */
 const DEFAULT_WAIT = 15;
 const MAX_WAIT = 70;
@@ -45,6 +45,26 @@ export class WriteQueue {
 	/** Cards not finished: still waiting, or failed. What „Dopsat zbytek“ is for. */
 	get rest(): Row[] {
 		return this.rows.filter((r) => r.state === 'waiting' || r.state === 'failed');
+	}
+
+	/**
+	 * The cards still to be written or being written: the one set that says a card is
+	 * waiting for AI. The editor reads it so that such a card shows no complaints
+	 * (`issue-visibility.ts`); a card leaves it when it is written or has failed.
+	 */
+	get pending(): ReadonlySet<string> {
+		return new Set(
+			this.rows.filter((r) => r.state === 'waiting' || r.state === 'writing').map((r) => r.blockId)
+		);
+	}
+
+	/** A card the teacher opens is written next: it goes ahead of the cards still waiting. */
+	prioritise(blockId: string) {
+		const at = this.rows.findIndex((r) => r.blockId === blockId && r.state === 'waiting');
+		const first = this.rows.findIndex((r) => r.state === 'waiting');
+		if (at < 0 || at === first) return;
+		const [row] = this.rows.splice(at, 1);
+		this.rows.splice(first, 0, row);
 	}
 
 	get writing(): boolean {
