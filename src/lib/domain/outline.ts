@@ -481,3 +481,19 @@ export function lessonStartsOpen(draft: Draft, index: number): boolean {
 	const cards = draft.lessons.reduce((sum, l) => sum + l.cards.length, 0);
 	return cards <= OPEN_ALL_UP_TO || index === 0;
 }
+
+/**
+ * `opened` with the default settled for every lesson not yet in it. A lesson's default is
+ * decided once, when it first appears, and kept: a proposal that grows while it streams,
+ * or shrinks as the teacher removes cards, never folds or opens a lesson under them.
+ */
+export function settleOpen(
+	opened: Readonly<Record<string, boolean>>,
+	draft: Draft
+): Record<string, boolean> {
+	const next = { ...opened };
+	draft.lessons.forEach((lesson, index) => {
+		if (!(lesson.key in next)) next[lesson.key] = lessonStartsOpen(draft, index);
+	});
+	return next;
+}

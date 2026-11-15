@@ -8,10 +8,11 @@
 	 * It edits the panel's draft (`aiPanel.draft`) and nothing else: no row here is in
 	 * the course until „Vytvořit vybrané“.
 	 */
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { ChevronRight, GripVertical, X } from '@lucide/svelte';
 	import {
 		lessonStartsOpen,
+		settleOpen,
 		lessonTick,
 		moveCard,
 		moveLesson,
@@ -37,6 +38,14 @@
 	/** Lessons the teacher folded or opened by hand; the first one is open until then, or all of them when the proposal is short. */
 	let opened = $state<Record<string, boolean>>({});
 	const isOpen = (key: string, index: number) => opened[key] ?? lessonStartsOpen(draft, index);
+	// The default is settled once per lesson, as it first appears (`settleOpen`).
+	$effect(() => {
+		const next = settleOpen(
+			untrack(() => opened),
+			draft
+		);
+		if (Object.keys(next).length !== untrack(() => Object.keys(opened).length)) opened = next;
+	});
 
 	/** The name being edited: a lesson's or a card's key, and what is typed so far. */
 	let editing = $state<{ key: string; value: string } | null>(null);

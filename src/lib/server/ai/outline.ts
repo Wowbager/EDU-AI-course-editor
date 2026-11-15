@@ -214,7 +214,9 @@ export async function* outlineEvents(
 				asked.forEach((line, i) => {
 					const result = results[i];
 					const fixed = result !== undefined && 'event' in result ? result.event : undefined;
-					if (fixed === undefined || (fixed.type !== 'lesson' && fixed.type !== 'card')) {
+					// A line of the other kind is no mending: the proposal would drop it.
+					const kind = outline?.scope === 'cards' ? 'card' : 'lesson';
+					if (fixed === undefined || fixed.type !== kind) {
 						left.push({
 							...line,
 							why: result !== undefined && 'problem' in result ? result.problem : line.why

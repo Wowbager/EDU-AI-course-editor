@@ -396,4 +396,29 @@ describe('lines asked for again', () => {
 		expect(model.seen[2].at(-1)!.content).toMatch(/only 1 were asked for/);
 		log.mockRestore();
 	});
+
+	it('does not take a line of the other kind as a mended one', async () => {
+		const first = [
+			'{"scope":"lessons"}',
+			L('A', ['display', 'a']),
+			'{"name":"B","cards":[]}',
+			L('C', ['display', 'c'])
+		].join('\n');
+		const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+		// The retry answers with a card line, which a lessons proposal cannot hold.
+		const model = scripted(50, first, '{"kind":"display","name":"B"}\n');
+		const events = await run(request(), model);
+		expect(events.some((e) => e.type === 'card')).toBe(false);
+		expect(order(events)).toEqual(['A', 'C']);
+		// A later, right answer is still placed at the right index.
+		const again = scripted(
+			50,
+			first,
+			'{"kind":"display","name":"B"}\n',
+			`${L('B', ['display', 'b'])}\n`
+		);
+		const later = await run(request(), again);
+		expect(order(later)).toEqual(['A', 'B', 'C']);
+		log.mockRestore();
+	});
 });

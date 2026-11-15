@@ -10,6 +10,7 @@ import {
 	draftOf,
 	keyMaker,
 	lessonStartsOpen,
+	settleOpen,
 	lessonTick,
 	moveCard,
 	moveLesson,
@@ -312,5 +313,36 @@ describe('the stream of lines', () => {
 		// 10 lessons of 2 cards is 20: still short; 11 is 22.
 		expect(lessonStartsOpen(many(10), 9)).toBe(true);
 		expect([0, 1, 10].map((i) => lessonStartsOpen(many(11), i))).toEqual([true, false, false]);
+	});
+
+	it("settles a lesson's default once: growing past 20 cards or removing back to it changes nothing", () => {
+		const next = keyMaker();
+		let draft = emptyDraft('lessons', next);
+		let opened: Record<string, boolean> = {};
+		const add = (name: string, n: number) => {
+			draft = addToDraft(
+				draft,
+				{
+					type: 'lesson',
+					lesson: { name, cards: Array.from({ length: n }, (_, i) => card(`c${i}`)) } as never
+				},
+				next
+			);
+			opened = settleOpen(opened, draft);
+		};
+		add('A', 10);
+		add('B', 10);
+		// The 21st card arrives: A and B stay open, C (which arrives over the line) starts folded.
+		add('C', 5);
+		expect(draft.lessons.map((l) => opened[l.key])).toEqual([true, true, false]);
+		// Removing cards back under 20 does not open C by itself, nor fold the others.
+		draft = {
+			...draft,
+			lessons: draft.lessons.map((l, i) => (i === 0 ? { ...l, cards: l.cards.slice(0, 1) } : l))
+		};
+		expect(draft.lessons.map((l) => settleOpen(opened, draft)[l.key])).toEqual([true, true, false]);
+		// A choice made by hand is kept.
+		opened = { ...opened, [draft.lessons[1].key]: false };
+		expect(settleOpen(opened, draft)[draft.lessons[1].key]).toBe(false);
 	});
 });
