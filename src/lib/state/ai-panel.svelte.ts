@@ -5,8 +5,15 @@
  *
  * The proposal exists only here. It is never in the document: the course only changes
  * when „Vytvořit vybrané“ runs `insertOutline`, as one undo step.
+ *
+ * The outline has its own undo history: every change the teacher makes to it (`change`),
+ * „Zahodit návrh“ and the AI replacing it is a step, until „Vytvořit vybrané“ ends it.
+ * A proposal the AI is still writing is not stepped through lesson by lesson: it is one
+ * step once it is there.
  */
 import {
+	addDraftCard,
+	addDraftLesson,
 	addToDraft,
 	buildOutlineRequest,
 	emptyDraft,
@@ -17,6 +24,7 @@ import {
 	type KeyMaker
 } from '$lib/domain/outline';
 import { CommandError } from '$lib/domain/commands';
+import { emptyHistory, record, redo, retract, undo, type History } from '$lib/domain/history';
 import { insertOutline } from '$lib/domain/outline-insert';
 import { ai, askOutline, TEXT, type Problem } from './ai.svelte';
 import { materials } from './materials.svelte';
@@ -31,6 +39,11 @@ const PROPOSAL_TEXT = {
 class AiPanel {
 	/** The proposal being shaped, or none. */
 	draft = $state<Draft | null>(null);
+	#history = $state<History<Draft | null>>(emptyHistory());
+	/** Counts every step, so a step can be taken back only while it is still the last one. */
+	#steps = 0;
+	/** A row just added for the teacher to name: the outline's tree opens it as a field. */
+	typing = $state<{ key: string; step: number } | null>(null);
 	/** The prompt the proposal started from; a change is sent with it. */
 	#original = '';
 	asking = $state(false);
@@ -58,6 +71,92 @@ class AiPanel {
 		return { problem: result.problem === 'budget' ? 'budget' : 'other' };
 	}
 
+	get canUndo(): boolean {
+		return !this.asking && this.#history.past.length > 0;
+	}
+	get canRedo(): boolean {
+		return !this.asking && this.#history.future.length > 0;
+	}
+
+	/** A key for a new row. */
+	key(): string {
+		return this.#key();
+	}
+
+	/**
+	 * The teacher changed the outline: one undo step. Returns the step's number, for
+	 * `takeBack`. While the AI is writing a fresh proposal its edits are not steps: the
+	 * proposal arrives as one.
+	 */
+	change(next: Draft | null): number {
+		if (next === this.draft) return this.#steps;
+		if (!this.incoming) this.#step(record(this.#history, this.draft));
+		this.draft = next;
+		return this.#steps;
+	}
+
+	/** A change that belongs to the last step, like the name of a row it added. */
+	amend(next: Draft): void {
+		this.draft = next;
+	}
+
+	/**
+	 * Step `step` did nothing after all (a row added and left without a name): it is taken
+	 * back, and is not there to redo. Once another step came after it, `instead` is the
+	 * change to make.
+	 */
+	takeBack(step: number, instead: Draft | null): void {
+		const back = step === this.#steps ? retract(this.#history) : undefined;
+		if (back === undefined) {
+			this.change(instead);
+			return;
+		}
+		this.#step(back.history);
+		this.draft = back.value;
+	}
+
+	undo(): boolean {
+		const back = this.canUndo ? undo(this.#history, this.draft) : undefined;
+		if (back === undefined) return false;
+		this.#step(back.history);
+		this.draft = back.value;
+		return true;
+	}
+
+	redo(): boolean {
+		const next = this.canRedo ? redo(this.#history, this.draft) : undefined;
+		if (next === undefined) return false;
+		this.#step(next.history);
+		this.draft = next.value;
+		return true;
+	}
+
+	/** The outline's history is over: at „Vytvořit vybrané“. */
+	forget(): void {
+		this.#step(emptyHistory());
+		this.typing = null;
+	}
+
+	#step(history: History<Draft | null>) {
+		this.#history = history;
+		this.#steps++;
+	}
+
+	/**
+	 * The teacher starts an outline without the AI: a lesson, or a card for the lesson they
+	 * are in, with its name to be typed.
+	 */
+	start(scope: Draft['scope']): void {
+		if (this.draft !== null || this.asking) return;
+		const empty = emptyDraft(scope, this.#key);
+		const key = this.#key();
+		const draft =
+			scope === 'lessons'
+				? addDraftLesson(empty, key)
+				: addDraftCard(empty, empty.lessons[0].key, key);
+		this.typing = { key, step: this.change(draft) };
+	}
+
 	/**
 	 * Ask for a proposal, or, with one on screen, for it to be changed. A fresh proposal
 	 * grows on screen as the model writes it, lesson by lesson. A change is built beside
@@ -74,7 +173,7 @@ class AiPanel {
 			store.doc,
 			store.selection,
 			prompt,
-			current === undefined ? undefined : { current, original: this.#original || prompt },
+			current === undefined ? undefined : { current, original: this.#original },
 			materials.sections
 		);
 		// A finished batch is over once the teacher asks for something else.
@@ -110,8 +209,11 @@ class AiPanel {
 			if (fresh && !some) this.draft = null;
 			if (!(fresh && some)) return;
 		}
-		if (fresh) this.#original = prompt;
-		else if (got !== null) this.draft = got;
+		if (fresh) {
+			this.#original = prompt;
+			// The whole proposal is one step from the empty panel.
+			this.#step(record(this.#history, null));
+		} else if (got !== null) this.change(got);
 	}
 
 	#say(problem: Problem): string {
@@ -123,7 +225,7 @@ class AiPanel {
 		this.#generation++;
 		this.asking = false;
 		this.incoming = false;
-		this.draft = null;
+		this.change(null);
 		this.problem = '';
 		this.#original = '';
 	}
@@ -163,6 +265,7 @@ class AiPanel {
 		}
 		this.#store = store;
 		this.draft = null;
+		this.forget();
 		this.problem = '';
 		this.#original = '';
 		this.queue.start(added);

@@ -3,7 +3,15 @@ import { DocStore } from './doc-store.svelte';
 import { aiPanel } from './ai-panel.svelte';
 import { addBlock, addLesson } from '$lib/domain/commands';
 import { emptyCourse } from '$lib/domain/document';
-import { buildOutlineRequest, setCardTick, type Outline } from '$lib/domain/outline';
+import {
+	addDraftCard,
+	buildOutlineRequest,
+	renameDraftCard,
+	renameDraftLesson,
+	setCardTick,
+	toOutline,
+	type Outline
+} from '$lib/domain/outline';
 import { fakeCard, fakeOutline } from '$lib/server/ai/fake';
 import { REQUEST_KEY, type GenRequest } from '$lib/domain/authoring';
 
@@ -52,6 +60,7 @@ const done = async () => {
 afterEach(() => {
 	vi.unstubAllGlobals();
 	aiPanel.discard();
+	aiPanel.forget();
 	aiPanel.queue.clear();
 });
 
@@ -145,6 +154,99 @@ describe('the AI panel state', () => {
 		await done();
 		for (let i = 0; i < 4; i++) store.undo();
 		expect(store.doc.blocks).toHaveLength(1);
+	});
+});
+
+describe('an outline made by hand, and its undo', () => {
+	it('starts with a lesson or a card to name; a row left unnamed is taken back without a trace', () => {
+		aiPanel.start('lessons');
+		const typing = aiPanel.typing!;
+		expect(aiPanel.draft?.lessons).toEqual([{ key: typing.key, name: '', cards: [], on: true }]);
+		aiPanel.takeBack(typing.step, null);
+		expect(aiPanel.draft).toBeNull();
+		expect(aiPanel.canUndo).toBe(false);
+		expect(aiPanel.canRedo).toBe(false);
+
+		aiPanel.start('cards');
+		expect(aiPanel.draft?.scope).toBe('cards');
+		expect(aiPanel.draft?.lessons[0].cards.map((c) => c.key)).toEqual([aiPanel.typing!.key]);
+	});
+
+	it('a row added and named is one step; undo and redo walk the steps', () => {
+		aiPanel.start('lessons');
+		const lesson = aiPanel.typing!.key;
+		aiPanel.amend(renameDraftLesson(aiPanel.draft!, lesson, 'Moje'));
+		const card = aiPanel.key();
+		aiPanel.change(addDraftCard(aiPanel.draft!, lesson, card));
+		aiPanel.amend(renameDraftCard(aiPanel.draft!, card, 'Karta'));
+		expect(toOutline(aiPanel.draft!)).toEqual({
+			scope: 'lessons',
+			lessons: [{ name: 'Moje', cards: [{ kind: 'display', name: 'Karta' }] }]
+		});
+		expect(aiPanel.undo()).toBe(true);
+		expect(aiPanel.draft?.lessons[0]).toMatchObject({ name: 'Moje', cards: [] });
+		expect(aiPanel.undo()).toBe(true);
+		expect(aiPanel.draft).toBeNull();
+		expect(aiPanel.undo()).toBe(false);
+		aiPanel.redo();
+		aiPanel.redo();
+		expect(aiPanel.draft?.lessons[0].cards[0].name).toBe('Karta');
+		expect(aiPanel.redo()).toBe(false);
+	});
+
+	it('takes back an unnamed row by removing it once another step came after', () => {
+		aiPanel.start('lessons');
+		const step = aiPanel.typing!.step;
+		const lesson = aiPanel.typing!.key;
+		aiPanel.change(renameDraftLesson(aiPanel.draft!, lesson, 'X'));
+		aiPanel.takeBack(step, { ...aiPanel.draft!, lessons: [] });
+		expect(aiPanel.draft?.lessons).toEqual([]);
+		aiPanel.undo();
+		expect(aiPanel.draft?.lessons[0].name).toBe('X');
+	});
+
+	it('„Zahodit návrh“ and an AI change are undone; creating ends the history', async () => {
+		const { store } = setup();
+		server();
+		await aiPanel.send(store, 'Kurz o zlomcích');
+		const proposed = aiPanel.draft;
+		await aiPanel.send(store, 'přidej kvíz');
+		const changed = aiPanel.draft;
+		expect(JSON.stringify(changed)).toContain('Změna: přidej kvíz');
+		aiPanel.discard();
+		expect(aiPanel.draft).toBeNull();
+		aiPanel.undo();
+		expect(aiPanel.draft).toBe(changed);
+		aiPanel.undo();
+		expect(aiPanel.draft).toBe(proposed);
+		// The fresh proposal is one step from the empty panel.
+		aiPanel.undo();
+		expect(aiPanel.draft).toBeNull();
+		aiPanel.redo();
+		aiPanel.create(store);
+		expect(aiPanel.canUndo).toBe(false);
+		expect(aiPanel.canRedo).toBe(false);
+		await done();
+	});
+
+	it('„Co změnit?“ on a hand-made outline sends it with an empty lesson and no first prompt', async () => {
+		const { store } = setup();
+		const seen = server();
+		aiPanel.start('lessons');
+		aiPanel.amend(renameDraftLesson(aiPanel.draft!, aiPanel.typing!.key, 'Moje lekce'));
+		await aiPanel.send(store, 'doplň karty');
+		expect(seen[0].body.current).toEqual({
+			scope: 'lessons',
+			lessons: [{ name: 'Moje lekce', cards: [] }]
+		});
+		expect(seen[0].body.original).toBeUndefined();
+		expect(aiPanel.problem).toBe('');
+		expect(aiPanel.draft?.lessons[0].cards.map((c) => c.name)).toEqual([
+			'Úvod: Moje lekce',
+			'Změna: doplň karty'
+		]);
+		aiPanel.undo();
+		expect(aiPanel.draft?.lessons[0].cards).toEqual([]);
 	});
 });
 
