@@ -199,6 +199,7 @@ key never reaches the browser.
 | `AI_API_KEY` | The provider's key. Without it there is no AI in the editor. |
 | `AI_PROVIDER` | `openrouter` (default), `deepseek`, or `fake` (no key, no network, canned answers; the e2e suite uses it). |
 | `AI_MODEL`, `AI_BASE_URL`, `AI_REASONING_EFFORT` | Optional overrides of the provider's defaults (`src/lib/server/ai/config.ts`). |
+| `AI_HOSTS`, `AI_MIN_TOKENS_PER_SECOND` | OpenRouter only. By default OpenRouter picks the host among those that keep nothing, do not say they run the model at 4 bits and cost at most $0.30 / $1.20 per million tokens in / out, and moves hosts slower than 100 tokens a second to the back. `AI_HOSTS` (host slugs, comma-separated, e.g. `deepinfra,fireworks`) are tried first. |
 | `AI_DAILY_TOKEN_BUDGET`, `AI_MAX_REQUESTS_PER_MINUTE` | Limits per workspace, kept in memory. The budget (default 20 000 000 a day) counts the prompt tokens the provider served from its cache at a tenth, because the course text is sent with every card and is cached after the first one. |
 
 ```bash

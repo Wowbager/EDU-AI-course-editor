@@ -25,6 +25,9 @@ export class ProviderError extends Error {
 /** A whole card with a long dossier and some thinking: more than a single step took. */
 const TIMEOUT_MS = 150_000;
 
+/** USD per million tokens. */
+const MAX_PRICE = { prompt: 0.3, completion: 1.2 };
+
 export function buildBody(config: AiConfig, messages: readonly Message[]): Record<string, unknown> {
 	const body: Record<string, unknown> = {
 		model: config.model,
@@ -35,8 +38,20 @@ export function buildBody(config: AiConfig, messages: readonly Message[]): Recor
 		body.thinking = { type: config.reasoningEffort === 'none' ? 'disabled' : 'enabled' };
 	} else {
 		body.reasoning = { effort: config.reasoningEffort };
-		// Only hosts that honour the parameters above, and none that train on what they see.
-		body.provider = { require_parameters: true, data_collection: 'deny' };
+		body.provider = {
+			// Only hosts that honour the parameters above, and none that train on what they see.
+			require_parameters: true,
+			data_collection: 'deny',
+			// No host that says it is 4-bit (the cheapest are; Czech is where that slips). One that
+			// does not say is let through, or too few would be left.
+			quantizations: ['fp8', 'mxfp8', 'fp16', 'bf16', 'fp32', 'unknown'],
+			// Dearer than DeepSeek's own peak price is not "decent"; a whole card costs cents anyway.
+			max_price: MAX_PRICE,
+			// A preference, not a filter: OpenRouter keeps its own routing, which stays on the host
+			// whose prompt cache holds the dossier, and only moves slow hosts to the back.
+			preferred_min_throughput: { p50: config.minTokensPerSecond },
+			...(config.hosts.length > 0 ? { order: config.hosts } : {})
+		};
 	}
 	return body;
 }

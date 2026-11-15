@@ -230,11 +230,31 @@ describe('settings and the provider call', () => {
 
 	it('asks OpenRouter for hosts that do not keep the text', () => {
 		const body = buildBody(readAiConfig({ AI_API_KEY: 'k' }), []);
-		expect(body.provider).toEqual({ require_parameters: true, data_collection: 'deny' });
+		expect(body.provider).toMatchObject({ require_parameters: true, data_collection: 'deny' });
+		expect(body.model).toBe('deepseek/deepseek-v4.1-flash-1017');
 		expect(body.response_format).toEqual({ type: 'json_object' });
 		expect(buildBody(readAiConfig({ AI_PROVIDER: 'deepseek', AI_API_KEY: 'k' }), []).provider).toBe(
 			undefined
 		);
+	});
+
+	it('asks OpenRouter for fast hosts at a decent price, and for given hosts first', () => {
+		const routing = buildBody(readAiConfig({ AI_API_KEY: 'k' }), []).provider;
+		expect(routing).toMatchObject({
+			max_price: { prompt: 0.3, completion: 1.2 },
+			preferred_min_throughput: { p50: 100 }
+		});
+		expect((routing as { quantizations: string[] }).quantizations).not.toContain('fp4');
+		expect(routing).not.toHaveProperty('order');
+		const pinned = readAiConfig({
+			AI_API_KEY: 'k',
+			AI_HOSTS: ' DeepInfra, fireworks ,',
+			AI_MIN_TOKENS_PER_SECOND: '150'
+		});
+		expect(buildBody(pinned, []).provider).toMatchObject({
+			order: ['deepinfra', 'fireworks'],
+			preferred_min_throughput: { p50: 150 }
+		});
 	});
 
 	it('sends the key to the provider and reads the answer', async () => {

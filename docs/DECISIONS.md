@@ -2986,6 +2986,18 @@ chose to have it in the editor, with the lesson and card tree as the outline.
 - **„Pro koho kurz je“** is a fold of the course settings in Učitel, four fields. It is
   the one teacher fold outside „Základní“ (`fields.test.ts` names the exception).
 - **`AI_PROVIDER=fake`** answers from the request alone. The e2e server runs it.
+- **Which OpenRouter host runs the model** (2026-11-15). The model is pinned to the dated
+  build `deepseek-v4.1-flash-1017`. Some 47 hosts serve it, from $0.02 / $0.11 to
+  $0.60 / $2.40 per million tokens in / out, and published speeds for it are few and
+  disagree. So the request states what a host must meet instead of naming one: no data
+  kept, no host that says it runs 4-bit (the cheapest do, and Czech is where that shows;
+  a host that does not say is let through, or too few would be left), at
+  most $0.30 / $1.20, and hosts with a median under 100 tokens/s go to the back
+  (`preferred_min_throughput`). That is a preference, so OpenRouter keeps its own
+  routing, which stays on the host holding the dossier in its prompt cache. `AI_HOSTS`
+  pins hosts once someone has measured them. Rejected: `sort: throughput`, which turns
+  that routing off and so the cache stickiness with it; a hard-coded fastest host, which
+  goes stale within weeks.
 
 Not built yet, in the order planned: writing a whole lesson and course (queue, cache,
 call log, style examples); review comments and blocking findings in the export
