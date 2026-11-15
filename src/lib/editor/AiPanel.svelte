@@ -95,6 +95,8 @@
 		return () => observer.disconnect();
 	});
 	const hidden = $derived(Math.max(0, items.length - fit));
+	/** A chip folded away is one that failed: „+N“ says so, so it is not missed. */
+	const hiddenFailed = $derived(!expanded && items.slice(fit).some((i) => i.unread.length > 0));
 
 	/** The quiet line under the chips for a file with pages that did not read: it names the file. */
 	function unreadLine(name: string, lines: readonly string[]): string {
@@ -291,7 +293,11 @@
 							class="chip more"
 							aria-expanded={expanded}
 							aria-label={expanded ? 'Sbalit podklady' : `Ukázat dalších ${hidden} podkladů`}
-							onclick={() => (expanded = !expanded)}>{expanded ? '−' : `+${hidden}`}</button
+							onclick={() => (expanded = !expanded)}
+							>{expanded ? '−' : `+${hidden}`}{#if hiddenFailed}<span
+									class="chip-warn"
+									aria-hidden="true">&nbsp;!</span
+								>{/if}</button
 						>
 					</li>
 				{/if}
