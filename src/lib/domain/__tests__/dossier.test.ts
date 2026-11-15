@@ -226,6 +226,14 @@ describe('buildDossier', () => {
 		for (const leak of ['secret', 'img/x.png', 'x.cz']) expect(out).not.toContain(leak);
 	});
 
+	it('takes a bare address with brackets in it whole', () => {
+		const doc = small();
+		const card = doc.blocks.find((b) => b.block_id === 'B_T1')!;
+		card.steps[0].content = 'Viz https://w.org/wiki/Foo_(bar) a javascript:alert(1).';
+		const out = buildDossier(doc, 'B_T1');
+		expect(out).toContain('Viz [odkaz] a [odkaz].');
+	});
+
 	it('skips empty cards in the outline, but shows the current empty card', () => {
 		const out = buildDossier(small(), 'B_EMPTY');
 		expect(out.split('## Outline')[1].split('# Earlier')[0]).not.toContain('Výklad:\n');

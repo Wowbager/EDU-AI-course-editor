@@ -38,7 +38,7 @@ function clean(value: unknown): string {
 		)
 		.replace(/\[((?:[^[\]]|\[[^[\]]*\])*)\]\((?:[^()]|\([^()]*\))*\)/g, '$1')
 		.replace(
-			/(?:https?:\/\/|data:|mailto:|javascript:)[^\s()<>[\]]*[^\s()<>[\].,;:!?]/gi,
+			/(?:https?:\/\/|data:|mailto:|javascript:)(?:[^\s()<>[\]]|\([^\s()]*\))*(?:[^\s()<>[\].,;:!?]|\([^\s()]*\))/gi,
 			'[odkaz]'
 		);
 }
