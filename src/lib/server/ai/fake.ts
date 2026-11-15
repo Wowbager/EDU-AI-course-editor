@@ -104,9 +104,11 @@ export function fakeOutline(
 			? { scope: 'cards', cards: [...current.cards, change] }
 			: {
 					scope: 'lessons',
-					lessons: current.lessons.map((l, i, all) =>
-						i === all.length - 1 ? { ...l, cards: [...l.cards, change] } : l
-					)
+					// A lesson the teacher left without cards gets one, as the model is asked to.
+					lessons: current.lessons.map((l, i, all) => {
+						const cards = l.cards.length > 0 ? l.cards : [card('display', `Úvod: ${l.name}`)];
+						return { ...l, cards: i === all.length - 1 ? [...cards, change] : cards };
+					})
 				};
 	}
 	if (/karty/i.test(request.prompt) && request.target.lessons > 0)
