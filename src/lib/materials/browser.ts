@@ -10,7 +10,7 @@ import type { ReadIO } from './types';
 const SIDE = 1600;
 /** Pictures sent as they are when they are this small. */
 const AS_IS_BYTES = 3 * 1024 * 1024;
-/** Pictures read at the same time; the server's limit is 40 requests a minute. */
+/** Pictures sent to the server at the same time (the server's limit is 40 requests a minute). */
 const CONCURRENT = 3;
 
 export const libraries: Libraries = {
@@ -67,18 +67,31 @@ async function slot<T>(job: () => Promise<T>): Promise<T> {
 	}
 }
 
-async function readOnServer(picture: Blob): Promise<string> {
+/** Times a page is asked for again when the server is busy or over its limit. */
+const RETRIES = 3;
+
+/**
+ * One picture to the server's reader. A 429 or 503 is waited out, as long as the server
+ * says (`Retry-After`) or a growing while (2, 4, 8 s), and asked again before the page is
+ * given up; anything else fails at once.
+ */
+export async function readOnServer(
+	picture: Blob,
+	options: { fetcher?: typeof fetch; wait?: (seconds: number) => Promise<unknown> } = {}
+): Promise<string> {
 	const key = workspaceKey();
 	if (!key) throw new Error('no workspace');
+	const fetcher = options.fetcher ?? fetch;
+	const wait = options.wait ?? pause;
 	for (let attempt = 0; ; attempt++) {
-		const response = await fetch('/ai/read', {
+		const response = await fetcher('/ai/read', {
 			method: 'POST',
 			headers: { 'content-type': picture.type, 'x-editor-workspace': key },
 			body: picture
 		});
-		if (response.status === 429 && attempt < 2) {
+		if ((response.status === 429 || response.status === 503) && attempt < RETRIES) {
 			const after = Number(response.headers.get('retry-after'));
-			await pause(Math.min(Number.isFinite(after) && after > 0 ? after : 10, 70));
+			await wait(Math.min(Number.isFinite(after) && after > 0 ? after : 2 ** (attempt + 1), 70));
 			continue;
 		}
 		if (!response.ok) throw new Error(String(response.status));

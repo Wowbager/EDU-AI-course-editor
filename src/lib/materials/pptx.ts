@@ -13,7 +13,8 @@ const unescapeXml = (s: string): string =>
 	s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e: string) => {
 		if (e[0] === '#') {
 			const code = e[1].toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
-			return Number.isFinite(code) ? String.fromCodePoint(code) : m;
+			// A number that is not a character is left as it was written.
+			return Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : m;
 		}
 		return ENTITIES[e] ?? m;
 	});
@@ -137,7 +138,8 @@ export async function readPptx(
 					}
 				}
 				picture = parts.join('\n\n');
-				if (picture === '' && failed) {
+				// The short text of the slide is kept; only a slide with nothing at all is unread.
+				if (picture === '' && failed && title === '' && body.length === 0 && notes.length === 0) {
 					unread.push(`Snímek ${n} se nepodařilo přečíst`);
 					return null;
 				}
