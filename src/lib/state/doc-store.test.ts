@@ -47,6 +47,19 @@ describe('the store and question cards', () => {
 		expect(store.source).toBe(before);
 	});
 
+	it('redoes an edit of a card of several blocks into the same exported course', () => {
+		// The entry kept the teacher's view as its "after", so a redo exported the
+		// card's blocks merged into one, with the view's own key in it.
+		const store = loaded();
+		const card = store.doc.blocks.find((b) => '_members' in b)!;
+		store.apply((d) => setField(d, { blockId: card.block_id, field: 'name' }, 'Jméno'));
+		const edited = store.source;
+		store.undo();
+		store.redo();
+		expect(store.source).toBe(edited);
+		expect(store.source.blocks.some((b) => '_members' in b)).toBe(false);
+	});
+
 	it('shows the teacher one card where the export has two', () => {
 		const store = loaded();
 		expect(store.doc.blocks.some((b) => b.block_id === 'L1_B4_cviceni_2')).toBe(false);

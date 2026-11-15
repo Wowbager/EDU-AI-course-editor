@@ -372,7 +372,7 @@ export class DocStore {
 		this.#reserve(next);
 		const last = this.#undo.at(-1);
 		if (this.#edit?.entry && last === this.#edit.entry) {
-			const entry = { ...last, after: result.doc };
+			const entry = { ...last, after: this.source };
 			this.#undo = [...this.#undo.slice(0, -1), entry];
 			this.#edit.entry = this.#undo.at(-1);
 		} else {
@@ -381,7 +381,7 @@ export class DocStore {
 				{
 					description: result.description,
 					before,
-					after: result.doc,
+					after: this.source,
 					ref: result.ref
 				}
 			].slice(-MAX_UNDO);
