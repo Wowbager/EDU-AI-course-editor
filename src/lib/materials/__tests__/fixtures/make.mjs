@@ -2,6 +2,7 @@
  * Makes the small fixture files the parsers' tests read: `node make.mjs`.
  *
  *   handout.docx   headings, a paragraph with an equation as typed text, a list
+ *   equations.docx Word equations (OMML): a quadratic formula, a sum, a matrix, a limit, a vector
  *   slides.pptx    three slides: title and bullets with notes, text with notes, a picture only
  *   scan.pdf       page 1 has a text layer, page 2 is only a picture (a scan)
  *   page.png       the picture used by the picture-only slide and page
@@ -58,6 +59,77 @@ async function docx() {
 		`<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="${NS_W}"><w:body>${body}</w:body></w:document>`
 	);
 	await writeFile(join(here, 'handout.docx'), await zip.generateAsync({ type: 'nodebuffer' }));
+}
+
+/** A Word file whose equations are OMML, the way Word's equation editor writes them. */
+async function equations() {
+	const M = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
+	const r = (t) => `<m:r><m:t>${esc(t)}</m:t></m:r>`;
+	const e = (x) => `<m:e>${x}</m:e>`;
+	const frac = (n, d) => `<m:f><m:num>${n}</m:num><m:den>${d}</m:den></m:f>`;
+	const sup = (b, s) => `<m:sSup>${e(b)}<m:sup>${s}</m:sup></m:sSup>`;
+	const quadratic =
+		r('x=') +
+		frac(
+			r('−b±') +
+				`<m:rad><m:radPr><m:degHide m:val="1"/></m:radPr><m:deg/>${e(sup(r('b'), r('2')) + r('−4ac'))}</m:rad>`,
+			r('2a')
+		);
+	const sum =
+		`<m:nary><m:naryPr><m:chr m:val="∑"/></m:naryPr><m:sub>${r('i=1')}</m:sub><m:sup>${r('n')}</m:sup>${e(r('i'))}</m:nary>` +
+		r('=') +
+		frac(r('n') + `<m:d>${e(r('n+1'))}</m:d>`, r('2'));
+	const matrix = `<m:d>${e(
+		`<m:m><m:mr>${e(r('1'))}${e(r('2'))}</m:mr><m:mr>${e(r('3'))}${e(r('4'))}</m:mr></m:m>`
+	)}</m:d>`;
+	const limit =
+		`<m:func><m:fName><m:limLow>${e(r('lim'))}<m:lim>${r('x→0')}</m:lim></m:limLow></m:fName>${e(frac(`<m:func><m:fName>${r('sin')}</m:fName>${e(r('x'))}</m:func>`, r('x')))}</m:func>` +
+		r('=1');
+	const vector =
+		`<m:acc><m:accPr><m:chr m:val="⃗"/></m:accPr>${e(r('v'))}</m:acc>` +
+		r('·') +
+		r('w') +
+		r('≤') +
+		r('π');
+	const para = (math) => `<w:p><m:oMathPara><m:oMath>${math}</m:oMath></m:oMathPara></w:p>`;
+	const inline = (before, math, after) =>
+		`<w:p><w:r><w:t xml:space="preserve">${esc(before)}</w:t></w:r><m:oMath>${math}</m:oMath><w:r><w:t xml:space="preserve">${esc(after)}</w:t></w:r></w:p>`;
+	const p = (t, style) =>
+		`<w:p>${style ? `<w:pPr><w:pStyle w:val="${style}"/></w:pPr>` : ''}<w:r><w:t xml:space="preserve">${esc(t)}</w:t></w:r></w:p>`;
+	const body = [
+		p('Vzorce', 'Heading1'),
+		p('Kvadratická rovnice se řeší vzorcem:'),
+		para(quadratic),
+		inline('Součet prvních čísel: ', sum, ' pro každé n.'),
+		p('Matice', 'Heading2'),
+		para(matrix),
+		para(limit),
+		inline('Skalární součin ', vector, ' je číslo.')
+	].join('');
+	const zip = new JSZip();
+	zip.file(
+		'[Content_Types].xml',
+		`<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>`
+	);
+	zip.file(
+		'_rels/.rels',
+		`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="${REL}"><Relationship Id="rId1" Type="${DOC_REL}/officeDocument" Target="word/document.xml"/></Relationships>`
+	);
+	zip.file(
+		'word/_rels/document.xml.rels',
+		`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="${REL}"><Relationship Id="rId1" Type="${DOC_REL}/styles" Target="styles.xml"/></Relationships>`
+	);
+	const style = (id, name) =>
+		`<w:style w:type="paragraph" w:styleId="${id}"><w:name w:val="${name}"/></w:style>`;
+	zip.file(
+		'word/styles.xml',
+		`<?xml version="1.0" encoding="UTF-8"?><w:styles xmlns:w="${NS_W}">${style('Heading1', 'heading 1')}${style('Heading2', 'heading 2')}</w:styles>`
+	);
+	zip.file(
+		'word/document.xml',
+		`<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="${NS_W}" xmlns:m="${M}"><w:body>${body}</w:body></w:document>`
+	);
+	await writeFile(join(here, 'equations.docx'), await zip.generateAsync({ type: 'nodebuffer' }));
 }
 
 async function png(browser) {
@@ -153,6 +225,7 @@ async function pdf(browser, picture) {
 const browser = await chromium.launch();
 const picture = await png(browser);
 await docx();
+await equations();
 await pptx(picture);
 await pdf(browser, picture);
 await browser.close();

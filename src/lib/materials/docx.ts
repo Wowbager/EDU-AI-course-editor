@@ -3,6 +3,8 @@
  * out; a file with no text at all but with pictures has them read instead.
  */
 import { estimatePages, MAX_PAGES, splitMarkdown, type Piece } from '$lib/domain/materials';
+import type JSZip from 'jszip';
+import { equationsToPlaceholders, fillEquations } from './omml';
 import { MIN_TEXT, Refused, TOO_MANY_PAGES, type ReadIO, type ReadOut, type Room } from './types';
 
 type Mammoth = {
@@ -20,8 +22,20 @@ export async function readDocx(
 	data: ArrayBuffer,
 	io: ReadIO,
 	room: Room,
-	mammoth: Mammoth
+	mammoth: Mammoth,
+	JSZipClass: typeof JSZip
 ): Promise<ReadOut> {
+	// mammoth drops Word's equations; they are swapped for a word each before it reads the
+	// file and become LaTeX again in its Markdown, where they stood.
+	const zip = await JSZipClass.loadAsync(data);
+	const documentXml = await zip.file('word/document.xml')?.async('string');
+	let equations: ReturnType<typeof equationsToPlaceholders>['equations'] = [];
+	if (documentXml?.includes('<m:oMath') === true) {
+		const swapped = equationsToPlaceholders(documentXml);
+		equations = swapped.equations;
+		zip.file('word/document.xml', swapped.xml);
+		data = await zip.generateAsync({ type: 'arraybuffer' });
+	}
 	const pictures: { type: string; data: ArrayBuffer }[] = [];
 	const result = await mammoth.convertToMarkdown(
 		{ arrayBuffer: data },
@@ -35,9 +49,14 @@ export async function readDocx(
 		}
 	);
 	// mammoth escapes Markdown characters in text (`\.`, `\_`); the model reads plain text.
-	const text = result.value
-		.replace(/!\[[^\]]*\]\(img:\d+\)/g, '')
-		.replace(/\\([\\`*_{}[\]()#+\-.!|>~$])/g, '$1')
+	// (Unescaped first: the LaTeX that goes in afterwards keeps its backslashes.)
+	const text = fillEquations(
+		result.value
+			.replace(/!\[[^\]]*\]\(img:\d+\)/g, '')
+			.replace(/\\([\\`*_{}[\]()#+\-.!|>~$])/g, '$1'),
+		equations
+	)
+		.replace(/\n{3,}/g, '\n\n')
 		.trim();
 	const pieces: Piece[] = [];
 	const unread: string[] = [];

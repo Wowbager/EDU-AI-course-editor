@@ -79,7 +79,8 @@ describe('a Word file', () => {
 				new TextEncoder().encode('not a zip').buffer as ArrayBuffer,
 				io(),
 				room,
-				(await libraries.mammoth()) as never
+				(await libraries.mammoth()) as never,
+				JSZip
 			)
 		).rejects.toBeTruthy();
 	});

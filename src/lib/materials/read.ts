@@ -70,7 +70,9 @@ export async function readMaterial(
 	const hash = await hashOf(data);
 	let out: ReadOut;
 	if (kind === 'docx')
-		out = await (await import('./docx')).readDocx(data, io, room, await libraries.mammoth());
+		out = await (
+			await import('./docx')
+		).readDocx(data, io, room, await libraries.mammoth(), await libraries.jszip());
 	else if (kind === 'pptx')
 		out = await (await import('./pptx')).readPptx(data, io, room, await libraries.jszip());
 	else if (kind === 'pdf')
