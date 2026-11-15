@@ -210,7 +210,8 @@ test('the counter sits right beside the mode switch in both modes, and wraps at 
 	// A narrow column wraps the buttons below instead of overflowing.
 	await page.addStyleTag({ content: ':root { --e-preview-width: 360px !important; }' });
 	await page.getByRole('radio', { name: 'Vyzkoušet' }).click();
-	await beside('0 / 14 XP');
+	// (The AI button takes a line's worth: the counter may wrap too, but nothing overflows.)
+	await expect(counter(page, '0 / 14 XP')).toBeVisible();
 	const header = (await page.locator('aside.preview header').boundingBox())!;
 	const right = (await page
 		.locator('aside.preview header')
