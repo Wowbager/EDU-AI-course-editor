@@ -96,6 +96,11 @@
 	});
 	const hidden = $derived(Math.max(0, items.length - fit));
 	/** A chip folded away is one that failed: „+N“ says so, so it is not missed. */
+	/** A file being read behind „+N“ turns on its spinner, so the reading is not missed. */
+	const hiddenReading = $derived(
+		!expanded &&
+			materials.reading.some((r) => items.findIndex((i) => i.key === `reading-${r.id}`) >= fit)
+	);
 	const hiddenFailed = $derived(!expanded && items.slice(fit).some((i) => i.unread.length > 0));
 
 	/** The quiet line under the chips for a file with pages that did not read: it names the file. */
@@ -294,9 +299,11 @@
 							aria-expanded={expanded}
 							aria-label={expanded ? 'Sbalit podklady' : `Ukázat dalších ${hidden} podkladů`}
 							onclick={() => (expanded = !expanded)}
-							>{expanded ? '−' : `+${hidden}`}{#if hiddenFailed}<span
-									class="chip-warn"
-									aria-hidden="true">&nbsp;!</span
+							>{expanded ? '−' : `+${hidden}`}{#if hiddenReading}<LoaderCircle
+									size={12}
+									class="spin"
+									aria-hidden="true"
+								/>{/if}{#if hiddenFailed}<span class="chip-warn" aria-hidden="true">&nbsp;!</span
 								>{/if}</button
 						>
 					</li>
