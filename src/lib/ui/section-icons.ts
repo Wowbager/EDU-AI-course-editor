@@ -9,7 +9,8 @@ import {
 	Route,
 	SlidersHorizontal,
 	Sparkles,
-	Target
+	Target,
+	Users
 } from '@lucide/svelte';
 
 /**
@@ -27,5 +28,6 @@ export const SECTION_ICONS: Record<string, Component<{ size?: number; 'aria-hidd
 	meta: Info,
 	didactics: ChartPie,
 	ai: Sparkles,
+	audience: Users,
 	run: Play
 };

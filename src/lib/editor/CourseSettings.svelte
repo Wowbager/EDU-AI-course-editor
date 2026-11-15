@@ -30,8 +30,32 @@
 
 	const store = useStore();
 	const versions = useVersions();
-	const set = (field: string, value: unknown) => store.apply((d) => setField(d, { field }, value));
-	const read = (path: string): unknown => (doc as Record<string, unknown>)[path];
+	/**
+	 * A field may sit one object down (`audience.grade`). Clearing the last field of
+	 * such an object removes the object, so an untouched course gains no empty key.
+	 */
+	const set = (field: string, value: unknown) =>
+		store.apply((d) => {
+			const [head, leaf] = field.split('.');
+			const parent = (d as Record<string, unknown>)[head];
+			const last =
+				leaf !== undefined &&
+				value === undefined &&
+				typeof parent === 'object' &&
+				parent !== null &&
+				Object.keys(parent).every((key) => key === leaf);
+			return last ? setField(d, { field: head }, undefined) : setField(d, { field }, value);
+		});
+	const read = (path: string): unknown =>
+		path
+			.split('.')
+			.reduce<unknown>(
+				(node, key) =>
+					typeof node === 'object' && node !== null
+						? (node as Record<string, unknown>)[key]
+						: undefined,
+				doc
+			);
 
 	const fields = $derived(fieldsFor('course', store.mode));
 	const sections = $derived(sectionsFor('course', store.mode));

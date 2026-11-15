@@ -38,7 +38,8 @@
 	import SidebarRail from './SidebarRail.svelte';
 	import CardActions from './CardActions.svelte';
 	import { cardActions } from './card-actions';
-	import { PanelLeftOpen, PanelLeftClose, Settings, Plus } from '@lucide/svelte';
+	import { LoaderCircle, PanelLeftOpen, PanelLeftClose, Settings, Plus } from '@lucide/svelte';
+	import { ai } from '$lib/state/ai.svelte';
 
 	interface Props {
 		doc: CourseV2;
@@ -442,7 +443,12 @@
 												rowKey(event, lesson.lesson_id, block.block_id, position)}
 										>
 											<span class="type">
-												<Icon size={16}></Icon>
+												{#if ai.writing.has(block.block_id)}
+													<LoaderCircle size={16} class="spin" aria-label="AI kartu píše"
+													></LoaderCircle>
+												{:else}
+													<Icon size={16}></Icon>
+												{/if}
 											</span>
 											<!--
 												The position is a fallback name for a card with no text
@@ -936,5 +942,22 @@
 		gap: 6px;
 		margin-top: auto;
 		padding-top: 16px;
+	}
+
+	/* A card AI is writing: its type icon turns, slowly, until the text arrives. */
+	.type :global(.spin) {
+		animation: tree-spin 1.2s linear infinite;
+	}
+
+	@keyframes tree-spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.type :global(.spin) {
+			animation: none;
+		}
 	}
 </style>

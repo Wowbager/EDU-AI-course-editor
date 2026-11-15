@@ -26,6 +26,7 @@ import type { BlockStep, BlockV2, CourseV2, LessonBlockBinding, LessonV2 } from 
 import { MEMBERS_KEY, membersOf } from './card-view';
 import { isGoToKeyword } from './index-doc';
 import type { Reservations } from './ids';
+import { AUTHORING_BLOCK_KEYS } from './authoring';
 
 /** The key the blocks of one teacher's card share. Its value is the card's id. */
 export const GROUP_KEY = 'group';
@@ -43,9 +44,11 @@ type Loose = Record<string, unknown>;
  *  - `duration` and an authored `xp` are kept on the first block only, because a
  *    lesson's length and reward are sums over its blocks, and copying them would
  *    multiply the card's.
+ *  - what the AI authoring keeps about a card (`authoring.ts`: its brief, which slots
+ *    the AI wrote) is about the card once, so it stays on the first block too.
  */
 const OWN_FIELDS = new Set(['block_id', 'type', 'steps', GROUP_KEY, MEMBERS_KEY]);
-const FIRST_ONLY = new Set(['duration', 'xp']);
+const FIRST_ONLY = new Set<string>(['duration', 'xp', ...AUTHORING_BLOCK_KEYS]);
 
 export const groupOf = (block: BlockV2): string | undefined => {
 	const value = block[GROUP_KEY];

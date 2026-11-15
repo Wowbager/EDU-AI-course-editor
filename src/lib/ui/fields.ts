@@ -165,6 +165,12 @@ const MAIN: SectionSpec = { id: 'main', label: 'Základní', open: true, icon: '
 export const SECTIONS: Record<FieldLevel, readonly SectionSpec[]> = {
 	course: [
 		{ ...MAIN, keywords: 'typ kurzu test cvičení viditelnost kdo uvidí' },
+		{
+			id: 'audience',
+			label: 'Pro koho kurz je',
+			icon: 'audience',
+			keywords: 'ročník třída žáci styl tón oslovení AI dopsat'
+		},
 		{ id: 'ai', label: 'Pro AI lektora', icon: 'ai' },
 		{ id: 'run', label: 'Průběh kurzu', icon: 'run' },
 		{ id: 'meta', label: 'Údaje o kurzu', icon: 'meta', keywords: 'identifikátor' }
@@ -284,6 +290,66 @@ export const FIELDS: readonly FieldSpec[] = [
 		kind: 'text',
 		label: 'PIN',
 		hint: 'Šest znaků, kterými se žák do kurzu dostane.'
+	},
+
+	// What „Dopsat kartu“ writes for (`domain/authoring.ts`). The app does not read
+	// these; they shape the text AI writes into a card, and that the pupil does read.
+	{
+		level: 'course',
+		path: 'audience.grade',
+		section: 'audience',
+		mode: 'teacher',
+		kind: 'select',
+		numeric: true,
+		label: 'Ročník',
+		hint: 'Podle ročníku volí AI slova a délku textu, když kartu dopisuje.',
+		options: [
+			{ value: '1', label: '1. ročník' },
+			{ value: '2', label: '2. ročník' },
+			{ value: '3', label: '3. ročník' },
+			{ value: '4', label: '4. ročník' },
+			{ value: '5', label: '5. ročník' },
+			{ value: '6', label: '6. ročník' },
+			{ value: '7', label: '7. ročník' },
+			{ value: '8', label: '8. ročník' },
+			{ value: '9', label: '9. ročník' },
+			{ value: '10', label: '10. ročník' },
+			{ value: '11', label: '11. ročník' },
+			{ value: '12', label: '12. ročník' },
+			{ value: '13', label: '13. ročník' }
+		]
+	},
+	{
+		level: 'course',
+		path: 'audience.purpose',
+		section: 'audience',
+		mode: 'teacher',
+		kind: 'select',
+		label: 'K čemu kurz slouží',
+		hint: 'Určuje styl textu a náročnost otázek, které AI napíše.',
+		options: [
+			{ value: 'intro', label: 'První výklad látky' },
+			{ value: 'practice', label: 'Procvičení' },
+			{ value: 'exam_prep', label: 'Příprava na zkoušku' }
+		]
+	},
+	{
+		level: 'course',
+		path: 'audience.prior_knowledge',
+		section: 'audience',
+		mode: 'teacher',
+		kind: 'text',
+		label: 'Co už žáci umí',
+		hint: 'AI to žákům nebude vysvětlovat znovu. Například „dělení do 20“.'
+	},
+	{
+		level: 'course',
+		path: 'audience.register',
+		section: 'audience',
+		mode: 'teacher',
+		kind: 'text',
+		label: 'Jak na žáky mluvit',
+		hint: 'Oslovení, délka vět, emoji. Když zůstane prázdné, AI žákům tyká a píše krátké věty.'
 	},
 
 	{
