@@ -63,6 +63,7 @@
     "mammoth": "^1.13.0",
     "marked": "^18.1.0",
     "mathlive": "^0.111.1",
+    "pdfjs-dist": "^6.5.438",
     "svelte-dnd-action": "^0.9.79",
     "zod": "^4.6.7"
   }
