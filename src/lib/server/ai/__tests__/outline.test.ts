@@ -8,7 +8,13 @@ import {
 	type OutlineRequest
 } from '$lib/domain/outline';
 import { fakeOutline, fakeStream } from '../fake';
-import { outlineEvents, OUTLINE_SYSTEM_PROMPT } from '../outline';
+import {
+	MATERIALS_LABEL,
+	outlineEvents,
+	outlineMessage,
+	OUTLINE_SYSTEM_PROMPT,
+	onlyKnownSources
+} from '../outline';
 import {
 	buildBody,
 	ProviderError,
@@ -420,5 +426,82 @@ describe('lines asked for again', () => {
 		const later = await run(request(), again);
 		expect(order(later)).toEqual(['A', 'B', 'C']);
 		log.mockRestore();
+	});
+});
+
+describe('materials in a proposal', () => {
+	const keys = ['aaaaaaaa.0', 'aaaaaaaa.1'];
+	const withMaterials = () =>
+		request({ materials: 'Index of the materials:\n- [aaaaaaaa.0] x', material_keys: keys });
+	const card = (name: string, sources?: string[]) =>
+		JSON.stringify({ kind: 'display', name, ...(sources ? { sources } : {}) });
+
+	it('sends the materials before the dossier and the request, labelled, and keeps them out of the request', async () => {
+		const model = scripted(1000, GOOD);
+		await run(withMaterials(), model);
+		const messages = model.seen[0];
+		expect(messages.map((m) => m.role)).toEqual(['system', 'user', 'user', 'user']);
+		expect(messages[1].content.startsWith(MATERIALS_LABEL)).toBe(true);
+		expect(messages[1].content).toContain('[aaaaaaaa.0]');
+		expect(messages[2].content).toContain('Course dossier');
+		expect(messages[3].content.startsWith('{')).toBe(true);
+		expect(messages[3].content).not.toContain('Index of the materials');
+		expect(messages[3].content).not.toContain('material_keys');
+		expect(outlineMessage(withMaterials())).not.toContain('aaaaaaaa');
+		expect(OUTLINE_SYSTEM_PROMPT).toContain('"sources"');
+	});
+
+	it('sends no materials message when there are none', async () => {
+		const model = scripted(1000, GOOD);
+		await run(request(), model);
+		expect(model.seen[0].map((m) => m.role)).toEqual(['system', 'user', 'user']);
+	});
+
+	it('passes the sources of a card on, and drops a key that is not among the materials', async () => {
+		const answer = [
+			'{"scope":"cards"}',
+			card('A', ['aaaaaaaa.1', 'made.up', 'aaaaaaaa.1']),
+			card('B', ['nothing.9']),
+			card('C')
+		].join('\n');
+		const events = await run(
+			{ ...withMaterials(), target: { lessons: 1 } },
+			scripted(1000, answer),
+			undefined
+		);
+		const cards = events.flatMap((e) => (e.type === 'card' ? [e.card] : []));
+		expect(cards).toEqual([
+			{ kind: 'display', name: 'A', sources: ['aaaaaaaa.1'] },
+			{ kind: 'display', name: 'B' },
+			{ kind: 'display', name: 'C' }
+		]);
+	});
+
+	it('does the same for the cards inside a lesson, and for every key when there were no materials', async () => {
+		const lesson = JSON.stringify({
+			name: 'L',
+			cards: [{ kind: 'display', name: 'A', sources: ['aaaaaaaa.0', 'zzz'] }]
+		});
+		const events = await run(
+			withMaterials(),
+			scripted(1000, `{"scope":"lessons"}\n${lesson}`),
+			undefined
+		);
+		const lessons = events.flatMap((e) => (e.type === 'lesson' ? [e.lesson] : []));
+		expect(lessons[0].cards[0].sources).toEqual(['aaaaaaaa.0']);
+		expect(onlyKnownSources({ type: 'done' }, new Set())).toEqual({ type: 'done' });
+		// Sources the teacher's request had are not trusted without materials either.
+		const bare = await run(request(), scripted(1000, `{"scope":"lessons"}\n${lesson}`));
+		const kept = bare.flatMap((e) => (e.type === 'lesson' ? [e.lesson] : []));
+		expect(kept[0].cards[0]).toEqual({ kind: 'display', name: 'A' });
+	});
+
+	it('the fake gives its first card the first section when there are materials', async () => {
+		const outline = fakeOutline(withMaterials());
+		expect(outline.scope === 'lessons' && outline.lessons[0].cards[0].sources).toEqual([
+			'aaaaaaaa.0'
+		]);
+		const none = fakeOutline(request());
+		expect(none.scope === 'lessons' && none.lessons[0].cards[0].sources).toBeUndefined();
 	});
 });

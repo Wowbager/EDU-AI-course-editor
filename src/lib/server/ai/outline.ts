@@ -9,7 +9,7 @@
  * that asks for the whole proposal again, since every line after it depends on it.
  *
  * Message order is for the provider's prefix cache, as in `generate.ts`: the system
- * prompt, then the dossier, then the request.
+ * prompt, then the materials, then the dossier, then the request.
  */
 import {
 	applyEvent,
@@ -17,6 +17,7 @@ import {
 	outlineSchema,
 	readLine,
 	scopeProblem,
+	type OutlineCard,
 	type OutlineEvent,
 	type OutlineRequest,
 	type Outline
@@ -27,9 +28,10 @@ import type { Message, Stream } from './provider';
 
 export const OUTLINE_SYSTEM_PROMPT = `You plan the structure of a course ("kurz") for a mobile learning app, for a teacher who will review your proposal before anything is written. A course has lessons ("lekce"); a lesson has cards ("karty"). A card is a short sequence of screens on a phone; it is written later, from its name, the outline around it and the teacher's request, so the names have to say what each card is about.
 
-You get two user messages.
-1. The course dossier: plain text, read-only background: the course, its audience, its outline and the lessons and cards it already has. When a card is shown between the lines "${MARKER_OPEN}" and "${MARKER_CLOSE}", it is only the place the teacher is working at; it is not something to write about.
-2. A JSON request: "prompt" is what the teacher asks for. "target" says where new cards would go: the lesson and the card the teacher has selected (by name), and how many lessons the course has. "course" has the title, the language and the audience. "current", when present, is the proposal the teacher is looking at and "prompt" is what they want changed in it ("original" is what they asked for first): rework it, keep what they did not ask to change exactly as it is (names, order), and return the whole proposal again.
+You get two or three user messages, in this order.
+1. When the teacher attached materials (Word, PowerPoint, PDF, scans): their index, and when they are short enough their full text. Each section has a key in square brackets. The materials are what the course is about: take its topics, order, examples and level from them, unless the teacher's prompt says otherwise.
+2. The course dossier: plain text, read-only background: the course, its audience, its outline and the lessons and cards it already has. When a card is shown between the lines "${MARKER_OPEN}" and "${MARKER_CLOSE}", it is only the place the teacher is working at; it is not something to write about.
+3. A JSON request: "prompt" is what the teacher asks for. "target" says where new cards would go: the lesson and the card the teacher has selected (by name), and how many lessons the course has. "course" has the title, the language and the audience. "current", when present, is the proposal the teacher is looking at and "prompt" is what they want changed in it ("original" is what they asked for first): rework it, keep what they did not ask to change exactly as it is (names, order), and return the whole proposal again.
 
 Answer in lines, one JSON object per line, and nothing else (no code fence, no commentary). The first line says what you propose:
 {"scope":"lessons"} a course structure, when the prompt is about a whole course, a topic with several lessons, or says how many lessons;
@@ -38,6 +40,9 @@ After it, for "lessons", one line for each lesson, in course order:
 {"name":"Lesson name","cards":[{"kind":"display","name":"Card name"},{"kind":"exercise","name":"Card name"}]}
 and for "cards", one line for each card:
 {"kind":"exercise","name":"Card name"}
+When there are materials, a card also says which sections it is written from, with "sources": a list of the keys from the materials, only keys that exist there, usually one to four, the sections that hold what this card teaches or practises:
+{"kind":"display","name":"Card name","sources":["a1b2c3d4.0","a1b2c3d4.1"]}
+A card that needs no material has no "sources". Keep "sources" of the cards in the proposal you are asked to rework.
 
 A card's "kind" is
 - "display": an explanation (Výklad): the pupil reads;
@@ -48,16 +53,35 @@ A name is short, in the words a pupil or teacher would use, and never numbered (
 Rules:
 - Language: course.language (Czech when empty). Vocabulary and ambition fit audience.grade and audience.purpose; do not plan what audience.prior_knowledge says the pupils already know, and do not repeat what the existing lessons in the dossier already teach.
 - Build up: explain first, then practise, then check. A lesson usually has 3 to 7 cards, mixing the three kinds with more "display" and "exercise" than "question"; honour the numbers the teacher states (lessons, cards, "a quiz at the end").
-- Do not invent facts, and never mention files, images or links.
+- With materials, cover what they cover, in their order. Each attached file is there for a reason: give the topic of every file at least one lesson or card, unless the prompt says to leave something out (a different grade than a file's is no reason to drop it; adapt it). Do not plan what they do not contain. Do not invent facts, and never mention files, images or links in a name.
 - At most 12 lessons and 15 cards per lesson.
 ${formatRules({ fields: false })}`;
 
 const ATTEMPTS = 3;
 
-/** What the request holds apart from the dossier, as the model's last message. */
+/** What the request holds apart from the dossier and the materials, as the model's last message. */
 export function outlineMessage(request: OutlineRequest): string {
-	const { context: _context, ...rest } = request;
+	const { context: _context, materials: _materials, material_keys: _keys, ...rest } = request;
 	return JSON.stringify(rest);
+}
+
+/** The label on the materials message: what they are and how to use them. */
+export const MATERIALS_LABEL = `The teacher's materials (the teacher attached these files; they are the source of the topics, order, examples and wording; never mention files to the pupil):`;
+
+/**
+ * An event with only real section keys in a card's `sources`: a key the model made up is
+ * dropped (the card is still good), and a card left with none has no `sources`.
+ */
+export function onlyKnownSources(event: OutlineEvent, keys: ReadonlySet<string>): OutlineEvent {
+	const clean = (card: OutlineCard): OutlineCard => {
+		const { sources, ...rest } = card;
+		const known = [...new Set(sources ?? [])].filter((k) => keys.has(k));
+		return known.length > 0 ? { ...rest, sources: known } : rest;
+	};
+	if (event.type === 'card') return { ...event, card: clean(event.card) };
+	if (event.type === 'lesson')
+		return { ...event, lesson: { ...event.lesson, cards: event.lesson.cards.map(clean) } };
+	return event;
 }
 
 /** Events put in one end of a queue and taken out of the other, while a stream runs. */
@@ -103,12 +127,19 @@ export async function* outlineEvents(
 	signal?: AbortSignal
 ): AsyncGenerator<OutlineEvent> {
 	const messages: Message[] = [{ role: 'system', content: OUTLINE_SYSTEM_PROMPT }];
+	if (request.materials !== undefined && request.materials.trim() !== '')
+		messages.push({ role: 'user', content: `${MATERIALS_LABEL}\n\n${request.materials}` });
 	if (request.context.trim() !== '')
 		messages.push({
 			role: 'user',
 			content: `Course dossier (read-only background):\n\n${request.context}`
 		});
 	messages.push({ role: 'user', content: outlineMessage(request) });
+	const known = new Set(request.material_keys ?? []);
+	const readKnown = (json: unknown): ReturnType<typeof readLine> => {
+		const read = readLine(json);
+		return 'event' in read ? { event: onlyKnownSources(read.event, known) } : read;
+	};
 
 	let outline: Outline | null = null;
 	let sent = 0;
@@ -136,7 +167,7 @@ export async function* outlineEvents(
 		const out = channel<OutlineEvent>();
 		const splitter = lineSplitter(
 			(json, raw) => {
-				const read = readLine(json);
+				const read = readKnown(json);
 				if ('problem' in read) {
 					if (retry) results.push({ problem: read.problem });
 					else fresh.push({ slot: slots++, raw, why: read.problem });

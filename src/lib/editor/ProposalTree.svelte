@@ -27,6 +27,8 @@
 	import { cardTypeIcon, cardTypeLabel } from '$lib/ui/card-types';
 	import { shiftOf, startReorder, type DragState } from '$lib/ui/drag-reorder';
 	import { aiPanel } from '$lib/state/ai-panel.svelte';
+	import { materials } from '$lib/state/materials.svelte';
+	import { sourceLine } from '$lib/domain/materials';
 
 	interface Props {
 		draft: Draft;
@@ -34,6 +36,10 @@
 	let { draft }: Props = $props();
 
 	const edit = (next: Draft) => (aiPanel.draft = next);
+
+	/** Where a card comes from, in one line, or nothing. */
+	const sourcesOf = (keys: readonly string[] | undefined): string =>
+		keys === undefined ? '' : sourceLine(materials.sections, keys);
 
 	/** Lessons the teacher folded or opened by hand; the first one is open until then, or all of them when the proposal is short. */
 	let opened = $state<Record<string, boolean>>({});
@@ -167,6 +173,11 @@
 					>
 				{/if}
 			</div>
+			{#if sourcesOf(card.sources) !== ''}
+				<div class="source" class:off={!card.on} title={sourcesOf(card.sources)}>
+					{sourcesOf(card.sources)}
+				</div>
+			{/if}
 		</div>
 		<button
 			type="button"
@@ -371,6 +382,20 @@
 
 	.name.off {
 		color: var(--e-text-faint);
+	}
+
+	/* Where the card comes from: one quiet line under its name, only when it has sources. */
+	.source {
+		padding-left: 19px;
+		overflow: hidden;
+		color: var(--e-text-faint);
+		font: var(--type-caption);
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.source.off {
+		opacity: 0.6;
 	}
 
 	.name-field {

@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DocStore } from './doc-store.svelte';
 import { ai } from './ai.svelte';
+import { materials } from './materials.svelte';
+import { sectionsOf } from '$lib/domain/materials';
+import { SOURCE_REFS_KEY } from '$lib/domain/authoring';
 import { notices } from './notice.svelte';
 import { addBlock, addLesson } from '$lib/domain/commands';
 import { emptyCourse } from '$lib/domain/document';
@@ -9,7 +12,20 @@ import { ORIGIN_KEY, type GeneratedCard } from '$lib/domain/authoring';
 vi.mock('$lib/state/versions/server', () => ({ workspaceKey: () => 'k'.repeat(43) }));
 
 const answer = (card: GeneratedCard) =>
-	vi.fn(async () => Response.json({ status: 'ok', card })) as unknown as typeof fetch;
+	vi.fn(async (url: string) =>
+		// The course's materials are asked for first: it has none.
+		url.startsWith('/materials/')
+			? Response.json({ files: [] })
+			: Response.json({ status: 'ok', card })
+	) as unknown as typeof fetch;
+
+/** The body of the request that asked for a card. */
+const sentCard = (fetcher: typeof fetch) =>
+	JSON.parse(
+		(fetcher as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls.find(
+			([url]) => url === '/ai/block'
+		)![1].body as string
+	);
 
 function setup() {
 	const store = new DocStore();
@@ -59,10 +75,7 @@ describe('writing a card with AI', () => {
 
 		expect(store.undoStack.length).toBe(undoBefore + 1);
 		expect(notices.current?.text).toBe('Dopsáno: 4 kroky, 3 otázky.');
-		const sent = JSON.parse(
-			(fetcher as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls[0][1]
-				.body as string
-		);
+		const sent = sentCard(fetcher);
 		expect(sent.schema).toBe('eduai.gen-request/2');
 		expect(sent.card.steps.map((s: { id: string }) => s.id)).toEqual(['s1']);
 		expect(typeof sent.context).toBe('string');
@@ -121,5 +134,51 @@ describe('writing a card with AI', () => {
 		expect(fetcher).toHaveBeenCalledTimes(1);
 		expect(store.doc.blocks.find((b) => b.block_id === blockId)!.steps[1].hint).toBe('nová');
 		expect(notices.current?.text).toBe('Dopsáno: 1 krok, 1 otázka.');
+	});
+
+	it('writes a card with its sections in full and the others by what fits, from the course\u2019s materials', async () => {
+		const { store, lessonId, blockId } = setup();
+		const hash = 'abcdef0123456789';
+		const file = (text: string) => ({
+			hash,
+			name: 'Sešit.docx',
+			pages: 2,
+			unread: [],
+			sections: sectionsOf(hash, 'Sešit.docx', [
+				{ title: 'První', text: 'Fakta o půlce.' },
+				{ title: 'Druhá', text }
+			])
+		});
+		await materials.ready('KURZ');
+		try {
+			materials.files = [file('Fakta o třetině.')];
+			store.apply((d) => ({
+				doc: {
+					...d,
+					blocks: d.blocks.map((b) =>
+						b.block_id === blockId ? { ...b, [SOURCE_REFS_KEY]: ['abcdef01.1'] } : b
+					)
+				},
+				description: 'x'
+			}));
+			const fetcher = answer({ steps: [{ keep: 's1', fill: {} }] });
+			vi.stubGlobal('fetch', fetcher);
+			await ai.write(store, blockId, lessonId);
+			const sent = sentCard(fetcher);
+			// They fit, so both are in full, and the one this card draws on is named last.
+			expect(sent.materials).toContain('Fakta o půlce.');
+			expect(sent.materials).toContain('Fakta o třetině.');
+			expect(sent.materials).toContain('This card draws mainly on: [abcdef01.1].');
+			expect(JSON.stringify(sent.card)).not.toContain('Fakta');
+
+			// A course without materials sends none.
+			materials.files = [];
+			const bare = answer({ steps: [{ keep: 's1', fill: {} }] });
+			vi.stubGlobal('fetch', bare);
+			await ai.write(store, blockId, lessonId);
+			expect(sentCard(bare).materials).toBeUndefined();
+		} finally {
+			materials.files = [];
+		}
 	});
 });

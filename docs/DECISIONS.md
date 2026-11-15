@@ -3036,6 +3036,42 @@ an existing card and streaming are later stages).
   left over are not offered „Dopsat zbytek“ after a reload (the document does not record
   that they were queued).
 
+## Round 31 — materials in the AI tab (stage B)
+
+A teacher attaches Word, PowerPoint, PDF and pictures; the proposal and the cards are
+written from them.
+
+- **Read in the browser, kept on the server.** `mammoth`, `jszip` and `pdf.js` load when a
+  file of their kind is attached, so the first load does not carry them. A file becomes
+  sections (a Word file's headings, a slide, a page) with a key made of the file's hash and
+  the section's place, a title, where it came from and Markdown. They are stored per
+  workspace and course (`server/materials/`, beside the versions); the document keeps only
+  `source_refs` on a card. A page with no text layer, a picture-only slide and a photo go to
+  `POST /ai/read` (the same provider, key and limits; a page is drawn to a PNG first) and
+  come back as Czech Markdown with `$…$`. A page that fails is said once under its chip
+  and the file's other pages are kept. Limits: 50 MB a file, 100 pages or slides a course.
+- **Size decides what the model reads** (`renderMaterials`, one function): when all sections
+  fit in about 60k tokens everything goes in full, which gave better cards than any
+  selection; when not, a proposal gets the index and a card its own sections in full plus the
+  others' titles. The proposed card's `sources` are checked against the real keys: a made-up
+  key is dropped, not retried.
+- **Order of messages:** system, materials, dossier, request. The materials are the same for
+  every card of a course that fits, so as a prefix the provider's cache covers them for all
+  cards (put after the dossier, which differs per card, they were never cached). When they do
+  not fit, the part sent in full differs per card and only the system prompt is shared; the
+  order stays the same.
+- **Word equations** (`omml.ts`): mammoth drops OMML, so before it reads the file each
+  equation is swapped for a word and becomes `$…$` (inline) or `$$…$$` (its own paragraph)
+  again at its place. Not covered: `m:groupChr` and `m:box` style, `m:phant` hiding,
+  alignment points beyond a plain `&`, equation numbering, and the letter shapes of
+  `m:sty`; unknown elements keep their text.
+- **What the teacher sees:** a paperclip in the box (or a file dropped on the panel), small
+  chips above it („Čtu…“, × on hover), one quiet line under a proposed card that has
+  sources („Z podkladů: Učebnice, str. 3–4“, „snímek 5“). Nothing else.
+- **Rejected:** server-side parsing (a second set of libraries to deploy, a large upload for
+  nothing), a materials section in course settings (this is the one place), showing the
+  sections to the teacher.
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

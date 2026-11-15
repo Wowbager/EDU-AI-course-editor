@@ -9,6 +9,7 @@
 import { SvelteSet } from 'svelte/reactivity';
 import {
 	buildGenRequest,
+	sourceRefsOf,
 	describeWritten,
 	fillCard,
 	generatedCardSchema,
@@ -18,6 +19,8 @@ import {
 import { buildDossier } from '$lib/domain/dossier';
 import { outlineEventSchema, type OutlineEvent, type OutlineRequest } from '$lib/domain/outline';
 import { workspaceKey } from '$lib/state/versions/server';
+import { renderMaterials } from '$lib/domain/materials';
+import { materials } from './materials.svelte';
 import { notices } from './notice.svelte';
 import type { DocStore } from './doc-store.svelte';
 
@@ -166,11 +169,16 @@ class Ai {
 	): Promise<WriteResult> {
 		if (this.writing.has(blockId)) return { status: 'nothing' };
 		if (!store.doc.blocks.some((b) => b.block_id === blockId)) return { status: 'gone' };
+		// The card's sources, and the course's other materials by what fits (`renderMaterials`).
+		await materials.ready(store.doc.course_id);
+		if (!store.doc.blocks.some((b) => b.block_id === blockId)) return { status: 'gone' };
+		const target = store.doc.blocks.find((b) => b.block_id === blockId);
 		const request = buildGenRequest(
 			store.doc,
 			blockId,
 			lessonId,
-			buildDossier(store.doc, blockId, lessonId)
+			buildDossier(store.doc, blockId, lessonId),
+			renderMaterials(materials.sections, { for: 'card', refs: sourceRefsOf(target) })
 		);
 		if (request === undefined) return { status: 'nothing' };
 		this.writing.add(blockId);

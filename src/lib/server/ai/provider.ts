@@ -4,7 +4,7 @@
  * else sees `Complete`.
  */
 import type { AiConfig } from './config';
-import { fakeComplete, fakeStream } from './fake';
+import { fakeComplete, fakeRead, fakeStream } from './fake';
 import { weightedTokens, type Usage } from './limits';
 
 export type Message = { role: 'system' | 'user' | 'assistant'; content: string };
@@ -200,5 +200,78 @@ export function streamer(config: AiConfig, fetcher: typeof fetch = fetch): Strea
 		if (!ended.finished)
 			throw new ProviderError('network', 'the stream ended before the model finished');
 		return { tokens: ended.tokens };
+	};
+}
+
+/** A picture the model is asked to read: its type and bytes, base64. */
+export type Picture = { mime: string; base64: string };
+/** One picture and the instructions for reading it, answered whole. */
+export type Vision = (instructions: string, picture: Picture) => Promise<Completion>;
+
+/** The call that reads a picture: the instructions, and the picture as an `image_url` part. */
+export function buildVisionBody(
+	config: AiConfig,
+	instructions: string,
+	picture: Picture
+): Record<string, unknown> {
+	const body: Record<string, unknown> = {
+		model: config.model,
+		messages: [
+			{ role: 'system', content: instructions },
+			{
+				role: 'user',
+				content: [
+					{
+						type: 'image_url',
+						image_url: { url: `data:${picture.mime};base64,${picture.base64}` }
+					},
+					{ type: 'text', text: 'Přepiš obrázek.' }
+				]
+			}
+		],
+		max_tokens: 6000
+	};
+	// Reading is copying, not thinking: no reasoning, which is also what makes it quick.
+	if (config.provider === 'deepseek') body.thinking = { type: 'disabled' };
+	else {
+		body.reasoning = { effort: 'none' };
+		body.provider = { require_parameters: true, data_collection: 'deny', max_price: MAX_PRICE };
+	}
+	return body;
+}
+
+export function visionist(config: AiConfig, fetcher: typeof fetch = fetch): Vision {
+	if (config.provider === 'fake') return fakeRead;
+	return async (instructions, picture) => {
+		let response: Response;
+		try {
+			response = await fetcher(`${config.baseURL}/chat/completions`, {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					authorization: `Bearer ${config.apiKey}`,
+					...(config.provider === 'openrouter'
+						? { 'HTTP-Referer': 'https://edu-ai.eu', 'X-Title': 'EDU-AI course editor' }
+						: {})
+				},
+				body: JSON.stringify(buildVisionBody(config, instructions, picture)),
+				signal: AbortSignal.timeout(TIMEOUT_MS)
+			});
+		} catch (e) {
+			throw new ProviderError('network', e instanceof Error ? e.message : String(e));
+		}
+		if (!response.ok) {
+			const detail = `${response.status} ${(await response.text().catch(() => '')).slice(0, 300)}`;
+			if ([401, 402, 403].includes(response.status)) throw new ProviderError('auth', detail);
+			if ([429, 503, 529].includes(response.status)) throw new ProviderError('busy', detail);
+			throw new ProviderError('failed', detail);
+		}
+		const data = (await response.json().catch(() => null)) as {
+			choices?: { message?: { content?: unknown } }[];
+			usage?: Usage;
+		} | null;
+		const content = data?.choices?.[0]?.message?.content;
+		if (typeof content !== 'string') throw new ProviderError('failed', 'no message content');
+		return { text: content, tokens: weightedTokens(data?.usage) };
 	};
 }

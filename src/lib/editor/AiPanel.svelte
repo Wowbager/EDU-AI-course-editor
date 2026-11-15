@@ -9,13 +9,16 @@
 	 * and is not in the course until „Vytvořit vybrané“ — then the left tree is the
 	 * outline, and every later edit happens there.
 	 */
-	import { tick } from 'svelte';
-	import { ArrowUp, Check, Circle, CircleAlert, LoaderCircle } from '@lucide/svelte';
+	import { tick, untrack } from 'svelte';
+	import { ArrowUp, Check, Circle, CircleAlert, LoaderCircle, Paperclip, X } from '@lucide/svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import ProposalTree from './ProposalTree.svelte';
 	import { useStore } from '$lib/ui/context';
 	import { aiPanel } from '$lib/state/ai-panel.svelte';
 	import { ai } from '$lib/state/ai.svelte';
+	import { materials } from '$lib/state/materials.svelte';
+	import { ACCEPT } from '$lib/materials/read';
+	import { displayName } from '$lib/domain/materials';
 	import { anyTicked } from '$lib/domain/outline';
 	import { blockPreview } from '$lib/domain/derive';
 
@@ -23,6 +26,88 @@
 
 	let text = $state('');
 	let field = $state<HTMLTextAreaElement>();
+
+	// The course's materials follow the course, not every edit of it.
+	const courseId = $derived(store.doc.course_id);
+	$effect(() => {
+		const id = courseId;
+		untrack(() => void materials.load(id));
+	});
+
+	let picker = $state<HTMLInputElement>();
+	let dragging = $state(false);
+
+	function attach(list: FileList | File[] | null | undefined) {
+		const files = [...(list ?? [])];
+		if (files.length > 0) void materials.add(courseId, files);
+	}
+
+	const hasFiles = (e: DragEvent) => e.dataTransfer?.types.includes('Files') === true;
+
+	/** Everything attached: what is read and stored, then what is being read. */
+	const items = $derived([
+		...materials.files.map((f) => ({
+			key: f.hash,
+			name: f.name,
+			unread: f.unread,
+			hash: f.hash as string | undefined
+		})),
+		...materials.reading.map((r) => ({
+			key: `reading-${r.id}`,
+			name: r.name,
+			unread: [] as string[],
+			hash: undefined as string | undefined
+		}))
+	]);
+
+	// One row of chips. When they do not all fit, the last thing in the row is „+N“, which
+	// lets the row wrap; the same button folds it again.
+	let chipRow = $state<HTMLUListElement>();
+	let expanded = $state(false);
+	let fit = $state(Number.POSITIVE_INFINITY);
+	const MORE_WIDTH = 44;
+	const CHIP_GAP = 4;
+
+	function measure() {
+		if (chipRow === undefined) return;
+		const chips = [...chipRow.querySelectorAll<HTMLElement>('li.chip')];
+		const room = chipRow.clientWidth;
+		let used = 0;
+		let shown = 0;
+		for (const [i, chip] of chips.entries()) {
+			const width = chip.offsetWidth + (i > 0 ? CHIP_GAP : 0);
+			const more = chips.length - i - 1 > 0 ? CHIP_GAP + MORE_WIDTH : 0;
+			if (used + width + more > room) break;
+			used += width;
+			shown = i + 1;
+		}
+		fit = Math.max(1, shown);
+	}
+	$effect(() => {
+		void items;
+		void expanded;
+		void tick().then(measure);
+	});
+	$effect(() => {
+		if (chipRow === undefined) return;
+		const observer = new ResizeObserver(measure);
+		observer.observe(chipRow);
+		return () => observer.disconnect();
+	});
+	const hidden = $derived(Math.max(0, items.length - fit));
+	/** A chip folded away is one that failed: „+N“ says so, so it is not missed. */
+	/** A file being read behind „+N“ turns on its spinner, so the reading is not missed. */
+	const hiddenReading = $derived(
+		!expanded &&
+			materials.reading.some((r) => items.findIndex((i) => i.key === `reading-${r.id}`) >= fit)
+	);
+	const hiddenFailed = $derived(!expanded && items.slice(fit).some((i) => i.unread.length > 0));
+
+	/** The quiet line under the chips for a file with pages that did not read: it names the file. */
+	function unreadLine(name: string, lines: readonly string[]): string {
+		const first = lines[0].charAt(0).toLowerCase() + lines[0].slice(1);
+		return `${displayName(name)}: ${first}${lines.length > 1 ? ` a ještě ${lines.length - 1} dalších` : ''}`;
+	}
 
 	const draft = $derived(aiPanel.draft);
 	const queue = aiPanel.queue;
@@ -69,7 +154,25 @@
 	} as const;
 </script>
 
-<section class="panel" aria-label="AI">
+<!-- Files are dropped anywhere on the panel; the 📎 in the box is the same thing by click. -->
+<section
+	class="panel"
+	aria-label="AI"
+	ondragover={(e) => {
+		if (!ai.available || !hasFiles(e)) return;
+		e.preventDefault();
+		dragging = true;
+	}}
+	ondragleave={(e) => {
+		if (e.currentTarget === e.target) dragging = false;
+	}}
+	ondrop={(e) => {
+		if (!hasFiles(e)) return;
+		e.preventDefault();
+		dragging = false;
+		if (ai.available) attach(e.dataTransfer?.files);
+	}}
+>
 	<div class="body">
 		{#if draft !== null}
 			<div class="scroll" aria-busy={aiPanel.asking}>
@@ -161,13 +264,89 @@
 		{#if aiPanel.problem !== ''}
 			<p class="quiet" role="status">{aiPanel.problem}</p>
 		{/if}
+		{#if items.length > 0}
+			<ul class="chips" class:expanded aria-label="Podklady" bind:this={chipRow}>
+				{#each items as item, i (item.key)}
+					<li
+						class="chip"
+						class:overflowed={!expanded && i >= fit}
+						class:failed={item.unread.length > 0}
+						title={[item.name, ...item.unread].join('\n')}
+					>
+						<span class="chip-name">{displayName(item.name)}</span>
+						{#if item.hash === undefined}
+							<LoaderCircle size={12} class="spin" aria-hidden="true" />
+							<span class="sr">Čtu soubor {item.name}</span>
+						{:else}
+							{#if item.unread.length > 0}<span class="chip-warn" aria-hidden="true">!</span>{/if}
+							<button
+								type="button"
+								class="chip-x"
+								aria-label={`Odebrat podklad: ${item.name}`}
+								title="Odebrat"
+								onclick={() => void materials.remove(courseId, item.hash!)}
+							>
+								<X size={12} aria-hidden="true" />
+							</button>
+						{/if}
+					</li>
+				{/each}
+				{#if hidden > 0 || expanded}
+					<li class="more-item">
+						<button
+							type="button"
+							class="chip more"
+							aria-expanded={expanded}
+							aria-label={expanded ? 'Sbalit podklady' : `Ukázat dalších ${hidden} podkladů`}
+							onclick={() => (expanded = !expanded)}
+							>{expanded ? '−' : `+${hidden}`}{#if hiddenReading}<LoaderCircle
+									size={12}
+									class="spin"
+									aria-hidden="true"
+								/>{/if}{#if hiddenFailed}<span class="chip-warn" aria-hidden="true">&nbsp;!</span
+								>{/if}</button
+						>
+					</li>
+				{/if}
+			</ul>
+			{#each items.filter((f) => f.unread.length > 0).slice(0, 2) as file (file.key)}
+				<p class="quiet">{unreadLine(file.name, file.unread)}</p>
+			{/each}
+		{/if}
+		{#if materials.message !== ''}
+			<p class="quiet" role="status">{materials.message}</p>
+		{/if}
 		<form
 			class="box"
+			class:dragging
 			onsubmit={(e) => {
 				e.preventDefault();
 				void send();
 			}}
 		>
+			<button
+				type="button"
+				class="clip"
+				aria-label="Přiložit podklady"
+				title="Přiložit podklady (Word, PowerPoint, PDF, obrázek)"
+				disabled={!ai.available}
+				onclick={() => picker?.click()}
+			>
+				<Paperclip size={16} aria-hidden="true" />
+			</button>
+			<input
+				bind:this={picker}
+				type="file"
+				class="picker"
+				multiple
+				accept={ACCEPT}
+				tabindex="-1"
+				aria-hidden="true"
+				onchange={(e) => {
+					attach(e.currentTarget.files);
+					e.currentTarget.value = '';
+				}}
+			/>
 			<textarea
 				bind:this={field}
 				bind:value={text}
@@ -413,6 +592,143 @@
 		background: var(--surface);
 	}
 
+	.box.dragging {
+		border-color: var(--primary);
+		border-style: dashed;
+	}
+
+	.picker {
+		display: none;
+	}
+
+	.clip {
+		display: inline-flex;
+		flex: none;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		margin-left: -4px;
+		border: none;
+		border-radius: var(--radius-pill);
+		background: none;
+		color: var(--e-text-faint);
+		cursor: pointer;
+	}
+
+	.clip:hover:not(:disabled) {
+		color: var(--e-text);
+		background: var(--primary-dark-06);
+	}
+
+	.clip:disabled {
+		cursor: default;
+		opacity: 0.5;
+	}
+
+	/* Attached files: small and quiet, one row; „+N“ opens the rest. */
+	.chips {
+		position: relative;
+		display: flex;
+		flex-wrap: nowrap;
+		gap: 4px;
+		margin: 0;
+		padding: 0;
+		overflow: hidden;
+		list-style: none;
+	}
+
+	.chips.expanded {
+		flex-wrap: wrap;
+		max-height: 100px;
+		overflow-y: auto;
+	}
+
+	.chip {
+		display: inline-flex;
+		flex: none;
+		align-items: center;
+		gap: 4px;
+		max-width: 100%;
+		padding: 2px 4px 2px 8px;
+		border: 1px solid var(--e-border);
+		border-radius: var(--radius-pill);
+		background: none;
+		color: var(--e-text-muted);
+		font: var(--type-caption);
+	}
+
+	/* Past the row, but still measured. */
+	.chip.overflowed {
+		position: absolute;
+		visibility: hidden;
+		pointer-events: none;
+	}
+
+	.chip-name {
+		max-width: 150px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.chip :global(.spin) {
+		flex: none;
+		margin-right: 4px;
+		color: var(--e-text-faint);
+		animation: ai-spin 1.2s linear infinite;
+	}
+
+	.chip-warn {
+		flex: none;
+		color: var(--e-warning-text);
+		font-weight: 700;
+	}
+
+	.chip.failed {
+		border-color: var(--e-warning-text);
+	}
+
+	.more-item {
+		display: contents;
+	}
+
+	button.chip.more {
+		padding: 2px 8px;
+		cursor: pointer;
+	}
+
+	button.chip.more:hover {
+		color: var(--e-text);
+		background: var(--primary-dark-06);
+	}
+
+	.chip-x {
+		display: inline-flex;
+		flex: none;
+		align-items: center;
+		justify-content: center;
+		width: 16px;
+		height: 16px;
+		padding: 0;
+		border: none;
+		border-radius: var(--radius-pill);
+		background: none;
+		color: var(--e-text-faint);
+		opacity: 0;
+		cursor: pointer;
+	}
+
+	.chip:hover .chip-x,
+	.chip-x:focus-visible {
+		opacity: 1;
+	}
+
+	.chip-x:hover {
+		color: var(--e-text);
+		background: var(--primary-dark-06);
+	}
+
 	.box:focus-within {
 		border-color: var(--primary);
 	}
@@ -455,6 +771,7 @@
 	@media (prefers-reduced-motion: reduce) {
 		.queue-row :global(.spin),
 		.quiet :global(.spin),
+		.chip :global(.spin),
 		.empty :global(.spin) {
 			animation: none;
 		}

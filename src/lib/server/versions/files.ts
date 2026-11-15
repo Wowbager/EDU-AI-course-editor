@@ -31,6 +31,14 @@ export const MAX_VERSIONS_PER_COURSE = 500;
 export const MAX_VERSIONS_PER_OWNER = 5000;
 export const MAX_BODY_BYTES = 8 * 1024 * 1024;
 
+/** A course's directory for one owner; nothing from a request reaches a path unchecked. */
+export function courseDirOf(root: string, owner: string, courseId: string): string {
+	if (!/^ws_[0-9a-f]{64}$|^user_[A-Za-z0-9_-]{1,64}$/.test(owner))
+		throw new VersionError(400, 'Neplatný vlastník.');
+	if (!COURSE_ID.test(courseId)) throw new VersionError(400, 'Neplatný identifikátor kurzu.');
+	return join(root, 'owners', owner, 'courses', courseId);
+}
+
 export class VersionError extends Error {
 	constructor(
 		readonly status: 400 | 404 | 409 | 413 | 429,
@@ -49,10 +57,7 @@ export class VersionFiles {
 	}
 
 	#courseDir(owner: string, courseId: string) {
-		if (!/^ws_[0-9a-f]{64}$|^user_[A-Za-z0-9_-]{1,64}$/.test(owner))
-			throw new VersionError(400, 'Neplatný vlastník.');
-		if (!COURSE_ID.test(courseId)) throw new VersionError(400, 'Neplatný identifikátor kurzu.');
-		return join(this.#root, 'owners', owner, 'courses', courseId);
+		return courseDirOf(this.#root, owner, courseId);
 	}
 
 	/** Run writes to one course one after another. */

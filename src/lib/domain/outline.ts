@@ -20,12 +20,14 @@ import {
 	audienceSchema,
 	AUDIENCE_KEY,
 	MAX_CONTEXT_CHARS,
+	MAX_MATERIALS_CHARS,
 	plainTextProblem,
 	REQUEST_KEY
 } from './authoring';
 
 export { REQUEST_KEY };
 import { buildDossier } from './dossier';
+import { renderMaterials, type Section } from './materials';
 import type { CourseV2 } from './schema';
 
 export const OUTLINE_KINDS = ['display', 'question', 'exercise'] as const;
@@ -38,9 +40,13 @@ export const MAX_PROMPT_CHARS = 4000;
 
 const line = (max: number) => z.string().trim().min(1).max(max);
 
+export const MAX_SOURCES = 12;
+
 export const outlineCardSchema = z.object({
 	kind: z.enum(OUTLINE_KINDS),
-	name: line(120)
+	name: line(120),
+	/** Keys of the materials' sections the card is written from (`materials.ts`). */
+	sources: z.array(z.string().max(40)).max(MAX_SOURCES).optional()
 });
 export type OutlineCard = z.infer<typeof outlineCardSchema>;
 
@@ -86,7 +92,11 @@ export const outlineRequestSchema = z.object({
 	}),
 	/** The proposal as the teacher has it now, to be reworked. */
 	current: outlineSchema.optional(),
-	context: z.string().max(MAX_CONTEXT_CHARS)
+	context: z.string().max(MAX_CONTEXT_CHARS),
+	/** The teacher's materials as `renderMaterials` makes them (index, and the text when it fits). */
+	materials: z.string().max(MAX_MATERIALS_CHARS).optional(),
+	/** The keys of those sections: what a card's `sources` may name. */
+	material_keys: z.array(z.string().max(40)).max(400).optional()
 });
 export type OutlineRequest = z.infer<typeof outlineRequestSchema>;
 
@@ -349,7 +359,11 @@ export function toOutline(draft: Draft, only: 'ticked' | 'all' = 'all'): Outline
 	const keep = (cards: DraftCard[]): OutlineCard[] =>
 		cards
 			.filter((c) => only === 'all' || c.on)
-			.map(({ kind, name }) => ({ kind, name: name.trim() }))
+			.map(({ kind, name, sources }) => ({
+				kind,
+				name: name.trim(),
+				...(sources !== undefined && sources.length > 0 ? { sources } : {})
+			}))
 			.filter((c) => c.name !== '');
 	if (draft.scope === 'cards') {
 		const cards = keep(draft.lessons[0]?.cards ?? []);
@@ -449,7 +463,9 @@ export function buildOutlineRequest(
 	doc: CourseV2,
 	selection: OutlineSelection | null | undefined,
 	prompt: string,
-	change?: { current: Outline; original: string }
+	change?: { current: Outline; original: string },
+	/** The course's materials, when it has any. */
+	materials: readonly Section[] = []
 ): OutlineRequest {
 	const card = doc.blocks.find((b) => b.block_id === selection?.blockId);
 	const lesson =
@@ -471,7 +487,13 @@ export function buildOutlineRequest(
 			...(card !== undefined && text(card.name) !== '' ? { card: text(card.name) } : {}),
 			lessons: doc.lessons.length
 		},
-		context: buildDossier(doc, anchor ?? '', lesson?.lesson_id)
+		context: buildDossier(doc, anchor ?? '', lesson?.lesson_id),
+		...(materials.length > 0
+			? {
+					materials: renderMaterials(materials, { for: 'outline' }),
+					material_keys: materials.map((s) => s.key)
+				}
+			: {})
 	};
 }
 

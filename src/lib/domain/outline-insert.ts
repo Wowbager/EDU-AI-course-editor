@@ -11,7 +11,7 @@
  */
 import type { BlockV2, CourseV2 } from './schema';
 import { addBlock, addLesson, CommandError, reorderLessons, type CommandResult } from './commands';
-import { REQUEST_KEY } from './authoring';
+import { REQUEST_KEY, SOURCE_REFS_KEY } from './authoring';
 import type { Outline, OutlineCard } from './outline';
 import type { Reservations } from './ids';
 
@@ -33,7 +33,18 @@ const ownerOf = (doc: CourseV2, blockId: string | undefined): string | undefined
 function named(doc: CourseV2, blockId: string, card: OutlineCard): CourseV2 {
 	return {
 		...doc,
-		blocks: doc.blocks.map((b): BlockV2 => (b.block_id === blockId ? { ...b, name: card.name } : b))
+		blocks: doc.blocks.map((b): BlockV2 =>
+			b.block_id === blockId
+				? {
+						...b,
+						name: card.name,
+						// Only the keys of the materials; the text stays with the course's materials.
+						...(card.sources !== undefined && card.sources.length > 0
+							? { [SOURCE_REFS_KEY]: [...card.sources] }
+							: {})
+					}
+				: b
+		)
 	};
 }
 
