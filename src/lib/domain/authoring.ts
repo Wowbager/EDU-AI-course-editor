@@ -27,6 +27,8 @@ import { nextStepIds, type Reservations } from './ids';
 export const BRIEF_KEY = 'brief';
 export const ORIGIN_KEY = 'field_origin';
 export const AUDIENCE_KEY = 'audience';
+/** The keys of the teacher's materials a card was planned from (`materials.ts`). */
+export const SOURCE_REFS_KEY = 'source_refs';
 /**
  * The teacher's request for a course, saved once on the course when an AI proposal of a
  * structure is accepted. A key the app ignores, like `audience`; the dossier carries it to
@@ -40,8 +42,14 @@ export const AUTHORING_BLOCK_KEYS = [
 	'note',
 	ORIGIN_KEY,
 	'review',
-	'source_refs'
+	SOURCE_REFS_KEY
 ] as const;
+
+/** The section keys a card names as its sources, or none. */
+export function sourceRefsOf(card: BlockV2 | undefined): string[] {
+	const value = (card as Record<string, unknown> | undefined)?.[SOURCE_REFS_KEY];
+	return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+}
 
 /** A part of a step the AI can write. */
 export const SLOTS = ['content', 'question', 'feedback', 'hint', 'help', 'solution'] as const;
@@ -70,6 +78,9 @@ export const CARD_BOUNDS: Record<
 
 /** Longest dossier the server takes: 150k tokens at about 3 characters each, with room. */
 export const MAX_CONTEXT_CHARS = 600_000;
+
+/** Longest text of the teacher's materials one request carries (`materials.ts`). */
+export const MAX_MATERIALS_CHARS = 700_000;
 
 const text = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 const filled = (value: unknown): boolean => text(value) !== '';
@@ -263,7 +274,9 @@ export const genRequestSchema = z.object({
 		steps: z.array(requestStepSchema)
 	}),
 	/** The course dossier (`dossier.ts`). The server sends it as a message of its own. */
-	context: z.string().max(MAX_CONTEXT_CHARS)
+	context: z.string().max(MAX_CONTEXT_CHARS),
+	/** The teacher's materials as `renderMaterials` makes them; a message of its own, after the dossier. */
+	materials: z.string().max(MAX_MATERIALS_CHARS).optional()
 });
 export type GenRequest = z.infer<typeof genRequestSchema>;
 
@@ -323,7 +336,8 @@ export function buildGenRequest(
 	doc: CourseV2,
 	blockId: string,
 	lessonId?: string,
-	context = ''
+	context = '',
+	materials = ''
 ): GenRequest | undefined {
 	const card = doc.blocks.find((b) => b.block_id === blockId);
 	if (card === undefined) return undefined;
@@ -356,7 +370,8 @@ export function buildGenRequest(
 			...(brief !== undefined ? { brief } : {}),
 			steps: card.steps.map((step) => requestStep(card, step, gaps.get(step.id) ?? []))
 		},
-		context
+		context,
+		...(materials !== '' ? { materials } : {})
 	};
 }
 
