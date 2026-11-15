@@ -2,23 +2,27 @@
  * Writing a card with AI: what counts as still empty, what the model is asked, and how
  * its answer lands in the document.
  *
+ * The AI writes a whole card: an ordered list of steps. Steps the teacher already has
+ * come back as `keep`, with only their empty parts filled; new steps are inserted around
+ * them.
+ *
  * One rule holds it together: **a field that is filled is never overwritten; only an
- * empty one is written.** `missingSlots` is the single place that decides what "empty"
+ * empty one is written.** `missingParts` is the single place that decides what "empty"
  * means. The button asks it whether to show, the request asks it what to send as given,
- * the server asks it what the model may return, and `fillBlock` asks it again at the
+ * the server asks it what the model may return, and `fillCard` asks it again at the
  * moment of writing, so a field the teacher typed into while the model was thinking is
  * left alone.
  *
  * What the AI needs beyond the pupil's content rides in the document as keys the app
  * ignores: the course's `audience`, a card's `brief` (one line on what it is for) and
- * `field_origin` (which slots the AI wrote and nobody has changed since).
+ * `field_origin` (which parts the AI wrote and nobody has changed since, keyed
+ * `<step id>.<part>`).
  */
 import { z } from 'zod';
 import type { BlockStep, BlockV2, CourseV2, QuestionConfig, QuestionOption } from './schema';
 import type { CommandResult } from './commands';
 import { CommandError } from './commands';
-import { isMerged } from './card-view';
-import { nextStepId, type Reservations } from './ids';
+import { nextStepIds, type Reservations } from './ids';
 
 export const BRIEF_KEY = 'brief';
 export const ORIGIN_KEY = 'field_origin';
@@ -33,35 +37,41 @@ export const AUTHORING_BLOCK_KEYS = [
 	'source_refs'
 ] as const;
 
-/** A part of a card the AI can write. */
+/** A part of a step the AI can write. */
 export const SLOTS = ['content', 'question', 'feedback', 'hint', 'help', 'solution'] as const;
 export type Slot = (typeof SLOTS)[number];
 export type Completeness = 'stub' | 'partial' | 'ready';
+export type StepKind = 'text' | 'question' | 'media';
 
 export const GEN_QUESTION_TYPES = ['yes_no', 'number', 'mcq_1', 'mcq_n', 'open'] as const;
 export type GenQuestionType = (typeof GEN_QUESTION_TYPES)[number];
 
+export type CardKind = BlockV2['type'];
+
+/**
+ * How many steps a card may end up with. The prompt asks for the usual size; these are
+ * the hard limits the server enforces, wide enough that a count the teacher states in
+ * the brief ("10 příkladů") is not refused.
+ */
+export const CARD_BOUNDS: Record<
+	CardKind,
+	{ texts: [number, number]; questions: [number, number] }
+> = {
+	display: { texts: [1, 10], questions: [0, 0] },
+	exercise: { texts: [0, 8], questions: [1, 12] },
+	question: { texts: [0, 8], questions: [1, 6] }
+};
+
+/** Longest dossier the server takes: 150k tokens at about 3 characters each, with room. */
+export const MAX_CONTEXT_CHARS = 600_000;
+
 const text = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 const filled = (value: unknown): boolean => text(value) !== '';
 
-// ───────────────────────────────── what is empty ─────────────────────────────────
+const stepKind = (step: BlockStep): StepKind =>
+	step.type === 'text' ? 'text' : step.type === 'question' ? 'question' : 'media';
 
-/**
- * The step the AI writes into: a Výklad card's first text step, any other card's one
- * question. A card with several questions, or one drawn from several blocks, is not
- * written by AI: which question a text belongs to is the teacher's to say.
- */
-export function fillTarget(
-	block: BlockV2
-): { kind: 'display'; step?: BlockStep } | { kind: 'exercise'; step: BlockStep } | undefined {
-	if (isMerged(block)) return undefined;
-	if (block.type === 'display') {
-		if (block.steps.some((s) => s.type === 'question')) return undefined;
-		return { kind: 'display', step: block.steps.find((s) => s.type === 'text') };
-	}
-	const questions = block.steps.filter((s) => s.type === 'question');
-	return questions.length === 1 ? { kind: 'exercise', step: questions[0] } : undefined;
-}
+// ───────────────────────────────── what is empty ─────────────────────────────────
 
 const optionsOf = (q: QuestionConfig | undefined): QuestionOption[] => q?.options ?? [];
 const isChoice = (q: QuestionConfig | undefined) =>
@@ -71,28 +81,27 @@ const isChoice = (q: QuestionConfig | undefined) =>
 const untouchedChoice = (q: QuestionConfig | undefined): boolean =>
 	q === undefined || (q.type === 'multiple_choice' && optionsOf(q).every((o) => !filled(o.text)));
 
-/** The exercise's wording: text steps above the question, and the question's own. */
-function exerciseText(block: BlockV2, step: BlockStep): string {
-	const at = block.steps.indexOf(step);
-	const above = block.steps
-		.slice(0, at)
-		.filter((s) => s.type === 'text')
-		.map((s) => text(s.content));
-	return [...above, text(step.content)].filter((t) => t !== '').join('\n\n');
+/**
+ * Whether a question step has its task in words: its own text, or a written text step
+ * above it, after the previous question.
+ */
+function hasTask(card: BlockV2, step: BlockStep): boolean {
+	if (filled(step.content)) return true;
+	for (let i = card.steps.indexOf(step) - 1; i >= 0; i--) {
+		const above = card.steps[i];
+		if (above.type === 'question') return false;
+		if (above.type === 'text' && filled(above.content)) return true;
+	}
+	return false;
 }
 
-/** Which slots of the card are still empty, in `SLOTS` order. Empty for a card AI does not write. */
-export function missingSlots(block: BlockV2): Slot[] {
-	const target = fillTarget(block);
-	if (target === undefined) return [];
-	if (target.kind === 'display') {
-		const any = block.steps.some((s) => s.type === 'text' && filled(s.content));
-		return any ? [] : ['content'];
-	}
-	const step = target.step;
+/** Which parts of one step are still empty, in `SLOTS` order. */
+function missingOf(card: BlockV2, step: BlockStep): Slot[] {
+	if (step.type === 'text') return filled(step.content) ? [] : ['content'];
+	if (step.type !== 'question') return [];
 	const q = step.question;
 	const missing: Slot[] = [];
-	const noText = exerciseText(block, step) === '';
+	const noText = !hasTask(card, step);
 	if (noText) missing.push('content');
 
 	let noQuestion: boolean;
@@ -105,24 +114,43 @@ export function missingSlots(block: BlockV2): Slot[] {
 	else if (isChoice(q) && optionsOf(q).some((o) => filled(o.text) && !filled(o.feedback)))
 		missing.push('feedback');
 
-	if (!filled(step.hint) && !filled(block.hint)) missing.push('hint');
-	if (!filled(step.help) && !filled(block.help)) missing.push('help');
+	if (!filled(step.hint) && !filled(card.hint)) missing.push('hint');
+	if (!filled(step.help) && !filled(card.help)) missing.push('help');
 	if (!filled(q?.solution)) missing.push('solution');
 	return missing;
 }
 
-const ALL: Record<'display' | 'exercise', readonly Slot[]> = {
-	display: ['content'],
-	exercise: ['content', 'question', 'hint', 'help', 'solution']
+export interface StepGap {
+	stepId: string;
+	kind: StepKind;
+	missing: Slot[];
+}
+
+/** The steps of the card that still have an empty part, with which parts. */
+export function missingParts(card: BlockV2): StepGap[] {
+	return card.steps.flatMap((step) => {
+		const missing = missingOf(card, step);
+		return missing.length > 0 ? [{ stepId: step.id, kind: stepKind(step), missing }] : [];
+	});
+}
+
+const ALL: Record<'text' | 'question', readonly Slot[]> = {
+	text: ['content'],
+	question: ['content', 'question', 'hint', 'help', 'solution']
 };
 
-/** `stub`: nothing written yet. `partial`: something is, something is not. `ready`: nothing to add. */
-export function completeness(block: BlockV2): Completeness {
-	const target = fillTarget(block);
-	if (target === undefined) return 'ready';
-	const missing = missingSlots(block);
-	if (missing.length === 0) return 'ready';
-	return ALL[target.kind].every((slot) => missing.includes(slot)) ? 'stub' : 'partial';
+/**
+ * `stub`: nothing written yet. `partial`: something is, something is not. `ready`:
+ * nothing to add. A card with no step at all is a stub.
+ */
+export function completeness(card: BlockV2): Completeness {
+	if (card.steps.length === 0) return 'stub';
+	const gaps = missingParts(card);
+	if (gaps.length === 0) return 'ready';
+	const untouched =
+		gaps.length === card.steps.length &&
+		gaps.every((g) => g.kind !== 'media' && g.missing.length === ALL[g.kind].length);
+	return untouched ? 'stub' : 'partial';
 }
 
 // ───────────────────────────────── the request ─────────────────────────────────
@@ -151,8 +179,8 @@ export const genQuestionSchema = z.discriminatedUnion('type', [
 ]);
 export type GenQuestion = z.infer<typeof genQuestionSchema>;
 
-/** What the model wrote: only slots that were empty. */
-export const generatedSchema = z.object({
+/** What the model may add to a step the teacher started: only parts that were empty. */
+export const fillSchema = z.object({
 	content_md: z.string().trim().min(1).optional(),
 	question: genQuestionSchema.optional(),
 	/** One reaction per answer the teacher wrote, in their order. */
@@ -161,10 +189,10 @@ export const generatedSchema = z.object({
 	help_md: z.string().trim().min(1).optional(),
 	solution_md: z.string().trim().min(1).optional()
 });
-export type Generated = z.infer<typeof generatedSchema>;
+export type Fill = z.infer<typeof fillSchema>;
 
-/** The key each slot has in a `Generated`, and in `field_origin`. */
-export const SLOT_KEY: Record<Slot, keyof Generated> = {
+/** The key each part has in a `Fill`, and in `field_origin` after the step's id. */
+export const SLOT_KEY: Record<Slot, keyof Fill> = {
 	content: 'content_md',
 	question: 'question',
 	feedback: 'option_feedback',
@@ -173,6 +201,24 @@ export const SLOT_KEY: Record<Slot, keyof Generated> = {
 	solution: 'solution_md'
 };
 
+const keepSchema = z.object({ keep: z.string(), fill: fillSchema.optional() });
+const newTextSchema = z.object({ kind: z.literal('text'), content_md: z.string().trim().min(1) });
+const newQuestionSchema = z.object({
+	kind: z.literal('question'),
+	content_md: z.string().trim().min(1),
+	question: genQuestionSchema,
+	hint_md: z.string().trim().min(1),
+	help_md: z.string().trim().min(1),
+	solution_md: z.string().trim().min(1)
+});
+
+/** `eduai.gen-card/2`: the card, step by step. */
+export const generatedCardSchema = z.object({
+	steps: z.array(z.union([keepSchema, newTextSchema, newQuestionSchema])).min(1)
+});
+export type GeneratedCard = z.infer<typeof generatedCardSchema>;
+export type GeneratedStep = GeneratedCard['steps'][number];
+
 const audienceSchema = z.object({
 	grade: z.number().int().optional(),
 	purpose: z.enum(['intro', 'practice', 'exam_prep']).optional(),
@@ -180,34 +226,38 @@ const audienceSchema = z.object({
 	register: z.string().optional()
 });
 
+const requestStepSchema = z.object({
+	id: z.string(),
+	kind: z.enum(['text', 'question', 'media']),
+	content_md: z.string().optional(),
+	/** Fixed by the teacher's choice of question type; absent when the model may choose. */
+	question_type: z.enum(GEN_QUESTION_TYPES).optional(),
+	question: z.unknown().optional(),
+	hint_md: z.string().optional(),
+	help_md: z.string().optional(),
+	solution_md: z.string().optional(),
+	/** The parts of this step that are empty; the model fills exactly these. */
+	missing: z.array(z.enum(SLOTS))
+});
+export type RequestStep = z.infer<typeof requestStepSchema>;
+
 export const genRequestSchema = z.object({
-	schema: z.literal('eduai.gen-request/1'),
+	schema: z.literal('eduai.gen-request/2'),
 	mode: z.enum(['generate', 'complete']),
 	course: z.object({
 		title: z.string(),
 		language: z.string(),
 		audience: audienceSchema
 	}),
-	lesson: z.object({
-		name: z.string(),
-		takeaway: z.string().optional(),
-		neighbors: z.array(z.object({ kind: z.enum(['display', 'exercise']), title: z.string() }))
-	}),
-	block: z.object({
-		kind: z.enum(['display', 'exercise']),
+	lesson: z.object({ name: z.string(), takeaway: z.string().optional() }),
+	card: z.object({
+		kind: z.enum(['display', 'exercise', 'question']),
 		title: z.string(),
 		brief: z.string().optional(),
-		/** Fixed by the teacher's choice of question type; absent when the model may choose. */
-		question_type: z.enum(GEN_QUESTION_TYPES).optional(),
-		missing: z.array(z.enum(SLOTS)).min(1),
-		given: z.object({
-			content_md: z.string().optional(),
-			question: z.unknown().optional(),
-			hint_md: z.string().optional(),
-			help_md: z.string().optional(),
-			solution_md: z.string().optional()
-		})
-	})
+		steps: z.array(requestStepSchema)
+	}),
+	/** The course dossier (`dossier.ts`). The server sends it as a message of its own. */
+	context: z.string().max(MAX_CONTEXT_CHARS)
 });
 export type GenRequest = z.infer<typeof genRequestSchema>;
 
@@ -241,60 +291,50 @@ const stringAt = (node: unknown, key: string): string | undefined => {
 	return filled(value) ? text(value) : undefined;
 };
 
-/** The request for one card, or `undefined` when there is nothing for AI to write. */
+function requestStep(card: BlockV2, step: BlockStep, missing: Slot[]): RequestStep {
+	const out: RequestStep = { id: step.id, kind: stepKind(step), missing };
+	const content = stringAt(step, 'content');
+	if (content !== undefined) out.content_md = content;
+	if (out.kind !== 'question') return out;
+	if (!missing.includes('question') && step.question !== undefined)
+		out.question = givenQuestion(step.question);
+	const hint = stringAt(step, 'hint') ?? stringAt(card, 'hint');
+	const help = stringAt(step, 'help') ?? stringAt(card, 'help');
+	const solution = stringAt(step.question, 'solution');
+	if (hint !== undefined) out.hint_md = hint;
+	if (help !== undefined) out.help_md = help;
+	if (solution !== undefined) out.solution_md = solution;
+	const fixed = fixedType(step.question);
+	if (fixed !== undefined) out.question_type = fixed;
+	return out;
+}
+
+/**
+ * The request for one card, or `undefined` when there is nothing for AI to write.
+ * `context` is the course dossier (`buildDossier`).
+ */
 export function buildGenRequest(
 	doc: CourseV2,
 	blockId: string,
-	lessonId?: string
+	lessonId?: string,
+	context = ''
 ): GenRequest | undefined {
-	const block = doc.blocks.find((b) => b.block_id === blockId);
-	if (block === undefined) return undefined;
-	const target = fillTarget(block);
-	const missing = missingSlots(block);
-	if (target === undefined || missing.length === 0) return undefined;
+	const card = doc.blocks.find((b) => b.block_id === blockId);
+	if (card === undefined) return undefined;
+	const state = completeness(card);
+	if (state === 'ready') return undefined;
 
 	const lesson =
 		doc.lessons.find((l) => l.lesson_id === lessonId) ??
 		doc.lessons.find((l) => l.blocks.some((b) => b.block_id === blockId));
-	const neighbors = (lesson?.blocks ?? [])
-		.filter((b) => b.block_id !== blockId)
-		.flatMap((b) => {
-			const other = doc.blocks.find((x) => x.block_id === b.block_id);
-			if (other === undefined) return [];
-			// Only what the card really says: an empty card's stand-in name is not a title.
-			const first = other.steps.map((step) => text(step.content)).find((t) => t !== '');
-			const title = filled(other.name) ? text(other.name) : (first ?? '').slice(0, 70);
-			return title === ''
-				? []
-				: [
-						{ kind: other.type === 'display' ? ('display' as const) : ('exercise' as const), title }
-					];
-		});
-
 	const raw = (doc as Record<string, unknown>)[AUDIENCE_KEY];
 	const audience = audienceSchema.safeParse(raw ?? {});
+	const gaps = new Map(missingParts(card).map((g) => [g.stepId, g.missing]));
+	const brief = stringAt(card, BRIEF_KEY);
 
-	const given: GenRequest['block']['given'] = {};
-	let questionType: GenQuestionType | undefined;
-	if (target.kind === 'exercise') {
-		const step = target.step;
-		const words = exerciseText(block, step);
-		if (words !== '') given.content_md = words;
-		if (!missing.includes('question') && step.question !== undefined)
-			given.question = givenQuestion(step.question);
-		const hint = stringAt(step, 'hint') ?? stringAt(block, 'hint');
-		const help = stringAt(step, 'help') ?? stringAt(block, 'help');
-		const solution = stringAt(step.question, 'solution');
-		if (hint !== undefined) given.hint_md = hint;
-		if (help !== undefined) given.help_md = help;
-		if (solution !== undefined) given.solution_md = solution;
-		questionType = fixedType(step.question);
-	}
-
-	const brief = stringAt(block, BRIEF_KEY);
 	return {
-		schema: 'eduai.gen-request/1',
-		mode: completeness(block) === 'stub' ? 'generate' : 'complete',
+		schema: 'eduai.gen-request/2',
+		mode: state === 'stub' ? 'generate' : 'complete',
 		course: {
 			title: text(doc.name),
 			language: text(doc.language) || 'cs',
@@ -302,17 +342,15 @@ export function buildGenRequest(
 		},
 		lesson: {
 			name: text(lesson?.name),
-			...(filled(lesson?.description) ? { takeaway: text(lesson?.description) } : {}),
-			neighbors
+			...(filled(lesson?.description) ? { takeaway: text(lesson?.description) } : {})
 		},
-		block: {
-			kind: target.kind,
-			title: text(block.name),
+		card: {
+			kind: card.type,
+			title: text(card.name),
 			...(brief !== undefined ? { brief } : {}),
-			...(questionType !== undefined ? { question_type: questionType } : {}),
-			missing,
-			given
-		}
+			steps: card.steps.map((step) => requestStep(card, step, gaps.get(step.id) ?? []))
+		},
+		context
 	};
 }
 
@@ -321,43 +359,111 @@ export function buildGenRequest(
  * or content of its own to continue from.
  */
 export function canGenerate(block: BlockV2): boolean {
-	if (missingSlots(block).length === 0) return false;
+	const state = completeness(block);
+	if (state === 'ready') return false;
 	return (
 		filled(block.name) ||
 		filled((block as Record<string, unknown>)[BRIEF_KEY]) ||
-		completeness(block) === 'partial'
+		state === 'partial'
 	);
 }
 
+// ───────────────────────────────── checking the answer ─────────────────────────────────
+
+/** The right number of right answers for the type; the model's word is not taken for it. */
+export function questionIsSound(gen: GenQuestion): boolean {
+	if (gen.type === 'mcq_1') return gen.options.filter((o) => o.correct).length === 1;
+	if (gen.type === 'mcq_n') {
+		const right = gen.options.filter((o) => o.correct).length;
+		return right >= 2 && right < gen.options.length;
+	}
+	return true;
+}
+
+const KEY_SLOT = new Map<string, Slot>(SLOTS.map((slot) => [SLOT_KEY[slot], slot]));
+const clip = (value: string) => (value.length > 40 ? `${value.slice(0, 40)}…` : value);
+
+function fillProblem(step: RequestStep, fill: Fill): string | undefined {
+	const given = Object.keys(fill).filter((key) => fill[key as keyof Fill] !== undefined);
+	const asked = new Set(step.missing.map((slot) => SLOT_KEY[slot] as string));
+	const extra = given.filter((key) => !asked.has(key));
+	if (extra.length > 0)
+		return `Step "${step.id}": ${extra.join(', ')} ${extra.length > 1 ? 'are' : 'is'} already written by the teacher and must not be given. Fill only: ${
+			[...asked].join(', ') || 'nothing'
+		}.`;
+	const left = step.missing.filter((slot) => fill[SLOT_KEY[slot]] === undefined);
+	if (left.length > 0)
+		return `Step "${step.id}": these empty parts are missing from its "fill": ${left
+			.map((slot) => SLOT_KEY[slot])
+			.join(', ')}.`;
+	if (fill.question !== undefined) {
+		if (step.question_type !== undefined && fill.question.type !== step.question_type)
+			return `Step "${step.id}": use the question type "${step.question_type}".`;
+		if (!questionIsSound(fill.question)) return unsound(step.id);
+	}
+	if (fill.option_feedback !== undefined) {
+		const options = (step.question as { options?: unknown[] } | undefined)?.options ?? [];
+		if (fill.option_feedback.length !== options.length)
+			return `Step "${step.id}": option_feedback must have exactly one text per given option (${options.length}).`;
+	}
+	return undefined;
+}
+
+const unsound = (where: string) =>
+	`${where}: the number of correct options does not fit the question type (mcq_1: exactly one; mcq_n: at least two, and at least one wrong).`;
+
+/**
+ * `undefined` when the answer can be written, else one sentence for the model that names
+ * the mistake: every existing step once, in order, as `keep`; only empty parts filled;
+ * a sound question; a card of a size its kind allows.
+ */
+export function cardProblem(request: GenRequest, answer: GeneratedCard): string | undefined {
+	const existing = new Map(request.card.steps.map((s) => [s.id, s]));
+	const expected = request.card.steps.map((s) => s.id);
+	const kept = answer.steps.flatMap((s) => ('keep' in s ? [s.keep] : []));
+
+	for (const id of kept)
+		if (!existing.has(id))
+			return `"keep" refers to "${clip(id)}", which is not a step of this card. Existing steps: ${expected.join(', ') || 'none'}.`;
+	const seen = new Set<string>();
+	for (const id of kept) {
+		if (seen.has(id))
+			return `Step "${id}" appears more than once. Each existing step appears exactly once as {"keep":"<id>"}.`;
+		seen.add(id);
+	}
+	const absent = expected.find((id) => !seen.has(id));
+	if (absent !== undefined)
+		return `Existing step "${absent}" is missing from your answer. Every existing step must appear exactly once as {"keep":"<id>"}, so that nothing the teacher wrote is lost.`;
+	if (kept.some((id, i) => id !== expected[i]))
+		return `Existing steps must keep their original order (${expected.join(', ')}); new steps go before, between or after them.`;
+
+	for (const item of answer.steps) {
+		if ('keep' in item) {
+			const problem = fillProblem(existing.get(item.keep)!, item.fill ?? {});
+			if (problem !== undefined) return problem;
+		} else if (item.kind === 'question') {
+			if (request.card.kind === 'display')
+				return 'A "display" card has text steps only; do not add question steps.';
+			if (!questionIsSound(item.question)) return unsound('A new question step');
+		}
+	}
+
+	const bounds = CARD_BOUNDS[request.card.kind];
+	const texts = answer.steps.filter((s) => !('keep' in s) && s.kind === 'text').length;
+	const questions = answer.steps.filter((s) => !('keep' in s) && s.kind === 'question').length;
+	const own = (kind: StepKind) => request.card.steps.filter((s) => s.kind === kind).length;
+	const totalTexts = texts + own('text');
+	const totalQuestions = questions + own('question');
+	const [minT, maxT] = bounds.texts;
+	const [minQ, maxQ] = bounds.questions;
+	if (totalTexts < minT || totalTexts > Math.max(maxT, own('text')))
+		return `A "${request.card.kind}" card has ${minT}–${maxT} text steps; your answer has ${totalTexts}.`;
+	if (totalQuestions < minQ || totalQuestions > Math.max(maxQ, own('question')))
+		return `A "${request.card.kind}" card has ${minQ}–${maxQ} question steps; your answer has ${totalQuestions}.`;
+	return undefined;
+}
+
 // ───────────────────────────────── writing the answer ─────────────────────────────────
-
-/** Keep only what was asked for, and only in the shape the card can take. */
-export function restrictGenerated(request: GenRequest, generated: Generated): Generated {
-	const missing = new Set<Slot>(request.block.missing);
-	const out: Generated = {};
-	if (missing.has('content') && generated.content_md !== undefined)
-		out.content_md = generated.content_md;
-	if (request.block.kind === 'display') return out;
-	const fixed = request.block.question_type;
-	if (
-		missing.has('question') &&
-		generated.question !== undefined &&
-		(fixed === undefined || generated.question.type === fixed)
-	)
-		out.question = generated.question;
-	if (missing.has('feedback') && generated.option_feedback !== undefined)
-		out.option_feedback = generated.option_feedback;
-	if (missing.has('hint') && generated.hint_md !== undefined) out.hint_md = generated.hint_md;
-	if (missing.has('help') && generated.help_md !== undefined) out.help_md = generated.help_md;
-	if (missing.has('solution') && generated.solution_md !== undefined)
-		out.solution_md = generated.solution_md;
-	return out;
-}
-
-/** Whether every slot that was asked for came back. */
-export function unanswered(request: GenRequest, generated: Generated): Slot[] {
-	return request.block.missing.filter((slot) => generated[SLOT_KEY[slot]] === undefined);
-}
 
 const OPTION_IDS = 'abcdefghijklmnopqrstuvwxyz';
 
@@ -406,16 +512,6 @@ function questionFrom(previous: QuestionConfig | undefined, gen: GenQuestion): Q
 	}
 }
 
-/** The right number of right answers for the type; the model's word is not taken for it. */
-export function questionIsSound(gen: GenQuestion): boolean {
-	if (gen.type === 'mcq_1') return gen.options.filter((o) => o.correct).length === 1;
-	if (gen.type === 'mcq_n') {
-		const right = gen.options.filter((o) => o.correct).length;
-		return right >= 2 && right < gen.options.length;
-	}
-	return true;
-}
-
 type Origins = Record<string, 'teacher' | 'ai'>;
 
 const originsOf = (block: BlockV2): Origins => {
@@ -423,123 +519,198 @@ const originsOf = (block: BlockV2): Origins => {
 	return typeof value === 'object' && value !== null ? (value as Origins) : {};
 };
 
-/**
- * Write what the model returned into the card's empty slots. A slot that has been
- * filled since the request was made is skipped, so this can never overwrite the
- * teacher. One command, one undo step.
- */
-export function fillBlock(
-	doc: CourseV2,
-	blockId: string,
-	generated: Generated,
-	reserved?: Reservations
-): CommandResult {
-	const block = doc.blocks.find((b) => b.block_id === blockId);
-	if (block === undefined) throw new CommandError(`Karta „${blockId}“ v kurzu není.`, { blockId });
-	const target = fillTarget(block);
-	const missing = new Set(missingSlots(block));
-	const written: Slot[] = [];
-	const unchanged: CommandResult = { doc, description: 'Karta se nezměnila' };
-	if (target === undefined) return unchanged;
+/** `field_origin`'s key for one part of one step. */
+const originKey = (stepId: string, key: string) => `${stepId}.${key}`;
 
-	let steps = block.steps;
-	const mapStep = (id: string, fn: (s: BlockStep) => BlockStep) => {
-		steps = steps.map((s) => (s.id === id ? fn(s) : s));
-	};
-
-	if (target.kind === 'display') {
-		if (missing.has('content') && generated.content_md !== undefined) {
-			const content = generated.content_md;
-			if (target.step === undefined) {
-				const id = steps.length === 0 ? 's1' : nextStepId(steps, blockId, reserved);
-				const added: BlockStep = { id, type: 'text', content };
-				steps = [added, ...steps].map((s, i) => ({ ...s, order: i + 1 }));
-			} else mapStep(target.step.id, (s) => ({ ...s, content }));
-			written.push('content');
-		}
-	} else {
-		const id = target.step.id;
-		if (missing.has('content') && generated.content_md !== undefined) {
-			const content = generated.content_md;
-			mapStep(id, (s) => ({ ...s, content }));
-			written.push('content');
-		}
-		const gen = generated.question;
-		const fixed = fixedType(target.step.question);
+/** Fill the parts of `step` that are empty now and that the model gave. */
+function applyFill(
+	step: BlockStep,
+	missing: ReadonlySet<Slot>,
+	fill: Fill
+): { step: BlockStep; written: string[] } {
+	const written: string[] = [];
+	let next = step;
+	if (missing.has('content') && fill.content_md !== undefined) {
+		next = { ...next, content: fill.content_md };
+		written.push('content_md');
+	}
+	if (next.type === 'question') {
+		const gen = fill.question;
+		const fixed = fixedType(next.question);
 		if (
 			missing.has('question') &&
 			gen !== undefined &&
 			questionIsSound(gen) &&
 			(fixed === undefined || fixed === gen.type)
 		) {
-			mapStep(id, (s) => ({ ...s, question: questionFrom(s.question, gen) }));
+			next = { ...next, question: questionFrom(next.question, gen) };
 			written.push('question');
 		}
-		const feedback = generated.option_feedback;
-		if (missing.has('feedback') && feedback !== undefined) {
-			let changed = false;
-			mapStep(id, (s) => {
-				if (s.question === undefined) return s;
-				// One reaction per written answer, in order. If the teacher added or
-				// removed an answer meanwhile, the order no longer says which is whose.
-				const answers = optionsOf(s.question).filter((o) => filled(o.text)).length;
-				if (answers !== feedback.length) return s;
+		const feedback = fill.option_feedback;
+		if (missing.has('feedback') && feedback !== undefined && next.question !== undefined) {
+			// One reaction per written answer, in order. If the teacher added or removed an
+			// answer meanwhile, the order no longer says which is whose.
+			const answers = optionsOf(next.question).filter((o) => filled(o.text)).length;
+			if (answers === feedback.length) {
 				let at = -1;
-				const options = optionsOf(s.question).map((o) => {
+				let changed = false;
+				const options = optionsOf(next.question).map((o) => {
 					if (!filled(o.text)) return o;
 					at++;
 					if (filled(o.feedback) || !filled(feedback[at])) return o;
 					changed = true;
 					return { ...o, feedback: text(feedback[at]) };
 				});
-				return changed ? { ...s, question: { ...s.question, options } } : s;
-			});
-			if (changed) written.push('feedback');
+				if (changed) {
+					next = { ...next, question: { ...next.question, options } };
+					written.push('option_feedback');
+				}
+			}
 		}
-		if (missing.has('hint') && generated.hint_md !== undefined) {
-			const hint = generated.hint_md;
-			mapStep(id, (s) => ({ ...s, hint }));
-			written.push('hint');
+		if (missing.has('hint') && fill.hint_md !== undefined) {
+			next = { ...next, hint: fill.hint_md };
+			written.push('hint_md');
 		}
-		if (missing.has('help') && generated.help_md !== undefined) {
-			const help = generated.help_md;
-			mapStep(id, (s) => ({ ...s, help }));
-			written.push('help');
+		if (missing.has('help') && fill.help_md !== undefined) {
+			next = { ...next, help: fill.help_md };
+			written.push('help_md');
 		}
-		if (missing.has('solution') && generated.solution_md !== undefined) {
-			const solution = generated.solution_md;
-			mapStep(id, (s) =>
-				s.question === undefined ? s : { ...s, question: { ...s.question, solution } }
-			);
-			written.push('solution');
+		if (missing.has('solution') && fill.solution_md !== undefined && next.question !== undefined) {
+			next = { ...next, question: { ...next.question, solution: fill.solution_md } };
+			written.push('solution_md');
 		}
 	}
-	if (written.length === 0) return unchanged;
+	return { step: next, written };
+}
 
+/** A step the model made up; `id` and `order` are the caller's. */
+function newStep(
+	item: Exclude<GeneratedStep, { keep: string }>,
+	id: string
+): BlockStep | undefined {
+	if (item.kind === 'text') return { id, type: 'text', content: item.content_md };
+	if (!questionIsSound(item.question)) return undefined;
+	return {
+		id,
+		type: 'question',
+		content: item.content_md,
+		hint: item.hint_md,
+		help: item.help_md,
+		question: { ...questionFrom(undefined, item.question), solution: item.solution_md }
+	};
+}
+
+export interface WrittenCount {
+	/** Steps the AI added or filled. */
+	steps: number;
+	/** Of those, the ones that are questions. */
+	questions: number;
+}
+
+/**
+ * Write what the model returned into the card. Parts filled since the request was made
+ * are skipped, so this can never overwrite the teacher; a `keep` for a step that has
+ * been deleted since is dropped; a new step goes next to the nearest step it was kept
+ * beside (after the one before it, else before the one after it). One command, one undo
+ * step.
+ */
+export function fillCard(
+	doc: CourseV2,
+	blockId: string,
+	answer: GeneratedCard,
+	reserved?: Reservations
+): CommandResult & { written: WrittenCount } {
+	const block = doc.blocks.find((b) => b.block_id === blockId);
+	if (block === undefined) throw new CommandError(`Karta „${blockId}“ v kurzu není.`, { blockId });
+	const nothing = { doc, description: 'Karta se nezměnila', written: { steps: 0, questions: 0 } };
+
+	const current = block.steps;
+	const byId = new Map(current.map((s) => [s.id, s]));
+	const gaps = new Map(missingParts(block).map((g) => [g.stepId, new Set(g.missing)]));
 	const origins: Origins = { ...originsOf(block) };
-	for (const slot of written) origins[SLOT_KEY[slot]] = 'ai';
+	const count: WrittenCount = { steps: 0, questions: 0 };
+
+	const added = answer.steps.filter((s) => !('keep' in s)).length;
+	const ids = nextStepIds(current, added, blockId, reserved);
+
+	const filledSteps = new Map<string, BlockStep>();
+	const before = new Map<string, BlockStep[]>();
+	const after = new Map<string, BlockStep[]>();
+	const tail: BlockStep[] = [];
+	const push = (map: Map<string, BlockStep[]>, key: string, step: BlockStep) =>
+		map.set(key, [...(map.get(key) ?? []), step]);
+	const survivor = (item: GeneratedStep | undefined) =>
+		item !== undefined && 'keep' in item && byId.has(item.keep) ? item.keep : undefined;
+
+	let nextId = 0;
+	answer.steps.forEach((item, i) => {
+		if ('keep' in item) {
+			const step = byId.get(item.keep);
+			if (step === undefined) return;
+			const result = applyFill(step, gaps.get(step.id) ?? new Set(), item.fill ?? {});
+			if (result.written.length === 0) return;
+			filledSteps.set(step.id, result.step);
+			for (const key of result.written) origins[originKey(step.id, key)] = 'ai';
+			count.steps++;
+			if (step.type === 'question') count.questions++;
+			return;
+		}
+		const id = ids[nextId++];
+		const step = newStep(item, id);
+		if (step === undefined) return;
+		for (const key of item.kind === 'text'
+			? ['content_md']
+			: ['content_md', 'question', 'hint_md', 'help_md', 'solution_md'])
+			origins[originKey(id, key)] = 'ai';
+		count.steps++;
+		if (step.type === 'question') count.questions++;
+		let prior: string | undefined;
+		for (let j = i - 1; j >= 0 && prior === undefined; j--) prior = survivor(answer.steps[j]);
+		if (prior !== undefined) return void push(after, prior, step);
+		let following: string | undefined;
+		for (let j = i + 1; j < answer.steps.length && following === undefined; j++)
+			following = survivor(answer.steps[j]);
+		if (following !== undefined) return void push(before, following, step);
+		tail.push(step);
+	});
+	if (count.steps === 0) return nothing;
+
+	let steps = current.flatMap((s) => [
+		...(before.get(s.id) ?? []),
+		filledSteps.get(s.id) ?? s,
+		...(after.get(s.id) ?? [])
+	]);
+	steps = [...steps, ...tail];
+	if (steps.length !== current.length) steps = steps.map((s, i) => ({ ...s, order: i + 1 }));
+
 	const next = { ...block, steps, [ORIGIN_KEY]: origins } as BlockV2;
 	return {
 		doc: { ...doc, blocks: doc.blocks.map((b) => (b === block ? next : b)) },
 		ref: { blockId },
 		description: 'Karta dopsána pomocí AI',
-		origin: 'ai'
+		origin: 'ai',
+		written: count
 	};
+}
+
+const plural = (n: number, one: string, few: string, many: string) =>
+	`${n} ${n === 1 ? one : n >= 2 && n <= 4 ? few : many}`;
+
+/** „Dopsáno: 3 kroky, 2 otázky.“ */
+export function describeWritten({ steps, questions }: WrittenCount): string {
+	const parts = [plural(steps, 'krok', 'kroky', 'kroků')];
+	if (questions > 0) parts.push(plural(questions, 'otázka', 'otázky', 'otázek'));
+	return `Dopsáno: ${parts.join(', ')}.`;
 }
 
 // ───────────────────────────────── who wrote what ─────────────────────────────────
 
-/** What a slot holds, as one comparable string. */
-function slotValue(block: BlockV2, slot: Slot): string {
-	const target = fillTarget(block);
-	if (target === undefined) return '\u0000';
-	if (target.kind === 'display')
-		return slot === 'content' ? JSON.stringify(block.steps.map((s) => s.content ?? null)) : '';
-	const step = target.step;
+/** What one part of a step holds, as one comparable string. */
+function partValue(step: BlockStep, key: string): string {
 	const q = step.question;
-	switch (slot) {
-		case 'content':
-			return exerciseText(block, step);
+	switch (key) {
+		case 'content_md':
+			return text(step.content);
 		case 'question':
 			return JSON.stringify([
 				q?.type,
@@ -549,36 +720,66 @@ function slotValue(block: BlockV2, slot: Slot): string {
 				q?.tolerance,
 				optionsOf(q).map((o) => [o.text, o.is_correct === true])
 			]);
-		case 'feedback':
+		case 'option_feedback':
 			return JSON.stringify(optionsOf(q).map((o) => o.feedback ?? null));
-		case 'hint':
+		case 'hint_md':
 			return text(step.hint);
-		case 'help':
+		case 'help_md':
 			return text(step.help);
 		default:
 			return text(q?.solution);
 	}
 }
 
+/** The blocks that make up the teacher's card this block belongs to (`groups.ts`). */
+function cardBlocks(doc: CourseV2, key: string): BlockV2[] {
+	return doc.blocks.filter((b) => (b.group ?? b.block_id) === key);
+}
+
+function findStep(blocks: readonly BlockV2[], id: string): BlockStep | undefined {
+	for (const block of blocks) {
+		const step = block.steps.find((s) => s.id === id);
+		if (step !== undefined) return step;
+	}
+	return undefined;
+}
+
 /**
- * After an edit that was not the AI's: a slot the AI wrote and the edit changed is the
- * teacher's from now on. Returns `after` itself when nothing changed hands.
+ * After an edit that was not the AI's: a part the AI wrote and the edit changed is the
+ * teacher's from now on, and the mark of a step that is gone is dropped. Returns `after`
+ * itself when nothing changed hands. A card of several blocks keeps its marks on the
+ * first one, so its steps are looked up across all of them.
  */
 export function settleOrigins(before: CourseV2, after: CourseV2): CourseV2 {
 	if (before.blocks === after.blocks) return after;
-	const old = new Map(before.blocks.map((b) => [b.block_id, b]));
 	let changed = false;
 	const blocks = after.blocks.map((block) => {
-		const was = old.get(block.block_id);
-		if (was === undefined || was === block) return block;
 		const origins = originsOf(block);
-		const flipped = SLOTS.filter(
-			(slot) => origins[SLOT_KEY[slot]] === 'ai' && slotValue(was, slot) !== slotValue(block, slot)
-		);
-		if (flipped.length === 0) return block;
-		changed = true;
+		if (Object.keys(origins).length === 0) return block;
+		const key = block.group ?? block.block_id;
+		const now = cardBlocks(after, key);
+		const was = cardBlocks(before, key);
+		if (now.length === was.length && now.every((b, i) => b === was[i])) return block;
 		const next: Origins = { ...origins };
-		for (const slot of flipped) next[SLOT_KEY[slot]] = 'teacher';
+		let moved = false;
+		for (const [mark, who] of Object.entries(origins)) {
+			const dot = mark.indexOf('.');
+			if (who !== 'ai' || dot < 0) continue;
+			const stepId = mark.slice(0, dot);
+			const part = mark.slice(dot + 1);
+			const old = findStep(was, stepId);
+			if (old === undefined) continue;
+			const step = findStep(now, stepId);
+			if (step === undefined) {
+				delete next[mark];
+				moved = true;
+			} else if (partValue(old, part) !== partValue(step, part)) {
+				next[mark] = 'teacher';
+				moved = true;
+			}
+		}
+		if (!moved) return block;
+		changed = true;
 		return { ...block, [ORIGIN_KEY]: next } as BlockV2;
 	});
 	return changed ? { ...after, blocks } : after;
