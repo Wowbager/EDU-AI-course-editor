@@ -19,6 +19,7 @@ import {
 import { CommandError } from '$lib/domain/commands';
 import { insertOutline } from '$lib/domain/outline-insert';
 import { ai, askOutline, TEXT, type Problem } from './ai.svelte';
+import { materials } from './materials.svelte';
 import { WriteQueue, type RunResult, type Row } from './write-queue.svelte';
 import type { DocStore } from './doc-store.svelte';
 
@@ -73,7 +74,8 @@ class AiPanel {
 			store.doc,
 			store.selection,
 			prompt,
-			current === undefined ? undefined : { current, original: this.#original || prompt }
+			current === undefined ? undefined : { current, original: this.#original || prompt },
+			materials.sections
 		);
 		// A finished batch is over once the teacher asks for something else.
 		if (!this.queue.writing && this.queue.rest.length === 0) this.queue.clear();

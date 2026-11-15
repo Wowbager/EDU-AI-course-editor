@@ -27,6 +27,8 @@
 	import { cardTypeIcon, cardTypeLabel } from '$lib/ui/card-types';
 	import { shiftOf, startReorder, type DragState } from '$lib/ui/drag-reorder';
 	import { aiPanel } from '$lib/state/ai-panel.svelte';
+	import { materials } from '$lib/state/materials.svelte';
+	import { sourceLine } from '$lib/domain/materials';
 
 	interface Props {
 		draft: Draft;
@@ -167,6 +169,11 @@
 					>
 				{/if}
 			</div>
+			{#if card.sources !== undefined && sourceLine(materials.sections, card.sources) !== ''}
+				<div class="source" class:off={!card.on}>
+					{sourceLine(materials.sections, card.sources)}
+				</div>
+			{/if}
 		</div>
 		<button
 			type="button"
@@ -371,6 +378,20 @@
 
 	.name.off {
 		color: var(--e-text-faint);
+	}
+
+	/* Where the card comes from: one quiet line under its name, only when it has sources. */
+	.source {
+		padding-left: 19px;
+		overflow: hidden;
+		color: var(--e-text-faint);
+		font: var(--type-caption);
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.source.off {
+		opacity: 0.6;
 	}
 
 	.name-field {

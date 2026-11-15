@@ -9,13 +9,15 @@
 	 * and is not in the course until „Vytvořit vybrané“ — then the left tree is the
 	 * outline, and every later edit happens there.
 	 */
-	import { tick } from 'svelte';
-	import { ArrowUp, Check, Circle, CircleAlert, LoaderCircle } from '@lucide/svelte';
+	import { tick, untrack } from 'svelte';
+	import { ArrowUp, Check, Circle, CircleAlert, LoaderCircle, Paperclip, X } from '@lucide/svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import ProposalTree from './ProposalTree.svelte';
 	import { useStore } from '$lib/ui/context';
 	import { aiPanel } from '$lib/state/ai-panel.svelte';
 	import { ai } from '$lib/state/ai.svelte';
+	import { materials } from '$lib/state/materials.svelte';
+	import { ACCEPT } from '$lib/materials/read';
 	import { anyTicked } from '$lib/domain/outline';
 	import { blockPreview } from '$lib/domain/derive';
 
@@ -23,6 +25,30 @@
 
 	let text = $state('');
 	let field = $state<HTMLTextAreaElement>();
+
+	// The course's materials follow the course, not every edit of it.
+	const courseId = $derived(store.doc.course_id);
+	$effect(() => {
+		const id = courseId;
+		untrack(() => void materials.load(id));
+	});
+
+	let picker = $state<HTMLInputElement>();
+	let dragging = $state(false);
+
+	function attach(list: FileList | File[] | null | undefined) {
+		const files = [...(list ?? [])];
+		if (files.length > 0) void materials.add(courseId, files);
+	}
+
+	const hasFiles = (e: DragEvent) => e.dataTransfer?.types.includes('Files') === true;
+
+	/** What did not read, a line or two, never silent. */
+	function unreadNotes(lines: readonly string[]): string[] {
+		return lines.length <= 2
+			? [...lines]
+			: [lines[0], `…a ještě ${lines.length - 1} dalších se nepodařilo přečíst`];
+	}
 
 	const draft = $derived(aiPanel.draft);
 	const queue = aiPanel.queue;
@@ -69,7 +95,25 @@
 	} as const;
 </script>
 
-<section class="panel" aria-label="AI">
+<!-- Files are dropped anywhere on the panel; the 📎 in the box is the same thing by click. -->
+<section
+	class="panel"
+	aria-label="AI"
+	ondragover={(e) => {
+		if (!ai.available || !hasFiles(e)) return;
+		e.preventDefault();
+		dragging = true;
+	}}
+	ondragleave={(e) => {
+		if (e.currentTarget === e.target) dragging = false;
+	}}
+	ondrop={(e) => {
+		if (!hasFiles(e)) return;
+		e.preventDefault();
+		dragging = false;
+		if (ai.available) attach(e.dataTransfer?.files);
+	}}
+>
 	<div class="body">
 		{#if draft !== null}
 			<div class="scroll" aria-busy={aiPanel.asking}>
@@ -161,13 +205,69 @@
 		{#if aiPanel.problem !== ''}
 			<p class="quiet" role="status">{aiPanel.problem}</p>
 		{/if}
+		{#if materials.files.length > 0 || materials.reading.length > 0}
+			<ul class="chips" aria-label="Podklady">
+				{#each materials.files as file (file.hash)}
+					<li class="chip">
+						<span class="chip-name" title={file.name}>{file.name}</span>
+						<button
+							type="button"
+							class="chip-x"
+							aria-label={`Odebrat podklad: ${file.name}`}
+							title="Odebrat"
+							onclick={() => void materials.remove(courseId, file.hash)}
+						>
+							<X size={12} aria-hidden="true" />
+						</button>
+					</li>
+					{#each unreadNotes(file.unread) as note (note)}
+						<li class="chip-note">{note}</li>
+					{/each}
+				{/each}
+				{#each materials.reading as item (item.id)}
+					<li class="chip reading">
+						<span class="chip-name" title={item.name}>{item.name}</span>
+						<span class="chip-state">
+							<LoaderCircle size={12} class="spin" aria-hidden="true" /> Čtu…
+						</span>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+		{#if materials.message !== ''}
+			<p class="quiet" role="status">{materials.message}</p>
+		{/if}
 		<form
 			class="box"
+			class:dragging
 			onsubmit={(e) => {
 				e.preventDefault();
 				void send();
 			}}
 		>
+			<button
+				type="button"
+				class="clip"
+				aria-label="Přiložit podklady"
+				title="Přiložit podklady (Word, PowerPoint, PDF, obrázek)"
+				disabled={!ai.available}
+				onclick={() => picker?.click()}
+			>
+				<Paperclip size={16} aria-hidden="true" />
+			</button>
+			<input
+				bind:this={picker}
+				type="file"
+				class="picker"
+				multiple
+				accept={ACCEPT}
+				tabindex="-1"
+				aria-hidden="true"
+				onchange={(e) => {
+					attach(e.currentTarget.files);
+					e.currentTarget.value = '';
+				}}
+			/>
 			<textarea
 				bind:this={field}
 				bind:value={text}
@@ -413,6 +513,116 @@
 		background: var(--surface);
 	}
 
+	.box.dragging {
+		border-color: var(--primary);
+		border-style: dashed;
+	}
+
+	.picker {
+		display: none;
+	}
+
+	.clip {
+		display: inline-flex;
+		flex: none;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		margin-left: -4px;
+		border: none;
+		border-radius: var(--radius-pill);
+		background: none;
+		color: var(--e-text-faint);
+		cursor: pointer;
+	}
+
+	.clip:hover:not(:disabled) {
+		color: var(--e-text);
+		background: var(--primary-dark-06);
+	}
+
+	.clip:disabled {
+		cursor: default;
+		opacity: 0.5;
+	}
+
+	/* Attached files: small and quiet, the way a proposal's names are. */
+	.chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px;
+		max-height: 84px;
+		margin: 0;
+		padding: 0;
+		overflow-y: auto;
+		list-style: none;
+	}
+
+	.chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		max-width: 100%;
+		padding: 2px 4px 2px 8px;
+		border: 1px solid var(--e-border);
+		border-radius: var(--radius-pill);
+		color: var(--e-text-muted);
+		font: var(--type-caption);
+	}
+
+	.chip-name {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.chip-state {
+		display: inline-flex;
+		flex: none;
+		align-items: center;
+		gap: 4px;
+		padding-right: 4px;
+		color: var(--e-text-faint);
+	}
+
+	.chip.reading :global(.spin) {
+		animation: ai-spin 1.2s linear infinite;
+	}
+
+	.chip-x {
+		display: inline-flex;
+		flex: none;
+		align-items: center;
+		justify-content: center;
+		width: 16px;
+		height: 16px;
+		padding: 0;
+		border: none;
+		border-radius: var(--radius-pill);
+		background: none;
+		color: var(--e-text-faint);
+		opacity: 0;
+		cursor: pointer;
+	}
+
+	.chip:hover .chip-x,
+	.chip-x:focus-visible {
+		opacity: 1;
+	}
+
+	.chip-x:hover {
+		color: var(--e-text);
+		background: var(--primary-dark-06);
+	}
+
+	.chip-note {
+		flex-basis: 100%;
+		padding: 0 4px;
+		color: var(--e-text-faint);
+		font: var(--type-caption);
+	}
+
 	.box:focus-within {
 		border-color: var(--primary);
 	}
@@ -455,6 +665,7 @@
 	@media (prefers-reduced-motion: reduce) {
 		.queue-row :global(.spin),
 		.quiet :global(.spin),
+		.chip.reading :global(.spin),
 		.empty :global(.spin) {
 			animation: none;
 		}
