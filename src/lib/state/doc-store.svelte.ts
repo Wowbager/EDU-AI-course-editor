@@ -34,6 +34,7 @@ import {
 } from '$lib/domain/groups';
 import type { SkillConfig } from '$lib/domain/skill-config';
 import type { CommandResult } from '$lib/domain/commands';
+import { settleOrigins } from '$lib/domain/authoring';
 import type { Mode } from '$lib/ui/fields';
 import { fieldOf, isFeedbackRef } from '$lib/ui/fields';
 import { appReadsField } from '$lib/domain/course-feedback';
@@ -365,7 +366,8 @@ export class DocStore {
 	#record(result: CommandResult, next: CourseV2): CommandResult {
 		const before = this.source;
 		if (next === before) return result;
-		this.source = next;
+		// A slot the AI wrote and this edit changed is the teacher's from now on.
+		this.source = result.origin === 'ai' ? next : settleOrigins(before, next);
 		this.#pruneDismissal();
 		this.#reserve(next);
 		const last = this.#undo.at(-1);

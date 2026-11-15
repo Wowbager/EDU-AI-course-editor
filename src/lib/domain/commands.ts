@@ -50,6 +50,8 @@ export interface CommandResult {
 	ref?: Ref;
 	/** Shown in the undo log, in Czech. */
 	description: string;
+	/** Set by the command that writes the AI's text (`authoring.ts`), and by no other. */
+	origin?: 'ai';
 }
 
 export class CommandError extends Error {
