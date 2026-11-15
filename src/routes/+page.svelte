@@ -18,6 +18,7 @@
 	import { readLayout, writeLayout } from '$lib/state/layout-prefs';
 	import { DocStore } from '$lib/state/doc-store.svelte';
 	import { ai } from '$lib/state/ai.svelte';
+	import { aiPanel } from '$lib/state/ai-panel.svelte';
 	import { setStepView, setStore, setVersions } from '$lib/ui/context';
 	import { StepView } from '$lib/state/step-view.svelte';
 	import { VersionStore } from '$lib/state/versions/version-store.svelte';
@@ -105,16 +106,20 @@
 	 * defaults of a page that has not looked yet never overwrite what was saved.
 	 */
 	let previewCollapsed = $state<boolean | null>(null);
+	/** The right column shows the AI tab (remembered with the rest of the layout). */
+	let aiTab = $state(false);
 	/** Set two frames after mount, so restoring a folded panel does not animate. */
 	let settled = $state(false);
 
 	$effect(() => {
 		const preview = previewCollapsed;
 		const sidebar = sidebarCollapsed;
+		const tab = aiTab;
 		if (preview === null) return;
 		writeLayout(localStorage, {
 			sidebarCollapsed: sidebar,
-			previewCollapsed: preview
+			previewCollapsed: preview,
+			aiTab: tab
 		});
 	});
 
@@ -313,6 +318,14 @@
 		};
 	});
 
+	// The cards the AI queue has yet to write show no complaints (`issue-visibility.ts`), and
+	// the one the teacher opens is written next.
+	store.awaiting = () => aiPanel.queue.pending;
+	$effect(() => {
+		const opened = store.selection?.blockId;
+		if (opened !== undefined) untrack(() => aiPanel.queue.prioritise(opened));
+	});
+
 	onMount(() => {
 		void ai.detect();
 		const session = new DraftSession(store);
@@ -346,6 +359,7 @@
 		const layout = readLayout(localStorage);
 		sidebarCollapsed = layout.sidebarCollapsed;
 		previewCollapsed = layout.previewCollapsed;
+		aiTab = layout.aiTab;
 		const flush = () => session.flush();
 		const hidden = () => {
 			if (document.visibilityState === 'hidden') flush();
@@ -595,9 +609,9 @@
 				</div>
 			{/if}
 
-			{#if inherited && !showValidation && !store.reviewing && store.listed.errors.length > 0}
+			{#if inherited && !showValidation && !store.reviewing && store.counted.errors.length > 0}
 				<div class="banner unfinished" role="status">
-					V kurzu je ještě {counted(store.listed.errors.length, 'věc', 'věci', 'věcí')} k dokončení.
+					V kurzu je ještě {counted(store.counted.errors.length, 'věc', 'věci', 'věcí')} k dokončení.
 					<button
 						type="button"
 						class="show"
@@ -702,6 +716,8 @@
 			lessonId={lesson?.lesson_id}
 			collapsed={previewCollapsed}
 			ontoggle={flipPreview}
+			{aiTab}
+			onaiTab={(on) => (aiTab = on)}
 		/>
 
 		<!-- Over the editor column, bottom left: where the eye is after clicking a card. -->

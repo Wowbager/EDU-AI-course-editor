@@ -15,6 +15,12 @@
  *  - `review`    didactic advice. Never shown while editing; it is listed in the
  *                export review, and inline only once a review has happened.
  *
+ * A card that is waiting for AI to write it (`awaiting`, the AI queue's own set) is not
+ * unfinished in the sense above: nobody skipped it. Its `onLeave` issues count as `review`
+ * for as long as it is waiting, so it shows no red field and no dot in the tree; the
+ * export review still lists them, and once the card is written (or the queue gives up
+ * on it) the usual timing applies.
+ *
  * Once the author has looked at the export review, what that review listed is shown
  * (`reviewed`, the keys of those issues): they are now fixing, not writing. An issue
  * that comes up afterwards, on a card they have just added, keeps its own timing.
@@ -32,6 +38,8 @@ import type { Ref } from '$lib/domain/ref';
 import type { CourseV2 } from '$lib/domain/schema';
 import { validate, type Issue } from '$lib/domain/validate';
 import { isFeedbackRef } from '$lib/ui/fields';
+
+const NONE: ReadonlySet<string> = new Set();
 
 export type Timing = 'immediate' | 'onLeave' | 'review';
 
@@ -151,10 +159,14 @@ export const issueKey = (issue: Pick<Issue, 'code' | 'ref'>): string =>
 export function isVisible(
 	issue: Issue,
 	touched: Touched,
-	reviewed: ReadonlySet<string> | null
+	reviewed: ReadonlySet<string> | null,
+	awaiting: ReadonlySet<string> = NONE
 ): boolean {
 	if (reviewed?.has(issueKey(issue))) return true;
-	switch (timingOf(issue)) {
+	const timing = timingOf(issue);
+	if (timing === 'onLeave' && issue.ref.blockId !== undefined && awaiting.has(issue.ref.blockId))
+		return false;
+	switch (timing) {
 		case 'immediate':
 			return true;
 		case 'review':

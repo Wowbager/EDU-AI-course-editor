@@ -285,3 +285,25 @@ describe('what a change just made unreachable', () => {
 		expect(madeUnreachable(before, after).map((i) => i.code)).toContain('W_ORPHAN_BLOCK');
 	});
 });
+
+describe('a card waiting for AI', () => {
+	const stub = issue('E_DISPLAY_NO_TEXT', { blockId: 'B1' });
+	const left: Touched = { cards: new Set(['B1']), fields: new Set() };
+
+	it('shows no unfinished-content issue even after the card was left', () => {
+		expect(isVisible(stub, left, null)).toBe(true);
+		expect(isVisible(stub, left, null, new Set(['B1']))).toBe(false);
+		expect(isVisible(stub, nothing, null, new Set(['B1']))).toBe(false);
+	});
+
+	it('is about that card only, and about onLeave only', () => {
+		expect(isVisible(stub, left, null, new Set(['B2']))).toBe(true);
+		const real = issue('E_GOTO_UNRESOLVED', { blockId: 'B1', stepId: 's1' });
+		expect(isVisible(real, nothing, null, new Set(['B1']))).toBe(true);
+	});
+
+	it('is still listed by the export review, and shown again when the card leaves the queue', () => {
+		expect(isVisible(stub, nothing, new Set([issueKey(stub)]), new Set(['B1']))).toBe(true);
+		expect(isVisible(stub, left, null, new Set())).toBe(true);
+	});
+});

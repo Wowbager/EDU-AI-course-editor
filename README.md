@@ -198,13 +198,36 @@ key never reaches the browser.
 |---|---|
 | `AI_API_KEY` | The provider's key. Without it there is no AI in the editor. |
 | `AI_PROVIDER` | `openrouter` (default), `deepseek`, or `fake` (no key, no network, canned answers; the e2e suite uses it). |
-| `AI_MODEL`, `AI_BASE_URL`, `AI_REASONING_EFFORT` | Optional overrides of the provider's defaults (`src/lib/server/ai/config.ts`). |
-| `AI_DAILY_TOKEN_BUDGET`, `AI_MAX_REQUESTS_PER_MINUTE` | Limits per workspace, kept in memory. The budget (default 20 000 000 a day) counts the prompt tokens the provider served from its cache at a tenth, because the course text is sent with every card and is cached after the first one. |
+| `AI_MODEL`, `AI_BASE_URL`, `AI_REASONING_EFFORT` | Optional overrides of the provider's defaults (`src/lib/server/ai/config.ts`). The default model is `deepseek/deepseek-v4.1-flash:nitro` (OpenRouter's fastest host for it) with reasoning `low`; requests carry `provider.max_price` of $0.5 / $2 per million tokens (prompt / completion) and ask for hosts that do not keep or train on the text. |
+| `AI_DAILY_TOKEN_BUDGET`, `AI_MAX_REQUESTS_PER_MINUTE` | Limits per workspace, kept in memory (default 40 requests a minute). The budget (default 20 000 000 a day) counts the prompt tokens the provider served from its cache at a tenth, because the course text is sent with every card and is cached after the first one. |
 
 ```bash
 AI_API_KEY=… npm run dev
 docker run -p 8080:8080 -e AI_API_KEY=… -v edu-editor-data:/data edu-editor
 ```
+
+#### The AI tab
+
+The right column has an **AI** button beside the Náhled | Vyzkoušet switch (and in the
+folded strip). The teacher writes what to create; the model answers with a proposal,
+either a course structure (lessons with cards) or cards for the selected lesson, as
+names and card types only, and the proposal stays in the panel (ticks, renaming,
+reordering, „Co změnit?“) until „Vytvořit vybrané“ puts the ticked part into the course
+as empty named cards. The browser then writes those cards with the same request as
+„Dopsat kartu“, four at a time, in course order, with „Zastavit“ and „Dopsat zbytek“; a
+card the teacher opens is written next, and shows no errors while it waits. The
+proposal is `POST /ai/outline` (`src/lib/server/ai/outline.ts`, shape in
+`src/lib/domain/outline.ts`) and **streams**: the route sends one JSON object per line
+(`application/x-ndjson`) as the model writes each lesson, so a reverse proxy in front of the
+editor must not buffer `/ai/` (`nginx.conf` sets `proxy_buffering off`; the route also sends
+`X-Accel-Buffering: no`). A structure's request is saved on the course (`authoring_request`,
+a key the app ignores) and told to every card. The panel uses the same provider, key and
+limits as the card writer. The player keeps running under the panel.
+
+What the model may write where (Markdown and `$…$` only in fields the app draws as
+Markdown; plain text for an open question's correct answer and for names) is derived from
+`src/lib/ui/fields.ts` by `src/lib/ui/ai-format.ts`, and plain-text fields are checked on
+the server.
 
 The text of the course (the dossier of the card being written) and the course's audience
 are sent to the provider. With OpenRouter the request asks for hosts that do not keep or train on

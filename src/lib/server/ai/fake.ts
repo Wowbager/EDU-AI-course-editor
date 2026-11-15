@@ -12,7 +12,8 @@ import type {
 	GeneratedCard,
 	GeneratedStep
 } from '$lib/domain/authoring';
-import type { Complete } from './provider';
+import type { Complete, Stream } from './provider';
+import type { Outline, OutlineRequest } from '$lib/domain/outline';
 
 function question(type: GenQuestionType): GenQuestion {
 	switch (type) {
@@ -76,9 +77,80 @@ export function fakeCard(request: GenRequest): GeneratedCard {
 	return { steps };
 }
 
-/** The last user message that is JSON is the request (`generate.ts`). */
+/**
+ * A proposal from the request alone. A prompt that mentions „karty“ gets cards, any other
+ * a course of two lessons; a change keeps the proposal and appends one card that carries
+ * the instruction, so a suite can tell that the proposal was replaced.
+ */
+export function fakeOutline(request: OutlineRequest): Outline {
+	const card = (kind: 'display' | 'question' | 'exercise', name: string) => ({
+		kind,
+		name
+	});
+	if (request.current !== undefined) {
+		const change = card('display', `Změna: ${request.prompt}`);
+		const current = request.current;
+		return current.scope === 'cards'
+			? { scope: 'cards', cards: [...current.cards, change] }
+			: {
+					scope: 'lessons',
+					lessons: current.lessons.map((l, i, all) =>
+						i === all.length - 1 ? { ...l, cards: [...l.cards, change] } : l
+					)
+				};
+	}
+	if (/karty/i.test(request.prompt) && request.target.lessons > 0)
+		return {
+			scope: 'cards',
+			cards: [
+				card('exercise', 'Příklady k procvičení'),
+				card('question', 'Kvíz na závěr'),
+				card('display', 'Shrnutí')
+			]
+		};
+	return {
+		scope: 'lessons',
+		lessons: [
+			{
+				name: 'První lekce',
+				cards: [
+					card('display', 'Co to je'),
+					card('exercise', 'Procvičení'),
+					card('question', 'Ověření')
+				]
+			},
+			{
+				name: 'Druhá lekce',
+				cards: [card('display', 'Jak se to používá'), card('exercise', 'Úlohy')]
+			}
+		]
+	};
+}
+
+/** The last user message that is JSON is the request (`generate.ts`, `outline.ts`). */
 export const fakeComplete: Complete = async (messages) => {
 	const last = messages.findLast((m) => m.role === 'user' && m.content.startsWith('{'));
-	const request = JSON.parse(last?.content ?? '{}') as GenRequest;
-	return { text: JSON.stringify(fakeCard(request)), tokens: 0 };
+	const request = JSON.parse(last?.content ?? '{}') as GenRequest | OutlineRequest;
+	if ('schema' in request && request.schema === 'eduai.outline-request/1')
+		return { text: JSON.stringify(fakeOutline(request)), tokens: 0 };
+	return { text: JSON.stringify(fakeCard(request as GenRequest)), tokens: 0 };
+};
+
+const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** Between two lessons of a streamed proposal, so a browser suite can see it growing. */
+export const FAKE_LESSON_DELAY_MS = 400;
+
+/** The proposal as the stream carries it: the scope line, then a lesson or card per line. */
+export const fakeStream: Stream = async (messages, onText) => {
+	const last = messages.findLast((m) => m.role === 'user' && m.content.startsWith('{'));
+	const request = JSON.parse(last?.content ?? '{}') as OutlineRequest;
+	const outline = fakeOutline(request);
+	onText(`${JSON.stringify({ scope: outline.scope })}\n`);
+	const items = outline.scope === 'cards' ? outline.cards : outline.lessons;
+	for (const [i, item] of items.entries()) {
+		if (i > 0) await pause(FAKE_LESSON_DELAY_MS);
+		onText(`${JSON.stringify(item)}\n`);
+	}
+	return { tokens: 0 };
 };

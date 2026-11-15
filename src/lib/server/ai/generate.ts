@@ -22,11 +22,12 @@ import {
 } from '$lib/domain/authoring';
 import type { Complete, Message } from './provider';
 import { MARKER_CLOSE, MARKER_OPEN } from '$lib/domain/dossier';
+import { formatRules } from '$lib/ui/ai-format';
 
 export type GenResponse = { status: 'ok'; card: GeneratedCard } | { status: 'failed' };
 
 /** Bump when the rules below change what a card should say; later it keys the cache. */
-export const SPEC_VERSION = '2';
+export const SPEC_VERSION = '3';
 
 export const SYSTEM_PROMPT = `You write one learning card ("karta") for a mobile learning app. A card is a short sequence of steps; each step is one screen on a phone: either a text step (explanation, example, summary) or a question step (a short task text plus one question the pupil answers).
 
@@ -56,8 +57,8 @@ A question is one of
   {"type":"number","answer":<number>,"tolerance":<number, 0 when exact>}
   {"type":"mcq_1","options":[{"text":"…","correct":true|false,"feedback":"…"}]}  exactly one correct, 3–4 options
   {"type":"mcq_n","options":[…]}  at least two correct and at least one wrong, 4–6 options; the task must say that several answers are right
-  {"type":"open","answer":"model answer; for 'explain in your own words' list the points that must not be missing"}
-When a step has "question_type", use exactly that type. Otherwise choose the type that suits the task, and vary the types over the card where it makes sense. "option_feedback" is an array with one reaction for each option in that step's given question options, in the same order.
+  {"type":"open","answer":"plain text: every accepted answer on its own line, such as 21/30 and then 7/10; for 'explain in your own words' the key points, one per line, without bullet marks"}
+Use "number" only when the pupil types a whole or decimal number. A fraction answer is a choice question (mcq_1) or an open question answered as typed text such as 3/4. When a step has "question_type", use exactly that type. Otherwise choose the type that suits the task, and vary the types over the card where it makes sense. "option_feedback" is an array with one reaction for each option in that step's given question options, in the same order.
 
 Rules for what you write:
 - Language: course.language. Address, sentence length and emoji follow audience.register; when it is empty and the language is Czech, use informal "ty", short sentences and emoji sparingly. Vocabulary fits audience.grade. Do not explain again what audience.prior_knowledge says the pupil already knows.
@@ -71,7 +72,10 @@ Rules for what you write:
 - Hint, help and solution do three different jobs. They are not three versions of the same text.
 - A wrong option is a mistake pupils really make, or a neighbouring concept; never nonsense, and never also correct.
 - Feedback on a wrong option explains why it does not hold; "Špatně." is not enough. For a correct option short praise is enough.
-- Maths always goes between dollar signs, for example $\\frac{1}{2}$, and that includes a lone variable or number in a sentence: write $x$, never x. Text is Markdown: bold, italics, lists; an empty line starts a new paragraph.
+- Maths goes between dollar signs wherever the field below allows it, for example $\\frac{1}{2}$, and that includes a lone variable or number in a sentence: write $x$, never x. Where a field is plain text, write maths as typed text.
+- Text is Markdown only where the app draws it as Markdown. Field by field:
+${formatRules({ names: false })}
+- Keep the short parts short: a hint is one sentence; help is at most two sentences; a solution is at most three; the feedback on a wrong option is one sentence, on the correct one a few words of praise.
 - Do not invent facts beyond common school knowledge of the topic, and never mention files, images or links.`;
 
 const ATTEMPTS = 3;

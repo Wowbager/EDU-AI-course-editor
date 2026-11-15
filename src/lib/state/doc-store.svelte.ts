@@ -288,8 +288,19 @@ export class DocStore {
 		this.touchedFields = new Set([...this.touchedFields, key]);
 	}
 
+	/**
+	 * The cards waiting for AI to write them: read, never kept here. The page points it at
+	 * the AI queue's own set, so there is one source for "waiting".
+	 */
+	awaiting: () => ReadonlySet<string> = () => new Set();
+
 	#shown = (issue: Issue) =>
-		isVisible(issue, { cards: this.touchedCards, fields: this.touchedFields }, this.#reviewed);
+		isVisible(
+			issue,
+			{ cards: this.touchedCards, fields: this.touchedFields },
+			this.#reviewed,
+			this.awaiting()
+		);
 
 	/**
 	 * The issues the editor lists while the author is writing: every error, and the
@@ -300,6 +311,21 @@ export class DocStore {
 	listed = $derived({
 		errors: this.validation.errors,
 		warnings: this.validation.warnings.filter((issue) => !heldBack(issue, this.#showFeedback))
+	});
+
+	/**
+	 * What the top bar and the „k dokončení“ banner count: `listed` without the cards that
+	 * are waiting for AI (`awaiting`), which nobody has left unfinished. The validation
+	 * panel and the export review still list everything.
+	 */
+	counted = $derived.by(() => {
+		const waiting = this.awaiting();
+		const own = (issue: Issue) =>
+			issue.ref.blockId === undefined || !waiting.has(issue.ref.blockId);
+		return {
+			errors: this.listed.errors.filter(own),
+			warnings: this.listed.warnings.filter(own)
+		};
 	});
 
 	/**
