@@ -314,6 +314,21 @@ export class DocStore {
 	});
 
 	/**
+	 * What the top bar and the „k dokončení“ banner count: `listed` without the cards that
+	 * are waiting for AI (`awaiting`), which nobody has left unfinished. The validation
+	 * panel and the export review still list everything.
+	 */
+	counted = $derived.by(() => {
+		const waiting = this.awaiting();
+		const own = (issue: Issue) =>
+			issue.ref.blockId === undefined || !waiting.has(issue.ref.blockId);
+		return {
+			errors: this.listed.errors.filter(own),
+			warnings: this.listed.warnings.filter(own)
+		};
+	});
+
+	/**
 	 * The issues that may be on screen right now. Inline markers read this: what is
 	 * listed, and then only once its timing allows (`ui/issue-visibility.ts`).
 	 */

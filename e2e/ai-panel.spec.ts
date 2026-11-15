@@ -123,6 +123,9 @@ test('a card still waiting for AI shows no errors, however often it is opened', 
 	await page.locator('.tree-card').first().click();
 	await waiting.click();
 	await expect(page.locator('.step.invalid')).toHaveCount(0);
+	// Nor does it offer its own write: the queue is writing it.
+	await expect(page.getByRole('button', { name: 'Dopsat kartu' })).toHaveCount(0);
+	await expect(page.getByRole('textbox', { name: 'O čem karta je' })).toHaveCount(0);
 	// (The empty first card the teacher left is theirs, and does show its own.)
 	await expect(waiting.locator('.chip.error')).toHaveCount(0);
 	await expect(panel(page).locator('.queue-row.done')).toHaveCount(0);
@@ -145,10 +148,13 @@ test('a proposal is shaped, created as cards that are then written, and undone',
 }) => {
 	await ask(page, 'Kurz o zlomcích pro 5. třídu');
 
-	// A course structure: lessons fold, only the first is open.
+	// A course structure: a short one shows every lesson open, and they fold by hand.
 	await expect(page.getByRole('checkbox', { name: 'Vytvořit lekci: První lekce' })).toBeChecked();
 	await expect(page.getByRole('checkbox', { name: 'Vytvořit: Co to je' })).toBeVisible();
+	await expect(page.getByRole('checkbox', { name: 'Vytvořit: Jak se to používá' })).toBeVisible();
+	await page.getByRole('button', { name: /Sbalit lekci: Druhá lekce/ }).click();
 	await expect(page.getByRole('checkbox', { name: 'Vytvořit: Jak se to používá' })).toHaveCount(0);
+	await page.getByRole('button', { name: /Rozbalit lekci: Druhá lekce/ }).click();
 	// The box is now for changes.
 	await expect(box(page)).toHaveAttribute('placeholder', 'Co změnit?');
 	// Nothing is in the course yet.
@@ -213,7 +219,6 @@ test('„Co změnit?“ replaces the proposal and keeps what the teacher unticke
 	await ask(page, 'přidej kvíz na konec');
 	// The model changed the proposal: a new card.
 	await expect(page.getByRole('button', { name: 'Změna: přidej kvíz na konec' })).toHaveCount(0);
-	await page.getByRole('button', { name: /Rozbalit lekci: Druhá lekce/ }).click();
 	await expect(
 		page.getByRole('checkbox', { name: 'Vytvořit: Změna: přidej kvíz na konec' })
 	).toBeChecked();

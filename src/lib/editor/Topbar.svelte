@@ -152,10 +152,10 @@
 
 	/** The chip shows a bare number; the accessible name has to say what it counts. */
 	const checkLabel = $derived(
-		(store.listed.errors.length > 0
-			? `Kontrola kurzu: ${errorsCount(store.listed.errors.length)}`
-			: store.listed.warnings.length > 0
-				? `Kontrola kurzu: ${warningsCount(store.listed.warnings.length)}`
+		(store.counted.errors.length > 0
+			? `Kontrola kurzu: ${errorsCount(store.counted.errors.length)}`
+			: store.counted.warnings.length > 0
+				? `Kontrola kurzu: ${warningsCount(store.counted.warnings.length)}`
 				: 'Kontrola kurzu: v pořádku') + ' (Ctrl+E)'
 	);
 
@@ -233,14 +233,14 @@
             emergency. It turns red once the author has asked to export and seen
             what is left, which is when the count starts to mean "still to fix".
         -->
-		{#if store.listed.errors.length > 0 && !store.reviewing}
-			<Chip tone="quiet">{store.listed.errors.length} k dokončení</Chip>
-		{:else if store.listed.errors.length > 0}
-			<Chip tone="error">{store.listed.errors.length}</Chip>
-		{:else if store.listed.warnings.length > 0 && !store.reviewing}
-			<Chip tone="quiet">{store.listed.warnings.length} doporučení</Chip>
-		{:else if store.listed.warnings.length > 0}
-			<Chip tone="warning">{store.listed.warnings.length}</Chip>
+		{#if store.counted.errors.length > 0 && !store.reviewing}
+			<Chip tone="quiet">{store.counted.errors.length} k dokončení</Chip>
+		{:else if store.counted.errors.length > 0}
+			<Chip tone="error">{store.counted.errors.length}</Chip>
+		{:else if store.counted.warnings.length > 0 && !store.reviewing}
+			<Chip tone="quiet">{store.counted.warnings.length} doporučení</Chip>
+		{:else if store.counted.warnings.length > 0}
+			<Chip tone="warning">{store.counted.warnings.length}</Chip>
 		{:else}
 			<Chip tone="ok"><CircleCheck size={16}></CircleCheck> 0</Chip>
 		{/if}

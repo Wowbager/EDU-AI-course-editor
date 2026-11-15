@@ -11,6 +11,7 @@
 	import { tick } from 'svelte';
 	import { ChevronRight, GripVertical, X } from '@lucide/svelte';
 	import {
+		lessonStartsOpen,
 		lessonTick,
 		moveCard,
 		moveLesson,
@@ -33,9 +34,9 @@
 
 	const edit = (next: Draft) => (aiPanel.draft = next);
 
-	/** Lessons the teacher folded or opened by hand; the first one is open until then. */
+	/** Lessons the teacher folded or opened by hand; the first one is open until then, or all of them when the proposal is short. */
 	let opened = $state<Record<string, boolean>>({});
-	const isOpen = (key: string, index: number) => opened[key] ?? index === 0;
+	const isOpen = (key: string, index: number) => opened[key] ?? lessonStartsOpen(draft, index);
 
 	/** The name being edited: a lesson's or a card's key, and what is typed so far. */
 	let editing = $state<{ key: string; value: string } | null>(null);

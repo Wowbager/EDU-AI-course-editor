@@ -474,3 +474,10 @@ export function buildOutlineRequest(
 		context: buildDossier(doc, anchor ?? '', lesson?.lesson_id)
 	};
 }
+
+/** A proposal this small shows all its lessons open; a long one only the first. */
+export const OPEN_ALL_UP_TO = 20;
+export function lessonStartsOpen(draft: Draft, index: number): boolean {
+	const cards = draft.lessons.reduce((sum, l) => sum + l.cards.length, 0);
+	return cards <= OPEN_ALL_UP_TO || index === 0;
+}

@@ -323,3 +323,34 @@ describe('a card waiting in the queue, in the editor', () => {
 		aiPanel.queue.clear();
 	});
 });
+
+describe('what is counted for a card waiting in the queue', () => {
+	it('leaves it out of the top bar and banner count, and keeps it in what the review lists', async () => {
+		const { store, lessonId, blockId } = setup();
+		server();
+		store.awaiting = () => aiPanel.queue.pending;
+		store.selection = { lessonId, blockId };
+		const listedBefore = store.listed.errors.length;
+		await aiPanel.send(store, 'Dej mi karty');
+		let open!: () => void;
+		const gate = new Promise<void>((r) => (open = r));
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => {
+				await gate;
+				return new Response('x', { status: 502 });
+			})
+		);
+		aiPanel.create(store);
+		const waiting = new Set(aiPanel.queue.pending);
+		expect(waiting.size).toBe(3);
+		// The review sees the three new cards; the count does not.
+		expect(store.listed.errors.length).toBeGreaterThan(listedBefore);
+		expect(store.counted.errors.length).toBe(listedBefore);
+		open();
+		while (aiPanel.queue.pending.size > 0) await new Promise((r) => setTimeout(r, 2));
+		// Failed: the usual counting applies.
+		expect(store.counted.errors.length).toBe(store.listed.errors.length);
+		aiPanel.queue.clear();
+	});
+});

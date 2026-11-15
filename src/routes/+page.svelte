@@ -609,9 +609,9 @@
 				</div>
 			{/if}
 
-			{#if inherited && !showValidation && !store.reviewing && store.listed.errors.length > 0}
+			{#if inherited && !showValidation && !store.reviewing && store.counted.errors.length > 0}
 				<div class="banner unfinished" role="status">
-					V kurzu je ještě {counted(store.listed.errors.length, 'věc', 'věci', 'věcí')} k dokončení.
+					V kurzu je ještě {counted(store.counted.errors.length, 'věc', 'věci', 'věcí')} k dokončení.
 					<button
 						type="button"
 						class="show"

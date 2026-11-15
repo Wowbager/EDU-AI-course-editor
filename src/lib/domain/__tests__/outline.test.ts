@@ -9,6 +9,7 @@ import {
 	cardCount,
 	draftOf,
 	keyMaker,
+	lessonStartsOpen,
 	lessonTick,
 	moveCard,
 	moveLesson,
@@ -291,5 +292,25 @@ describe('the stream of lines', () => {
 			next
 		);
 		expect(draft.lessons.at(-1)!.name).toBe('Z');
+	});
+
+	it('opens every lesson of a short proposal and only the first of a long one', () => {
+		const next = keyMaker();
+		const small = draftOf(lessons, next);
+		expect([0, 1].map((i) => lessonStartsOpen(small, i))).toEqual([true, true]);
+		const many = (n: number) =>
+			draftOf(
+				{
+					scope: 'lessons',
+					lessons: Array.from({ length: n }, (_, i) => ({
+						name: `L${i}`,
+						cards: [card('x'), card('y')]
+					}))
+				} as Outline,
+				next
+			);
+		// 10 lessons of 2 cards is 20: still short; 11 is 22.
+		expect(lessonStartsOpen(many(10), 9)).toBe(true);
+		expect([0, 1, 10].map((i) => lessonStartsOpen(many(11), i))).toEqual([true, false, false]);
 	});
 });

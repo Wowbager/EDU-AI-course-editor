@@ -558,6 +558,7 @@
 					variant="ghost"
 					size="s"
 					ariaLabel="AI"
+					class="ai-button"
 					title="Napiš, co chceš vytvořit. AI navrhne lekce nebo karty, ty je upravíš a ona je dopíše. Náhled běží dál a po návratu je hned tam."
 					pressed={aiShown}
 					onclick={() => {
@@ -569,7 +570,7 @@
 						onaiTab?.(true);
 					}}
 				>
-					<AiIcon size={16} />
+					<AiIcon size={18} />
 				</Button>
 			{/if}
 
@@ -815,6 +816,11 @@
 		gap: 8px;
 		padding: 12px;
 		border-bottom: 1px solid var(--e-border);
+	}
+
+	/* The mark is the button: in the text colour, not the muted grey of the others. */
+	:global(.btn.ai-button) {
+		color: var(--e-text);
 	}
 
 	.spacer {

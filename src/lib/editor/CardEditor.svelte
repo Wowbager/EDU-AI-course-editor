@@ -323,7 +323,10 @@
 	 * written a part, finishing the rest is a choice in the ⋯ menu, and a finished card
 	 * shows nothing of this.
 	 */
-	const fillState = $derived(ai.available ? completeness(block) : 'ready');
+	// A card in the AI panel's queue is being written for the teacher: offering the same
+	// write on the card would start a second one.
+	const queued = $derived(store.awaiting().has(block.block_id));
+	const fillState = $derived(ai.available && !queued ? completeness(block) : 'ready');
 	const writing = $derived(ai.writing.has(block.block_id));
 	const brief = $derived((block as Record<string, unknown>)[BRIEF_KEY] as string | undefined);
 	const write = () => void ai.write(store, block.block_id, lessonId);

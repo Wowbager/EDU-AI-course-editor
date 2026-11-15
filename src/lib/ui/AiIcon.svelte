@@ -21,6 +21,6 @@
 </script>
 
 <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-	<path d={star(8, 16, 8)} />
-	<path d={star(18.5, 5.5, 3.6, 0.16)} />
+	<path d={star(9, 15, 9)} />
+	<path d={star(19, 5, 4.2, 0.2)} />
 </svg>
