@@ -183,6 +183,30 @@ iframe that has to talk to the page around it. The player is cloned at the pinne
 `PLAYER_REF`, so the build context is this directory alone (see "Building the image"
 above).
 
+### Writing cards with AI
+
+An empty card can be written by AI („Dopsat kartu“), and a card you started can have
+its empty parts written („Dopsat, co chybí“ in the card's ⋯ menu). What is already
+written is never changed. Without a provider on the server the editor shows nothing
+about AI. The provider is set by environment variables on the editor's server; the
+key never reaches the browser.
+
+| Variable | Meaning |
+|---|---|
+| `AI_API_KEY` | The provider's key. Without it there is no AI in the editor. |
+| `AI_PROVIDER` | `openrouter` (default), `deepseek`, or `fake` (no key, no network, canned answers; the e2e suite uses it). |
+| `AI_MODEL`, `AI_BASE_URL`, `AI_REASONING_EFFORT` | Optional overrides of the provider's defaults (`src/lib/server/ai/config.ts`). |
+| `AI_DAILY_TOKEN_BUDGET`, `AI_MAX_REQUESTS_PER_MINUTE` | Limits per workspace, kept in memory. |
+
+```bash
+AI_API_KEY=… npm run dev
+docker run -p 8080:8080 -e AI_API_KEY=… -v edu-editor-data:/data edu-editor
+```
+
+The text of the card, its lesson's card names and the course's audience are sent to
+the provider. With OpenRouter the request asks for hosts that do not keep or train on
+it (`data_collection: deny`).
+
 ### Version history
 
 Saved versions of a course (the version button in the top bar) are kept in two places:
