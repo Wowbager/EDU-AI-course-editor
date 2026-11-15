@@ -948,7 +948,10 @@
 		visibility: hidden;
 	}
 
+	/* Block: inline, the line's descender overflowed the column by a few pixels, and the
+	   player taking focus scrolled the whole column, headers included, by that much. */
 	iframe {
+		display: block;
 		width: 100%;
 		height: 100%;
 		border: none;

@@ -55,6 +55,10 @@ test('AI pomocník has its own header, and the preview’s header has nothing of
 	await expect(foldAi(page)).toBeVisible();
 	// Nothing of the preview above it: no switch, no player controls.
 	await expect(pane.getByRole('radiogroup')).toHaveCount(0);
+	// Nothing overflows the side: the player taking focus would scroll the header away.
+	expect(
+		await page.locator('aside.preview').evaluate((el) => el.scrollHeight - el.clientHeight)
+	).toBe(0);
 
 	await previewTab(page).click();
 	const header = page.locator('.preview-pane header');
