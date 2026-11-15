@@ -1,61 +1,75 @@
 /**
- * Write one card: ask the model for the slots that are empty, and accept only an
- * answer that is valid JSON of the right shape, covers every slot asked for and
- * nothing else.
+ * Write one card: ask the model for its steps, and accept only an answer that is valid
+ * JSON of the right shape, keeps every step the teacher wrote and fills nothing the
+ * teacher filled.
  *
  * Two things here do not rely on the model behaving:
- *  - what the teacher wrote is sent as context and never comes back from here: the
- *    answer is cut down to the slots that were asked for (`restrictGenerated`);
+ *  - what the teacher wrote is sent as context and must come back as `keep`: the answer
+ *    is checked step by step (`cardProblem`), and `fillCard` checks again at write time;
  *  - the number of right answers is counted, not believed (`questionIsSound`).
  * An answer that fails is sent back with the reason, twice at most; then the card is
  * reported as failed and nothing is written.
+ *
+ * Message order is for the provider's prefix cache: the system prompt and the dossier
+ * are the same for every card of a course; only the last message differs.
  */
 import {
-	generatedSchema,
-	questionIsSound,
-	restrictGenerated,
-	unanswered,
+	cardProblem,
+	generatedCardSchema,
 	type GenRequest,
-	type Generated
+	type GeneratedCard
 } from '$lib/domain/authoring';
 import type { Complete, Message } from './provider';
 
-export type GenResponse =
-	{ status: 'ok'; block: Generated } | { status: 'failed'; block: Record<string, never> };
+export type GenResponse = { status: 'ok'; card: GeneratedCard } | { status: 'failed' };
 
 /** Bump when the rules below change what a card should say; later it keys the cache. */
-export const SPEC_VERSION = '1';
+export const SPEC_VERSION = '2';
 
-export const SYSTEM_PROMPT = `You write one learning card ("blok") for a mobile learning app. A card is one step of learning on one phone screen: either an explanation ("display"), or an exercise ("exercise") with a question.
+export const SYSTEM_PROMPT = `You write one learning card ("karta") for a mobile learning app. A card is a short sequence of steps; each step is one screen on a phone: either a text step (explanation, example, summary) or a question step (a short task text plus one question the pupil answers).
 
-You get a JSON request: the course and its audience, the lesson with the titles of its other cards, and the card: its title, an optional brief, the parts the teacher already wrote ("given") and the list of parts that are still empty ("missing"). Write ONLY the missing parts, so that they fit what is given. Never rewrite or repeat a given part.
+You get two user messages.
+1. The course dossier: plain text, read-only background. It holds the course, its lessons and the cards of the earlier lessons and of this lesson, with the card you write marked as the current one. Use it to build on what the pupil has already seen, to keep the course's notation, wording and difficulty, and not to repeat earlier cards or take the topic of later ones. Never write about the dossier itself.
+2. A JSON request: the course and its audience, the lesson, and the card: its kind, title, an optional brief ("what the card is for"), and its existing steps. Each existing step has an "id", a "kind" (text, question or media), what the teacher already wrote, and "missing": the parts of that step that are still empty.
 
-Answer with one JSON object and nothing else. Keys, each only when its part is in "missing":
-- "content" → "content_md": the card's text; for an exercise, the task the pupil reads.
-- "question" → "question": one of
+Write the whole card and answer with one JSON object and nothing else:
+{"steps":[ … ]}
+"steps" lists every step of the finished card, in order. Each item is one of:
+- {"keep":"<id of an existing step>","fill":{…}} for every existing step, with "fill" holding exactly the parts listed in that step's "missing" (leave "fill" out when "missing" is empty). Keys of "fill", each only when that part is in "missing": "content_md" (content), "question" (question), "option_feedback" (feedback), "hint_md", "help_md", "solution_md".
+- {"kind":"text","content_md":"…"} a new text step.
+- {"kind":"question","content_md":"the task the pupil reads","question":{…},"hint_md":"…","help_md":"…","solution_md":"…"} a new question step; all six keys are required.
+
+Hard rules for the structure:
+- Every existing step appears exactly once, as "keep", in its original order. New steps go before, between or after them. Never rewrite, shorten, reorder or repeat what the teacher wrote, and never put a part into "fill" that is not in "missing".
+- Never add a "keep" for an id that is not in the request.
+
+How many steps (the card's "kind"):
+- "display" (explanation): 1 to 6 text steps, no question steps. Split the explanation over screens, for example idea, then example, then summary.
+- "exercise" (practice): 2 to 8 question steps, from easier to harder, each with its own short task text, hint, help and solution. A short text step may introduce the set.
+- "question" (quiz question): 1 to 4 question steps in a straight line, no branching. A short text step may come before a question.
+- Choose the number that suits the topic and the brief. If the teacher states a number in the brief or title ("5 příkladů", "tři otázky"), write exactly that number; it wins over the ranges above. Existing steps count towards the number.
+
+A question is one of
   {"type":"yes_no","answer":true|false,"feedback_true":"…","feedback_false":"…"}
   {"type":"number","answer":<number>,"tolerance":<number, 0 when exact>}
   {"type":"mcq_1","options":[{"text":"…","correct":true|false,"feedback":"…"}]}  exactly one correct, 3–4 options
   {"type":"mcq_n","options":[…]}  at least two correct and at least one wrong, 4–6 options; the task must say that several answers are right
   {"type":"open","answer":"model answer; for 'explain in your own words' list the points that must not be missing"}
-  When the request gives "question_type", use exactly that type. Otherwise choose the type that suits the task.
-- "feedback" → "option_feedback": an array with one reaction for each option in given.question.options, in the same order.
-- "hint" → "hint_md", "help" → "help_md", "solution" → "solution_md".
+When a step has "question_type", use exactly that type. Otherwise choose the type that suits the task, and vary the types over the card where it makes sense. "option_feedback" is an array with one reaction for each option in that step's given question options, in the same order.
 
 Rules for what you write:
 - Language: course.language. Address, sentence length and emoji follow audience.register; when it is empty and the language is Czech, use informal "ty", short sentences and emoji sparingly. Vocabulary fits audience.grade. Do not explain again what audience.prior_knowledge says the pupil already knows.
-- audience.purpose: "intro" is a first explanation, "practice" is practising, "exam_prep" is preparing for an exam; it sets the style and how demanding the question is.
-- Length: content_md has 20 to 80 visible words; closer to 20 for younger pupils.
-- One card carries one idea. Do not repeat what the neighbouring cards are about.
-- An exercise must be solvable from the lesson's earlier cards and the prior knowledge.
-- For yes_no the statement in the task is clearly true or clearly false. For number, the unit belongs in the task, not in the answer.
+- audience.purpose: "intro" is a first explanation, "practice" is practising, "exam_prep" is preparing for an exam; it sets the style and how demanding the questions are.
+- Length: a text step has 20 to 80 visible words, closer to 20 for younger pupils. A task text is shorter.
+- A card builds only on the earlier cards and the prior knowledge; a task must be solvable from them and from the steps above it. Do not repeat what other cards of the course teach.
+- For yes_no the statement in the task is clearly true or clearly false, and both feedback texts make sense: feedback_true is what the pupil reads after answering Ano, feedback_false after Ne, so each says whether that answer is right and why, whichever answer is correct. For number, the unit belongs in the task, not in the answer.
 - hint_md is a nudge: it shows where to look. It must not contain the answer or determine it.
 - help_md is a rescue: it may lead the pupil to the answer, typically by the rule the task is about.
 - solution_md says the correct answer and, mainly, why. It does not start with a heading such as "Vysvětlení:"; the app draws that.
 - Hint, help and solution do three different jobs. They are not three versions of the same text.
 - A wrong option is a mistake pupils really make, or a neighbouring concept; never nonsense, and never also correct.
 - Feedback on a wrong option explains why it does not hold; "Špatně." is not enough. For a correct option short praise is enough.
-- Maths goes between dollar signs, for example $\\frac{1}{2}$. Text is Markdown: bold, italics, lists; an empty line starts a new paragraph.
+- Maths always goes between dollar signs, for example $\\frac{1}{2}$, and that includes a lone variable or number in a sentence: write $x$, never x. Text is Markdown: bold, italics, lists; an empty line starts a new paragraph.
 - Do not invent facts beyond common school knowledge of the topic, and never mention files, images or links.`;
 
 const ATTEMPTS = 3;
@@ -73,61 +87,64 @@ export function parseJson(text: string): unknown {
 }
 
 /** `null` when the answer can be used, else what to tell the model. */
-function problemWith(request: GenRequest, raw: string): { use: Generated } | { say: string } {
-	const parsed = generatedSchema.safeParse(parseJson(raw));
+function problemWith(request: GenRequest, raw: string): { use: GeneratedCard } | { say: string } {
+	const json = parseJson(raw);
+	if (json === undefined)
+		return {
+			say: 'Your answer was not valid JSON. Answer again with one JSON object {"steps":[…]}.'
+		};
+	const parsed = generatedCardSchema.safeParse(json);
 	if (!parsed.success)
 		return {
-			say: `Your answer was not a valid object: ${parsed.error.issues
+			say: `Your answer does not have the expected shape: ${parsed.error.issues
 				.slice(0, 5)
 				.map((i) => `${i.path.join('.')}: ${i.message}`)
 				.join('; ')}. Answer again with one JSON object.`
 		};
-	const block = restrictGenerated(request, parsed.data);
-	if (
-		request.block.missing.includes('question') &&
-		parsed.data.question !== undefined &&
-		block.question === undefined
-	)
-		return { say: `Use the question type "${request.block.question_type}". Answer again.` };
-	if (block.question !== undefined && !questionIsSound(block.question))
-		return {
-			say: 'The number of correct options does not fit the question type (mcq_1: exactly one; mcq_n: at least two, and at least one wrong). Answer again.'
-		};
-	const given = request.block.given.question as { options?: unknown[] } | undefined;
-	if (
-		block.option_feedback !== undefined &&
-		block.option_feedback.length !== (given?.options?.length ?? 0)
-	)
-		return { say: 'option_feedback must have exactly one text per given option. Answer again.' };
-	const left = unanswered(request, block);
-	if (left.length > 0)
-		return {
-			say: `These parts are missing from your answer: ${left.join(', ')}. Answer again with all missing parts.`
-		};
-	return { use: block };
+	const problem = cardProblem(request, parsed.data);
+	if (problem !== undefined) return { say: `${problem} Answer again with the whole card.` };
+	return { use: parsed.data };
 }
 
-export async function generateBlock(
+/** What the request holds apart from the dossier, as the model's last message. */
+export function requestMessage(request: GenRequest): string {
+	const { context: _context, ...rest } = request;
+	return JSON.stringify(rest);
+}
+
+export async function generateCard(
 	request: GenRequest,
 	complete: Complete,
 	/** Told what each call used as it returns, so a later failure does not lose the count. */
 	spent: (tokens: number) => void = () => {}
 ): Promise<{ response: GenResponse; tokens: number }> {
-	const messages: Message[] = [
-		{ role: 'system', content: SYSTEM_PROMPT },
-		{ role: 'user', content: JSON.stringify(request) }
-	];
+	const messages: Message[] = [{ role: 'system', content: SYSTEM_PROMPT }];
+	if (request.context.trim() !== '')
+		messages.push({
+			role: 'user',
+			content: `Course dossier (read-only background):\n\n${request.context}`
+		});
+	messages.push({ role: 'user', content: requestMessage(request) });
 	let tokens = 0;
+	let reason = '';
 	for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
 		const answer = await complete(messages);
 		tokens += answer.tokens;
 		spent(answer.tokens);
 		const verdict = problemWith(request, answer.text);
-		if ('use' in verdict) return { response: { status: 'ok', block: verdict.use }, tokens };
+		if ('use' in verdict) return { response: { status: 'ok', card: verdict.use }, tokens };
+		reason = verdict.say;
 		messages.push(
 			{ role: 'assistant', content: answer.text },
 			{ role: 'user', content: verdict.say }
 		);
 	}
-	return { response: { status: 'failed', block: {} }, tokens };
+	// What the operator needs to see why; never the course's text.
+	console.error('[ai] card rejected after', ATTEMPTS, 'attempts:', reason, {
+		kind: request.card.kind,
+		steps: request.card.steps.length,
+		missing: request.card.steps.filter((s) => s.missing.length > 0).length,
+		contextChars: request.context.length
+	});
+	return { response: { status: 'failed' }, tokens };
 }

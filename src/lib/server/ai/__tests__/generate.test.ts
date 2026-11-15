@@ -1,55 +1,99 @@
-import { describe, expect, it } from 'vitest';
-import type { GenRequest } from '$lib/domain/authoring';
+import { describe, expect, it, vi } from 'vitest';
+import { genRequestSchema, MAX_CONTEXT_CHARS, type GenRequest } from '$lib/domain/authoring';
 import { isConfigured, readAiConfig } from '../config';
-import { fakeComplete, fakeGenerated } from '../fake';
-import { generateBlock, parseJson } from '../generate';
-import { buildBody, completer, ProviderError, type Complete } from '../provider';
+import { fakeComplete } from '../fake';
+import { generateCard, parseJson, SPEC_VERSION, SYSTEM_PROMPT } from '../generate';
+import { buildBody, completer, ProviderError, type Complete, type Message } from '../provider';
 
-const request = (over: Partial<GenRequest['block']> = {}): GenRequest => ({
-	schema: 'eduai.gen-request/1',
+const request = (over: Partial<GenRequest['card']> = {}, context = ''): GenRequest => ({
+	schema: 'eduai.gen-request/2',
 	mode: 'complete',
 	course: { title: 'Zlomky', language: 'cs', audience: { grade: 4 } },
-	lesson: { name: 'Polovina', neighbors: [] },
-	block: {
+	lesson: { name: 'Polovina' },
+	card: {
 		kind: 'exercise',
 		title: 'Kolik je polovina',
-		missing: ['help'],
-		given: { content_md: 'Kolik je polovina z osmi?', hint_md: 'Děl dvěma.' },
+		steps: [
+			{
+				id: 's1',
+				kind: 'question',
+				content_md: 'Kolik je polovina z osmi?',
+				hint_md: 'Děl dvěma.',
+				missing: ['help']
+			}
+		],
 		...over
-	}
+	},
+	context
 });
 
 /** A model that says the given things, one per call. */
-const scripted = (...answers: unknown[]): Complete & { calls: number } => {
-	const fn = (async () => {
+const scripted = (...answers: unknown[]): Complete & { calls: number; seen: Message[][] } => {
+	const fn = (async (messages: readonly Message[]) => {
+		fn.seen.push([...messages]);
 		const answer = answers[Math.min(fn.calls, answers.length - 1)];
 		fn.calls++;
 		return { text: typeof answer === 'string' ? answer : JSON.stringify(answer), tokens: 10 };
-	}) as unknown as Complete & { calls: number };
+	}) as unknown as Complete & { calls: number; seen: Message[][] };
 	fn.calls = 0;
+	fn.seen = [];
 	return fn;
 };
 
-describe('generateBlock', () => {
-	it('returns only what was asked, whatever else the model wrote', async () => {
-		const model = scripted({
-			help_md: 'Polovina je jedna ze dvou stejných částí.',
-			hint_md: 'Přepsaná nápověda',
-			content_md: 'Přepsané zadání'
-		});
-		const { response, tokens } = await generateBlock(request(), model);
-		expect(response).toEqual({
+const GOOD = { steps: [{ keep: 's1', fill: { help_md: 'Polovina je jedna ze dvou částí.' } }] };
+const MORE = {
+	kind: 'question',
+	content_md: 'Kolik je polovina z deseti?',
+	question: { type: 'number', answer: 5 },
+	hint_md: 'Děl dvěma.',
+	help_md: 'Polovina je jedna ze dvou částí.',
+	solution_md: 'Deset děleno dvěma je pět.'
+};
+
+describe('generateCard', () => {
+	it('returns the card: the kept step with its fill, and the steps added', async () => {
+		const model = scripted({ steps: [GOOD.steps[0], MORE] });
+		const { response, tokens } = await generateCard(request(), model);
+		expect(response).toMatchObject({
 			status: 'ok',
-			block: { help_md: 'Polovina je jedna ze dvou stejných částí.' }
+			card: { steps: [{ keep: 's1' }, { kind: 'question' }] }
 		});
 		expect(tokens).toBe(10);
 	});
 
-	it('drops a question nobody asked for instead of asking again', async () => {
-		const model = scripted({ help_md: 'Pomoc.', question: { type: 'open', answer: 'čtyři' } });
-		const { response } = await generateBlock(request(), model);
-		expect(response).toEqual({ status: 'ok', block: { help_md: 'Pomoc.' } });
-		expect(model.calls).toBe(1);
+	it('sends the system prompt, then the dossier, then the request without the dossier', async () => {
+		const model = scripted(GOOD);
+		await generateCard(request({}, 'KURZ: Zlomky\nLEKCE 1'), model);
+		const [system, dossier, last] = model.seen[0];
+		expect(system).toEqual({ role: 'system', content: SYSTEM_PROMPT });
+		expect(dossier.role).toBe('user');
+		expect(dossier.content).toContain('KURZ: Zlomky');
+		expect(last.content.startsWith('{')).toBe(true);
+		expect(JSON.parse(last.content)).toMatchObject({ schema: 'eduai.gen-request/2' });
+		expect(last.content).not.toContain('LEKCE 1');
+		// Without a dossier there is no message for it.
+		const bare = scripted(GOOD);
+		await generateCard(request(), bare);
+		expect(bare.seen[0]).toHaveLength(2);
+	});
+
+	it('asks again with the mistake named when a step the teacher wrote is missing', async () => {
+		const model = scripted({ steps: [MORE] }, GOOD);
+		const { response, tokens } = await generateCard(request(), model);
+		expect(response.status).toBe('ok');
+		expect(model.calls).toBe(2);
+		expect(tokens).toBe(20);
+		expect(model.seen[1].at(-1)!.content).toContain('"s1"');
+	});
+
+	it('asks again when the model overwrites something the teacher wrote', async () => {
+		const model = scripted(
+			{ steps: [{ keep: 's1', fill: { help_md: 'Pomoc.', hint_md: 'Přepsaná nápověda' } }] },
+			GOOD
+		);
+		await generateCard(request(), model);
+		expect(model.calls).toBe(2);
+		expect(model.seen[1].at(-1)!.content).toContain('hint_md');
 	});
 
 	it('reports what each call used, even when a later call fails', async () => {
@@ -59,86 +103,122 @@ describe('generateBlock', () => {
 			return { text: 'not json', tokens: 10 };
 		};
 		let used = 0;
-		await expect(generateBlock(request(), model, (n) => (used += n))).rejects.toBeInstanceOf(
+		await expect(generateCard(request(), model, (n) => (used += n))).rejects.toBeInstanceOf(
 			ProviderError
 		);
 		expect(used).toBe(10);
 	});
 
 	it('reads JSON the model wrapped in a code fence', async () => {
-		const model = scripted('```json\n{"help_md":"Pomoc."}\n```');
-		expect((await generateBlock(request(), model)).response.status).toBe('ok');
+		const model = scripted('```json\n' + JSON.stringify(GOOD) + '\n```');
+		expect((await generateCard(request(), model)).response.status).toBe('ok');
 		expect(parseJson('nothing here')).toBeUndefined();
 	});
 
-	it('asks again when a part is missing, and takes the second answer', async () => {
-		const model = scripted({}, { help_md: 'Pomoc.' });
-		const { response, tokens } = await generateBlock(request(), model);
-		expect(response.status).toBe('ok');
-		expect(model.calls).toBe(2);
-		expect(tokens).toBe(20);
-	});
-
-	it('gives up after two repeats and writes nothing', async () => {
-		const model = scripted('not json');
-		const { response } = await generateBlock(request(), model);
-		expect(response).toEqual({ status: 'failed', block: {} });
-		expect(model.calls).toBe(3);
+	it('gives up after two repeats, writes nothing, and logs why without the course text', async () => {
+		const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+		try {
+			const model = scripted('not json');
+			const { response } = await generateCard(request({}, 'TAJNÝ TEXT KURZU'), model);
+			expect(response).toEqual({ status: 'failed' });
+			expect(model.calls).toBe(3);
+			expect(log).toHaveBeenCalledTimes(1);
+			const logged = JSON.stringify(log.mock.calls[0]);
+			expect(logged).toContain('[ai]');
+			expect(logged).toContain('not valid JSON');
+			expect(logged).toContain('exercise');
+			expect(logged).not.toContain('TAJNÝ');
+			expect(logged).not.toContain('Kolik je polovina');
+		} finally {
+			log.mockRestore();
+		}
 	});
 
 	it('does not take a question with the wrong number of right answers', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
 		const options = ['a', 'b', 'c'].map((text) => ({ text, correct: true, feedback: 'x' }));
-		const model = scripted({ question: { type: 'mcq_1', options } });
-		const { response } = await generateBlock(request({ missing: ['question'] }), model);
+		const model = scripted({
+			steps: [GOOD.steps[0], { ...MORE, question: { type: 'mcq_1', options } }]
+		});
+		const { response } = await generateCard(request(), model);
 		expect(response.status).toBe('failed');
+		vi.restoreAllMocks();
 	});
 
 	it('holds the model to the question type the teacher chose', async () => {
+		const steps = [
+			{
+				id: 's1',
+				kind: 'question' as const,
+				question_type: 'number' as const,
+				missing: ['question' as const]
+			}
+		];
 		const model = scripted(
-			{ question: { type: 'open', answer: 'čtyři' } },
-			{ question: { type: 'number', answer: 4 } }
+			{ steps: [{ keep: 's1', fill: { question: { type: 'open', answer: 'čtyři' } } }] },
+			{ steps: [{ keep: 's1', fill: { question: { type: 'number', answer: 4 } } }] }
 		);
-		const { response } = await generateBlock(
-			request({ missing: ['question'], question_type: 'number' }),
-			model
-		);
+		const { response } = await generateCard(request({ steps }), model);
 		expect(response).toEqual({
 			status: 'ok',
-			block: { question: { type: 'number', answer: 4 } }
+			card: { steps: [{ keep: 's1', fill: { question: { type: 'number', answer: 4 } } }] }
 		});
+		expect(model.seen[1].at(-1)!.content).toContain('"number"');
 	});
 
-	it('wants one reaction per answer the teacher wrote', async () => {
-		const given = {
-			content_md: 'Kolik?',
-			question: { type: 'mcq_1', options: [{ text: 'a' }, { text: 'b' }, { text: 'c' }] }
-		};
-		const model = scripted(
-			{ option_feedback: ['jen jedna'] },
-			{ option_feedback: ['1', '2', '3'] }
-		);
-		const { response } = await generateBlock(request({ missing: ['feedback'], given }), model);
-		expect(response.status).toBe('ok');
-		expect(model.calls).toBe(2);
+	it('states in the prompt what the card kinds hold and that a stated count wins', () => {
+		expect(SPEC_VERSION).toBe('2');
+		expect(SYSTEM_PROMPT).toContain('"display"');
+		expect(SYSTEM_PROMPT).toContain('2 to 8 question steps');
+		expect(SYSTEM_PROMPT).toContain('it wins');
+		expect(SYSTEM_PROMPT).toContain('$x$');
 	});
 });
 
 describe('the fake provider', () => {
-	it('answers every kind of request in a shape the generator accepts', async () => {
-		for (const type of ['yes_no', 'number', 'mcq_1', 'mcq_n', 'open', undefined] as const) {
-			const r = request({
-				missing: ['content', 'question', 'hint', 'help', 'solution'],
-				given: {},
-				...(type === undefined ? {} : { question_type: type })
-			});
-			const { response } = await generateBlock(r, fakeComplete);
-			expect(response.status, String(type)).toBe('ok');
-			expect(Object.keys(response.block).sort()).toEqual(Object.keys(fakeGenerated(r)).sort());
+	it('answers every kind of request in a shape the generator accepts, keeping given steps', async () => {
+		for (const kind of ['display', 'exercise', 'question'] as const) {
+			for (const type of ['yes_no', 'number', 'mcq_1', 'mcq_n', 'open', undefined] as const) {
+				const r = request({
+					kind,
+					steps: [
+						{ id: 's0', kind: 'text', content_md: 'Úvod od učitele', missing: [] },
+						{
+							id: 's1',
+							kind: 'question',
+							missing: ['content', 'question', 'hint', 'help', 'solution'],
+							...(type === undefined ? {} : { question_type: type })
+						}
+					]
+				});
+				const { response } = await generateCard(r, fakeComplete);
+				expect(response.status, `${kind} ${String(type)}`).toBe('ok');
+				if (response.status !== 'ok') continue;
+				expect(response.card.steps.slice(0, 2).map((s) => ('keep' in s ? s.keep : '?'))).toEqual([
+					's0',
+					's1'
+				]);
+				expect(response.card.steps.length).toBeGreaterThan(2);
+			}
 		}
 	});
 });
 
 describe('settings and the provider call', () => {
+	it('allows 20 million weighted tokens a day by default', () => {
+		expect(readAiConfig({}).dailyTokenBudget).toBe(20_000_000);
+		expect(readAiConfig({ AI_DAILY_TOKEN_BUDGET: '5' }).dailyTokenBudget).toBe(5);
+	});
+
+	it('takes a dossier up to the limit and no longer', () => {
+		expect(genRequestSchema.safeParse(request({}, 'x'.repeat(MAX_CONTEXT_CHARS))).success).toBe(
+			true
+		);
+		expect(genRequestSchema.safeParse(request({}, 'x'.repeat(MAX_CONTEXT_CHARS + 1))).success).toBe(
+			false
+		);
+	});
+
 	it('offers AI only with a key, or with the fake provider', () => {
 		expect(isConfigured(readAiConfig({}))).toBe(false);
 		expect(isConfigured(readAiConfig({ AI_API_KEY: 'k' }))).toBe(true);
@@ -163,11 +243,16 @@ describe('settings and the provider call', () => {
 			seen = { url, auth: new Headers(init.headers).get('authorization') };
 			return Response.json({
 				choices: [{ message: { content: '{"help_md":"x"}' } }],
-				usage: { total_tokens: 7 }
+				usage: {
+					prompt_tokens: 100,
+					prompt_tokens_details: { cached_tokens: 50 },
+					completion_tokens: 2
+				}
 			});
 		}) as unknown as typeof fetch;
 		const complete = completer(readAiConfig({ AI_API_KEY: 'secret' }), fetcher);
-		expect(await complete([])).toEqual({ text: '{"help_md":"x"}', tokens: 7 });
+		// 50 fresh + 50 cached at a tenth + 2 written.
+		expect(await complete([])).toEqual({ text: '{"help_md":"x"}', tokens: 57 });
 		expect(seen).toEqual({
 			url: 'https://openrouter.ai/api/v1/chat/completions',
 			auth: 'Bearer secret'

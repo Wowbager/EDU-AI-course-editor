@@ -5,6 +5,7 @@
  */
 import type { AiConfig } from './config';
 import { fakeComplete } from './fake';
+import { weightedTokens, type Usage } from './limits';
 
 export type Message = { role: 'system' | 'user' | 'assistant'; content: string };
 export type Completion = { text: string; tokens: number };
@@ -21,7 +22,8 @@ export class ProviderError extends Error {
 	}
 }
 
-const TIMEOUT_MS = 90_000;
+/** A whole card with a long dossier and some thinking: more than a single step took. */
+const TIMEOUT_MS = 150_000;
 
 export function buildBody(config: AiConfig, messages: readonly Message[]): Record<string, unknown> {
 	const body: Record<string, unknown> = {
@@ -70,10 +72,10 @@ export function completer(config: AiConfig, fetcher: typeof fetch = fetch): Comp
 		}
 		const data = (await response.json().catch(() => null)) as {
 			choices?: { message?: { content?: unknown } }[];
-			usage?: { total_tokens?: number };
+			usage?: Usage;
 		} | null;
 		const content = data?.choices?.[0]?.message?.content;
 		if (typeof content !== 'string') throw new ProviderError('failed', 'no message content');
-		return { text: content, tokens: data?.usage?.total_tokens ?? 0 };
+		return { text: content, tokens: weightedTokens(data?.usage) };
 	};
 }

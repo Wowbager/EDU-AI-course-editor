@@ -40,7 +40,7 @@ const DEFAULTS: Record<Provider, { model: string; baseURL: string }> = {
 const PROVIDERS: readonly string[] = ['openrouter', 'deepseek', 'fake'];
 const EFFORTS: readonly string[] = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 
-export const DEFAULT_DAILY_TOKEN_BUDGET = 2_000_000;
+export const DEFAULT_DAILY_TOKEN_BUDGET = 20_000_000;
 export const DEFAULT_MAX_REQUESTS_PER_MINUTE = 20;
 
 function positiveInt(value: string | undefined, fallback: number): number {
@@ -63,7 +63,7 @@ export function readAiConfig(env: Env): AiConfig {
 		apiKey: text(env.AI_API_KEY),
 		model: text(env.AI_MODEL) || DEFAULTS[provider].model,
 		baseURL: (text(env.AI_BASE_URL) || DEFAULTS[provider].baseURL).replace(/\/+$/, ''),
-		// Writing one card is a small job; a long think only makes the teacher wait.
+		// A card is a small job; a long think only makes the teacher wait.
 		reasoningEffort: EFFORTS.includes(effort) ? (effort as ReasoningEffort) : 'low',
 		dailyTokenBudget: positiveInt(env.AI_DAILY_TOKEN_BUDGET, DEFAULT_DAILY_TOKEN_BUDGET),
 		maxRequestsPerMinute: positiveInt(

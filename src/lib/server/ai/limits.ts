@@ -6,6 +6,35 @@
  * injected for tests.
  */
 
+/** What a provider reports for one call (OpenRouter, DeepSeek). */
+export type Usage = {
+	prompt_tokens?: number;
+	completion_tokens?: number;
+	total_tokens?: number;
+	prompt_tokens_details?: { cached_tokens?: number };
+	/** DeepSeek's own name for the cached part of the prompt. */
+	prompt_cache_hit_tokens?: number;
+};
+
+/** A cached prompt token costs a tenth of a fresh one, so it counts a tenth. */
+export const CACHED_TOKEN_WEIGHT = 0.1;
+
+/**
+ * What a call counts against the daily budget: fresh prompt tokens and output tokens in
+ * full, cached prompt tokens at `CACHED_TOKEN_WEIGHT`. A dossier of a whole course is
+ * sent for every card, and the cache makes all but the first nearly free.
+ */
+export function weightedTokens(usage: Usage | undefined): number {
+	if (usage === undefined) return 0;
+	const prompt = usage.prompt_tokens;
+	if (typeof prompt !== 'number') return usage.total_tokens ?? 0;
+	const cachedRaw =
+		usage.prompt_tokens_details?.cached_tokens ?? usage.prompt_cache_hit_tokens ?? 0;
+	const cached = Math.min(Math.max(cachedRaw, 0), prompt);
+	const output = usage.completion_tokens ?? Math.max(0, (usage.total_tokens ?? prompt) - prompt);
+	return Math.ceil(prompt - cached + cached * CACHED_TOKEN_WEIGHT + output);
+}
+
 export type LimitVerdict =
 	{ ok: true } | { ok: false; reason: 'rate' | 'budget'; retryAfterSeconds: number };
 

@@ -4,10 +4,17 @@
  * editor without a key. Its texts say what they are, so nobody mistakes them for a
  * model's.
  */
-import type { GenRequest, Generated, GenQuestion } from '$lib/domain/authoring';
+import type {
+	Fill,
+	GenQuestion,
+	GenQuestionType,
+	GenRequest,
+	GeneratedCard,
+	GeneratedStep
+} from '$lib/domain/authoring';
 import type { Complete } from './provider';
 
-function question(type: NonNullable<GenRequest['block']['question_type']>): GenQuestion {
+function question(type: GenQuestionType): GenQuestion {
 	switch (type) {
 		case 'yes_no':
 			return {
@@ -35,25 +42,43 @@ function question(type: NonNullable<GenRequest['block']['question_type']>): GenQ
 	}
 }
 
-export function fakeGenerated(request: GenRequest): Generated {
-	const about = request.block.title || request.block.brief || 'karta';
-	const missing = new Set(request.block.missing);
-	const out: Generated = {};
-	if (missing.has('content')) out.content_md = `Ukázkový text: ${about}.`;
-	if (missing.has('question')) out.question = question(request.block.question_type ?? 'mcq_1');
-	if (missing.has('feedback')) {
-		const given = request.block.given.question as { options?: unknown[] } | undefined;
-		out.option_feedback = (given?.options ?? []).map((_, i) => `Ukázková reakce ${i + 1}.`);
+export function fakeCard(request: GenRequest): GeneratedCard {
+	const about = request.card.title || request.card.brief || 'karta';
+	const steps: GeneratedStep[] = request.card.steps.map((step) => {
+		const missing = new Set(step.missing);
+		const fill: Fill = {};
+		if (missing.has('content')) fill.content_md = `Ukázkový text: ${about}.`;
+		if (missing.has('question')) fill.question = question(step.question_type ?? 'mcq_1');
+		if (missing.has('feedback')) {
+			const given = step.question as { options?: unknown[] } | undefined;
+			fill.option_feedback = (given?.options ?? []).map((_, i) => `Ukázková reakce ${i + 1}.`);
+		}
+		if (missing.has('hint')) fill.hint_md = 'Ukázková nápověda.';
+		if (missing.has('help')) fill.help_md = 'Ukázková podrobná pomoc.';
+		if (missing.has('solution')) fill.solution_md = 'Ukázkové vysvětlení řešení.';
+		return Object.keys(fill).length > 0 ? { keep: step.id, fill } : { keep: step.id };
+	});
+	// More than the teacher has: a display card gets two more screens, any other card one
+	// more question.
+	if (request.card.kind === 'display') {
+		for (const n of [2, 3])
+			steps.push({ kind: 'text', content_md: `Ukázkový text ${n}: ${about}.` });
+	} else {
+		steps.push({
+			kind: 'question',
+			content_md: `Ukázkové zadání 2: ${about}.`,
+			question: question('mcq_1'),
+			hint_md: 'Ukázková nápověda.',
+			help_md: 'Ukázková podrobná pomoc.',
+			solution_md: 'Ukázkové vysvětlení řešení.'
+		});
 	}
-	if (missing.has('hint')) out.hint_md = 'Ukázková nápověda.';
-	if (missing.has('help')) out.help_md = 'Ukázková podrobná pomoc.';
-	if (missing.has('solution')) out.solution_md = 'Ukázkové vysvětlení řešení.';
-	return out;
+	return { steps };
 }
 
-/** The last user message is the request as JSON (`generate.ts`). */
+/** The last user message that is JSON is the request (`generate.ts`). */
 export const fakeComplete: Complete = async (messages) => {
 	const last = messages.findLast((m) => m.role === 'user' && m.content.startsWith('{'));
 	const request = JSON.parse(last?.content ?? '{}') as GenRequest;
-	return { text: JSON.stringify(fakeGenerated(request)), tokens: 0 };
+	return { text: JSON.stringify(fakeCard(request)), tokens: 0 };
 };

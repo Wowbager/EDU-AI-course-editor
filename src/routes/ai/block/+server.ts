@@ -2,22 +2,23 @@
  * Writing one card with AI. Not under `/api/`: the proxy sends that to the Laravel API.
  *
  *   GET  /ai/block               → { configured }   whether the editor may offer AI
- *   POST /ai/block  GenRequest   → { status, block } the empty slots, written
+ *   POST /ai/block  GenRequest   → { status, card }  the card's steps
  *
  * The provider's key stays on the server. A workspace is limited in requests per
  * minute and tokens per day (`server/ai/limits.ts`).
  */
 import { env } from '$env/dynamic/private';
 import { error, json } from '@sveltejs/kit';
-import { genRequestSchema } from '$lib/domain/authoring';
+import { genRequestSchema, MAX_CONTEXT_CHARS } from '$lib/domain/authoring';
 import { isConfigured, readAiConfig } from '$lib/server/ai/config';
-import { generateBlock } from '$lib/server/ai/generate';
+import { generateCard } from '$lib/server/ai/generate';
 import { sharedLimits } from '$lib/server/ai/limits';
 import { completer, ProviderError } from '$lib/server/ai/provider';
 import { ownerOf } from '$lib/server/versions/http';
 import type { RequestHandler } from './$types';
 
-const MAX_BODY = 200_000;
+// The dossier is up to `MAX_CONTEXT_CHARS`; the card's own request is small next to it.
+const MAX_BODY = MAX_CONTEXT_CHARS + 200_000;
 const NO_STORE = { headers: { 'cache-control': 'no-store' } };
 
 export const GET: RequestHandler = () =>
@@ -39,7 +40,15 @@ export const POST: RequestHandler = async ({ request }) => {
 		error(400, 'Tělo požadavku není JSON.');
 	}
 	const parsed = genRequestSchema.safeParse(body);
-	if (!parsed.success) error(400, 'Požadavek nemá očekávaný tvar.');
+	if (!parsed.success) {
+		const tooLong = parsed.error.issues.some(
+			(i) => i.path[0] === 'context' && i.code === 'too_big'
+		);
+		error(
+			tooLong ? 413 : 400,
+			tooLong ? 'Požadavek je příliš velký.' : 'Požadavek nemá očekávaný tvar.'
+		);
+	}
 
 	const limits = sharedLimits(config);
 	const verdict = limits.check(owner);
@@ -50,7 +59,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		);
 
 	try {
-		const { response } = await generateBlock(parsed.data, completer(config), (tokens) =>
+		const { response } = await generateCard(parsed.data, completer(config), (tokens) =>
 			limits.record(owner, tokens)
 		);
 		return json(response, NO_STORE);
