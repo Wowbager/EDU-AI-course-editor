@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { dropIndex, shiftOf, type DragState } from './drag-reorder';
+import {
+	cardPlace,
+	dropIndex,
+	rowGap,
+	shiftOf,
+	type DragState,
+	type FlatRow
+} from './drag-reorder';
 
 const middles = [10, 30, 50, 70];
 
@@ -43,5 +50,62 @@ describe('shiftOf', () => {
 		expect(down).toEqual([7, -20, -20, 0]);
 		const up = [0, 1, 2, 3].map((i) => shiftOf(drag(3, 1), i));
 		expect(up).toEqual([0, 20, 20, 7]);
+	});
+});
+
+describe('rowGap', () => {
+	it('is the smallest space between neighbours, never below zero', () => {
+		expect(rowGap([])).toBe(0);
+		expect(rowGap([{ top: 0, bottom: 20 }])).toBe(0);
+		// A lesson head, two cards, the next head further down.
+		const rows = [
+			{ top: 0, bottom: 30 },
+			{ top: 32, bottom: 52 },
+			{ top: 54, bottom: 74 },
+			{ top: 84, bottom: 114 }
+		];
+		expect(rowGap(rows)).toBe(2);
+		expect(
+			rowGap([
+				{ top: 0, bottom: 20 },
+				{ top: 18, bottom: 38 }
+			])
+		).toBe(0);
+	});
+});
+
+describe('cardPlace', () => {
+	// Lesson 0 open with two cards, lesson 1 folded, lesson 2 open and empty, lesson 3 open with one card.
+	const rows: FlatRow[] = [
+		{ lesson: 0 },
+		{ lesson: 0, card: 0 },
+		{ lesson: 0, card: 1 },
+		{ lesson: 1, folded: true },
+		{ lesson: 2 },
+		{ lesson: 3 },
+		{ lesson: 3, card: 0 }
+	];
+	it('stays where it was when it has not moved', () => {
+		expect(cardPlace(rows, 1, 1)).toEqual({ lesson: 0, index: 0 });
+		expect(cardPlace(rows, 2, 2)).toEqual({ lesson: 0, index: 1 });
+	});
+	it('moves within its lesson', () => {
+		expect(cardPlace(rows, 1, 2)).toEqual({ lesson: 0, index: 1 });
+		expect(cardPlace(rows, 2, 1)).toEqual({ lesson: 0, index: 0 });
+	});
+	it("goes to the start of an open lesson right after its head, and to a folded lesson's end", () => {
+		expect(cardPlace(rows, 1, 3)).toEqual({ lesson: 1, index: 'end' });
+		expect(cardPlace(rows, 1, 4)).toEqual({ lesson: 2, index: 0 });
+		expect(cardPlace(rows, 1, 5)).toEqual({ lesson: 3, index: 0 });
+		expect(cardPlace(rows, 1, 6)).toEqual({ lesson: 3, index: 1 });
+	});
+	it('goes up into a lesson after its last card', () => {
+		expect(cardPlace(rows, 6, 3)).toEqual({ lesson: 0, index: 2 });
+		expect(cardPlace(rows, 6, 1)).toEqual({ lesson: 0, index: 0 });
+	});
+	it('reads a list of cards without heads as one lesson', () => {
+		const flat: FlatRow[] = [0, 1, 2].map((card) => ({ lesson: 0, card }));
+		expect(cardPlace(flat, 2, 0)).toEqual({ lesson: 0, index: 0 });
+		expect(cardPlace(flat, 0, 2)).toEqual({ lesson: 0, index: 2 });
 	});
 });
