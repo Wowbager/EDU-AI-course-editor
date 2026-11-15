@@ -206,6 +206,18 @@ AI_API_KEY=… npm run dev
 docker run -p 8080:8080 -e AI_API_KEY=… -v edu-editor-data:/data edu-editor
 ```
 
+#### The AI tab
+
+The right column has a third choice beside Náhled and Vyzkoušet: **AI**. The teacher writes
+what to create; the model answers with a proposal, either a course structure (lessons
+with cards) or cards for the selected lesson, and the proposal stays in the panel (ticks,
+renaming, reordering, „Co změnit?“) until „Vytvořit vybrané“ puts the ticked part into the
+course as empty cards with a name, a type and the line on what each is for. The browser
+then writes those cards with the same request as „Dopsat kartu“, three at a time, in course
+order, with „Zastavit“ and „Dopsat zbytek“. The proposal is `POST /ai/outline`
+(`src/lib/server/ai/outline.ts`, shape in `src/lib/domain/outline.ts`); it uses the same
+provider, key and limits as the card writer. The player keeps running under the panel.
+
 The text of the course (the dossier of the card being written) and the course's audience
 are sent to the provider. With OpenRouter the request asks for hosts that do not keep or train on
 it (`data_collection: deny`).

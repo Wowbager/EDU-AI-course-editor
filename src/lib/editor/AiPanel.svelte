@@ -29,13 +29,7 @@
 	const queue = aiPanel.queue;
 
 	/** What the box is for now, in the words it shows. */
-	const placeholder = $derived(
-		draft !== null
-			? 'Co změnit?'
-			: store.selection?.lessonId !== undefined || store.selection?.blockId !== undefined
-				? 'Co mám vytvořit? Třeba „přidej karty na procvičování“'
-				: 'Co mám vytvořit? Třeba „kurz o zlomcích pro 5. třídu“'
-	);
+	const placeholder = $derived(draft !== null ? 'Co změnit?' : 'Co mám vytvořit?');
 
 	async function send() {
 		const asked = text.trim();
@@ -138,7 +132,9 @@
 		{:else if aiPanel.asking}
 			<p class="empty"><LoaderCircle size={16} class="spin" aria-hidden="true" /> Navrhuji…</p>
 		{:else}
-			<p class="empty">Napiš, co chceš vytvořit. Celý kurz, nebo jen pár karet.</p>
+			<p class="empty">
+				Napiš, co chceš vytvořit. Třeba celý kurz, nebo jen pár karet do vybrané lekce.
+			</p>
 		{/if}
 	</div>
 

@@ -2992,6 +2992,35 @@ call log, style examples); review comments and blocking findings in the export
 review; source material and a proposed outline; the topic registry, topic-based card
 ids and derived metadata.
 
+## Round 30 — the AI tab: a proposal first, then the cards written in a queue
+
+Stage A of the owner's request for courses from materials (materials themselves, changing
+an existing card and streaming are later stages).
+
+- **AI is a third choice of the existing switch** (Náhled · Vyzkoušet · AI), not a new
+  control. The panel covers the player, which stays mounted and `inert` as when the column
+  is folded; the choice is remembered with the layout (`aiTab`). The switch's buttons are
+  tighter while AI is offered, so the header keeps its line; Vyzkoušet's Zpět now wraps
+  with Od začátku (a third choice costs about 28 px).
+- **The proposal lives only in the panel** (`state/ai-panel.svelte.ts`). Once accepted the
+  left tree is the outline and every edit is an ordinary one. Rejected: a second lasting
+  outline editor next to the tree (two places to edit one thing).
+- **The model decides the shape** (`scope: 'lessons' | 'cards'`) from the prompt and where
+  the teacher is. „Vytvořit vybrané“ is one command (`insertOutline`), one undo step; each
+  written card stays its own. „Co změnit?“ sends the edited proposal with the instruction
+  and replaces it; a card the teacher unticked stays unticked if the model kept it (same
+  kind and name), anything else starts ticked; renames travel inside the proposal.
+- **Whole cards, queued in the browser** (`state/write-queue.svelte.ts`): three at a time
+  (the server allows 20 a minute), a 429 waits what the server said and tries that card
+  once more, a spent day stops the queue. „Zastavit“ stops starting cards; the ones being
+  written finish. Rejected: one call per step (loses coherence inside a card, multiplies
+  the wait), and server jobs (only needed if a teacher must close the tab mid-course).
+- **Reordering** is a handle on each row: dragged, or with the arrow keys on the handle.
+  A card moves only inside its lesson; there is no moving a card to another lesson.
+- **A queue is forgotten with the tab.** The cards already written stay; the empty ones
+  left over are not offered „Dopsat zbytek“ after a reload (the document does not record
+  that they were queued).
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

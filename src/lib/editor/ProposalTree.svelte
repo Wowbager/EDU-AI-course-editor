@@ -333,6 +333,12 @@
 		color: var(--e-text-faint);
 	}
 
+	/* In the card's line it fills what the kind mark leaves; under a lesson, the text column. */
+	.text > .name {
+		display: block;
+		width: 100%;
+	}
+
 	.name {
 		flex: 1;
 		min-width: 0;
