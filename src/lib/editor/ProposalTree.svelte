@@ -332,6 +332,12 @@
 		background: var(--primary-dark-06);
 	}
 
+	/* The carried row is opaque whatever it is over: the tint goes on top of the surface. */
+	.row.dragged,
+	.lesson.dragged {
+		background: linear-gradient(var(--primary-dark-06), var(--primary-dark-06)), var(--surface);
+	}
+
 	.text {
 		flex: 1;
 		min-width: 0;

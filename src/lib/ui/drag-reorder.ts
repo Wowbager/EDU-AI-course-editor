@@ -7,11 +7,19 @@
  */
 
 /**
- * Where a carried row would land: the number of the other rows whose middle is above
- * the carried row's middle. `middles` are the rows' middles at the press.
+ * Where a carried row would land. A row above gives way once the carried row's top
+ * edge is over its middle, a row below once the bottom edge is: the carried row covers
+ * at most half of a neighbour before that one slides aside, so two rows are never drawn
+ * on top of each other. `middles` are the rows' middles at the press; `top` and
+ * `bottom` are the carried row's edges now.
  */
-export function dropIndex(middles: readonly number[], from: number, carriedMiddle: number): number {
-	return middles.filter((m, i) => i !== from && m < carriedMiddle).length;
+export function dropIndex(
+	middles: readonly number[],
+	from: number,
+	top: number,
+	bottom: number
+): number {
+	return middles.filter((m, i) => i !== from && m < (i < from ? top : bottom)).length;
 }
 
 export interface DragState {
@@ -56,7 +64,7 @@ export function startReorder(
 		state = {
 			...state,
 			offset,
-			to: dropIndex(middles, from, middles[from] + offset),
+			to: dropIndex(middles, from, rects[from].top + offset, rects[from].bottom + offset),
 			moved: state.moved || Math.abs(offset) > THRESHOLD
 		};
 		update(state);
