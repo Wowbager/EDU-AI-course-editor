@@ -66,12 +66,12 @@ describe('a slide with a picture that cannot be read', () => {
 describe('a number in the XML that is not a character', () => {
 	it('is left as written, in a deck and in an equation, and the file still reads', async () => {
 		const out = await readPptx(
-			await deck(shape('title', 'Cena &#x110000; &#0; &#65; Kč')),
+			await deck(shape('title', 'Cena &#x110000; &#0; &#xD800; &#65; Kč')),
 			io(),
 			room,
 			JSZip
 		);
-		expect(out.pieces[0].title).toBe('Cena &#x110000; &#0; A Kč');
+		expect(out.pieces[0].title).toBe('Cena &#x110000; &#0; &#xD800; A Kč');
 		expect(latexOf('<m:oMath><m:r><m:t>a&#99999999;b</m:t></m:r></m:oMath>')).toBe(
 			'a&\\#99999999;b'
 		);
@@ -126,7 +126,7 @@ describe('asking the server to read a picture', () => {
 
 	it('waits out a busy or limited server, as long as it says, and asks again', async () => {
 		const { readOnServer } = await import('../browser');
-		const replies = [answer(503), answer(429, { 'retry-after': '7' }), answer(200)];
+		const replies = [answer(429), answer(503, { 'retry-after': '7' }), answer(200)];
 		const fetcher = vi.fn(async () => replies.shift()!);
 		const waits: number[] = [];
 		const text = await readOnServer(picture, {
@@ -141,11 +141,17 @@ describe('asking the server to read a picture', () => {
 
 	it('gives the page up after a few waits, and at once for any other answer', async () => {
 		const { readOnServer } = await import('../browser');
-		const busy = vi.fn(async () => answer(503));
+		const busy = vi.fn(async () => answer(503, { 'retry-after': '1' }));
 		await expect(
 			readOnServer(picture, { fetcher: busy as unknown as typeof fetch, wait: async () => {} })
 		).rejects.toThrow('503');
 		expect(busy).toHaveBeenCalledTimes(4);
+		// A 503 that does not say when to come back is a server with no AI: no waiting.
+		const off = vi.fn(async () => answer(503));
+		await expect(
+			readOnServer(picture, { fetcher: off as unknown as typeof fetch, wait: async () => {} })
+		).rejects.toThrow('503');
+		expect(off).toHaveBeenCalledTimes(1);
 		const bad = vi.fn(async () => answer(502));
 		await expect(
 			readOnServer(picture, { fetcher: bad as unknown as typeof fetch, wait: async () => {} })

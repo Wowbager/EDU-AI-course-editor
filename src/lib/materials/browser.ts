@@ -71,7 +71,7 @@ async function slot<T>(job: () => Promise<T>): Promise<T> {
 const RETRIES = 3;
 
 /**
- * One picture to the server's reader. A 429 or 503 is waited out, as long as the server
+ * One picture to the server's reader. A 429, or a 503 that says when to come back, is waited out, as long as the server
  * says (`Retry-After`) or a growing while (2, 4, 8 s), and asked again before the page is
  * given up; anything else fails at once.
  */
@@ -89,7 +89,11 @@ export async function readOnServer(
 			headers: { 'content-type': picture.type, 'x-editor-workspace': key },
 			body: picture
 		});
-		if ((response.status === 429 || response.status === 503) && attempt < RETRIES) {
+		// A 503 without Retry-After is a server with no AI at all: waiting will not help.
+		const busy =
+			response.status === 429 ||
+			(response.status === 503 && response.headers.get('retry-after') !== null);
+		if (busy && attempt < RETRIES) {
 			const after = Number(response.headers.get('retry-after'));
 			await wait(Math.min(Number.isFinite(after) && after > 0 ? after : 2 ** (attempt + 1), 70));
 			continue;

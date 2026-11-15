@@ -51,10 +51,15 @@ export const POST: RequestHandler = async ({ request }) => {
 		limits.record(owner, tokens > 0 ? tokens : ESTIMATED_READ_TOKENS);
 		return json({ text }, { headers: { 'cache-control': 'no-store' } });
 	} catch (e) {
-		// A call that failed was still sent, and parallel pages must not overrun the budget unseen.
-		limits.record(owner, ESTIMATED_READ_TOKENS);
+		// A call that failed was still sent, and parallel pages must not overrun the budget
+		// unseen; a host that turned it away as busy did no work.
+		if (!(e instanceof ProviderError) || e.kind !== 'busy')
+			limits.record(owner, ESTIMATED_READ_TOKENS);
 		if (!(e instanceof ProviderError)) throw e;
 		console.error('[ai] provider call failed:', e.kind, e.message);
-		error(e.kind === 'busy' ? 503 : 502, e.kind);
+		// Only a busy host is worth waiting for: the client retries a 503 that says when.
+		if (e.kind === 'busy')
+			return new Response('busy', { status: 503, headers: { 'retry-after': '5' } });
+		error(502, e.kind);
 	}
 };
