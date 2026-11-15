@@ -9,7 +9,7 @@
  * that asks for the whole proposal again, since every line after it depends on it.
  *
  * Message order is for the provider's prefix cache, as in `generate.ts`: the system
- * prompt, then the dossier, then the request.
+ * prompt, then the materials, then the dossier, then the request.
  */
 import {
 	applyEvent,
@@ -28,9 +28,9 @@ import type { Message, Stream } from './provider';
 
 export const OUTLINE_SYSTEM_PROMPT = `You plan the structure of a course ("kurz") for a mobile learning app, for a teacher who will review your proposal before anything is written. A course has lessons ("lekce"); a lesson has cards ("karty"). A card is a short sequence of screens on a phone; it is written later, from its name, the outline around it and the teacher's request, so the names have to say what each card is about.
 
-You get two or three user messages.
-1. The course dossier: plain text, read-only background: the course, its audience, its outline and the lessons and cards it already has. When a card is shown between the lines "${MARKER_OPEN}" and "${MARKER_CLOSE}", it is only the place the teacher is working at; it is not something to write about.
-2. When the teacher attached materials (Word, PowerPoint, PDF, scans): their index, and when they are short enough their full text. Each section has a key in square brackets. The materials are what the course is about: take its topics, order, examples and level from them, unless the teacher's prompt says otherwise.
+You get two or three user messages, in this order.
+1. When the teacher attached materials (Word, PowerPoint, PDF, scans): their index, and when they are short enough their full text. Each section has a key in square brackets. The materials are what the course is about: take its topics, order, examples and level from them, unless the teacher's prompt says otherwise.
+2. The course dossier: plain text, read-only background: the course, its audience, its outline and the lessons and cards it already has. When a card is shown between the lines "${MARKER_OPEN}" and "${MARKER_CLOSE}", it is only the place the teacher is working at; it is not something to write about.
 3. A JSON request: "prompt" is what the teacher asks for. "target" says where new cards would go: the lesson and the card the teacher has selected (by name), and how many lessons the course has. "course" has the title, the language and the audience. "current", when present, is the proposal the teacher is looking at and "prompt" is what they want changed in it ("original" is what they asked for first): rework it, keep what they did not ask to change exactly as it is (names, order), and return the whole proposal again.
 
 Answer in lines, one JSON object per line, and nothing else (no code fence, no commentary). The first line says what you propose:
@@ -127,13 +127,13 @@ export async function* outlineEvents(
 	signal?: AbortSignal
 ): AsyncGenerator<OutlineEvent> {
 	const messages: Message[] = [{ role: 'system', content: OUTLINE_SYSTEM_PROMPT }];
+	if (request.materials !== undefined && request.materials.trim() !== '')
+		messages.push({ role: 'user', content: `${MATERIALS_LABEL}\n\n${request.materials}` });
 	if (request.context.trim() !== '')
 		messages.push({
 			role: 'user',
 			content: `Course dossier (read-only background):\n\n${request.context}`
 		});
-	if (request.materials !== undefined && request.materials.trim() !== '')
-		messages.push({ role: 'user', content: `${MATERIALS_LABEL}\n\n${request.materials}` });
 	messages.push({ role: 'user', content: outlineMessage(request) });
 	const known = new Set(request.material_keys ?? []);
 	const readKnown = (json: unknown): ReturnType<typeof readLine> => {

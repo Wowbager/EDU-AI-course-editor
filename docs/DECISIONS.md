@@ -3055,9 +3055,16 @@ written from them.
   selection; when not, a proposal gets the index and a card its own sections in full plus the
   others' titles. The proposed card's `sources` are checked against the real keys: a made-up
   key is dropped, not retried.
-- **Order of messages:** system, dossier, materials, request, as asked. The materials are the
-  same for every card of a course that fits, but the dossier before them differs per card, so
-  the provider's prefix cache does not reach them; putting them before the dossier would.
+- **Order of messages:** system, materials, dossier, request. The materials are the same for
+  every card of a course that fits, so as a prefix the provider's cache covers them for all
+  cards (put after the dossier, which differs per card, they were never cached). When they do
+  not fit, the part sent in full differs per card and only the system prompt is shared; the
+  order stays the same.
+- **Word equations** (`omml.ts`): mammoth drops OMML, so before it reads the file each
+  equation is swapped for a word and becomes `$…$` (inline) or `$$…$$` (its own paragraph)
+  again at its place. Not covered: `m:groupChr` and `m:box` style, `m:phant` hiding,
+  alignment points beyond a plain `&`, equation numbering, and the letter shapes of
+  `m:sty`; unknown elements keep their text.
 - **What the teacher sees:** a paperclip in the box (or a file dropped on the panel), small
   chips above it („Čtu…“, × on hover), one quiet line under a proposed card that has
   sources („Z podkladů: Učebnice, str. 3–4“, „snímek 5“). Nothing else.

@@ -436,14 +436,14 @@ describe('materials in a proposal', () => {
 	const card = (name: string, sources?: string[]) =>
 		JSON.stringify({ kind: 'display', name, ...(sources ? { sources } : {}) });
 
-	it('sends the materials after the dossier and before the request, labelled, and keeps them out of the request', async () => {
+	it('sends the materials before the dossier and the request, labelled, and keeps them out of the request', async () => {
 		const model = scripted(1000, GOOD);
 		await run(withMaterials(), model);
 		const messages = model.seen[0];
 		expect(messages.map((m) => m.role)).toEqual(['system', 'user', 'user', 'user']);
-		expect(messages[1].content).toContain('Course dossier');
-		expect(messages[2].content.startsWith(MATERIALS_LABEL)).toBe(true);
-		expect(messages[2].content).toContain('[aaaaaaaa.0]');
+		expect(messages[1].content.startsWith(MATERIALS_LABEL)).toBe(true);
+		expect(messages[1].content).toContain('[aaaaaaaa.0]');
+		expect(messages[2].content).toContain('Course dossier');
 		expect(messages[3].content.startsWith('{')).toBe(true);
 		expect(messages[3].content).not.toContain('Index of the materials');
 		expect(messages[3].content).not.toContain('material_keys');

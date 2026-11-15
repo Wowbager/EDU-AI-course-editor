@@ -329,7 +329,7 @@ describe('plain-text fields', () => {
 });
 
 describe('materials in a card', () => {
-	it('sends them after the dossier and before the request, labelled, and not inside the request', async () => {
+	it('sends them before the dossier and the request, labelled, and not inside the request', async () => {
 		const model = scripted(GOOD);
 		const asked: GenRequest = {
 			...request({}, 'Kurz: Zlomky'),
@@ -338,12 +338,22 @@ describe('materials in a card', () => {
 		await generateCard(asked, model);
 		const messages = model.seen[0];
 		expect(messages.map((m) => m.role)).toEqual(['system', 'user', 'user', 'user']);
-		expect(messages[1].content).toContain('Course dossier');
-		expect(messages[2].content.startsWith(MATERIALS_LABEL)).toBe(true);
-		expect(messages[2].content).toContain('[aaaaaaaa.0]');
+		expect(messages[1].content.startsWith(MATERIALS_LABEL)).toBe(true);
+		expect(messages[1].content).toContain('[aaaaaaaa.0]');
+		expect(messages[2].content).toContain('Course dossier');
 		expect(messages[3].content).toBe(requestMessage(asked));
 		expect(messages[3].content).not.toContain('aaaaaaaa');
 		expect(SYSTEM_PROMPT).toContain('never put a key in the card');
+	});
+
+	it('the messages before the dossier are the same for every card of a course, so they are a cached prefix', async () => {
+		const materials = 'The materials in full:\n\n### [aaaaaaaa.0] x';
+		const a = scripted(GOOD);
+		const b = scripted(GOOD);
+		await generateCard({ ...request({}, 'Kurz: A'), materials }, a);
+		await generateCard({ ...request({ title: 'Jiná karta' }, 'Kurz: B'), materials }, b);
+		expect(b.seen[0].slice(0, 2)).toEqual(a.seen[0].slice(0, 2));
+		expect(b.seen[0][2]).not.toEqual(a.seen[0][2]);
 	});
 
 	it('sends no message for materials when the card has none', async () => {
