@@ -84,10 +84,23 @@ function channel<T>() {
 	};
 }
 
+/** What a call used when the host never said: about 3 characters to a token, in and out. */
+const estimate = (messages: readonly Message[], written: string): number =>
+	Math.ceil((messages.reduce((sum, m) => sum + m.content.length, 0) + written.length) / 3);
+
+interface Slot {
+	/** Where the line stood among the lines of the answer. */
+	slot: number;
+	raw: string;
+	why: string;
+}
+
 export async function* outlineEvents(
 	request: OutlineRequest,
 	stream: Stream,
-	spent: (tokens: number) => void = () => {}
+	/** Told what each call used, however it ended; a cut stream is estimated from what arrived. */
+	spent: (tokens: number) => void = () => {},
+	signal?: AbortSignal
 ): AsyncGenerator<OutlineEvent> {
 	const messages: Message[] = [{ role: 'system', content: OUTLINE_SYSTEM_PROMPT }];
 	if (request.context.trim() !== '')
@@ -100,24 +113,47 @@ export async function* outlineEvents(
 	let outline: Outline | null = null;
 	let sent = 0;
 	let reason = '';
+	/** The slots that have a line on the teacher's screen, in order. */
+	const present: number[] = [];
+	/** Lines still to be asked for again. */
+	let pending: Slot[] = [];
+	let slots = 0;
+
 	for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
-		const again = attempt > 0 && outline !== null;
-		const bad: { raw: string; why: string }[] = [];
+		// After a good first round only the bad lines are asked for; before that, everything.
+		const retry = attempt > 0 && outline !== null && pending.length > 0;
+		const asked = retry ? pending : [];
+		/** What each line of a retry came to, in the order the model wrote them. */
+		const results: ({ event: OutlineEvent } | { problem: string })[] = [];
+		const fresh: Slot[] = [];
 		let scopeFault = '';
 		let whole = '';
+		if (!retry) {
+			slots = 0;
+			pending = [];
+			present.length = 0;
+		}
 		const out = channel<OutlineEvent>();
 		const splitter = lineSplitter(
 			(json, raw) => {
 				const read = readLine(json);
-				if ('problem' in read) return void bad.push({ raw, why: read.problem });
+				if ('problem' in read) {
+					if (retry) results.push({ problem: read.problem });
+					else fresh.push({ slot: slots++, raw, why: read.problem });
+					return;
+				}
 				const event = read.event;
 				if (event.type === 'scope') {
 					// On a second round the scope is settled and not asked for again.
-					if (again || outline !== null) return;
+					if (retry || outline !== null) return;
 					const fault = scopeProblem(request, event.scope);
 					if (fault !== undefined) return void (scopeFault = fault);
-				} else if (outline === null) {
-					// A model that forgets the scope line: the line's shape says which it is.
+					outline = applyEvent(outline, event);
+					return void out.push(event);
+				}
+				if (retry) return void results.push({ event });
+				// A model that forgets the scope line: the line's shape says which it is.
+				if (outline === null) {
 					if (scopeFault !== '') return;
 					const scope = event.type === 'lesson' ? 'lessons' : 'cards';
 					const fault = scopeProblem(request, scope);
@@ -126,43 +162,91 @@ export async function* outlineEvents(
 					out.push({ type: 'scope', scope });
 				}
 				if (scopeFault !== '') return;
+				present.push(slots++);
 				outline = applyEvent(outline, event);
 				out.push(event);
-				if (event.type !== 'scope') sent++;
+				sent++;
 			},
-			(raw) => bad.push({ raw, why: 'not valid JSON' })
+			(raw) => {
+				if (retry) results.push({ problem: 'not valid JSON' });
+				else fresh.push({ slot: slots++, raw, why: 'not valid JSON' });
+			}
 		);
-		const run = stream(messages, (piece) => {
-			whole += piece;
-			splitter.feed(piece);
-		})
-			.then(({ tokens }) => {
-				splitter.end();
-				spent(tokens);
-			})
-			.finally(() => out.close());
-		// A failure of the call itself reaches the caller when the stream ends.
-		const done = run.then(
-			() => undefined,
-			(error: unknown) => ({ error })
-		);
-		for await (const event of out.drain()) yield event;
-		const failure = await done;
-		if (failure !== undefined) throw failure.error;
-
-		if (scopeFault !== '') {
-			reason = `${scopeFault} Answer again with the whole proposal.`;
-		} else if (bad.length > 0) {
-			reason = `These lines were not usable:\n${bad
-				.map((b) => `${b.raw.slice(0, 120)}\n  → ${b.why}`)
-				.join(
-					'\n'
-				)}\nAnswer again with only corrected versions of exactly these lines, in the same format, with no scope line.`;
-		} else if (outline === null || sent === 0) {
-			reason = 'Your answer had no lines in the format. Answer again with the whole proposal.';
-		} else {
-			reason = '';
+		let counted = false;
+		try {
+			const run = stream(
+				messages,
+				(piece) => {
+					whole += piece;
+					splitter.feed(piece);
+				},
+				signal
+			)
+				.then(({ tokens }) => {
+					counted = true;
+					spent(tokens);
+					splitter.end();
+				})
+				.finally(() => out.close());
+			const done = run.then(
+				() => undefined,
+				(error: unknown) => ({ error })
+			);
+			for await (const event of out.drain()) yield event;
+			const failure = await done;
+			if (failure !== undefined) throw failure.error;
+		} finally {
+			// A call that was cut, failed or abandoned still used what it used.
+			if (!counted) spent(estimate(messages, whole));
 		}
+
+		let next = '';
+		const mended: OutlineEvent[] = [];
+		if (retry) {
+			// Only the lines that were asked for count: an answer with more lines is the whole
+			// proposal again, and taking it would repeat what the teacher already has.
+			const lines = results.length;
+			if (lines > asked.length) {
+				next = `You gave ${lines} lines, but only ${asked.length} were asked for. Answer again with only corrected versions of exactly those lines, no others.`;
+			} else {
+				// The i-th line stands for the i-th asked-for one and goes back to its place.
+				const left: Slot[] = [];
+				asked.forEach((line, i) => {
+					const result = results[i];
+					const fixed = result !== undefined && 'event' in result ? result.event : undefined;
+					if (fixed === undefined || (fixed.type !== 'lesson' && fixed.type !== 'card')) {
+						left.push({
+							...line,
+							why: result !== undefined && 'problem' in result ? result.problem : line.why
+						});
+						return;
+					}
+					const at = present.filter((slot) => slot < line.slot).length;
+					present.splice(at, 0, line.slot);
+					const event = { ...fixed, at };
+					outline = applyEvent(outline, event);
+					mended.push(event);
+					sent++;
+				});
+				pending = left;
+			}
+		} else {
+			pending = fresh;
+		}
+		for (const event of mended) yield event;
+
+		if (next === '') {
+			if (scopeFault !== '') next = `${scopeFault} Answer again with the whole proposal.`;
+			else if (pending.length > 0)
+				next = `These lines were not usable:\n${pending
+					.map((b) => `${b.raw.slice(0, 120)}\n  → ${b.why}`)
+					.join(
+						'\n'
+					)}\nAnswer again with only corrected versions of exactly these lines, in the same format, with no scope line.`;
+			else if (outline === null || sent === 0)
+				next = 'Your answer had no lines in the format. Answer again with the whole proposal.';
+		}
+		reason = next;
 		if (reason === '') break;
 		messages.push({ role: 'assistant', content: whole }, { role: 'user', content: reason });
 	}

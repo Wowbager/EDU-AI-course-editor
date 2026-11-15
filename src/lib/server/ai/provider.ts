@@ -17,7 +17,9 @@ export type Complete = (messages: readonly Message[]) => Promise<Completion>;
  */
 export type Stream = (
 	messages: readonly Message[],
-	onText: (piece: string) => void
+	onText: (piece: string) => void,
+	/** Aborting it ends the call at the host too. */
+	signal?: AbortSignal
 ) => Promise<{ tokens: number }>;
 
 /** Why a call failed, in the terms the route answers with. */
@@ -105,21 +107,32 @@ export function completer(config: AiConfig, fetcher: typeof fetch = fetch): Comp
 /** Pieces of text out of an OpenAI-style event stream, and the usage it ends with. */
 export function sseReader(onText: (piece: string) => void): {
 	feed(chunk: string): void;
-	end(): { tokens: number };
+	end(): { tokens: number; finished: boolean; error?: string };
 } {
 	let buffer = '';
 	let usage: Usage | undefined;
+	// A stream that ends without `[DONE]` or a finish reason was cut, however well it read.
+	let finished = false;
+	let error: string | undefined;
 	const line = (raw: string) => {
 		const text = raw.trim();
 		// Comments (": OPENROUTER PROCESSING") and other fields are not data.
 		if (!text.startsWith('data:')) return;
 		const data = text.slice(5).trim();
-		if (data === '' || data === '[DONE]') return;
+		if (data === '[DONE]') return void (finished = true);
+		if (data === '') return;
 		try {
 			const event = JSON.parse(data) as {
-				choices?: { delta?: { content?: unknown } }[];
+				choices?: { delta?: { content?: unknown }; finish_reason?: unknown }[];
 				usage?: Usage;
+				error?: { message?: unknown } | string;
 			};
+			// A host that fails half way says so inside the stream.
+			if (event.error !== undefined)
+				error =
+					typeof event.error === 'string' ? event.error : String(event.error.message ?? 'error');
+			if (event.choices?.some((c) => c.finish_reason !== undefined && c.finish_reason !== null))
+				finished = true;
 			const piece = event.choices?.[0]?.delta?.content;
 			if (typeof piece === 'string' && piece !== '') onText(piece);
 			if (event.usage !== undefined) usage = event.usage;
@@ -139,14 +152,14 @@ export function sseReader(onText: (piece: string) => void): {
 		end() {
 			line(buffer);
 			buffer = '';
-			return { tokens: weightedTokens(usage) };
+			return { tokens: weightedTokens(usage), finished, ...(error !== undefined ? { error } : {}) };
 		}
 	};
 }
 
 export function streamer(config: AiConfig, fetcher: typeof fetch = fetch): Stream {
 	if (config.provider === 'fake') return fakeStream;
-	return async (messages, onText) => {
+	return async (messages, onText, signal) => {
 		let response: Response;
 		try {
 			response = await fetcher(`${config.baseURL}/chat/completions`, {
@@ -159,7 +172,10 @@ export function streamer(config: AiConfig, fetcher: typeof fetch = fetch): Strea
 						: {})
 				},
 				body: JSON.stringify(buildBody(config, messages, { stream: true })),
-				signal: AbortSignal.timeout(TIMEOUT_MS)
+				signal:
+					signal === undefined
+						? AbortSignal.timeout(TIMEOUT_MS)
+						: AbortSignal.any([signal, AbortSignal.timeout(TIMEOUT_MS)])
 			});
 		} catch (e) {
 			throw new ProviderError('network', e instanceof Error ? e.message : String(e));
@@ -178,6 +194,11 @@ export function streamer(config: AiConfig, fetcher: typeof fetch = fetch): Strea
 		} catch (e) {
 			throw new ProviderError('network', e instanceof Error ? e.message : String(e));
 		}
-		return reader.end();
+		const ended = reader.end();
+		if (ended.error !== undefined)
+			throw new ProviderError('failed', `stream error: ${ended.error}`);
+		if (!ended.finished)
+			throw new ProviderError('network', 'the stream ended before the model finished');
+		return { tokens: ended.tokens };
 	};
 }

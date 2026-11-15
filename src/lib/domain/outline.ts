@@ -125,18 +125,34 @@ export const nameProblem = (name: string, why: string): string =>
  */
 export type OutlineEvent =
 	| { type: 'scope'; scope: Outline['scope'] }
-	| { type: 'lesson'; lesson: OutlineLesson }
-	| { type: 'card'; card: OutlineCard }
+	/** `at`: a line asked for again goes back to its own place, not at the end. */
+	| { type: 'lesson'; lesson: OutlineLesson; at?: number }
+	| { type: 'card'; card: OutlineCard; at?: number }
 	| { type: 'done' }
 	| { type: 'failed'; problem?: 'busy' | 'failed' };
 
 export const outlineEventSchema: z.ZodType<OutlineEvent> = z.union([
 	z.object({ type: z.literal('scope'), scope: z.enum(['lessons', 'cards']) }),
-	z.object({ type: z.literal('lesson'), lesson: outlineLessonSchema }),
-	z.object({ type: z.literal('card'), card: outlineCardSchema }),
+	z.object({
+		type: z.literal('lesson'),
+		lesson: outlineLessonSchema,
+		at: z.number().int().min(0).optional()
+	}),
+	z.object({
+		type: z.literal('card'),
+		card: outlineCardSchema,
+		at: z.number().int().min(0).optional()
+	}),
 	z.object({ type: z.literal('done') }),
 	z.object({ type: z.literal('failed'), problem: z.enum(['busy', 'failed']).optional() })
 ]);
+
+/** `list` with `item` at `at` (or at the end, or as far as the list goes). */
+const placed = <T>(list: readonly T[], item: T, at?: number): T[] => {
+	const out = [...list];
+	out.splice(at === undefined ? out.length : Math.min(at, out.length), 0, item);
+	return out;
+};
 
 /** The proposal so far, with one more event; `null` until the scope is known. */
 export function applyEvent(so: Outline | null, event: OutlineEvent): Outline | null {
@@ -146,9 +162,11 @@ export function applyEvent(so: Outline | null, event: OutlineEvent): Outline | n
 				? { scope: 'cards', cards: [] }
 				: { scope: 'lessons', lessons: [] };
 		case 'lesson':
-			return so?.scope === 'lessons' ? { ...so, lessons: [...so.lessons, event.lesson] } : so;
+			return so?.scope === 'lessons'
+				? { ...so, lessons: placed(so.lessons, event.lesson, event.at) }
+				: so;
 		case 'card':
-			return so?.scope === 'cards' ? { ...so, cards: [...so.cards, event.card] } : so;
+			return so?.scope === 'cards' ? { ...so, cards: placed(so.cards, event.card, event.at) } : so;
 		default:
 			return so;
 	}
@@ -281,14 +299,15 @@ export function addToDraft(
 	if (event.type === 'lesson' && draft.scope === 'lessons')
 		return {
 			...draft,
-			lessons: [
-				...draft.lessons,
+			lessons: placed(
+				draft.lessons,
 				{
 					key: next(),
 					name: event.lesson.name,
 					cards: draftCards(event.lesson.cards, next, unticked)
-				}
-			]
+				},
+				event.at
+			)
 		};
 	if (event.type === 'card' && draft.scope === 'cards')
 		return {
@@ -296,7 +315,11 @@ export function addToDraft(
 			lessons: [
 				{
 					...draft.lessons[0],
-					cards: [...draft.lessons[0].cards, ...draftCards([event.card], next, unticked)]
+					cards: placed(
+						draft.lessons[0].cards,
+						draftCards([event.card], next, unticked)[0],
+						event.at
+					)
 				}
 			]
 		};

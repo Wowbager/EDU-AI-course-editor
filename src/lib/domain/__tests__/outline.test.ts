@@ -258,4 +258,38 @@ describe('the stream of lines', () => {
 		const keys = draft.lessons.flatMap((l) => [l.key, ...l.cards.map((c) => c.key)]);
 		expect(new Set(keys).size).toBe(keys.length);
 	});
+
+	it('puts a line that was asked for again back at its place, in the proposal and in the draft', () => {
+		let so = applyEvent(null, { type: 'scope', scope: 'lessons' });
+		for (const name of ['A', 'C'])
+			so = applyEvent(so, { type: 'lesson', lesson: { name, cards: [card('x')] } as never });
+		so = applyEvent(so, {
+			type: 'lesson',
+			lesson: { name: 'B', cards: [card('x')] } as never,
+			at: 1
+		});
+		expect(so?.scope === 'lessons' && so.lessons.map((l) => l.name)).toEqual(['A', 'B', 'C']);
+
+		const next = keyMaker();
+		let draft = emptyDraft('lessons', next);
+		for (const name of ['A', 'C'])
+			draft = addToDraft(
+				draft,
+				{ type: 'lesson', lesson: { name, cards: [card('x')] } as never },
+				next
+			);
+		draft = addToDraft(
+			draft,
+			{ type: 'lesson', lesson: { name: 'B', cards: [card('x')] } as never, at: 1 },
+			next
+		);
+		expect(draft.lessons.map((l) => l.name)).toEqual(['A', 'B', 'C']);
+		// Beyond the end is the end.
+		draft = addToDraft(
+			draft,
+			{ type: 'lesson', lesson: { name: 'Z', cards: [card('x')] } as never, at: 99 },
+			next
+		);
+		expect(draft.lessons.at(-1)!.name).toBe('Z');
+	});
 });

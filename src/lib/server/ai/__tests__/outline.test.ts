@@ -1,13 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
 	outlineRequestSchema,
+	applyEvent,
 	outlineSchema,
+	type Outline,
 	type OutlineEvent,
 	type OutlineRequest
 } from '$lib/domain/outline';
 import { fakeOutline, fakeStream } from '../fake';
 import { outlineEvents, OUTLINE_SYSTEM_PROMPT } from '../outline';
-import { buildBody, sseReader, type Message, type Stream } from '../provider';
+import {
+	buildBody,
+	ProviderError,
+	sseReader,
+	streamer,
+	type Message,
+	type Stream
+} from '../provider';
 import { readAiConfig } from '../config';
 
 const request = (over: Partial<OutlineRequest> = {}): OutlineRequest => ({
@@ -209,7 +218,7 @@ describe('the provider stream', () => {
 			'data: [DONE]\n\n';
 		for (let i = 0; i < text.length; i += 13) reader.feed(text.slice(i, i + 13));
 		expect(got.join('')).toBe('{"scope":1}\n');
-		expect(reader.end()).toEqual({ tokens: 110 });
+		expect(reader.end()).toEqual({ tokens: 110, finished: true });
 	});
 
 	it('asks for a stream without the JSON-object mode, keeping the host rules', () => {
@@ -218,5 +227,173 @@ describe('the provider stream', () => {
 		expect(body.stream_options).toEqual({ include_usage: true });
 		expect(body.response_format).toBeUndefined();
 		expect(body.provider).toMatchObject({ data_collection: 'deny', max_price: { prompt: 0.5 } });
+	});
+
+	it('knows a stream that ended without a finish, or with an error event, was cut', () => {
+		const run = (text: string) => {
+			const reader = sseReader(() => {});
+			reader.feed(text);
+			return reader.end();
+		};
+		const piece = 'data: {"choices":[{"delta":{"content":"x"}}]}\n\n';
+		expect(run(piece)).toMatchObject({ finished: false });
+		expect(
+			run(`${piece}data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n`)
+		).toMatchObject({
+			finished: true
+		});
+		expect(run(`${piece}data: [DONE]\n`)).toMatchObject({ finished: true });
+		expect(run(`${piece}data: {"error":{"message":"upstream failed"}}\n\n`)).toMatchObject({
+			error: 'upstream failed'
+		});
+	});
+
+	const reply = (text: string) =>
+		(async () =>
+			new Response(text, {
+				headers: { 'content-type': 'text/event-stream' }
+			})) as unknown as typeof fetch;
+	const config = readAiConfig({ AI_API_KEY: 'k' });
+	const piece = 'data: {"choices":[{"delta":{"content":"{\\"scope\\":\\"cards\\"}\\n"}}]}\n\n';
+
+	it('fails a stream that stops without a finish, after handing on what it had', async () => {
+		const got: string[] = [];
+		await expect(streamer(config, reply(piece))([], (t) => got.push(t))).rejects.toMatchObject({
+			kind: 'network'
+		});
+		expect(got).toEqual(['{"scope":"cards"}\n']);
+	});
+
+	it('fails a stream with an error event in it', async () => {
+		const text = `${piece}data: {"error":{"message":"boom"}}\n\ndata: [DONE]\n\n`;
+		await expect(streamer(config, reply(text))([], () => {})).rejects.toBeInstanceOf(ProviderError);
+	});
+
+	it('takes a stream that finishes, with its usage', async () => {
+		const text = `${piece}data: {"choices":[{"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\ndata: [DONE]\n\n`;
+		await expect(streamer(config, reply(text))([], () => {})).resolves.toEqual({ tokens: 15 });
+	});
+
+	it('hands the abort signal to the host call', async () => {
+		let seen: AbortSignal | null | undefined;
+		const fetcher = (async (_url: string, init: RequestInit) => {
+			seen = init.signal;
+			return new Response('data: [DONE]\n\n');
+		}) as unknown as typeof fetch;
+		const controller = new AbortController();
+		await streamer(config, fetcher)([], () => {}, controller.signal);
+		controller.abort();
+		expect(seen?.aborted).toBe(true);
+	});
+});
+
+describe('every ending is counted', () => {
+	it('counts a call that failed after two lessons, by what had arrived', async () => {
+		const spent = vi.fn();
+		const stream: Stream = async (_m, onText) => {
+			onText('{"scope":"lessons"}\n');
+			onText(`${L('A', ['display', 'B'])}\n`);
+			throw new ProviderError('network', 'cut');
+		};
+		const seen: string[] = [];
+		await expect(
+			(async () => {
+				for await (const e of outlineEvents(request(), stream, spent)) seen.push(e.type);
+			})()
+		).rejects.toBeInstanceOf(ProviderError);
+		expect(seen).toEqual(['scope', 'lesson']);
+		expect(spent).toHaveBeenCalledTimes(1);
+		expect(spent.mock.calls[0][0]).toBeGreaterThan(0);
+	});
+
+	it('counts the reported usage once for a call that finished, and estimates one that was abandoned', async () => {
+		const spent = vi.fn();
+		await run(request(), scripted(50, GOOD), spent);
+		expect(spent.mock.calls).toEqual([[7]]);
+
+		const abandoned = vi.fn();
+		const stream: Stream = async (_m, onText) => {
+			onText('{"scope":"lessons"}\n');
+			onText(`${L('A', ['display', 'B'])}\n`);
+			await new Promise((r) => setTimeout(r, 30));
+			return { tokens: 99 };
+		};
+		const gen = outlineEvents(request(), stream, abandoned);
+		await gen.next();
+		await gen.return(undefined);
+		expect(abandoned).toHaveBeenCalledTimes(1);
+	});
+
+	it('passes the abort signal to the stream', async () => {
+		let seen: AbortSignal | undefined;
+		const stream: Stream = async (_m, onText, signal) => {
+			seen = signal;
+			onText(`${GOOD}\n`);
+			return { tokens: 1 };
+		};
+		const controller = new AbortController();
+		await run(request(), stream);
+		for await (const _ of outlineEvents(request(), stream, undefined, controller.signal)) void _;
+		expect(seen).toBe(controller.signal);
+	});
+});
+
+describe('lines asked for again', () => {
+	const order = (events: OutlineEvent[]) => {
+		let so: Outline | null = null;
+		for (const e of events) so = applyEvent(so, e);
+		return so?.scope === 'lessons' ? so.lessons.map((l) => l.name) : [];
+	};
+
+	it('go back to their own place, however many are mended', async () => {
+		const first = [
+			'{"scope":"lessons"}',
+			L('A', ['display', 'a']),
+			'{"name":"B","cards":[]}',
+			L('C', ['display', 'c']),
+			'{"name":"D","cards":[]}',
+			L('E', ['display', 'e'])
+		].join('\n');
+		const model = scripted(50, first, `${L('B', ['display', 'b'])}\n${L('D', ['display', 'd'])}\n`);
+		const events = await run(request(), model);
+		expect(order(events)).toEqual(['A', 'B', 'C', 'D', 'E']);
+		expect(events.at(-1)).toEqual({ type: 'done' });
+		const mended = events.filter((e) => e.type === 'lesson' && e.at !== undefined);
+		expect(mended).toHaveLength(2);
+	});
+
+	it('are placed by what is still there when only some of them are mended', async () => {
+		const first = [
+			'{"scope":"lessons"}',
+			L('A', ['display', 'a']),
+			'{"name":"B","cards":[]}',
+			L('C', ['display', 'c']),
+			'{"name":"D","cards":[]}',
+			L('E', ['display', 'e'])
+		].join('\n');
+		// The retry mends only the second asked-for line, the first stays bad.
+		const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const model = scripted(
+			50,
+			first,
+			`{"name":"B","cards":[]}\n${L('D', ['display', 'd'])}\n`,
+			'{"name":"B","cards":[]}\n'
+		);
+		const events = await run(request(), model);
+		expect(order(events)).toEqual(['A', 'C', 'D', 'E']);
+		log.mockRestore();
+	});
+
+	it('take only the lines that were asked for: a whole proposal again is refused', async () => {
+		const first = ['{"scope":"lessons"}', L('A', ['display', 'a']), '{"name":"B","cards":[]}'].join(
+			'\n'
+		);
+		const whole = `{"scope":"lessons"}\n${L('A', ['display', 'a'])}\n${L('B', ['display', 'b'])}\n`;
+		const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+		const model = scripted(50, first, whole, `${L('B', ['display', 'b'])}\n`);
+		const events = await run(request(), model);
+		expect(order(events)).toEqual(['A', 'B']);
+		expect(model.seen[2].at(-1)!.content).toMatch(/only 1 were asked for/);
+		log.mockRestore();
 	});
 });

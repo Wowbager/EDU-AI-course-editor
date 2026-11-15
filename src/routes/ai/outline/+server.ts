@@ -55,23 +55,47 @@ export const POST: RequestHandler = async ({ request }) => {
 		);
 
 	const encoder = new TextEncoder();
+	// The teacher discarding or closing the page cancels the response; that must end the
+	// call at the host too, not leave it to run for minutes.
+	const abort = new AbortController();
+	let open = true;
 	const stream = new ReadableStream<Uint8Array>({
 		async start(controller) {
-			const send = (event: unknown) =>
-				controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+			const send = (event: unknown) => {
+				if (!open) return;
+				try {
+					controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+				} catch {
+					open = false;
+				}
+			};
 			try {
-				for await (const event of outlineEvents(parsed.data, streamer(config), (tokens) =>
-					limits.record(owner, tokens)
+				for await (const event of outlineEvents(
+					parsed.data,
+					streamer(config),
+					(tokens) => limits.record(owner, tokens),
+					abort.signal
 				))
 					send(event);
 			} catch (e) {
 				if (!(e instanceof ProviderError)) throw e;
 				// The teacher gets a sentence from the client; the log keeps what failed.
-				console.error('[ai] provider call failed:', e.kind, e.message);
+				if (open) console.error('[ai] provider call failed:', e.kind, e.message);
 				send({ type: 'failed', problem: e.kind === 'busy' ? 'busy' : 'failed' });
 			} finally {
-				controller.close();
+				if (open) {
+					open = false;
+					try {
+						controller.close();
+					} catch {
+						// Already closed by the cancel.
+					}
+				}
 			}
+		},
+		cancel() {
+			open = false;
+			abort.abort();
 		}
 	});
 	return new Response(stream, {
