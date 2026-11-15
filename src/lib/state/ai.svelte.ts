@@ -56,14 +56,18 @@ class Ai {
 	/** Cards being written right now, by the view's card id. */
 	writing = new SvelteSet<string>();
 
-	/** Ask the server once whether AI is on offer. */
+	/**
+	 * Ask the server whether AI is on offer. Only its answer changes the offer: a
+	 * request that did not get through says nothing about the provider.
+	 */
 	async detect(): Promise<void> {
 		try {
 			const response = await fetch('/ai/block');
+			if (!response.ok) return;
 			const body = (await response.json()) as { configured?: boolean };
-			this.available = response.ok && body.configured === true;
+			this.available = body.configured === true;
 		} catch {
-			this.available = false;
+			// Unknown, so unchanged.
 		}
 	}
 
