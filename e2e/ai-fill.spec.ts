@@ -119,3 +119,32 @@ test('who the course is for is set once, in the course settings', async ({ page 
 		prior_knowledge: 'dělení do 20'
 	});
 });
+
+test('a busy provider and a dropped connection leave the offer where it was', async ({ page }) => {
+	await openEditor(page);
+	await expect(write(page)).toBeVisible();
+	// From here on the provider is busy, and asking the server about AI gets no answer.
+	await page.route('**/ai/block', (route) =>
+		route.request().method() === 'POST'
+			? route.fulfill({ status: 503, body: 'busy' })
+			: route.abort()
+	);
+	await name(page).fill('Co je polovina');
+	await write(page).click();
+	await expect(page.getByText('AI je teď přetížená. Zkus to za chvíli.')).toBeVisible();
+	await expect(write(page)).toBeEnabled();
+});
+
+test('a server that has lost its provider takes the offer away', async ({ page }) => {
+	await openEditor(page);
+	await expect(write(page)).toBeVisible();
+	await page.route('**/ai/block', (route) =>
+		route.request().method() === 'POST'
+			? route.fulfill({ status: 503, body: 'AI není nastavena.' })
+			: route.fulfill({ json: { configured: false } })
+	);
+	await name(page).fill('Co je polovina');
+	await write(page).click();
+	await expect(page.getByText('Kartu se nepodařilo dopsat. Zkus to znovu.')).toBeVisible();
+	await expect(write(page)).toHaveCount(0);
+});
