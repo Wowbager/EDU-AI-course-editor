@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, expect, openEditor, type Page } from './fixtures';
 
@@ -38,10 +39,15 @@ test('a file is attached with the paperclip, shown as a chip while it is read, a
 	});
 	await expect(page.getByRole('button', { name: 'Přiložit podklady' })).toBeEnabled();
 	await picker(page).setInputFiles([png]);
-	const reading = chips(page).getByRole('listitem').filter({ hasText: 'page.png' });
-	await expect(reading).toContainText('Čtu…');
+	// While it is read the chip shows a spinner, and says so to a screen reader.
+	const reading = chips(page).getByRole('listitem').filter({ hasText: 'page' });
+	await expect(reading.getByText('Čtu soubor page.png')).toBeAttached();
+	await expect(reading.getByRole('button')).toHaveCount(0);
 	release();
-	await expect(reading).not.toContainText('Čtu…');
+	await expect(reading.getByText('Čtu soubor page.png')).toHaveCount(0);
+	// The chip shows the name without its extension; the full name is its tooltip.
+	await expect(reading).toHaveText('page');
+	await expect(reading).toHaveAttribute('title', 'page.png');
 	await expect(reading.getByRole('button', { name: 'Odebrat podklad: page.png' })).toBeAttached();
 	await expect(page.getByRole('textbox', { name: 'Co mám vytvořit?' })).toBeVisible();
 });
@@ -56,7 +62,6 @@ test('a proposal made from materials shows where each card comes from, and the c
 	});
 	await picker(page).setInputFiles([docx, png]);
 	await expect(chips(page).getByRole('listitem')).toHaveCount(2);
-	await expect(chips(page)).not.toContainText('Čtu…');
 
 	await box(page).fill('Kurz podle podkladů');
 	await page.getByRole('button', { name: 'Odeslat', exact: true }).click();
@@ -96,17 +101,17 @@ test('the materials belong to the course: they are there after a reload, and × 
 	await page.reload();
 	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
 	await expect(chips(page).getByRole('listitem')).toHaveCount(2);
-	await expect(chips(page)).toContainText('handout.docx');
-	await expect(chips(page)).toContainText('page.png');
+	await expect(chips(page)).toContainText('handout');
+	await expect(chips(page)).toContainText('page');
 
-	await chips(page).getByRole('listitem').filter({ hasText: 'page.png' }).hover();
+	await chips(page).getByRole('listitem').filter({ hasText: 'page' }).hover();
 	await page.getByRole('button', { name: 'Odebrat podklad: page.png' }).click();
 	await expect(chips(page).getByRole('listitem')).toHaveCount(1);
 
 	await page.reload();
 	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
 	await expect(chips(page).getByRole('listitem')).toHaveCount(1);
-	await expect(chips(page)).toContainText('handout.docx');
+	await expect(chips(page)).toContainText('handout');
 });
 
 test('a page that could not be read is said, quietly, and the rest of the file is kept', async ({
@@ -114,8 +119,37 @@ test('a page that could not be read is said, quietly, and the rest of the file i
 }) => {
 	await page.route('**/ai/read', (route) => route.fulfill({ status: 503, body: 'busy' }));
 	await picker(page).setInputFiles([pdf]);
-	await expect(chips(page).getByRole('listitem').filter({ hasText: 'scan.pdf' })).toBeVisible();
-	await expect(chips(page)).toContainText('Stranu 2 se nepodařilo přečíst');
+	const chip = chips(page).getByRole('listitem').filter({ hasText: 'scan' });
+	await expect(chip).toBeVisible();
+	// The file's own chip is marked, and its tooltip says which pages; the line names the file.
+	await expect(chip.locator('.chip-warn')).toHaveText('!');
+	await expect(chip).toHaveAttribute('title', /scan\.pdf\nStranu 2 se nepodařilo přečíst/);
+	await expect(panel(page).getByText('scan: stranu 2 se nepodařilo přečíst')).toBeVisible();
+});
+
+test('chips stay in one row; „+N“ opens the rest and folds them again', async ({ page }) => {
+	const bytes = readFileSync(docx);
+	const names = [1, 2, 3, 4, 5, 6].map((n) => `Pracovní list lineární rovnice třída ${n}.docx`);
+	await picker(page).setInputFiles(
+		names.map((name, n) => ({
+			name,
+			mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+			buffer: Buffer.concat([bytes, Buffer.from([n])])
+		}))
+	);
+	const more = chips(page).getByRole('button', { name: /^Ukázat dalších \d+ podkladů$/ });
+	await expect(more).toBeVisible();
+	const row = (list: ReturnType<typeof chips>) =>
+		list.getByRole('listitem').evaluateAll((items) => new Set(items.map((i) => i.offsetTop)).size);
+	expect(await row(chips(page))).toBe(1);
+	const shown = await chips(page).locator('.chip:not(.more)').filter({ visible: true }).count();
+	expect(shown).toBeLessThan(6);
+	await more.click();
+	await expect(chips(page).locator('.chip:not(.more)').filter({ visible: true })).toHaveCount(6);
+	await chips(page).getByRole('button', { name: 'Sbalit podklady' }).click();
+	await expect(chips(page).locator('.chip:not(.more)').filter({ visible: true })).toHaveCount(
+		shown
+	);
 });
 
 test('a file that is refused says why in one line', async ({ page }) => {

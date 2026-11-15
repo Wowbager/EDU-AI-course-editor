@@ -37,6 +37,10 @@
 
 	const edit = (next: Draft) => (aiPanel.draft = next);
 
+	/** Where a card comes from, in one line, or nothing. */
+	const sourcesOf = (keys: readonly string[] | undefined): string =>
+		keys === undefined ? '' : sourceLine(materials.sections, keys);
+
 	/** Lessons the teacher folded or opened by hand; the first one is open until then, or all of them when the proposal is short. */
 	let opened = $state<Record<string, boolean>>({});
 	const isOpen = (key: string, index: number) => opened[key] ?? lessonStartsOpen(draft, index);
@@ -169,9 +173,10 @@
 					>
 				{/if}
 			</div>
-			{@const from = card.sources === undefined ? '' : sourceLine(materials.sections, card.sources)}
-			{#if from !== ''}
-				<div class="source" class:off={!card.on} title={from}>{from}</div>
+			{#if sourcesOf(card.sources) !== ''}
+				<div class="source" class:off={!card.on} title={sourcesOf(card.sources)}>
+					{sourcesOf(card.sources)}
+				</div>
 			{/if}
 		</div>
 		<button

@@ -18,6 +18,7 @@
 	import { ai } from '$lib/state/ai.svelte';
 	import { materials } from '$lib/state/materials.svelte';
 	import { ACCEPT } from '$lib/materials/read';
+	import { displayName } from '$lib/domain/materials';
 	import { anyTicked } from '$lib/domain/outline';
 	import { blockPreview } from '$lib/domain/derive';
 
@@ -43,11 +44,62 @@
 
 	const hasFiles = (e: DragEvent) => e.dataTransfer?.types.includes('Files') === true;
 
-	/** What did not read, a line or two, never silent. */
-	function unreadNotes(lines: readonly string[]): string[] {
-		return lines.length <= 2
-			? [...lines]
-			: [lines[0], `…a ještě ${lines.length - 1} dalších se nepodařilo přečíst`];
+	/** Everything attached: what is read and stored, then what is being read. */
+	const items = $derived([
+		...materials.files.map((f) => ({
+			key: f.hash,
+			name: f.name,
+			unread: f.unread,
+			hash: f.hash as string | undefined
+		})),
+		...materials.reading.map((r) => ({
+			key: `reading-${r.id}`,
+			name: r.name,
+			unread: [] as string[],
+			hash: undefined as string | undefined
+		}))
+	]);
+
+	// One row of chips. When they do not all fit, the last thing in the row is „+N“, which
+	// lets the row wrap; the same button folds it again.
+	let chipRow = $state<HTMLUListElement>();
+	let expanded = $state(false);
+	let fit = $state(Number.POSITIVE_INFINITY);
+	const MORE_WIDTH = 44;
+	const CHIP_GAP = 4;
+
+	function measure() {
+		if (chipRow === undefined) return;
+		const chips = [...chipRow.querySelectorAll<HTMLElement>('li.chip')];
+		const room = chipRow.clientWidth;
+		let used = 0;
+		let shown = 0;
+		for (const [i, chip] of chips.entries()) {
+			const width = chip.offsetWidth + (i > 0 ? CHIP_GAP : 0);
+			const more = chips.length - i - 1 > 0 ? CHIP_GAP + MORE_WIDTH : 0;
+			if (used + width + more > room) break;
+			used += width;
+			shown = i + 1;
+		}
+		fit = Math.max(1, shown);
+	}
+	$effect(() => {
+		void items;
+		void expanded;
+		void tick().then(measure);
+	});
+	$effect(() => {
+		if (chipRow === undefined) return;
+		const observer = new ResizeObserver(measure);
+		observer.observe(chipRow);
+		return () => observer.disconnect();
+	});
+	const hidden = $derived(Math.max(0, items.length - fit));
+
+	/** The quiet line under the chips for a file with pages that did not read: it names the file. */
+	function unreadLine(name: string, lines: readonly string[]): string {
+		const first = lines[0].charAt(0).toLowerCase() + lines[0].slice(1);
+		return `${displayName(name)}: ${first}${lines.length > 1 ? ` a ještě ${lines.length - 1} dalších` : ''}`;
 	}
 
 	const draft = $derived(aiPanel.draft);
@@ -205,34 +257,48 @@
 		{#if aiPanel.problem !== ''}
 			<p class="quiet" role="status">{aiPanel.problem}</p>
 		{/if}
-		{#if materials.files.length > 0 || materials.reading.length > 0}
-			<ul class="chips" aria-label="Podklady">
-				{#each materials.files as file (file.hash)}
-					<li class="chip">
-						<span class="chip-name" title={file.name}>{file.name}</span>
+		{#if items.length > 0}
+			<ul class="chips" class:expanded aria-label="Podklady" bind:this={chipRow}>
+				{#each items as item, i (item.key)}
+					<li
+						class="chip"
+						class:overflowed={!expanded && i >= fit}
+						class:failed={item.unread.length > 0}
+						title={[item.name, ...item.unread].join('\n')}
+					>
+						<span class="chip-name">{displayName(item.name)}</span>
+						{#if item.hash === undefined}
+							<LoaderCircle size={12} class="spin" aria-hidden="true" />
+							<span class="sr">Čtu soubor {item.name}</span>
+						{:else}
+							{#if item.unread.length > 0}<span class="chip-warn" aria-hidden="true">!</span>{/if}
+							<button
+								type="button"
+								class="chip-x"
+								aria-label={`Odebrat podklad: ${item.name}`}
+								title="Odebrat"
+								onclick={() => void materials.remove(courseId, item.hash!)}
+							>
+								<X size={12} aria-hidden="true" />
+							</button>
+						{/if}
+					</li>
+				{/each}
+				{#if hidden > 0 || expanded}
+					<li class="more-item">
 						<button
 							type="button"
-							class="chip-x"
-							aria-label={`Odebrat podklad: ${file.name}`}
-							title="Odebrat"
-							onclick={() => void materials.remove(courseId, file.hash)}
+							class="chip more"
+							aria-expanded={expanded}
+							aria-label={expanded ? 'Sbalit podklady' : `Ukázat dalších ${hidden} podkladů`}
+							onclick={() => (expanded = !expanded)}>{expanded ? '−' : `+${hidden}`}</button
 						>
-							<X size={12} aria-hidden="true" />
-						</button>
 					</li>
-					{#each unreadNotes(file.unread) as note (note)}
-						<li class="chip-note">{note}</li>
-					{/each}
-				{/each}
-				{#each materials.reading as item (item.id)}
-					<li class="chip reading">
-						<span class="chip-name" title={item.name}>{item.name}</span>
-						<span class="chip-state">
-							<LoaderCircle size={12} class="spin" aria-hidden="true" /> Čtu…
-						</span>
-					</li>
-				{/each}
+				{/if}
 			</ul>
+			{#each items.filter((f) => f.unread.length > 0).slice(0, 2) as file (file.key)}
+				<p class="quiet">{unreadLine(file.name, file.unread)}</p>
+			{/each}
 		{/if}
 		{#if materials.message !== ''}
 			<p class="quiet" role="status">{materials.message}</p>
@@ -547,28 +613,43 @@
 		opacity: 0.5;
 	}
 
-	/* Attached files: small and quiet, the way a proposal's names are. */
+	/* Attached files: small and quiet, one row; „+N“ opens the rest. */
 	.chips {
+		position: relative;
 		display: flex;
-		flex-wrap: wrap;
+		flex-wrap: nowrap;
 		gap: 4px;
-		max-height: 100px;
 		margin: 0;
 		padding: 0;
-		overflow-y: auto;
+		overflow: hidden;
 		list-style: none;
+	}
+
+	.chips.expanded {
+		flex-wrap: wrap;
+		max-height: 100px;
+		overflow-y: auto;
 	}
 
 	.chip {
 		display: inline-flex;
+		flex: none;
 		align-items: center;
 		gap: 4px;
 		max-width: 100%;
 		padding: 2px 4px 2px 8px;
 		border: 1px solid var(--e-border);
 		border-radius: var(--radius-pill);
+		background: none;
 		color: var(--e-text-muted);
 		font: var(--type-caption);
+	}
+
+	/* Past the row, but still measured. */
+	.chip.overflowed {
+		position: absolute;
+		visibility: hidden;
+		pointer-events: none;
 	}
 
 	.chip-name {
@@ -578,17 +659,35 @@
 		white-space: nowrap;
 	}
 
-	.chip-state {
-		display: inline-flex;
+	.chip :global(.spin) {
 		flex: none;
-		align-items: center;
-		gap: 4px;
-		padding-right: 4px;
+		margin-right: 4px;
 		color: var(--e-text-faint);
+		animation: ai-spin 1.2s linear infinite;
 	}
 
-	.chip.reading :global(.spin) {
-		animation: ai-spin 1.2s linear infinite;
+	.chip-warn {
+		flex: none;
+		color: var(--e-warning-text);
+		font-weight: 700;
+	}
+
+	.chip.failed {
+		border-color: var(--e-warning-text);
+	}
+
+	.more-item {
+		display: contents;
+	}
+
+	button.chip.more {
+		padding: 2px 8px;
+		cursor: pointer;
+	}
+
+	button.chip.more:hover {
+		color: var(--e-text);
+		background: var(--primary-dark-06);
 	}
 
 	.chip-x {
@@ -615,13 +714,6 @@
 	.chip-x:hover {
 		color: var(--e-text);
 		background: var(--primary-dark-06);
-	}
-
-	.chip-note {
-		flex-basis: 100%;
-		padding: 0 4px;
-		color: var(--e-text-faint);
-		font: var(--type-caption);
 	}
 
 	.box:focus-within {
@@ -666,7 +758,7 @@
 	@media (prefers-reduced-motion: reduce) {
 		.queue-row :global(.spin),
 		.quiet :global(.spin),
-		.chip.reading :global(.spin),
+		.chip :global(.spin),
 		.empty :global(.spin) {
 			animation: none;
 		}

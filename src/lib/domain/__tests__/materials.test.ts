@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	FULL_TEXT_TOKENS,
 	fitsFully,
+	displayName,
 	locationOf,
 	materialFileSchema,
 	materialsIndex,
@@ -69,6 +70,15 @@ describe('where a section came from', () => {
 		expect(sourceLine(sections, ['a.0', 'gone'])).toBe('Učebnice · str. 3');
 		expect(sourceLine(sections, ['gone'])).toBe('');
 		expect(sourceLine(sections, [])).toBe('');
+	});
+});
+
+describe('a file name', () => {
+	it('is shown without its extension, and a name that is only an extension stays', () => {
+		expect(displayName('Učebnice.pdf')).toBe('Učebnice');
+		expect(displayName('a.b.docx')).toBe('a.b');
+		expect(displayName('.pdf')).toBe('.pdf');
+		expect(displayName('bez-pripony')).toBe('bez-pripony');
 	});
 });
 
