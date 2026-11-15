@@ -480,6 +480,10 @@ export function fillBlock(
 			let changed = false;
 			mapStep(id, (s) => {
 				if (s.question === undefined) return s;
+				// One reaction per written answer, in order. If the teacher added or
+				// removed an answer meanwhile, the order no longer says which is whose.
+				const answers = optionsOf(s.question).filter((o) => filled(o.text)).length;
+				if (answers !== feedback.length) return s;
 				let at = -1;
 				const options = optionsOf(s.question).map((o) => {
 					if (!filled(o.text)) return o;

@@ -83,12 +83,17 @@ class Ai {
 			this.writing.delete(blockId);
 		}
 		if ('problem' in outcome) {
-			notices.show({ text: TEXT[outcome.problem] });
+			// A 503 is also what a server that has lost its provider says: ask again, and
+			// if AI is gone the offer goes with it.
+			if (outcome.problem === 'busy') await this.detect();
+			notices.show({ text: TEXT[this.available ? outcome.problem : 'failed'] });
 			return;
 		}
 		// The card may be gone by now; then there is nothing to write and nothing to say.
 		if (!store.doc.blocks.some((b) => b.block_id === blockId)) return;
 		const { block } = outcome;
+		// Its own undo step: never folded into a run of the teacher's typing.
+		store.endEdit();
 		const before = store.undoStack.at(-1);
 		// Where the teacher is now stays where they are: no selection change.
 		store.apply((d, reserved) => ({ ...fillBlock(d, blockId, block, reserved), ref: undefined }));

@@ -45,6 +45,26 @@ describe('generateBlock', () => {
 		expect(tokens).toBe(10);
 	});
 
+	it('drops a question nobody asked for instead of asking again', async () => {
+		const model = scripted({ help_md: 'Pomoc.', question: { type: 'open', answer: 'čtyři' } });
+		const { response } = await generateBlock(request(), model);
+		expect(response).toEqual({ status: 'ok', block: { help_md: 'Pomoc.' } });
+		expect(model.calls).toBe(1);
+	});
+
+	it('reports what each call used, even when a later call fails', async () => {
+		let calls = 0;
+		const model: Complete = async () => {
+			if (calls++ > 0) throw new ProviderError('busy', '429');
+			return { text: 'not json', tokens: 10 };
+		};
+		let used = 0;
+		await expect(generateBlock(request(), model, (n) => (used += n))).rejects.toBeInstanceOf(
+			ProviderError
+		);
+		expect(used).toBe(10);
+	});
+
 	it('reads JSON the model wrapped in a code fence', async () => {
 		const model = scripted('```json\n{"help_md":"Pomoc."}\n```');
 		expect((await generateBlock(request(), model)).response.status).toBe('ok');

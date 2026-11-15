@@ -251,11 +251,22 @@ describe('writing the answer', () => {
 		let d = setField(doc, at('a', 'text'), 'čtyři').doc;
 		d = setField(d, at('b', 'text'), 'dvě').doc;
 		d = setField(d, at('a', 'feedback'), 'Moje reakce').doc;
-		const options = stepOf(fillBlock(d, exercise, FULL).doc, exercise).question!.options!;
+		const answer = { ...FULL, option_feedback: ['r1', 'r2'] };
+		const options = stepOf(fillBlock(d, exercise, answer).doc, exercise).question!.options!;
 		expect(options.map((o) => [o.text, o.feedback])).toEqual([
 			['čtyři', 'Moje reakce'],
 			['dvě', 'r2']
 		]);
+	});
+
+	it('writes no reactions when the answers are no longer the ones they were written for', () => {
+		const { doc, exercise } = fresh();
+		const step = stepOf(doc, exercise).id;
+		let d = doc;
+		for (const id of ['a', 'b'])
+			d = setField(d, { blockId: exercise, stepId: step, optionId: id, field: 'text' }, id).doc;
+		const result = fillBlock(d, exercise, { option_feedback: ['r1', 'r2', 'r3'] });
+		expect(result.doc).toBe(d);
 	});
 
 	it('does nothing to a card that has nothing empty', () => {

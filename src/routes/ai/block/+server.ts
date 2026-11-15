@@ -50,8 +50,9 @@ export const POST: RequestHandler = async ({ request }) => {
 		);
 
 	try {
-		const { response, tokens } = await generateBlock(parsed.data, completer(config));
-		limits.record(owner, tokens);
+		const { response } = await generateBlock(parsed.data, completer(config), (tokens) =>
+			limits.record(owner, tokens)
+		);
 		return json(response, NO_STORE);
 	} catch (e) {
 		if (!(e instanceof ProviderError)) throw e;

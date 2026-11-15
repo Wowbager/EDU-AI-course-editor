@@ -83,7 +83,11 @@ function problemWith(request: GenRequest, raw: string): { use: Generated } | { s
 				.join('; ')}. Answer again with one JSON object.`
 		};
 	const block = restrictGenerated(request, parsed.data);
-	if (parsed.data.question !== undefined && block.question === undefined)
+	if (
+		request.block.missing.includes('question') &&
+		parsed.data.question !== undefined &&
+		block.question === undefined
+	)
 		return { say: `Use the question type "${request.block.question_type}". Answer again.` };
 	if (block.question !== undefined && !questionIsSound(block.question))
 		return {
@@ -105,7 +109,9 @@ function problemWith(request: GenRequest, raw: string): { use: Generated } | { s
 
 export async function generateBlock(
 	request: GenRequest,
-	complete: Complete
+	complete: Complete,
+	/** Told what each call used as it returns, so a later failure does not lose the count. */
+	spent: (tokens: number) => void = () => {}
 ): Promise<{ response: GenResponse; tokens: number }> {
 	const messages: Message[] = [
 		{ role: 'system', content: SYSTEM_PROMPT },
@@ -115,6 +121,7 @@ export async function generateBlock(
 	for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
 		const answer = await complete(messages);
 		tokens += answer.tokens;
+		spent(answer.tokens);
 		const verdict = problemWith(request, answer.text);
 		if ('use' in verdict) return { response: { status: 'ok', block: verdict.use }, tokens };
 		messages.push(
