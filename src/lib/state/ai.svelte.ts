@@ -7,7 +7,15 @@
  * configured there, nothing about AI is drawn at all.
  */
 import { SvelteSet } from 'svelte/reactivity';
-import { buildGenRequest, fillBlock, generatedSchema, type Generated } from '$lib/domain/authoring';
+import {
+	buildGenRequest,
+	describeWritten,
+	fillCard,
+	generatedCardSchema,
+	type GeneratedCard,
+	type WrittenCount
+} from '$lib/domain/authoring';
+import { buildDossier } from '$lib/domain/dossier';
 import { workspaceKey } from '$lib/state/versions/server';
 import { notices } from './notice.svelte';
 import type { DocStore } from './doc-store.svelte';
@@ -20,7 +28,7 @@ const TEXT = {
 	offline: 'Nepodařilo se spojit s AI. Zkontroluj připojení a zkus to znovu.'
 } as const;
 
-type Outcome = { block: Generated } | { problem: keyof typeof TEXT };
+type Outcome = { card: GeneratedCard } | { problem: keyof typeof TEXT };
 
 async function ask(request: unknown): Promise<Outcome> {
 	const key = workspaceKey();
@@ -43,11 +51,11 @@ async function ask(request: unknown): Promise<Outcome> {
 	if (!response.ok) return { problem: 'failed' };
 	const body = (await response.json().catch(() => null)) as {
 		status?: string;
-		block?: unknown;
+		card?: unknown;
 	} | null;
-	const block = generatedSchema.safeParse(body?.block);
-	if (body?.status !== 'ok' || !block.success) return { problem: 'failed' };
-	return { block: block.data };
+	const card = generatedCardSchema.safeParse(body?.card);
+	if (body?.status !== 'ok' || !card.success) return { problem: 'failed' };
+	return { card: card.data };
 }
 
 class Ai {
@@ -72,12 +80,18 @@ class Ai {
 	}
 
 	/**
-	 * Write the card's empty parts. What the teacher fills in while the model works is
-	 * kept: `fillBlock` looks again at what is empty when the answer arrives.
+	 * Write the card: its empty parts and the steps the model adds. What the teacher
+	 * fills in while the model works is kept: `fillCard` looks again at what is empty
+	 * when the answer arrives.
 	 */
 	async write(store: DocStore, blockId: string, lessonId: string | undefined): Promise<void> {
 		if (this.writing.has(blockId)) return;
-		const request = buildGenRequest(store.doc, blockId, lessonId);
+		const request = buildGenRequest(
+			store.doc,
+			blockId,
+			lessonId,
+			buildDossier(store.doc, blockId, lessonId)
+		);
 		if (request === undefined) return;
 		this.writing.add(blockId);
 		let outcome: Outcome;
@@ -95,15 +109,24 @@ class Ai {
 		}
 		// The card may be gone by now; then there is nothing to write and nothing to say.
 		if (!store.doc.blocks.some((b) => b.block_id === blockId)) return;
-		const { block } = outcome;
+		const { card } = outcome;
+		let written: WrittenCount | undefined;
 		// Its own undo step: never folded into a run of the teacher's typing.
 		store.endEdit();
 		const before = store.undoStack.at(-1);
 		// Where the teacher is now stays where they are: no selection change.
-		store.apply((d, reserved) => ({ ...fillBlock(d, blockId, block, reserved), ref: undefined }));
+		store.apply((d, reserved) => {
+			const result = fillCard(d, blockId, card, reserved);
+			written = result.written;
+			return { ...result, ref: undefined };
+		});
 		const entry = store.undoStack.at(-1);
 		if (entry === before) return;
-		notices.show({ text: 'Karta dopsána.', entry, ref: { lessonId, blockId } });
+		notices.show({
+			text: written ? describeWritten(written) : 'Karta dopsána.',
+			entry,
+			ref: { lessonId, blockId }
+		});
 	}
 }
 
