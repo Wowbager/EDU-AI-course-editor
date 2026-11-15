@@ -4,6 +4,9 @@
  */
 import type { Picture, Vision } from './provider';
 
+/** A page rendered for reading is well under this; a phone photo is shrunk first. */
+export const MAX_PICTURE_BYTES = 5 * 1024 * 1024;
+
 export const READ_PROMPT = `You transcribe one picture of a school teaching material (a scanned or photographed page, a worksheet, a slide) into Markdown, in the language of the picture (usually Czech).
 
 - Write only the transcription: no comment, no greeting, no code fence around it.

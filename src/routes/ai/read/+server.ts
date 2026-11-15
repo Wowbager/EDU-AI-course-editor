@@ -13,12 +13,10 @@ import { error, json } from '@sveltejs/kit';
 import { isConfigured, readAiConfig } from '$lib/server/ai/config';
 import { sharedLimits } from '$lib/server/ai/limits';
 import { ProviderError, visionist } from '$lib/server/ai/provider';
-import { readPicture } from '$lib/server/ai/read';
+import { MAX_PICTURE_BYTES, readPicture } from '$lib/server/ai/read';
 import { ownerOf } from '$lib/server/versions/http';
 import type { RequestHandler } from './$types';
 
-/** A page rendered for reading is well under this; a phone photo is shrunk first. */
-export const MAX_PICTURE_BYTES = 5 * 1024 * 1024;
 const TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
 export const POST: RequestHandler = async ({ request }) => {

@@ -4,7 +4,8 @@ vi.mock('$env/dynamic/private', () => ({ env: { AI_PROVIDER: 'fake' } }));
 vi.mock('$lib/server/versions/http', () => ({ ownerOf: () => 'owner' }));
 
 import { FAKE_READING } from '$lib/server/ai/fake';
-import { POST, MAX_PICTURE_BYTES } from './+server';
+import { MAX_PICTURE_BYTES } from '$lib/server/ai/read';
+import { POST } from './+server';
 
 const post = (body: BodyInit, type = 'image/png') =>
 	POST({

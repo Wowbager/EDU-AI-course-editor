@@ -82,10 +82,12 @@ export function fakeCard(request: GenRequest): GeneratedCard {
  * a course of two lessons; a change keeps the proposal and appends one card that carries
  * the instruction, so a suite can tell that the proposal was replaced.
  */
-export function fakeOutline(request: OutlineRequest): Outline {
+export function fakeOutline(
+	request: OutlineRequest,
+	keys: readonly string[] = request.material_keys ?? []
+): Outline {
 	// With materials the first card is written from the first section, the last from the
 	// last two, so a suite can see the source lines and what a card's request carried.
-	const keys = request.material_keys ?? [];
 	const card = (
 		kind: 'display' | 'question' | 'exercise',
 		name: string,
@@ -153,7 +155,15 @@ export const FAKE_LESSON_DELAY_MS = 400;
 export const fakeStream: Stream = async (messages, onText) => {
 	const last = messages.findLast((m) => m.role === 'user' && m.content.startsWith('{'));
 	const request = JSON.parse(last?.content ?? '{}') as OutlineRequest;
-	const outline = fakeOutline(request);
+	// The model sees the sections' keys in the materials message, not in the request.
+	const keys = [
+		...new Set(
+			messages.flatMap((m) =>
+				[...m.content.matchAll(/\[([0-9a-f]{8}\.\d{1,4})\]/g)].map((k) => k[1])
+			)
+		)
+	];
+	const outline = fakeOutline(request, keys);
 	onText(`${JSON.stringify({ scope: outline.scope })}\n`);
 	const items = outline.scope === 'cards' ? outline.cards : outline.lessons;
 	for (const [i, item] of items.entries()) {
