@@ -20,6 +20,7 @@ import {
 	type GeneratedCard
 } from '$lib/domain/authoring';
 import type { Complete, Message } from './provider';
+import { MARKER_CLOSE, MARKER_OPEN } from '$lib/domain/dossier';
 
 export type GenResponse = { status: 'ok'; card: GeneratedCard } | { status: 'failed' };
 
@@ -29,7 +30,7 @@ export const SPEC_VERSION = '2';
 export const SYSTEM_PROMPT = `You write one learning card ("karta") for a mobile learning app. A card is a short sequence of steps; each step is one screen on a phone: either a text step (explanation, example, summary) or a question step (a short task text plus one question the pupil answers).
 
 You get two user messages.
-1. The course dossier: plain text, read-only background. It holds the course, its lessons and the cards of the earlier lessons and of this lesson, with the card you write marked as the current one. Use it to build on what the pupil has already seen, to keep the course's notation, wording and difficulty, and not to repeat earlier cards or take the topic of later ones. Never write about the dossier itself.
+1. The course dossier: plain text, read-only background. It holds the course, its lessons and the cards of the earlier lessons and of this lesson, with the card you write between the lines "${MARKER_OPEN}" and "${MARKER_CLOSE}". Use it to build on what the pupil has already seen, to keep the course's notation, wording and difficulty, and not to repeat earlier cards or take the topic of later ones. Never write about the dossier itself.
 2. A JSON request: the course and its audience, the lesson, and the card: its kind, title, an optional brief ("what the card is for"), and its existing steps. Each existing step has an "id", a "kind" (text, question or media), what the teacher already wrote, and "missing": the parts of that step that are still empty.
 
 Write the whole card and answer with one JSON object and nothing else:
