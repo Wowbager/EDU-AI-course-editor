@@ -86,6 +86,9 @@ class Materials {
 	async add(courseId: string, picked: readonly File[]): Promise<void> {
 		this.message = '';
 		const { kindOf, unsupported, readMaterial } = await import('$lib/materials/read');
+		// What the teacher sees belongs to the course on screen: a file read for a course they
+		// have left is stored for that course and says nothing here.
+		const here = () => this.#course === courseId;
 		const { Refused } = await import('$lib/materials/types');
 		for (const file of picked) {
 			if (this.#course !== courseId) return;
@@ -108,13 +111,14 @@ class Materials {
 					{ pages: Math.max(0, MAX_PAGES - pagesIn(this.files)) },
 					libraries
 				);
-				if (this.files.some((f) => f.hash === read.hash)) continue;
+				if (here() && this.files.some((f) => f.hash === read.hash)) continue;
 				const stored = await this.#store(courseId, read);
-				if (this.#course === courseId && typeof stored !== 'string')
+				if (!here()) continue;
+				if (typeof stored === 'string') this.message = stored;
+				else if (!this.files.some((f) => f.hash === stored.hash))
 					this.files = [...this.files, stored];
-				else if (typeof stored === 'string') this.message = stored;
 			} catch (e) {
-				this.message = e instanceof Refused ? e.message : WORDS.failed(file.name);
+				if (here()) this.message = e instanceof Refused ? e.message : WORDS.failed(file.name);
 			} finally {
 				this.reading = this.reading.filter((r) => r.id !== chip.id);
 			}
@@ -144,18 +148,26 @@ class Materials {
 
 	async remove(courseId: string, hash: string): Promise<void> {
 		const headers = this.#headers();
-		const before = this.files;
+		const index = this.files.findIndex((f) => f.hash === hash);
+		const removed = this.files[index];
 		this.files = this.files.filter((f) => f.hash !== hash);
 		this.message = '';
 		if (headers === null) return;
+		// Only the file taken out comes back, at its place: what was added meanwhile stays.
+		const restore = () => {
+			if (removed === undefined || this.#course !== courseId) return;
+			if (this.files.some((f) => f.hash === hash)) return;
+			const at = Math.min(index, this.files.length);
+			this.files = [...this.files.slice(0, at), removed, ...this.files.slice(at)];
+		};
 		try {
 			const response = await fetch(
 				`/materials/${encodeURIComponent(courseId)}/${encodeURIComponent(hash)}`,
 				{ method: 'DELETE', headers }
 			);
-			if (!response.ok && this.#course === courseId) this.files = before;
+			if (!response.ok) restore();
 		} catch {
-			if (this.#course === courseId) this.files = before;
+			restore();
 		}
 	}
 

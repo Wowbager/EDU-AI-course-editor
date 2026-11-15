@@ -4,6 +4,14 @@ import { materials } from './materials.svelte';
 
 vi.mock('$lib/state/versions/server', () => ({ workspaceKey: () => 'k'.repeat(43) }));
 
+// Reading is held by the test, which decides when a file is done being read.
+let finishReading: ((file: MaterialFile) => void) | undefined;
+vi.mock('$lib/materials/browser', () => ({ browserIO: {}, libraries: {} }));
+vi.mock('$lib/materials/read', async (original) => ({
+	...(await original<typeof import('$lib/materials/read')>()),
+	readMaterial: () => new Promise<MaterialFile>((resolve) => (finishReading = resolve))
+}));
+
 const stored = (hash: string, name: string, pages = 1): MaterialFile => ({
 	hash,
 	name,
@@ -83,6 +91,68 @@ describe('the course’s materials in the browser', () => {
 		await materials.add('kurz', [huge]);
 		expect(materials.message).toBe('Soubor velky.pdf je větší než 50 MB.');
 		expect(materials.reading).toEqual([]);
+		expect(materials.files).toEqual([]);
+	});
+
+	it('puts back only the file whose removal failed, at its place, and keeps what was added meanwhile', async () => {
+		server([stored('aaaaaaaa00000000', 'a.docx'), stored('bbbbbbbb00000000', 'b.pdf')]);
+		await materials.load('kurz');
+		let fail!: () => void;
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				() =>
+					new Promise<Response>((_, reject) => {
+						fail = () => reject(new Error('offline'));
+					})
+			)
+		);
+		const removing = materials.remove('kurz', 'aaaaaaaa00000000');
+		// Another file arrives while the server is asked.
+		materials.files = [...materials.files, stored('cccccccc00000000', 'c.png')];
+		fail();
+		await removing;
+		expect(materials.files.map((f) => f.name)).toEqual(['a.docx', 'b.pdf', 'c.png']);
+	});
+
+	it('a file read for a course that is no longer on screen is stored for its own course and says nothing here', async () => {
+		server([]);
+		await materials.load('kurz');
+		const posted: string[] = [];
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (url: string, init?: RequestInit) => {
+				if (init?.method === 'POST') posted.push(url);
+				return init?.method === 'POST' ? Response.json({}) : Response.json({ files: [] });
+			})
+		);
+		const adding = materials.add('kurz', [new File(['x'], 'a.docx')]);
+		await vi.waitFor(() => expect(finishReading).toBeDefined());
+		// The teacher opens another course while the file is read.
+		await materials.load('jiny');
+		finishReading!(stored('aaaaaaaa00000000', 'a.docx'));
+		await adding;
+		expect(posted).toEqual(['/materials/kurz']);
+		expect(materials.files).toEqual([]);
+		expect(materials.message).toBe('');
+		expect(materials.reading).toEqual([]);
+	});
+
+	it('a read that fails for a course that is no longer on screen says nothing here', async () => {
+		server([]);
+		await materials.load('kurz');
+		finishReading = undefined;
+		const adding = materials.add('kurz', [new File(['x'], 'a.docx')]);
+		await vi.waitFor(() => expect(finishReading).toBeDefined());
+		await materials.load('jiny');
+		// Reading rejects: the promise the mock handed out is never settled with a file.
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response('', { status: 500 }))
+		);
+		finishReading!(undefined as unknown as MaterialFile);
+		await adding;
+		expect(materials.message).toBe('');
 		expect(materials.files).toEqual([]);
 	});
 });
