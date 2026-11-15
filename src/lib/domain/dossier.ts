@@ -36,8 +36,11 @@ function clean(value: unknown): string {
 		.replace(/!\[([^\]]*)\]\((?:[^()]|\([^()]*\))*\)/g, (_, alt: string) =>
 			alt.trim() === '' ? '[obrázek]' : `[obrázek: ${alt.trim()}]`
 		)
-		.replace(/\[([^\]]*)\]\((?:[^()]|\([^()]*\))*\)/g, '$1')
-		.replace(/(?:https?:\/\/|data:|mailto:|javascript:)\S+/gi, '[odkaz]');
+		.replace(/\[((?:[^[\]]|\[[^[\]]*\])*)\]\((?:[^()]|\([^()]*\))*\)/g, '$1')
+		.replace(
+			/(?:https?:\/\/|data:|mailto:|javascript:)[^\s()<>[\]]*[^\s()<>[\].,;:!?]/gi,
+			'[odkaz]'
+		);
 }
 
 const firstLine = (value: string, max: number): string => {

@@ -216,6 +216,16 @@ describe('buildDossier', () => {
 		for (const leak of ['img/a.png', 'mailto', 'javascript', '@']) expect(out).not.toContain(leak);
 	});
 
+	it('drops the target of a linked picture and keeps what follows a bare address', () => {
+		const doc = small();
+		const card = doc.blocks.find((b) => b.block_id === 'B_T1')!;
+		card.steps[0].content =
+			'[![logo](a.png)](img/secret.png) a [a [b]](img/x.png). Viz (https://x.cz).';
+		const out = buildDossier(doc, 'B_T1');
+		expect(out).toContain('[obrázek: logo] a a [b]. Viz ([odkaz]).');
+		for (const leak of ['secret', 'img/x.png', 'x.cz']) expect(out).not.toContain(leak);
+	});
+
 	it('skips empty cards in the outline, but shows the current empty card', () => {
 		const out = buildDossier(small(), 'B_EMPTY');
 		expect(out.split('## Outline')[1].split('# Earlier')[0]).not.toContain('Výklad:\n');
