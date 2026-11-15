@@ -10,8 +10,9 @@
  * An answer that fails is sent back with the reason, twice at most; then the card is
  * reported as failed and nothing is written.
  *
- * Message order is for the provider's prefix cache: the system prompt and the dossier
- * are the same for every card of a course; only the last message differs.
+ * Message order is for the provider's prefix cache: the system prompt and the dossier's
+ * opening (course, outline, earlier lessons) are the same for every card of a lesson;
+ * the dossier differs from the marked card on, and the request is the last message.
  */
 import {
 	cardProblem,
