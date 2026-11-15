@@ -8,7 +8,8 @@
  *
  * The runner does the writing and says how it went. A request the server refused for
  * speed (`rate`) waits as long as the server said and tries once more; a spent day
- * (`budget`) stops the queue, since every other card would fail the same way.
+ * (`budget`) stops the queue, since every other card would fail the same way; so does a
+ * second `rate` right after the wait.
  */
 export type RunResult =
 	'done' | { problem: 'rate'; retryAfter?: number } | { problem: 'budget' | 'other' };
@@ -30,7 +31,7 @@ export class WriteQueue {
 	/** Cards are being started. False when stopped, and when everything is started. */
 	running = $state(false);
 	/** Why the queue stopped by itself, if it did. */
-	stoppedBy = $state<'budget' | null>(null);
+	stoppedBy = $state<'budget' | 'rate' | null>(null);
 	#inflight = 0;
 
 	constructor(
@@ -50,9 +51,19 @@ export class WriteQueue {
 		return this.running || this.#inflight > 0;
 	}
 
-	/** A new batch replaces the rows of the old one; cards still being written finish. */
+	/**
+	 * A new batch joins what the old one left: finished rows go, but cards still being
+	 * written, waiting or failed stay (and stay covered by `resume`), ahead of the new ones.
+	 */
 	start(cards: readonly { blockId: string; lessonId: string }[]) {
-		this.rows = cards.map((c) => ({ ...c, state: 'waiting' }));
+		const kept = this.rows.filter((r) => r.state !== 'done');
+		const known = new Set(kept.map((r) => r.blockId));
+		this.rows = [
+			...kept,
+			...cards
+				.filter((c) => !known.has(c.blockId))
+				.map((c) => ({ ...c, state: 'waiting' as const }))
+		];
 		this.stoppedBy = null;
 		this.running = true;
 		this.#pump();
@@ -110,8 +121,10 @@ export class WriteQueue {
 		if (result === 'done') row.state = 'done';
 		else {
 			row.state = 'failed';
-			if (result.problem === 'budget') {
-				this.stoppedBy = 'budget';
+			// Refused again right after waiting: every other card would be too. Stop, with
+			// the rest waiting, so „Dopsat zbytek“ goes on later.
+			if (result.problem === 'budget' || result.problem === 'rate') {
+				this.stoppedBy = result.problem;
 				this.running = false;
 			}
 		}

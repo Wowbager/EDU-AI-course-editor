@@ -14,6 +14,7 @@ import {
 	type Draft,
 	type KeyMaker
 } from '$lib/domain/outline';
+import { CommandError } from '$lib/domain/commands';
 import { insertOutline } from '$lib/domain/outline-insert';
 import { ai, askOutline, TEXT, type Problem } from './ai.svelte';
 import { WriteQueue, type RunResult, type Row } from './write-queue.svelte';
@@ -107,15 +108,30 @@ class AiPanel {
 	create(store: DocStore): void {
 		const outline = this.draft === null ? undefined : toOutline(this.draft, 'ticked');
 		if (outline === undefined) return;
-		const at = { lessonId: store.selection?.lessonId, blockId: store.selection?.blockId };
-		store.endEdit();
+		// The selection may have gone (a lesson deleted meanwhile): then the end of the course.
+		const { selection, doc } = store;
+		const at = {
+			lessonId: doc.lessons.some((l) => l.lesson_id === selection?.lessonId)
+				? selection?.lessonId
+				: undefined,
+			blockId: doc.blocks.some((b) => b.block_id === selection?.blockId)
+				? selection?.blockId
+				: undefined
+		};
 		let added: { blockId: string; lessonId: string }[] = [];
-		// Where the teacher is stays where they are: the new cards are in the tree, not forced on them.
-		store.apply((d, r) => {
-			const result = insertOutline(d, outline, at, r);
-			added = result.added;
-			return { ...result, ref: undefined };
-		});
+		try {
+			store.endEdit();
+			// Where the teacher is stays where they are: the new cards are in the tree, not forced on them.
+			store.apply((d, r) => {
+				const result = insertOutline(d, outline, at, r);
+				added = result.added;
+				return { ...result, ref: undefined };
+			});
+		} catch (e) {
+			if (!(e instanceof CommandError)) throw e;
+			this.problem = 'Návrh se do kurzu nepodařilo vložit. Zkus to znovu.';
+			return;
+		}
 		this.#store = store;
 		this.draft = null;
 		this.problem = '';

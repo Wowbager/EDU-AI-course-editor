@@ -172,4 +172,52 @@ describe('the write queue', () => {
 		await m.finish('B0');
 		expect(q.rows).toEqual([]);
 	});
+
+	it('a new batch keeps the unfinished rows of the old one and does not lose their results', async () => {
+		const m = manual();
+		const q = new WriteQueue(m.run);
+		q.start(cards(2));
+		await m.finish('B0', { problem: 'other' });
+		// B1 is still being written when the next batch comes.
+		q.start([
+			{ blockId: 'N0', lessonId: 'L2' },
+			{ blockId: 'N1', lessonId: 'L2' }
+		]);
+		expect(q.rows.map((r) => r.blockId)).toEqual(['B0', 'B1', 'N0', 'N1']);
+		expect(states(q)).toEqual(['failed', 'writing', 'writing', 'writing']);
+		// One in flight from the old batch, so only two slots were free.
+		expect(m.started).toEqual(['B0', 'B1', 'N0', 'N1']);
+		await m.finish('B1');
+		await m.finish('N0');
+		await m.finish('N1');
+		expect(states(q)).toEqual(['failed', 'done', 'done', 'done']);
+		expect(q.rest.map((r) => r.blockId)).toEqual(['B0']);
+	});
+
+	it('a new batch drops the finished rows', async () => {
+		const m = manual();
+		const q = new WriteQueue(m.run);
+		q.start(cards(1));
+		await m.finish('B0');
+		q.start([{ blockId: 'N0', lessonId: 'L1' }]);
+		expect(q.rows.map((r) => r.blockId)).toEqual(['N0']);
+	});
+
+	it('a second rate limit after the wait pauses the queue with the rest waiting', async () => {
+		const calls: string[] = [];
+		const q = new WriteQueue(
+			async (row) => {
+				calls.push(row.blockId);
+				return { problem: 'rate' };
+			},
+			{ wait: async () => {}, concurrency: 1 }
+		);
+		q.start(cards(3));
+		while (q.writing) await new Promise((r) => setTimeout(r, 1));
+		expect(states(q)).toEqual(['failed', 'waiting', 'waiting']);
+		expect(q.stoppedBy).toBe('rate');
+		expect(calls).toEqual(['B0', 'B0']);
+		q.resume();
+		expect(q.stoppedBy).toBeNull();
+	});
 });

@@ -141,6 +141,25 @@ describe('the AI panel state', () => {
 	});
 });
 
+describe('creating when the selection has gone', () => {
+	it('puts the cards at the end of the course instead of failing, with one undo step', async () => {
+		const { store, lessonId, blockId } = setup();
+		server();
+		await aiPanel.send(store, 'Kurz o zlomcích');
+		// The selected lesson and card are not in the course any more.
+		store.selection = { lessonId: 'L99', blockId: 'L99_B1' };
+		const before = store.undoStack.length;
+		aiPanel.create(store);
+		expect(aiPanel.draft).toBeNull();
+		expect(aiPanel.problem).toBe('');
+		expect(store.undoStack.length).toBe(before + 1);
+		expect(store.doc.lessons.map((l) => l.name).slice(-2)).toEqual(['První lekce', 'Druhá lekce']);
+		expect(store.doc.lessons[0].lesson_id).toBe(lessonId);
+		expect(blockId).toBeDefined();
+		await done();
+	});
+});
+
 describe('buildOutlineRequest', () => {
 	it('names the target by lesson and card, anchors the dossier, and sends the audience', () => {
 		const { store, lessonId, blockId } = setup();
