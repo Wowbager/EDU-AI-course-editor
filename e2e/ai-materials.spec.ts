@@ -117,7 +117,7 @@ test('the materials belong to the course: they are there after a reload, and × 
 test('a page that could not be read is said, quietly, and the rest of the file is kept', async ({
 	page
 }) => {
-	await page.route('**/ai/read', (route) => route.fulfill({ status: 503, body: 'busy' }));
+	await page.route('**/ai/read', (route) => route.fulfill({ status: 502, body: 'failed' }));
 	await picker(page).setInputFiles([pdf]);
 	const chip = chips(page).getByRole('listitem').filter({ hasText: 'scan' });
 	await expect(chip).toBeVisible();
