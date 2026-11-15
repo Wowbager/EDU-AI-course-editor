@@ -231,6 +231,7 @@ test('„Zahodit návrh“ clears the proposal and changes nothing in the course
 	await ask(page, 'Kurz o zlomcích');
 	await expect(create(page)).toBeVisible();
 	await page.getByRole('button', { name: 'Zahodit návrh', exact: true }).click();
+	await page.getByRole('button', { name: 'Opravdu zahodit? Klikni znovu' }).click();
 	await expect(create(page)).toHaveCount(0);
 	await expect(panel(page).getByText('Napiš, co chceš vytvořit.')).toBeVisible();
 	await expect(lessons(page)).toHaveCount(1);
