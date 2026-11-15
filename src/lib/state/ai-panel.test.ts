@@ -5,7 +5,7 @@ import { addBlock, addLesson } from '$lib/domain/commands';
 import { emptyCourse } from '$lib/domain/document';
 import { buildOutlineRequest, setCardTick, type Outline } from '$lib/domain/outline';
 import { fakeCard, fakeOutline } from '$lib/server/ai/fake';
-import type { GenRequest } from '$lib/domain/authoring';
+import { REQUEST_KEY, type GenRequest } from '$lib/domain/authoring';
 
 vi.mock('$lib/state/versions/server', () => ({ workspaceKey: () => 'k'.repeat(43) }));
 
@@ -18,13 +18,27 @@ function setup() {
 	return { store, lessonId, blockId: added.ref!.blockId! };
 }
 
+/** An outline as the route streams it: the scope, a lesson or card per line, done. */
+function stream(outline: Outline, ending: unknown = { type: 'done' }): Response {
+	const items = outline.scope === 'cards' ? outline.cards : outline.lessons;
+	const events = [
+		{ type: 'scope', scope: outline.scope },
+		...items.map((item) => ({
+			type: outline.scope === 'cards' ? 'card' : 'lesson',
+			[outline.scope === 'cards' ? 'card' : 'lesson']: item
+		})),
+		ending
+	];
+	return new Response(events.map((e) => `${JSON.stringify(e)}\n`).join(''));
+}
+
 /** The fake provider behind `fetch`, with the requests it saw. */
 function server() {
 	const seen: { route: string; body: any }[] = [];
 	const fetcher = vi.fn(async (route: string, init: RequestInit) => {
 		const body = JSON.parse(String(init.body));
 		seen.push({ route, body });
-		if (route === '/ai/outline') return Response.json({ status: 'ok', outline: fakeOutline(body) });
+		if (route === '/ai/outline') return stream(fakeOutline(body));
 		return Response.json({ status: 'ok', card: fakeCard(body as GenRequest) });
 	});
 	vi.stubGlobal('fetch', fetcher);
@@ -51,7 +65,6 @@ describe('the AI panel state', () => {
 		expect(seen[0].body.target).toEqual({ lesson: 'Polovina', lessons: 1 });
 		expect(aiPanel.draft?.scope).toBe('cards');
 		expect(aiPanel.draft?.lessons[0].cards.every((c) => c.on)).toBe(true);
-		expect(aiPanel.last).toBe('Dej mi karty');
 		// Nothing is in the course yet.
 		expect(store.doc.blocks).toHaveLength(1);
 	});
@@ -94,15 +107,9 @@ describe('the AI panel state', () => {
 		);
 		const pending = aiPanel.send(store, 'Kurz');
 		aiPanel.discard();
-		release(
-			Response.json({
-				status: 'ok',
-				outline: fakeOutline(buildOutlineRequest(store.doc, null, 'Kurz'))
-			})
-		);
+		release(stream(fakeOutline(buildOutlineRequest(store.doc, null, 'Kurz'))));
 		await pending;
 		expect(aiPanel.draft).toBeNull();
-		expect(aiPanel.last).toBe('');
 	});
 
 	it('creating inserts the ticked cards as one undo step and writes each of them, nothing else changing', async () => {
@@ -141,6 +148,107 @@ describe('the AI panel state', () => {
 	});
 });
 
+describe('a streamed proposal', () => {
+	/** A response whose lines are let through by hand. */
+	function manual() {
+		let controller!: ReadableStreamDefaultController<Uint8Array>;
+		const encoder = new TextEncoder();
+		const body = new ReadableStream<Uint8Array>({ start: (c) => (controller = c) });
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => new Response(body))
+		);
+		return {
+			line: async (event: unknown) => {
+				controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+				await new Promise((r) => setTimeout(r, 5));
+			},
+			close: () => controller.close()
+		};
+	}
+	const lesson = (name: string) => ({
+		type: 'lesson',
+		lesson: { name, cards: [{ kind: 'display', name: `${name}: karta` }] }
+	});
+
+	it('grows on screen lesson by lesson, and create waits until it is complete', async () => {
+		const { store } = setup();
+		const m = manual();
+		const pending = aiPanel.send(store, 'Kurz o zlomcích');
+		await m.line({ type: 'scope', scope: 'lessons' });
+		await m.line(lesson('První'));
+		expect(aiPanel.draft?.lessons.map((l) => l.name)).toEqual(['První']);
+		expect(aiPanel.incoming).toBe(true);
+		aiPanel.create(store);
+		expect(store.doc.lessons).toHaveLength(1);
+		await m.line(lesson('Druhá'));
+		expect(aiPanel.draft?.lessons.map((l) => l.name)).toEqual(['První', 'Druhá']);
+		await m.line({ type: 'done' });
+		m.close();
+		await pending;
+		expect(aiPanel.incoming).toBe(false);
+		expect(aiPanel.asking).toBe(false);
+		expect(aiPanel.problem).toBe('');
+	});
+
+	it('a change is built beside the old proposal, which stays until the new one is done', async () => {
+		const { store } = setup();
+		server();
+		await aiPanel.send(store, 'Kurz o zlomcích');
+		const old = aiPanel.draft;
+		const m = manual();
+		const pending = aiPanel.send(store, 'jen jedna lekce');
+		await m.line({ type: 'scope', scope: 'lessons' });
+		await m.line(lesson('Nová'));
+		expect(aiPanel.draft).toBe(old);
+		expect(aiPanel.incoming).toBe(false);
+		await m.line({ type: 'done' });
+		m.close();
+		await pending;
+		expect(aiPanel.draft?.lessons.map((l) => l.name)).toEqual(['Nová']);
+	});
+
+	it('a connection cut half way keeps what had arrived and says so', async () => {
+		const { store } = setup();
+		const m = manual();
+		const pending = aiPanel.send(store, 'Kurz');
+		await m.line({ type: 'scope', scope: 'lessons' });
+		await m.line(lesson('První'));
+		m.close();
+		await pending;
+		expect(aiPanel.draft?.lessons.map((l) => l.name)).toEqual(['První']);
+		expect(aiPanel.problem).not.toBe('');
+		expect(aiPanel.asking).toBe(false);
+	});
+
+	it('a failure before any lesson leaves no proposal', async () => {
+		const { store } = setup();
+		const m = manual();
+		const pending = aiPanel.send(store, 'Kurz');
+		await m.line({ type: 'failed', problem: 'busy' });
+		m.close();
+		await pending;
+		expect(aiPanel.draft).toBeNull();
+		expect(aiPanel.problem).not.toBe('');
+	});
+
+	it('creating a structure saves the first request on the course; cards alone do not', async () => {
+		const { store, lessonId } = setup();
+		server();
+		await aiPanel.send(store, 'Kurz o zlomcích');
+		await aiPanel.send(store, 'přidej kvíz');
+		aiPanel.create(store);
+		expect((store.source as Record<string, unknown>)[REQUEST_KEY]).toBe('Kurz o zlomcích');
+		await done();
+		aiPanel.queue.clear();
+		store.selection = { lessonId };
+		await aiPanel.send(store, 'Dej mi karty');
+		aiPanel.create(store);
+		expect((store.source as Record<string, unknown>)[REQUEST_KEY]).toBe('Kurz o zlomcích');
+		await done();
+	});
+});
+
 describe('creating when the selection has gone', () => {
 	it('puts the cards at the end of the course instead of failing, with one undo step', async () => {
 		const { store, lessonId, blockId } = setup();
@@ -176,5 +284,39 @@ describe('buildOutlineRequest', () => {
 		});
 		expect(change.current).toEqual(outline);
 		expect(change.original).toBe('Kurz');
+	});
+});
+
+describe('a card waiting in the queue, in the editor', () => {
+	it('shows no error in the tree until it is written or has failed, then the usual timing applies', async () => {
+		const { store, lessonId, blockId } = setup();
+		server();
+		store.awaiting = () => aiPanel.queue.pending;
+		store.selection = { lessonId, blockId };
+		await aiPanel.send(store, 'Dej mi karty');
+		// Hold the writing so the cards stay in the queue.
+		let open!: () => void;
+		const gate = new Promise<void>((r) => (open = r));
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => {
+				await gate;
+				return new Response('x', { status: 502 });
+			})
+		);
+		aiPanel.create(store);
+		const waiting = aiPanel.queue.rows[0].blockId;
+		store.selection = { lessonId, blockId: waiting };
+		// Left once (selection moved) and still no error shown on it.
+		store.selection = { lessonId, blockId };
+		expect(store.touchedCards.has(waiting)).toBe(true);
+		expect(store.shown.errors.filter((i) => i.ref.blockId === waiting)).toEqual([]);
+		// The review still lists it.
+		expect(store.validation.errors.some((i) => i.ref.blockId === waiting)).toBe(true);
+		// It fails: the usual timing applies.
+		open();
+		while (aiPanel.queue.pending.has(waiting)) await new Promise((r) => setTimeout(r, 2));
+		expect(store.shown.errors.some((i) => i.ref.blockId === waiting)).toBe(true);
+		aiPanel.queue.clear();
 	});
 });

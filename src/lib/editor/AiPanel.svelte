@@ -73,9 +73,14 @@
 	<div class="body">
 		{#if draft !== null}
 			<div class="scroll" aria-busy={aiPanel.asking}>
-				<div class:busy={aiPanel.asking}>
+				<div class:busy={aiPanel.asking && !aiPanel.incoming}>
 					<ProposalTree {draft} />
 				</div>
+				{#if aiPanel.incoming}
+					<p class="writing-line">
+						<LoaderCircle size={14} class="spin" aria-hidden="true" /> Píšu…
+					</p>
+				{/if}
 			</div>
 			<div class="actions">
 				<Button
@@ -148,7 +153,7 @@
 	</div>
 
 	<div class="foot">
-		{#if aiPanel.asking && draft !== null}
+		{#if aiPanel.asking && draft !== null && !aiPanel.incoming}
 			<p class="quiet">
 				<LoaderCircle size={14} class="spin" aria-hidden="true" /> Upravuji návrh…
 			</p>
@@ -348,6 +353,7 @@
 
 	.queue-row :global(.spin),
 	.quiet :global(.spin),
+	.writing-line :global(.spin),
 	.empty :global(.spin) {
 		animation: ai-spin 1.2s linear infinite;
 	}
@@ -364,6 +370,16 @@
 		gap: 6px;
 		padding: 8px 12px 12px;
 		border-top: 1px solid var(--e-border);
+	}
+
+	.writing-line {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin: 6px 0 0;
+		padding: 0 4px;
+		color: var(--e-text-faint);
+		font: var(--type-caption);
 	}
 
 	.quiet {

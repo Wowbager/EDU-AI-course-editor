@@ -16,7 +16,7 @@ import {
 	type WrittenCount
 } from '$lib/domain/authoring';
 import { buildDossier } from '$lib/domain/dossier';
-import { outlineSchema, type Outline, type OutlineRequest } from '$lib/domain/outline';
+import { outlineEventSchema, type OutlineEvent, type OutlineRequest } from '$lib/domain/outline';
 import { workspaceKey } from '$lib/state/versions/server';
 import { notices } from './notice.svelte';
 import type { DocStore } from './doc-store.svelte';
@@ -32,11 +32,10 @@ export const TEXT = {
 export type Problem = keyof typeof TEXT;
 type Outcome = { card: GeneratedCard } | { problem: Problem; retryAfter?: number };
 
-/** One POST to an AI route: the parsed body of a 200, or what went wrong. */
-async function post(
-	route: string,
-	request: unknown
-): Promise<{ body: unknown } | { problem: Problem; retryAfter?: number }> {
+type Failure = { problem: Problem; retryAfter?: number };
+
+/** One POST to an AI route: the response of a 200, or what went wrong. */
+async function send(route: string, request: unknown): Promise<{ response: Response } | Failure> {
 	const key = workspaceKey();
 	if (!key) return { problem: 'failed' };
 	let response: Response;
@@ -59,7 +58,13 @@ async function post(
 	}
 	if (response.status === 503) return { problem: 'busy' };
 	if (!response.ok) return { problem: 'failed' };
-	return { body: await response.json().catch(() => null) };
+	return { response };
+}
+
+async function post(route: string, request: unknown): Promise<{ body: unknown } | Failure> {
+	const answer = await send(route, request);
+	if ('problem' in answer) return answer;
+	return { body: await answer.response.json().catch(() => null) };
 }
 
 async function ask(request: unknown): Promise<Outcome> {
@@ -71,16 +76,54 @@ async function ask(request: unknown): Promise<Outcome> {
 	return { card: card.data };
 }
 
-/** What a proposal request came to. */
-export type OutlineOutcome = { outline: Outline } | { problem: Problem; retryAfter?: number };
-
-export async function askOutline(request: OutlineRequest): Promise<OutlineOutcome> {
-	const answer = await post('/ai/outline', request);
+/**
+ * Ask for a proposal. Its events go to `onEvent` as the model writes them; the promise
+ * says how it ended: `done`, or what went wrong (what arrived before stays with the caller).
+ */
+export async function askOutline(
+	request: OutlineRequest,
+	onEvent: (event: OutlineEvent) => void
+): Promise<'done' | Failure> {
+	const answer = await send('/ai/outline', request);
 	if ('problem' in answer) return answer;
-	const body = answer.body as { status?: string; outline?: unknown } | null;
-	const outline = outlineSchema.safeParse(body?.outline);
-	if (body?.status !== 'ok' || !outline.success) return { problem: 'failed' };
-	return { outline: outline.data };
+	const body = answer.response.body;
+	if (body === null) return { problem: 'failed' };
+	const decoder = new TextDecoder();
+	let rest = '';
+	let ended: 'done' | Failure | undefined;
+	const take = (raw: string) => {
+		if (raw.trim() === '') return;
+		let json: unknown;
+		try {
+			json = JSON.parse(raw);
+		} catch {
+			return;
+		}
+		const event = outlineEventSchema.safeParse(json);
+		if (!event.success) return;
+		if (event.data.type === 'done') ended = 'done';
+		else if (event.data.type === 'failed')
+			ended = { problem: event.data.problem === 'busy' ? 'busy' : 'failed' };
+		else onEvent(event.data);
+	};
+	try {
+		const reader = body.getReader();
+		for (;;) {
+			const { value, done } = await reader.read();
+			if (value !== undefined) rest += decoder.decode(value, { stream: !done });
+			let at: number;
+			while ((at = rest.indexOf('\n')) >= 0) {
+				take(rest.slice(0, at));
+				rest = rest.slice(at + 1);
+			}
+			if (done) break;
+		}
+		take(rest);
+	} catch {
+		return { problem: 'offline' };
+	}
+	// A stream that stops without saying so was cut.
+	return ended ?? { problem: 'offline' };
 }
 
 /** What `write` came to, for the queue that writes many cards. */

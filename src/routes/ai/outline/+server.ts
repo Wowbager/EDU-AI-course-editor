@@ -1,7 +1,8 @@
 /**
  * Proposing a structure with AI. Not under `/api/`: the proxy sends that to the Laravel API.
  *
- *   POST /ai/outline  OutlineRequest  → { status, outline }  lessons with cards, or cards
+ *   POST /ai/outline  OutlineRequest  → application/x-ndjson, one OutlineEvent per line
+ *     (the scope, then a lesson, or a card, at a time as the model writes, then `done`)
  *
  * Same provider, key and limits as `/ai/block` (`server/ai/limits.ts`).
  */
@@ -11,8 +12,8 @@ import { MAX_CONTEXT_CHARS } from '$lib/domain/authoring';
 import { outlineRequestSchema } from '$lib/domain/outline';
 import { isConfigured, readAiConfig } from '$lib/server/ai/config';
 import { sharedLimits } from '$lib/server/ai/limits';
-import { generateOutline } from '$lib/server/ai/outline';
-import { completer, ProviderError } from '$lib/server/ai/provider';
+import { outlineEvents } from '$lib/server/ai/outline';
+import { ProviderError, streamer } from '$lib/server/ai/provider';
 import { ownerOf } from '$lib/server/versions/http';
 import type { RequestHandler } from './$types';
 
@@ -53,14 +54,32 @@ export const POST: RequestHandler = async ({ request }) => {
 			{ status: 429, headers: { 'retry-after': String(verdict.retryAfterSeconds) } }
 		);
 
-	try {
-		const { response } = await generateOutline(parsed.data, completer(config), (tokens) =>
-			limits.record(owner, tokens)
-		);
-		return json(response, NO_STORE);
-	} catch (e) {
-		if (!(e instanceof ProviderError)) throw e;
-		console.error('[ai] provider call failed:', e.kind, e.message);
-		error(e.kind === 'busy' ? 503 : 502, e.kind);
-	}
+	const encoder = new TextEncoder();
+	const stream = new ReadableStream<Uint8Array>({
+		async start(controller) {
+			const send = (event: unknown) =>
+				controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+			try {
+				for await (const event of outlineEvents(parsed.data, streamer(config), (tokens) =>
+					limits.record(owner, tokens)
+				))
+					send(event);
+			} catch (e) {
+				if (!(e instanceof ProviderError)) throw e;
+				// The teacher gets a sentence from the client; the log keeps what failed.
+				console.error('[ai] provider call failed:', e.kind, e.message);
+				send({ type: 'failed', problem: e.kind === 'busy' ? 'busy' : 'failed' });
+			} finally {
+				controller.close();
+			}
+		}
+	});
+	return new Response(stream, {
+		headers: {
+			'content-type': 'application/x-ndjson',
+			'cache-control': 'no-store',
+			// A proxy in front must pass each line on as it is written.
+			'x-accel-buffering': 'no'
+		}
+	});
 };

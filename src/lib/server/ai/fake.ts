@@ -12,7 +12,7 @@ import type {
 	GeneratedCard,
 	GeneratedStep
 } from '$lib/domain/authoring';
-import type { Complete } from './provider';
+import type { Complete, Stream } from './provider';
 import type { Outline, OutlineRequest } from '$lib/domain/outline';
 
 function question(type: GenQuestionType): GenQuestion {
@@ -85,8 +85,7 @@ export function fakeCard(request: GenRequest): GeneratedCard {
 export function fakeOutline(request: OutlineRequest): Outline {
 	const card = (kind: 'display' | 'question' | 'exercise', name: string) => ({
 		kind,
-		name,
-		brief: `Ukázkový popis: ${name}.`
+		name
 	});
 	if (request.current !== undefined) {
 		const change = card('display', `Změna: ${request.prompt}`);
@@ -114,7 +113,6 @@ export function fakeOutline(request: OutlineRequest): Outline {
 		lessons: [
 			{
 				name: 'První lekce',
-				takeaway: 'Žák pozná základ.',
 				cards: [
 					card('display', 'Co to je'),
 					card('exercise', 'Procvičení'),
@@ -123,7 +121,6 @@ export function fakeOutline(request: OutlineRequest): Outline {
 			},
 			{
 				name: 'Druhá lekce',
-				takeaway: 'Žák použije základ.',
 				cards: [card('display', 'Jak se to používá'), card('exercise', 'Úlohy')]
 			}
 		]
@@ -137,4 +134,23 @@ export const fakeComplete: Complete = async (messages) => {
 	if ('schema' in request && request.schema === 'eduai.outline-request/1')
 		return { text: JSON.stringify(fakeOutline(request)), tokens: 0 };
 	return { text: JSON.stringify(fakeCard(request as GenRequest)), tokens: 0 };
+};
+
+const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** Between two lessons of a streamed proposal, so a browser suite can see it growing. */
+export const FAKE_LESSON_DELAY_MS = 150;
+
+/** The proposal as the stream carries it: the scope line, then a lesson or card per line. */
+export const fakeStream: Stream = async (messages, onText) => {
+	const last = messages.findLast((m) => m.role === 'user' && m.content.startsWith('{'));
+	const request = JSON.parse(last?.content ?? '{}') as OutlineRequest;
+	const outline = fakeOutline(request);
+	onText(`${JSON.stringify({ scope: outline.scope })}\n`);
+	const items = outline.scope === 'cards' ? outline.cards : outline.lessons;
+	for (const [i, item] of items.entries()) {
+		if (i > 0) await pause(FAKE_LESSON_DELAY_MS);
+		onText(`${JSON.stringify(item)}\n`);
+	}
+	return { tokens: 0 };
 };

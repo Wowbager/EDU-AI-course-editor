@@ -157,7 +157,6 @@
 					>
 				{/if}
 			</div>
-			<p class="brief" class:off={!card.on}>{card.brief}</p>
 		</div>
 		<button
 			type="button"
@@ -238,9 +237,6 @@
 								title="Přejmenovat"
 								onclick={() => rename(lesson.key, lesson.name)}>{lesson.name}</button
 							>
-						{/if}
-						{#if lesson.takeaway !== ''}
-							<p class="brief" class:off={state === 'none'}>{lesson.takeaway}</p>
 						{/if}
 					</div>
 					<button
@@ -383,21 +379,6 @@
 
 	.name-field.lesson-name {
 		font: var(--type-label);
-	}
-
-	.brief {
-		margin: 1px 0 0;
-		font: var(--type-caption);
-		color: var(--e-text-faint);
-		display: -webkit-box;
-		-webkit-line-clamp: 2;
-		line-clamp: 2;
-		-webkit-box-orient: vertical;
-		overflow: hidden;
-	}
-
-	.brief.off {
-		opacity: 0.6;
 	}
 
 	input[type='checkbox'] {

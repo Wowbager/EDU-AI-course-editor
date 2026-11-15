@@ -1,6 +1,7 @@
 /**
  * Putting the ticked part of a proposal into the course: lessons or cards, empty except
- * for a name, a type and the `brief` the AI will write from (`outline.ts`). One command,
+ * for a name and a type (`outline.ts`); the AI writes them from the name, the outline around
+ * them and the teacher's request, which a course structure saves on the course. One command,
  * so one undo step takes all of it back.
  *
  * Where it goes follows what the teacher has selected: lessons after the selected lesson
@@ -10,7 +11,7 @@
  */
 import type { BlockV2, CourseV2 } from './schema';
 import { addBlock, addLesson, CommandError, reorderLessons, type CommandResult } from './commands';
-import { BRIEF_KEY } from './authoring';
+import { REQUEST_KEY } from './authoring';
 import type { Outline, OutlineCard } from './outline';
 import type { Reservations } from './ids';
 
@@ -32,9 +33,7 @@ const ownerOf = (doc: CourseV2, blockId: string | undefined): string | undefined
 function named(doc: CourseV2, blockId: string, card: OutlineCard): CourseV2 {
 	return {
 		...doc,
-		blocks: doc.blocks.map((b): BlockV2 =>
-			b.block_id === blockId ? { ...b, name: card.name, [BRIEF_KEY]: card.brief } : b
-		)
+		blocks: doc.blocks.map((b): BlockV2 => (b.block_id === blockId ? { ...b, name: card.name } : b))
 	};
 }
 
@@ -67,7 +66,9 @@ export function insertOutline(
 	doc: CourseV2,
 	outline: Outline,
 	at: InsertAt = {},
-	reserved?: Reservations
+	reserved?: Reservations,
+	/** What the teacher asked for; kept on the course with a structure, for the cards' dossier. */
+	request?: string
 ): InsertResult {
 	let next = doc;
 	const added: InsertResult['added'] = [];
@@ -106,14 +107,7 @@ export function insertOutline(
 	for (const lesson of outline.lessons) {
 		const created = addLesson(next, lesson.name, reserved);
 		const lessonId = created.ref!.lessonId!;
-		next = {
-			...created.doc,
-			lessons: created.doc.lessons.map((l) =>
-				l.lesson_id === lessonId && (lesson.takeaway ?? '') !== ''
-					? { ...l, description: lesson.takeaway }
-					: l
-			)
-		};
+		next = created.doc;
 		const result = addCards(next, lessonId, lesson.cards, undefined, reserved);
 		next = result.doc;
 		added.push(...result.added);
@@ -122,6 +116,8 @@ export function insertOutline(
 		next = reorderLessons(next, ids).doc;
 		previous = lessonId;
 	}
+	const asked = request?.trim() ?? '';
+	if (asked !== '') next = { ...next, [REQUEST_KEY]: asked };
 	return {
 		doc: next,
 		added,

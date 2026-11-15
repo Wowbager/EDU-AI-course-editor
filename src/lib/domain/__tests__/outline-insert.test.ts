@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { addBlock, addLesson } from '../commands';
 import { emptyCourse } from '../document';
-import { BRIEF_KEY, canGenerate, completeness } from '../authoring';
+import { BRIEF_KEY, REQUEST_KEY, canGenerate, completeness } from '../authoring';
 import { insertOutline } from '../outline-insert';
 import { OUTLINE_KINDS, type Outline } from '../outline';
 import { DocStore } from '$lib/state/doc-store.svelte';
@@ -9,8 +9,7 @@ import type { CourseV2 } from '../schema';
 
 const card = (name: string, kind: (typeof OUTLINE_KINDS)[number] = 'display') => ({
 	kind,
-	name,
-	brief: `O: ${name}`
+	name
 });
 
 function course(): { doc: CourseV2; l1: string; l2: string; a1: string; a2: string } {
@@ -33,7 +32,6 @@ const structure: Outline = {
 	lessons: [
 		{
 			name: 'Polovina',
-			takeaway: 'Poznám půlku',
 			cards: [card('Co je půlka'), card('Příklady', 'exercise')]
 		},
 		{ name: 'Třetina', cards: [card('Kvíz', 'question')] }
@@ -65,27 +63,41 @@ describe('inserting a proposal of lessons', () => {
 		expect(l1).toBeDefined();
 	});
 
-	it('keeps name, brief and takeaway, and maps every kind to its block type', () => {
+	it('keeps the name, writes no brief and no description, and maps every kind to its block type', () => {
 		const { doc } = course();
 		const result = insertOutline(doc, structure);
 		const lesson = result.doc.lessons.find((l) => l.name === 'Polovina')!;
-		expect(lesson.description).toBe('Poznám půlku');
-		expect(result.doc.lessons.find((l) => l.name === 'Třetina')!.description).toBeUndefined();
+		expect(lesson.description).toBeUndefined();
 		const blocks = result.added.map((a) =>
 			result.doc.blocks.find((b) => b.block_id === a.blockId)!
 		);
 		expect(blocks.map((b) => b.type)).toEqual(['display', 'exercise', 'question']);
 		expect(blocks.map((b) => b.name)).toEqual(['Co je půlka', 'Příklady', 'Kvíz']);
-		expect(blocks.map((b) => (b as Record<string, unknown>)[BRIEF_KEY])).toEqual([
-			'O: Co je půlka',
-			'O: Příklady',
-			'O: Kvíz'
-		]);
-		// Empty except for the name and brief, and ready for AI to write.
 		for (const b of blocks) {
+			expect((b as Record<string, unknown>)[BRIEF_KEY]).toBeUndefined();
+			// Empty except for the name, and ready for AI to write.
 			expect(completeness(b)).toBe('stub');
 			expect(canGenerate(b)).toBe(true);
 		}
+	});
+
+	it("saves the teacher's request on the course with a structure, in the same undo step", () => {
+		const { doc } = course();
+		const result = insertOutline(doc, structure, {}, undefined, '  Kurz o zlomcích  ');
+		expect((result.doc as Record<string, unknown>)[REQUEST_KEY]).toBe('Kurz o zlomcích');
+		const store = new DocStore();
+		store.load(doc);
+		store.endEdit();
+		const before = store.undoStack.length;
+		store.apply((d, r) => insertOutline(d, structure, {}, r, 'Kurz o zlomcích'));
+		expect(store.undoStack.length).toBe(before + 1);
+		store.undo();
+		expect((store.source as Record<string, unknown>)[REQUEST_KEY]).toBeUndefined();
+	});
+
+	it('keeps no request when there is none, nor for cards alone', () => {
+		const { doc } = course();
+		expect(REQUEST_KEY in insertOutline(doc, structure).doc).toBe(false);
 	});
 
 	it('returns the new cards in course order, each with its lesson', () => {

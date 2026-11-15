@@ -27,6 +27,12 @@ import { nextStepIds, type Reservations } from './ids';
 export const BRIEF_KEY = 'brief';
 export const ORIGIN_KEY = 'field_origin';
 export const AUDIENCE_KEY = 'audience';
+/**
+ * The teacher's request for a course, saved once on the course when an AI proposal of a
+ * structure is accepted. A key the app ignores, like `audience`; the dossier carries it to
+ * every card the AI writes.
+ */
+export const REQUEST_KEY = 'authoring_request';
 
 /** Block keys that belong to the first block of a merged card only (`groups.ts`). */
 export const AUTHORING_BLOCK_KEYS = [

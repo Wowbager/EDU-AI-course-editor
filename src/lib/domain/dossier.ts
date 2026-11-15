@@ -7,7 +7,7 @@
  * status, ...). The output is deterministic: the same document gives the same string,
  * which the provider's prefix cache relies on.
  */
-import { AUDIENCE_KEY, BRIEF_KEY } from './authoring';
+import { AUDIENCE_KEY, BRIEF_KEY, REQUEST_KEY } from './authoring';
 import type { BlockStep, BlockV2, CourseV2, LessonV2, QuestionConfig } from './schema';
 
 export const DOSSIER_BUDGET_TOKENS = 150_000;
@@ -229,6 +229,9 @@ function renderCourse(doc: CourseV2): string {
 			.map(([k, v]) => `${k}: ${clean(String(v))}`);
 		if (parts.length > 0) lines.push(`Žáci (audience): ${parts.join('; ')}`);
 	}
+	const request = (doc as Record<string, unknown>)[REQUEST_KEY];
+	if (typeof request === 'string' && request.trim() !== '')
+		lines.push(`Zadání učitele (podle něj kurz vznikl): ${clean(request)}`);
 	return lines.join('\n');
 }
 

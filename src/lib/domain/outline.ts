@@ -5,8 +5,9 @@
  * It is one of two things, and the model decides which from the prompt:
  *  - `lessons`: a course structure, lessons with cards under them;
  *  - `cards`: cards for the lesson the teacher is in.
- * Every card is a kind, a name and one line on what it is for (its `brief`, which the
- * card keeps and the whole-card writer reads, `authoring.ts`).
+ * Every card is a kind and a name; the lessons are names. Nothing else is asked of the
+ * model, which is most of what made a proposal slow. What the card is for comes from its
+ * name, the outline around it and the teacher's request (`REQUEST_KEY`).
  *
  * The wire shape (`outlineSchema`) is what the model returns and what the editor sends
  * back with "Co změnit?". The draft is the same thing with a local key and a tick on every
@@ -15,7 +16,15 @@
  * the one command that puts it in the document.
  */
 import { z } from 'zod';
-import { audienceSchema, AUDIENCE_KEY, MAX_CONTEXT_CHARS } from './authoring';
+import {
+	audienceSchema,
+	AUDIENCE_KEY,
+	MAX_CONTEXT_CHARS,
+	plainTextProblem,
+	REQUEST_KEY
+} from './authoring';
+
+export { REQUEST_KEY };
 import { buildDossier } from './dossier';
 import type { CourseV2 } from './schema';
 
@@ -31,15 +40,12 @@ const line = (max: number) => z.string().trim().min(1).max(max);
 
 export const outlineCardSchema = z.object({
 	kind: z.enum(OUTLINE_KINDS),
-	name: line(120),
-	brief: line(300)
+	name: line(120)
 });
 export type OutlineCard = z.infer<typeof outlineCardSchema>;
 
 export const outlineLessonSchema = z.object({
 	name: line(120),
-	/** What the pupil knows or can do after the lesson; may be left out. */
-	takeaway: z.string().trim().max(300).optional(),
 	cards: z.array(outlineCardSchema).min(1).max(MAX_CARDS_PER_LESSON)
 });
 export type OutlineLesson = z.infer<typeof outlineLessonSchema>;
@@ -89,9 +95,136 @@ export type OutlineRequest = z.infer<typeof outlineRequestSchema>;
  * back to the model as it is.
  */
 export function outlineProblem(request: OutlineRequest, outline: Outline): string | undefined {
-	if (outline.scope === 'cards' && request.target.lessons === 0)
+	const scope = scopeProblem(request, outline.scope);
+	if (scope !== undefined) return scope;
+	const names =
+		outline.scope === 'cards'
+			? outline.cards.map((c) => c.name)
+			: outline.lessons.flatMap((l) => [l.name, ...l.cards.map((c) => c.name)]);
+	for (const name of names) {
+		const why = plainTextProblem(name);
+		if (why !== undefined) return nameProblem(name, why);
+	}
+	return undefined;
+}
+
+export function scopeProblem(request: OutlineRequest, scope: Outline['scope']): string | undefined {
+	if (scope === 'cards' && request.target.lessons === 0)
 		return 'The course has no lesson yet, so cards have nowhere to go. Use "scope":"lessons".';
 	return undefined;
+}
+
+export const nameProblem = (name: string, why: string): string =>
+	`The name "${name.slice(0, 40)}" must be plain text, but ${why}. Names of cards and lessons have no $ signs and no Markdown.`;
+
+// ───────────────────────────────── the stream ─────────────────────────────────
+
+/**
+ * What the route sends the browser, one JSON object per line, as the model writes: the
+ * scope, then a lesson (or a card, for `cards`) at a time, then `done`.
+ */
+export type OutlineEvent =
+	| { type: 'scope'; scope: Outline['scope'] }
+	| { type: 'lesson'; lesson: OutlineLesson }
+	| { type: 'card'; card: OutlineCard }
+	| { type: 'done' }
+	| { type: 'failed'; problem?: 'busy' | 'failed' };
+
+export const outlineEventSchema: z.ZodType<OutlineEvent> = z.union([
+	z.object({ type: z.literal('scope'), scope: z.enum(['lessons', 'cards']) }),
+	z.object({ type: z.literal('lesson'), lesson: outlineLessonSchema }),
+	z.object({ type: z.literal('card'), card: outlineCardSchema }),
+	z.object({ type: z.literal('done') }),
+	z.object({ type: z.literal('failed'), problem: z.enum(['busy', 'failed']).optional() })
+]);
+
+/** The proposal so far, with one more event; `null` until the scope is known. */
+export function applyEvent(so: Outline | null, event: OutlineEvent): Outline | null {
+	switch (event.type) {
+		case 'scope':
+			return event.scope === 'cards'
+				? { scope: 'cards', cards: [] }
+				: { scope: 'lessons', lessons: [] };
+		case 'lesson':
+			return so?.scope === 'lessons' ? { ...so, lessons: [...so.lessons, event.lesson] } : so;
+		case 'card':
+			return so?.scope === 'cards' ? { ...so, cards: [...so.cards, event.card] } : so;
+		default:
+			return so;
+	}
+}
+
+const scopeLine = z.object({ scope: z.enum(['lessons', 'cards']) });
+
+/**
+ * One line of the model's answer: the scope, a lesson or a card, or what is wrong with
+ * it. A line that fails is not the end of the proposal: it is asked for again at the
+ * end, on its own.
+ */
+export function readLine(
+	json: unknown
+): { event: OutlineEvent } | { problem: string; scope?: undefined } {
+	const scope = scopeLine.safeParse(json);
+	if (scope.success) return { event: { type: 'scope', scope: scope.data.scope } };
+	const lesson = outlineLessonSchema.safeParse(json);
+	const card = outlineCardSchema.safeParse(json);
+	const isLesson = typeof json === 'object' && json !== null && 'cards' in json;
+	const parsed = isLesson ? lesson : card;
+	if (!parsed.success)
+		return {
+			problem: parsed.error.issues
+				.slice(0, 3)
+				.map((i) => `${i.path.join('.') || 'line'}: ${i.message}`)
+				.join('; ')
+		};
+	if (isLesson && lesson.success) {
+		for (const name of [lesson.data.name, ...lesson.data.cards.map((c) => c.name)]) {
+			const why = plainTextProblem(name);
+			if (why !== undefined) return { problem: nameProblem(name, why) };
+		}
+		return { event: { type: 'lesson', lesson: lesson.data } };
+	}
+	if (card.success) {
+		const why = plainTextProblem(card.data.name);
+		if (why !== undefined) return { problem: nameProblem(card.data.name, why) };
+		return { event: { type: 'card', card: card.data } };
+	}
+	return { problem: 'not a lesson or a card' };
+}
+
+/**
+ * Lines out of text that arrives in pieces: a line is handed on when its newline
+ * arrives, and what is left when the text ends is a line too. Lines that are not JSON
+ * objects (a code fence, a comment) are skipped; a damaged object is reported.
+ */
+export function lineSplitter(
+	onLine: (json: unknown, raw: string) => void,
+	onDamaged: (raw: string) => void
+): { feed(piece: string): void; end(): void } {
+	let rest = '';
+	const take = (raw: string) => {
+		const text = raw.trim();
+		if (!text.startsWith('{')) return;
+		try {
+			onLine(JSON.parse(text), text);
+		} catch {
+			onDamaged(text);
+		}
+	};
+	return {
+		feed(piece) {
+			rest += piece;
+			let at: number;
+			while ((at = rest.indexOf('\n')) >= 0) {
+				take(rest.slice(0, at));
+				rest = rest.slice(at + 1);
+			}
+		},
+		end() {
+			take(rest);
+			rest = '';
+		}
+	};
 }
 
 // ───────────────────────────────── the draft ─────────────────────────────────
@@ -104,7 +237,6 @@ export interface DraftLesson {
 	key: string;
 	/** Empty for a `cards` proposal, whose one group is not a lesson. */
 	name: string;
-	takeaway: string;
 	cards: DraftCard[];
 }
 export interface Draft {
@@ -122,32 +254,71 @@ export function keyMaker(): KeyMaker {
 
 const cardKey = (card: OutlineCard) => `${card.kind}\n${card.name}`;
 
-/**
- * A draft from the model's proposal, everything ticked. With `previous`, an item the
- * model kept, with the same kind and name, keeps the teacher's tick; everything the
- * model changed or added starts ticked. A rename the teacher made is carried by the
- * model (it saw the new name in `current`), so it arrives under that name.
- */
-export function draftOf(outline: Outline, next: KeyMaker, previous?: Draft): Draft {
-	const unticked = new Set(
+/** The cards the teacher unticked, by kind and name, to carry over to a reworked proposal. */
+export function untickedOf(previous?: Draft): ReadonlySet<string> {
+	return new Set(
 		(previous?.lessons ?? []).flatMap((l) => l.cards.filter((c) => !c.on).map(cardKey))
 	);
-	const cards = (list: readonly OutlineCard[]): DraftCard[] =>
-		list.map((card) => ({ ...card, key: next(), on: !unticked.has(cardKey(card)) }));
-	if (outline.scope === 'cards')
-		return {
-			scope: 'cards',
-			lessons: [{ key: next(), name: '', takeaway: '', cards: cards(outline.cards) }]
-		};
+}
+
+export function emptyDraft(scope: Outline['scope'], next: KeyMaker): Draft {
 	return {
-		scope: 'lessons',
-		lessons: outline.lessons.map((lesson) => ({
-			key: next(),
-			name: lesson.name,
-			takeaway: lesson.takeaway ?? '',
-			cards: cards(lesson.cards)
-		}))
+		scope,
+		lessons: scope === 'cards' ? [{ key: next(), name: '', cards: [] }] : []
 	};
+}
+
+const draftCards = (list: readonly OutlineCard[], next: KeyMaker, unticked: ReadonlySet<string>) =>
+	list.map((card) => ({ ...card, key: next(), on: !unticked.has(cardKey(card)) }));
+
+/** The draft with one more lesson (or, in a `cards` draft, card) from the stream. */
+export function addToDraft(
+	draft: Draft,
+	event: OutlineEvent,
+	next: KeyMaker,
+	unticked: ReadonlySet<string> = new Set()
+): Draft {
+	if (event.type === 'lesson' && draft.scope === 'lessons')
+		return {
+			...draft,
+			lessons: [
+				...draft.lessons,
+				{
+					key: next(),
+					name: event.lesson.name,
+					cards: draftCards(event.lesson.cards, next, unticked)
+				}
+			]
+		};
+	if (event.type === 'card' && draft.scope === 'cards')
+		return {
+			...draft,
+			lessons: [
+				{
+					...draft.lessons[0],
+					cards: [...draft.lessons[0].cards, ...draftCards([event.card], next, unticked)]
+				}
+			]
+		};
+	return draft;
+}
+
+/**
+ * A draft from a whole proposal, everything ticked. With `previous`, a card the model
+ * kept, with the same kind and name, keeps the teacher's tick; everything the model
+ * changed or added starts ticked. A rename the teacher made is carried by the model (it
+ * saw the new name in `current`), so it arrives under that name.
+ */
+export function draftOf(outline: Outline, next: KeyMaker, previous?: Draft): Draft {
+	const unticked = untickedOf(previous);
+	let draft = emptyDraft(outline.scope, next);
+	if (outline.scope === 'cards')
+		for (const card of outline.cards)
+			draft = addToDraft(draft, { type: 'card', card }, next, unticked);
+	else
+		for (const lesson of outline.lessons)
+			draft = addToDraft(draft, { type: 'lesson', lesson }, next, unticked);
+	return draft;
 }
 
 /** The draft as the wire shape: the ticked cards only, or all of them. */
@@ -155,7 +326,7 @@ export function toOutline(draft: Draft, only: 'ticked' | 'all' = 'all'): Outline
 	const keep = (cards: DraftCard[]): OutlineCard[] =>
 		cards
 			.filter((c) => only === 'all' || c.on)
-			.map(({ kind, name, brief }) => ({ kind, name: name.trim(), brief: brief.trim() }))
+			.map(({ kind, name }) => ({ kind, name: name.trim() }))
 			.filter((c) => c.name !== '');
 	if (draft.scope === 'cards') {
 		const cards = keep(draft.lessons[0]?.cards ?? []);
@@ -165,8 +336,7 @@ export function toOutline(draft: Draft, only: 'ticked' | 'all' = 'all'): Outline
 		const cards = keep(lesson.cards);
 		const name = lesson.name.trim();
 		if (cards.length === 0 || name === '') return [];
-		const takeaway = lesson.takeaway.trim();
-		return [{ name, ...(takeaway !== '' ? { takeaway } : {}), cards }];
+		return [{ name, cards }];
 	});
 	return lessons.length === 0 ? undefined : { scope: 'lessons', lessons };
 }

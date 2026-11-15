@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
 	anyTicked,
+	addToDraft,
+	applyEvent,
+	emptyDraft,
+	lineSplitter,
+	readLine,
 	cardCount,
 	draftOf,
 	keyMaker,
@@ -20,13 +25,12 @@ import {
 	type OutlineRequest
 } from '../outline';
 
-const card = (name: string, kind = 'display') => ({ kind, name, brief: `O: ${name}` });
+const card = (name: string, kind = 'display') => ({ kind, name });
 const lessons = {
 	scope: 'lessons',
 	lessons: [
 		{
 			name: 'Polovina',
-			takeaway: 'Poznám půlku',
 			cards: [card('Co je půlka'), card('Příklady', 'exercise')]
 		},
 		{ name: 'Třetina', cards: [card('Co je třetina'), card('Kvíz', 'question'), card('Shrnutí')] }
@@ -47,12 +51,8 @@ describe('the outline schema', () => {
 		['no lessons', { scope: 'lessons', lessons: [] }],
 		['a lesson without cards', { scope: 'lessons', lessons: [{ name: 'A', cards: [] }] }],
 		['no cards', { scope: 'cards', cards: [] }],
-		['an unknown kind', { scope: 'cards', cards: [{ kind: 'video', name: 'A', brief: 'b' }] }],
-		[
-			'a card without a name',
-			{ scope: 'cards', cards: [{ kind: 'display', name: ' ', brief: 'b' }] }
-		],
-		['a card without a brief', { scope: 'cards', cards: [{ kind: 'display', name: 'A' }] }],
+		['an unknown kind', { scope: 'cards', cards: [{ kind: 'video', name: 'A' }] }],
+		['a card without a name', { scope: 'cards', cards: [{ kind: 'display', name: ' ' }] }],
 		['a lesson without a name', { scope: 'lessons', lessons: [{ cards: [card('A')] }] }]
 	])('refuses %s', (_, value) => {
 		expect(outlineSchema.safeParse(value).success).toBe(false);
@@ -109,7 +109,7 @@ describe('the draft', () => {
 		expect(toOutline(draft)).toEqual({
 			scope: 'lessons',
 			lessons: [
-				{ name: 'Polovina', takeaway: 'Poznám půlku', cards: lessons.lessons[0].cards },
+				{ name: 'Polovina', cards: lessons.lessons[0].cards },
 				{ name: 'Třetina', cards: lessons.lessons[1].cards }
 			]
 		});
@@ -134,9 +134,7 @@ describe('the draft', () => {
 		const out = toOutline(draft, 'ticked');
 		expect(out).toEqual({
 			scope: 'lessons',
-			lessons: [
-				{ name: 'Polovina', takeaway: 'Poznám půlku', cards: [lessons.lessons[0].cards[1]] }
-			]
+			lessons: [{ name: 'Polovina', cards: [lessons.lessons[0].cards[1]] }]
 		});
 		expect(anyTicked(setLessonTick(draft, draft.lessons[0].key, false))).toBe(false);
 		expect(toOutline(setLessonTick(draft, draft.lessons[0].key, false), 'ticked')).toBeUndefined();
@@ -180,5 +178,84 @@ describe('the draft', () => {
 		expect(draft.lessons).toHaveLength(1);
 		expect(removeCard(draft, draft.lessons[0].cards[0].key).lessons).toHaveLength(1);
 		expect(toOutline(draft)).toEqual({ scope: 'cards', cards: [card('A'), card('B')] });
+	});
+});
+
+describe('the stream of lines', () => {
+	const lines = (...pieces: string[]) => {
+		const got: unknown[] = [];
+		const damaged: string[] = [];
+		const splitter = lineSplitter(
+			(json) => got.push(json),
+			(raw) => damaged.push(raw)
+		);
+		for (const piece of pieces) splitter.feed(piece);
+		splitter.end();
+		return { got, damaged };
+	};
+
+	it('hands over a line when its newline arrives, however the text is cut', () => {
+		const { got } = lines(
+			'{"scope":"les',
+			'sons"}\n{"name":"A","cards":[{"kind":"display",',
+			'"name":"B"}]}\n'
+		);
+		expect(got).toEqual([
+			{ scope: 'lessons' },
+			{ name: 'A', cards: [{ kind: 'display', name: 'B' }] }
+		]);
+	});
+
+	it('takes the last line without a newline, and skips fences and empty lines', () => {
+		const { got } = lines('```json\n{"scope":"cards"}\n\n{"kind":"exercise","name":"X"}');
+		expect(got).toEqual([{ scope: 'cards' }, { kind: 'exercise', name: 'X' }]);
+	});
+
+	it('reports a damaged line and goes on', () => {
+		const { got, damaged } = lines(
+			'{"scope":"cards"}\n{"kind":"exercise","na\n{"kind":"display","name":"Y"}\n'
+		);
+		expect(damaged).toEqual(['{"kind":"exercise","na']);
+		expect(got).toHaveLength(2);
+	});
+
+	it('reads a line as the scope, a lesson or a card, or says what is wrong', () => {
+		expect(readLine({ scope: 'cards' })).toEqual({ event: { type: 'scope', scope: 'cards' } });
+		expect(readLine({ name: 'A', cards: [card('B')] })).toMatchObject({
+			event: { type: 'lesson' }
+		});
+		expect(readLine(card('B', 'exercise'))).toMatchObject({ event: { type: 'card' } });
+		expect(readLine({ name: 'A', cards: [] })).toHaveProperty('problem');
+		expect(readLine({ kind: 'video', name: 'A' })).toHaveProperty('problem');
+		expect(readLine({ name: 'A', cards: [card('Součet $\\frac{1}{2}$')] })).toMatchObject({
+			problem: expect.stringMatching(/plain text/)
+		});
+		expect(readLine(card('**Tučně**'))).toMatchObject({
+			problem: expect.stringMatching(/plain text/)
+		});
+	});
+
+	it('builds the proposal and the draft event by event', () => {
+		let so = applyEvent(null, { type: 'scope', scope: 'lessons' });
+		so = applyEvent(so, { type: 'lesson', lesson: { name: 'A', cards: [card('B')] } as never });
+		expect(so).toEqual({ scope: 'lessons', lessons: [{ name: 'A', cards: [card('B')] }] });
+		// A card event does nothing to a lessons proposal.
+		expect(applyEvent(so, { type: 'card', card: card('C') as never })).toBe(so);
+
+		let draft = emptyDraft('lessons', keyMaker());
+		const next = keyMaker();
+		draft = addToDraft(
+			draft,
+			{ type: 'lesson', lesson: { name: 'A', cards: [card('B')] } as never },
+			next
+		);
+		draft = addToDraft(
+			draft,
+			{ type: 'lesson', lesson: { name: 'C', cards: [card('D')] } as never },
+			next
+		);
+		expect(draft.lessons.map((l) => l.name)).toEqual(['A', 'C']);
+		const keys = draft.lessons.flatMap((l) => [l.key, ...l.cards.map((c) => c.key)]);
+		expect(new Set(keys).size).toBe(keys.length);
 	});
 });

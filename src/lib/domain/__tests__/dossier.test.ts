@@ -342,3 +342,16 @@ describe.skipIf(!existsSync(A2))('buildDossier on the A2 Rovnice course', () => 
 		expect(out).toContain(MARKER_OPEN);
 	});
 });
+
+describe("the teacher's request in the dossier", () => {
+	it('is told with the course, so every card knows what it belongs to', () => {
+		const doc = {
+			...small(),
+			authoring_request: 'Kurz o zlomcích pro 5. třídu, 3 lekce'
+		} as CourseV2;
+		const out = buildDossier(doc, 'B_T1');
+		expect(out).toContain('Zadání učitele');
+		expect(out).toContain('Kurz o zlomcích pro 5. třídu, 3 lekce');
+		expect(buildDossier(small(), 'B_T1')).not.toContain('Zadání učitele');
+	});
+});
