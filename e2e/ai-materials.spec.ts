@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { test, expect, openEditor, type Page } from './fixtures';
 
 /**
- * Materials in the AI tab: files are attached, read in the browser, kept with the course,
+ * Materials in AI pomocník: files are attached, read in the browser, kept with the course,
  * and the proposal and the cards written from it carry them.
  *
  * Runs against the `fake` provider: a picture is "read" as a fixed line, and a proposal
@@ -15,7 +15,7 @@ const docx = join(fixtures, 'handout.docx');
 const png = join(fixtures, 'page.png');
 const pdf = join(fixtures, 'scan.pdf');
 
-const aiTab = (page: Page) => page.getByRole('button', { name: 'AI', exact: true });
+const aiTab = (page: Page) => page.getByRole('button', { name: 'AI pomocník', exact: true });
 const panel = (page: Page) => page.getByRole('region', { name: 'AI', exact: true });
 const box = (page: Page) => page.getByRole('textbox', { name: /^Co (mám vytvořit|změnit)\?$/ });
 const chips = (page: Page) => panel(page).getByRole('list', { name: 'Podklady' });
