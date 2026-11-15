@@ -17,6 +17,7 @@
 	import { DRAFT_KEY } from '$lib/state/draft';
 	import { readLayout, writeLayout } from '$lib/state/layout-prefs';
 	import { DocStore } from '$lib/state/doc-store.svelte';
+	import { ai } from '$lib/state/ai.svelte';
 	import { setStepView, setStore, setVersions } from '$lib/ui/context';
 	import { StepView } from '$lib/state/step-view.svelte';
 	import { VersionStore } from '$lib/state/versions/version-store.svelte';
@@ -313,6 +314,7 @@
 	});
 
 	onMount(() => {
+		void ai.detect();
 		const session = new DraftSession(store);
 		recovery = session;
 		// Typing that landed before hydration finished already made the document

@@ -26,7 +26,7 @@ import type { PlayerKind } from './e2e/fixtures.ts';
  * own under the system's temporary directory, never in the checkout's data
  * directory: every test page is a new workspace, and thousands of them do not belong
  * beside a person's own saved versions. A server already running is reused as it
- * is, with whatever directory it was started with.
+ * is, with whatever directory and AI provider it was started with.
  */
 // Matched against the absolute path, so anchored to the file name: a checkout in a
 // directory with "preview" in its name must not match every spec.
@@ -66,7 +66,9 @@ export default defineConfig<{ player: PlayerKind }>({
 			? 'npm run dev -- --port 5178 --strictPort'
 			: 'npm run build && npm run preview -- --port 5178 --strictPort',
 		url: 'http://localhost:5178',
-		env: { DATA_DIR: join(tmpdir(), 'editor-e2e-data') },
+		// `fake`: the AI provider that answers from the request alone and calls nobody
+		// (`src/lib/server/ai/fake.ts`), so `ai-fill.spec.ts` needs no key and no network.
+		env: { DATA_DIR: join(tmpdir(), 'editor-e2e-data'), AI_PROVIDER: 'fake' },
 		reuseExistingServer: !ci,
 		timeout: dev ? 60_000 : 180_000
 	}

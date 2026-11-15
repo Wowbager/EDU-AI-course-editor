@@ -151,8 +151,13 @@ describe('what each mode is for', () => {
 		// 30 when `block.help` and `step.help` moved down from advanced mode — the
 		// app's hint sheet escalates to them, so a course written without them has a
 		// dead "Nerozumím tomu" button.
-		const teacher = FIELDS.filter((spec) => visible(spec, 'teacher'));
+		// The four fields of „Pro koho kurz je“ are counted apart: they are one fold of
+		// the course dialog, filled once per course, and what „Dopsat kartu“ writes for.
+		const teacher = FIELDS.filter(
+			(spec) => visible(spec, 'teacher') && spec.section !== 'audience'
+		);
 		expect(teacher.length).toBeLessThanOrEqual(32);
+		expect(FIELDS.filter((spec) => spec.section === 'audience').length).toBe(4);
 	});
 
 	it('tells a teacher what the card settings hold, from the table', () => {
@@ -525,7 +530,9 @@ describe('sections', () => {
 		for (const f of FIELDS.filter((f) => DIALOGS.includes(f.level) && f.mode === 'teacher')) {
 			const main = f.section === 'main';
 			const ladder = f.feedback === true && f.section === 'ladder';
-			expect(main || ladder, `${key(f)} is in ${f.section}`).toBe(true);
+			// Who the course is for is set once, so it is a fold and not on the page.
+			const audience = f.level === 'course' && f.section === 'audience';
+			expect(main || ladder || audience, `${key(f)} is in ${f.section}`).toBe(true);
 		}
 	});
 
@@ -566,7 +573,7 @@ describe('sections', () => {
 			'followup',
 			'meta'
 		]);
-		expect(sectionsFor('course', 'teacher').map((s) => s.id)).toEqual(['main']);
+		expect(sectionsFor('course', 'teacher').map((s) => s.id)).toEqual(['main', 'audience']);
 		expect(sectionsFor('lesson', 'teacher').map((s) => s.id)).toEqual(['main']);
 		expect(sectionsFor('lesson', 'metodik').map((s) => s.id)).toEqual(['main', 'didactics', 'ai']);
 	});

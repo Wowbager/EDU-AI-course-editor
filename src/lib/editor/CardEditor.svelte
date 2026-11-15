@@ -65,6 +65,7 @@
 		ListPlus,
 		ListX,
 		Plus,
+		Sparkles,
 		Settings,
 		Square,
 		SquareCheck,
@@ -73,6 +74,8 @@
 	import { STEP_TYPES } from '$lib/lang';
 	import { focusAdded, focusSelectedCard } from '$lib/ui/focus-after';
 	import { cardTypeChipTitle, cardTypeIcon, cardTypeLabel } from '$lib/ui/card-types';
+	import { BRIEF_KEY, canGenerate, completeness } from '$lib/domain/authoring';
+	import { ai } from '$lib/state/ai.svelte';
 
 	interface Props {
 		doc: CourseV2;
@@ -314,6 +317,17 @@
 		showNotice(`Karta zařazena do lekce „${name}“.`, { blockId });
 	}
 
+	/**
+	 * Writing the card with AI. Offered on the card itself only while nothing is written
+	 * in it: then it is the other way to start, next to typing. Once the teacher has
+	 * written a part, finishing the rest is a choice in the ⋯ menu, and a finished card
+	 * shows nothing of this.
+	 */
+	const fillState = $derived(ai.available ? completeness(block) : 'ready');
+	const writing = $derived(ai.writing.has(block.block_id));
+	const brief = $derived((block as Record<string, unknown>)[BRIEF_KEY] as string | undefined);
+	const write = () => void ai.write(store, block.block_id, lessonId);
+
 	let stepsEl = $state<HTMLElement | null>(null);
 	const STEPS = ':scope > .step-wrap';
 </script>
@@ -401,6 +415,16 @@
 			<MenuItem icon={Copy} onclick={() => actions.duplicate(block.block_id, lessonId)}>
 				Duplikovat kartu
 			</MenuItem>
+			{#if fillState === 'partial'}
+				<MenuItem
+					icon={Sparkles}
+					onclick={write}
+					disabled={writing}
+					title="AI dopíše jen to, co je v kartě prázdné. Co už je napsané, nezmění."
+				>
+					Dopsat, co chybí
+				</MenuItem>
+			{/if}
 			{#if together !== undefined}
 				<MenuItem
 					icon={together.on ? SquareCheck : Square}
@@ -461,6 +485,28 @@
 			</MenuItem>
 		</Menu>
 	</header>
+
+	{#if fillState === 'stub'}
+		<div class="write">
+			<FocusField
+				label="O čem karta je"
+				value={brief}
+				ref={{ blockId: block.block_id, field: BRIEF_KEY }}
+				placeholder="O čem karta je, jednou větou"
+				onchange={(v) => set(BRIEF_KEY, v)}
+			/>
+			<Button
+				onclick={write}
+				disabled={writing || !canGenerate(block)}
+				title={canGenerate(block)
+					? 'AI napíše kartu podle názvu a této věty. Co do karty napíšeš, nepřepíše.'
+					: 'Nejdřív kartu pojmenuj nebo napiš, o čem je.'}
+			>
+				<Sparkles size={16} aria-hidden="true"></Sparkles>
+				{writing ? 'Píšu…' : 'Dopsat kartu'}
+			</Button>
+		</div>
+	{/if}
 
 	<div
 		class="steps"
@@ -564,6 +610,14 @@
 
 	.spacer {
 		flex: 1;
+	}
+
+	/* One line: the field takes the room, the button stays its own width. */
+	.write {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 8px;
+		align-items: start;
 	}
 
 	.steps {
