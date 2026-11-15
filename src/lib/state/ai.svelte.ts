@@ -16,11 +16,12 @@ import {
 	type WrittenCount
 } from '$lib/domain/authoring';
 import { buildDossier } from '$lib/domain/dossier';
+import { outlineSchema, type Outline, type OutlineRequest } from '$lib/domain/outline';
 import { workspaceKey } from '$lib/state/versions/server';
 import { notices } from './notice.svelte';
 import type { DocStore } from './doc-store.svelte';
 
-const TEXT = {
+export const TEXT = {
 	failed: 'Kartu se nepodařilo dopsat. Zkus to znovu.',
 	busy: 'AI je teď přetížená. Zkus to za chvíli.',
 	rate: 'To bylo moc požadavků najednou. Zkus to za chvíli.',
@@ -28,14 +29,19 @@ const TEXT = {
 	offline: 'Nepodařilo se spojit s AI. Zkontroluj připojení a zkus to znovu.'
 } as const;
 
-type Outcome = { card: GeneratedCard } | { problem: keyof typeof TEXT };
+export type Problem = keyof typeof TEXT;
+type Outcome = { card: GeneratedCard } | { problem: Problem; retryAfter?: number };
 
-async function ask(request: unknown): Promise<Outcome> {
+/** One POST to an AI route: the parsed body of a 200, or what went wrong. */
+async function post(
+	route: string,
+	request: unknown
+): Promise<{ body: unknown } | { problem: Problem; retryAfter?: number }> {
 	const key = workspaceKey();
 	if (!key) return { problem: 'failed' };
 	let response: Response;
 	try {
-		response = await fetch('/ai/block', {
+		response = await fetch(route, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json', 'x-editor-workspace': key },
 			body: JSON.stringify(request)
@@ -45,18 +51,42 @@ async function ask(request: unknown): Promise<Outcome> {
 	}
 	if (response.status === 429) {
 		const body = (await response.json().catch(() => null)) as { reason?: string } | null;
-		return { problem: body?.reason === 'budget' ? 'budget' : 'rate' };
+		const after = Number(response.headers.get('retry-after'));
+		return {
+			problem: body?.reason === 'budget' ? 'budget' : 'rate',
+			...(Number.isFinite(after) && after > 0 ? { retryAfter: after } : {})
+		};
 	}
 	if (response.status === 503) return { problem: 'busy' };
 	if (!response.ok) return { problem: 'failed' };
-	const body = (await response.json().catch(() => null)) as {
-		status?: string;
-		card?: unknown;
-	} | null;
+	return { body: await response.json().catch(() => null) };
+}
+
+async function ask(request: unknown): Promise<Outcome> {
+	const answer = await post('/ai/block', request);
+	if ('problem' in answer) return answer;
+	const body = answer.body as { status?: string; card?: unknown } | null;
 	const card = generatedCardSchema.safeParse(body?.card);
 	if (body?.status !== 'ok' || !card.success) return { problem: 'failed' };
 	return { card: card.data };
 }
+
+/** What a proposal request came to. */
+export type OutlineOutcome = { outline: Outline } | { problem: Problem; retryAfter?: number };
+
+export async function askOutline(request: OutlineRequest): Promise<OutlineOutcome> {
+	const answer = await post('/ai/outline', request);
+	if ('problem' in answer) return answer;
+	const body = answer.body as { status?: string; outline?: unknown } | null;
+	const outline = outlineSchema.safeParse(body?.outline);
+	if (body?.status !== 'ok' || !outline.success) return { problem: 'failed' };
+	return { outline: outline.data };
+}
+
+/** What `write` came to, for the queue that writes many cards. */
+export type WriteResult =
+	| { status: 'written' | 'nothing' | 'gone' }
+	| { status: 'problem'; problem: Problem; retryAfter?: number };
 
 class Ai {
 	/** Whether the server has a provider. `false` until it has said so. */
@@ -84,15 +114,22 @@ class Ai {
 	 * fills in while the model works is kept: `fillCard` looks again at what is empty
 	 * when the answer arrives.
 	 */
-	async write(store: DocStore, blockId: string, lessonId: string | undefined): Promise<void> {
-		if (this.writing.has(blockId)) return;
+	async write(
+		store: DocStore,
+		blockId: string,
+		lessonId: string | undefined,
+		/** `quiet`: the caller reports problems and the result itself (the panel's queue). */
+		options: { quiet?: boolean } = {}
+	): Promise<WriteResult> {
+		if (this.writing.has(blockId)) return { status: 'nothing' };
+		if (!store.doc.blocks.some((b) => b.block_id === blockId)) return { status: 'gone' };
 		const request = buildGenRequest(
 			store.doc,
 			blockId,
 			lessonId,
 			buildDossier(store.doc, blockId, lessonId)
 		);
-		if (request === undefined) return;
+		if (request === undefined) return { status: 'nothing' };
 		this.writing.add(blockId);
 		let outcome: Outcome;
 		try {
@@ -104,11 +141,12 @@ class Ai {
 			// A 503 is also what a server that has lost its provider says: ask again, and
 			// if AI is gone the offer goes with it.
 			if (outcome.problem === 'busy') await this.detect();
-			notices.show({ text: TEXT[this.available ? outcome.problem : 'failed'] });
-			return;
+			if (options.quiet !== true)
+				notices.show({ text: TEXT[this.available ? outcome.problem : 'failed'] });
+			return { status: 'problem', ...outcome };
 		}
 		// The card may be gone by now; then there is nothing to write and nothing to say.
-		if (!store.doc.blocks.some((b) => b.block_id === blockId)) return;
+		if (!store.doc.blocks.some((b) => b.block_id === blockId)) return { status: 'gone' };
 		const { card } = outcome;
 		let written: WrittenCount | undefined;
 		// Its own undo step: never folded into a run of the teacher's typing.
@@ -121,12 +159,15 @@ class Ai {
 			return { ...result, ref: undefined };
 		});
 		const entry = store.undoStack.at(-1);
-		if (entry === before) return;
-		notices.show({
-			text: written ? describeWritten(written) : 'Karta dopsána.',
-			entry,
-			ref: { lessonId, blockId }
-		});
+		if (entry === before) return { status: 'nothing' };
+		// One toast per card would bury a queue of twenty; the panel shows each as done.
+		if (options.quiet !== true)
+			notices.show({
+				text: written ? describeWritten(written) : 'Karta dopsána.',
+				entry,
+				ref: { lessonId, blockId }
+			});
+		return { status: 'written' };
 	}
 }
 

@@ -21,7 +21,7 @@ import {
 } from '../outline';
 
 const card = (name: string, kind = 'display') => ({ kind, name, brief: `O: ${name}` });
-const lessons: Outline = {
+const lessons = {
 	scope: 'lessons',
 	lessons: [
 		{
@@ -31,7 +31,7 @@ const lessons: Outline = {
 		},
 		{ name: 'Třetina', cards: [card('Co je třetina'), card('Kvíz', 'question'), card('Shrnutí')] }
 	]
-} as Outline;
+} as Extract<Outline, { scope: 'lessons' }>;
 
 describe('the outline schema', () => {
 	it('takes both scopes', () => {

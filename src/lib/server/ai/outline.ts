@@ -29,7 +29,7 @@ Decide what the teacher wants and answer with one JSON object and nothing else, 
   {"scope":"lessons","lessons":[{"name":"…","takeaway":"…","cards":[{"kind":"display","name":"…","brief":"…"}]}]}
 - Cards for the lesson the teacher is in, when the prompt asks for cards, an example set, a quiz, a revision or "add something" and "target.lesson" exists:
   {"scope":"cards","cards":[{"kind":"exercise","name":"…","brief":"…"}]}
-  With no "target.lesson" (and "target.lessons" 0) use the first shape. When the prompt is unclear, and a lesson is selected, prefer cards.
+  Without "target.lesson" (no lesson is selected) always use the first shape. When the prompt is unclear and a lesson is selected, prefer cards.
 
 Each card has a "kind":
 - "display": an explanation (Výklad): the pupil reads;

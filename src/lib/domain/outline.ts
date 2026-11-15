@@ -15,7 +15,9 @@
  * the one command that puts it in the document.
  */
 import { z } from 'zod';
-import { MAX_CONTEXT_CHARS } from './authoring';
+import { audienceSchema, AUDIENCE_KEY, MAX_CONTEXT_CHARS } from './authoring';
+import { buildDossier } from './dossier';
+import type { CourseV2 } from './schema';
 
 export const OUTLINE_KINDS = ['display', 'question', 'exercise'] as const;
 export type OutlineKind = (typeof OUTLINE_KINDS)[number];
@@ -42,31 +44,25 @@ export const outlineLessonSchema = z.object({
 });
 export type OutlineLesson = z.infer<typeof outlineLessonSchema>;
 
-export const outlineSchema = z
-	.discriminatedUnion('scope', [
-		z.object({
-			scope: z.literal('lessons'),
-			lessons: z.array(outlineLessonSchema).min(1).max(MAX_LESSONS)
-		}),
-		z.object({
-			scope: z.literal('cards'),
-			cards: z.array(outlineCardSchema).min(1).max(MAX_CARDS_PER_LESSON)
-		})
-	])
-	.refine((o) => cardCount(o) <= MAX_CARDS, { message: `at most ${MAX_CARDS} cards in all` });
-export type Outline = z.infer<typeof outlineSchema>;
+const outlineShape = z.discriminatedUnion('scope', [
+	z.object({
+		scope: z.literal('lessons'),
+		lessons: z.array(outlineLessonSchema).min(1).max(MAX_LESSONS)
+	}),
+	z.object({
+		scope: z.literal('cards'),
+		cards: z.array(outlineCardSchema).min(1).max(MAX_CARDS_PER_LESSON)
+	})
+]);
+export type Outline = z.infer<typeof outlineShape>;
+export const outlineSchema = outlineShape.refine((o) => cardCount(o) <= MAX_CARDS, {
+	message: `at most ${MAX_CARDS} cards in all`
+});
 
 export const cardCount = (outline: Outline): number =>
 	outline.scope === 'cards'
 		? outline.cards.length
 		: outline.lessons.reduce((sum, lesson) => sum + lesson.cards.length, 0);
-
-const audienceSchema = z.object({
-	grade: z.number().int().optional(),
-	purpose: z.enum(['intro', 'practice', 'exam_prep']).optional(),
-	prior_knowledge: z.string().optional(),
-	register: z.string().optional()
-});
 
 export const outlineRequestSchema = z.object({
 	schema: z.literal('eduai.outline-request/1'),
@@ -240,3 +236,48 @@ export const moveLesson = (draft: Draft, from: number, to: number): Draft => ({
 	...draft,
 	lessons: moved(draft.lessons, from, to)
 });
+
+// ───────────────────────────────── the request ─────────────────────────────────
+
+/** What the teacher has selected; the same two fields as the editor's selection. */
+export interface OutlineSelection {
+	lessonId?: string;
+	blockId?: string;
+}
+
+const text = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
+
+/**
+ * The request for a proposal: the prompt, the proposal being changed if there is one,
+ * and where the teacher is. The dossier is anchored on the selected card, or on the
+ * first card of the selected lesson, so that the lesson it is in is told in full.
+ */
+export function buildOutlineRequest(
+	doc: CourseV2,
+	selection: OutlineSelection | null | undefined,
+	prompt: string,
+	change?: { current: Outline; original: string }
+): OutlineRequest {
+	const card = doc.blocks.find((b) => b.block_id === selection?.blockId);
+	const lesson =
+		doc.lessons.find((l) => l.lesson_id === selection?.lessonId) ??
+		doc.lessons.find((l) => l.blocks.some((b) => b.block_id === card?.block_id));
+	const anchor = card?.block_id ?? lesson?.blocks[0]?.block_id;
+	const audience = audienceSchema.safeParse((doc as Record<string, unknown>)[AUDIENCE_KEY] ?? {});
+	return {
+		schema: 'eduai.outline-request/1',
+		prompt: prompt.trim(),
+		...(change !== undefined ? { original: change.original, current: change.current } : {}),
+		course: {
+			title: text(doc.name),
+			language: text(doc.language) || 'cs',
+			audience: audience.success ? audience.data : {}
+		},
+		target: {
+			...(lesson !== undefined && text(lesson.name) !== '' ? { lesson: text(lesson.name) } : {}),
+			...(card !== undefined && text(card.name) !== '' ? { card: text(card.name) } : {}),
+			lessons: doc.lessons.length
+		},
+		context: buildDossier(doc, anchor ?? '', lesson?.lesson_id)
+	};
+}

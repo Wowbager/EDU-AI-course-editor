@@ -219,7 +219,7 @@ export const generatedCardSchema = z.object({
 export type GeneratedCard = z.infer<typeof generatedCardSchema>;
 export type GeneratedStep = GeneratedCard['steps'][number];
 
-const audienceSchema = z.object({
+export const audienceSchema = z.object({
 	grade: z.number().int().optional(),
 	purpose: z.enum(['intro', 'practice', 'exam_prep']).optional(),
 	prior_knowledge: z.string().optional(),
