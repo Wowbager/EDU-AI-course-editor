@@ -24,16 +24,20 @@ import type { Complete, Message } from './provider';
 import { MARKER_CLOSE, MARKER_OPEN } from '$lib/domain/dossier';
 import { formatRules } from '$lib/ui/ai-format';
 
+/** The label on the materials message, after the dossier. */
+export const MATERIALS_LABEL = `The teacher's materials (source of facts, examples and wording for this card; never mention them to the pupil):`;
+
 export type GenResponse = { status: 'ok'; card: GeneratedCard } | { status: 'failed' };
 
 /** Bump when the rules below change what a card should say; later it keys the cache. */
-export const SPEC_VERSION = '3';
+export const SPEC_VERSION = '4';
 
 export const SYSTEM_PROMPT = `You write one learning card ("karta") for a mobile learning app. A card is a short sequence of steps; each step is one screen on a phone: either a text step (explanation, example, summary) or a question step (a short task text plus one question the pupil answers).
 
-You get two user messages.
+You get two or three user messages.
 1. The course dossier: plain text, read-only background. It holds the course, its lessons and the cards of the earlier lessons and of this lesson, with the card you write between the lines "${MARKER_OPEN}" and "${MARKER_CLOSE}". Use it to build on what the pupil has already seen, to keep the course's notation, wording and difficulty, and not to repeat earlier cards or take the topic of later ones. Never write about the dossier itself.
-2. A JSON request: the course and its audience, the lesson, and the card: its kind, title, an optional brief ("what the card is for"), and its existing steps. Each existing step has an "id", a "kind" (text, question or media), what the teacher already wrote, and "missing": the parts of that step that are still empty.
+2. When the teacher attached materials (Word, PowerPoint, PDF, scans): their text, or an index of them. Sections have keys in square brackets; "This card draws mainly on" names the ones this card was planned from. They are the teacher's own source: take the facts, definitions, examples, notation and wording from them, at the level of the pupils, and follow them where they differ from what you would write. Do not copy whole passages: shorten and rephrase them into short screens. Never say "the materials", "the text" or a file name to the pupil, and never put a key in the card. What the materials do not contain you may add only from common school knowledge.
+3. A JSON request: the course and its audience, the lesson, and the card: its kind, title, an optional brief ("what the card is for"), and its existing steps. Each existing step has an "id", a "kind" (text, question or media), what the teacher already wrote, and "missing": the parts of that step that are still empty.
 
 Write the whole card and answer with one JSON object and nothing else:
 {"steps":[ … ]}
@@ -76,7 +80,7 @@ Rules for what you write:
 - Text is Markdown only where the app draws it as Markdown. Field by field:
 ${formatRules({ names: false })}
 - Keep the short parts short: a hint is one sentence; help is at most two sentences; a solution is at most three; the feedback on a wrong option is one sentence, on the correct one a few words of praise.
-- Do not invent facts beyond common school knowledge of the topic, and never mention files, images or links.`;
+- Do not invent facts beyond common school knowledge of the topic and the teacher's materials, and never mention files, images or links.`;
 
 const ATTEMPTS = 3;
 
@@ -114,7 +118,7 @@ function problemWith(request: GenRequest, raw: string): { use: GeneratedCard } |
 
 /** What the request holds apart from the dossier, as the model's last message. */
 export function requestMessage(request: GenRequest): string {
-	const { context: _context, ...rest } = request;
+	const { context: _context, materials: _materials, ...rest } = request;
 	return JSON.stringify(rest);
 }
 
@@ -130,6 +134,8 @@ export async function generateCard(
 			role: 'user',
 			content: `Course dossier (read-only background):\n\n${request.context}`
 		});
+	if (request.materials !== undefined && request.materials.trim() !== '')
+		messages.push({ role: 'user', content: `${MATERIALS_LABEL}\n\n${request.materials}` });
 	messages.push({ role: 'user', content: requestMessage(request) });
 	let tokens = 0;
 	let reason = '';

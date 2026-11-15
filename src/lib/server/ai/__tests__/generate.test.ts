@@ -2,7 +2,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { genRequestSchema, MAX_CONTEXT_CHARS, type GenRequest } from '$lib/domain/authoring';
 import { isConfigured, readAiConfig } from '../config';
 import { fakeComplete } from '../fake';
-import { generateCard, parseJson, SPEC_VERSION, SYSTEM_PROMPT } from '../generate';
+import {
+	generateCard,
+	MATERIALS_LABEL,
+	parseJson,
+	requestMessage,
+	SPEC_VERSION,
+	SYSTEM_PROMPT
+} from '../generate';
 import { buildBody, completer, ProviderError, type Complete, type Message } from '../provider';
 
 const request = (over: Partial<GenRequest['card']> = {}, context = ''): GenRequest => ({
@@ -167,7 +174,7 @@ describe('generateCard', () => {
 	});
 
 	it('states in the prompt what the card kinds hold and that a stated count wins', () => {
-		expect(SPEC_VERSION).toBe('3');
+		expect(SPEC_VERSION).toBe('4');
 		expect(SYSTEM_PROMPT).toContain('"display"');
 		expect(SYSTEM_PROMPT).toContain('2 to 8 question steps');
 		expect(SYSTEM_PROMPT).toContain('it wins');
@@ -318,5 +325,37 @@ describe('plain-text fields', () => {
 		expect(SYSTEM_PROMPT).toMatch(
 			/Use "number" only when the pupil types a whole or decimal number/
 		);
+	});
+});
+
+describe('materials in a card', () => {
+	it('sends them after the dossier and before the request, labelled, and not inside the request', async () => {
+		const model = scripted(GOOD);
+		const asked: GenRequest = {
+			...request({}, 'Kurz: Zlomky'),
+			materials: 'The materials in full:\n\n### [aaaaaaaa.0] x'
+		};
+		await generateCard(asked, model);
+		const messages = model.seen[0];
+		expect(messages.map((m) => m.role)).toEqual(['system', 'user', 'user', 'user']);
+		expect(messages[1].content).toContain('Course dossier');
+		expect(messages[2].content.startsWith(MATERIALS_LABEL)).toBe(true);
+		expect(messages[2].content).toContain('[aaaaaaaa.0]');
+		expect(messages[3].content).toBe(requestMessage(asked));
+		expect(messages[3].content).not.toContain('aaaaaaaa');
+		expect(SYSTEM_PROMPT).toContain('never put a key in the card');
+	});
+
+	it('sends no message for materials when the card has none', async () => {
+		const model = scripted(GOOD);
+		await generateCard(request({}, 'Kurz: Zlomky'), model);
+		expect(model.seen[0].map((m) => m.role)).toEqual(['system', 'user', 'user']);
+	});
+
+	it('the request schema takes materials and refuses an unreasonable amount', () => {
+		expect(genRequestSchema.safeParse({ ...request(), materials: 'x' }).success).toBe(true);
+		expect(
+			genRequestSchema.safeParse({ ...request(), materials: 'x'.repeat(700_001) }).success
+		).toBe(false);
 	});
 });
