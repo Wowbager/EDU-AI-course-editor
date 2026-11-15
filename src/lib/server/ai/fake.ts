@@ -12,8 +12,8 @@ import type {
 	GeneratedCard,
 	GeneratedStep
 } from '$lib/domain/authoring';
-import type { Complete, Stream } from './provider';
-import type { Outline, OutlineRequest } from '$lib/domain/outline';
+import type { Complete, Stream, Vision } from './provider';
+import type { Outline, OutlineCard, OutlineRequest } from '$lib/domain/outline';
 
 function question(type: GenQuestionType): GenQuestion {
 	switch (type) {
@@ -83,9 +83,17 @@ export function fakeCard(request: GenRequest): GeneratedCard {
  * the instruction, so a suite can tell that the proposal was replaced.
  */
 export function fakeOutline(request: OutlineRequest): Outline {
-	const card = (kind: 'display' | 'question' | 'exercise', name: string) => ({
+	// With materials the first card is written from the first section, the last from the
+	// last two, so a suite can see the source lines and what a card's request carried.
+	const keys = request.material_keys ?? [];
+	const card = (
+		kind: 'display' | 'question' | 'exercise',
+		name: string,
+		sources?: string[]
+	): OutlineCard => ({
 		kind,
-		name
+		name,
+		...(sources !== undefined && sources.length > 0 ? { sources } : {})
 	});
 	if (request.current !== undefined) {
 		const change = card('display', `Změna: ${request.prompt}`);
@@ -103,7 +111,7 @@ export function fakeOutline(request: OutlineRequest): Outline {
 		return {
 			scope: 'cards',
 			cards: [
-				card('exercise', 'Příklady k procvičení'),
+				card('exercise', 'Příklady k procvičení', keys.slice(0, 1)),
 				card('question', 'Kvíz na závěr'),
 				card('display', 'Shrnutí')
 			]
@@ -114,14 +122,14 @@ export function fakeOutline(request: OutlineRequest): Outline {
 			{
 				name: 'První lekce',
 				cards: [
-					card('display', 'Co to je'),
+					card('display', 'Co to je', keys.slice(0, 1)),
 					card('exercise', 'Procvičení'),
 					card('question', 'Ověření')
 				]
 			},
 			{
 				name: 'Druhá lekce',
-				cards: [card('display', 'Jak se to používá'), card('exercise', 'Úlohy')]
+				cards: [card('display', 'Jak se to používá', keys.slice(-2)), card('exercise', 'Úlohy')]
 			}
 		]
 	};
@@ -154,3 +162,8 @@ export const fakeStream: Stream = async (messages, onText) => {
 	}
 	return { tokens: 0 };
 };
+
+/** What the fake reads of a picture: the same line every time, whatever the picture. */
+export const FAKE_READING = 'Ukázkový přepis obrázku: $x + 1 = 3$.';
+
+export const fakeRead: Vision = async () => ({ text: FAKE_READING, tokens: 0 });
