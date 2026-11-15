@@ -28,8 +28,11 @@ export const GET: RequestHandler = ({ request, params }) =>
 
 export const POST: RequestHandler = async ({ request, params }) => {
 	const owner = ownerOf(request);
+	// By the bytes, not the characters, and before reading when the browser says how many.
+	const declared = Number(request.headers.get('content-length') ?? '0');
+	if (declared > MAX_FILE_BODY_BYTES) error(413, 'Podklad je příliš velký.');
 	const text = await request.text();
-	if (text.length > MAX_FILE_BODY_BYTES) error(413, 'Podklad je příliš velký.');
+	if (Buffer.byteLength(text) > MAX_FILE_BODY_BYTES) error(413, 'Podklad je příliš velký.');
 	let body: unknown;
 	try {
 		body = JSON.parse(text);
