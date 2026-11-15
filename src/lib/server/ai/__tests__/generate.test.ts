@@ -244,8 +244,15 @@ describe('settings and the provider call', () => {
 			max_price: { prompt: 0.3, completion: 1.2 },
 			preferred_min_throughput: { p50: 100 }
 		});
-		expect((routing as { quantizations: string[] }).quantizations).not.toContain('fp4');
+		const kinds = (routing as { quantizations: string[] }).quantizations;
+		for (const four of ['int4', 'fp4', 'mxfp4', 'nvfp4']) expect(kinds).not.toContain(four);
+		expect(kinds).toContain('int8');
 		expect(routing).not.toHaveProperty('order');
+		// Another model has other prices and hosts: only the speed preference is kept.
+		const other = buildBody(readAiConfig({ AI_API_KEY: 'k', AI_MODEL: 'x/y' }), []).provider;
+		expect(other).not.toHaveProperty('max_price');
+		expect(other).not.toHaveProperty('quantizations');
+		expect(other).toHaveProperty('preferred_min_throughput');
 		const pinned = readAiConfig({
 			AI_API_KEY: 'k',
 			AI_HOSTS: ' DeepInfra, fireworks ,',

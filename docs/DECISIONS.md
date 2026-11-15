@@ -2995,7 +2995,9 @@ chose to have it in the editor, with the lesson and card tree as the outline.
   most $0.30 / $1.20, and hosts with a median under 100 tokens/s go to the back
   (`preferred_min_throughput`). That is a preference, so OpenRouter keeps its own
   routing, which stays on the host holding the dossier in its prompt cache. `AI_HOSTS`
-  pins hosts once someone has measured them. Rejected: `sort: throughput`, which turns
+  pins hosts once someone has measured them. The price cap and the quantization filter
+  apply to the default model only; another `AI_MODEL` keeps just the speed preference.
+  Rejected: `sort: throughput`, which turns
   that routing off and so the cache stickiness with it; a hard-coded fastest host, which
   goes stale within weeks.
 

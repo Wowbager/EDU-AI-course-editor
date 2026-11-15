@@ -3,7 +3,7 @@
  * asking for a JSON object. This is the only file that knows a provider; everything
  * else sees `Complete`.
  */
-import type { AiConfig } from './config';
+import { OPENROUTER_MODEL, type AiConfig } from './config';
 import { fakeComplete } from './fake';
 import { weightedTokens, type Usage } from './limits';
 
@@ -25,8 +25,14 @@ export class ProviderError extends Error {
 /** A whole card with a long dossier and some thinking: more than a single step took. */
 const TIMEOUT_MS = 150_000;
 
-/** USD per million tokens. */
-const MAX_PRICE = { prompt: 0.3, completion: 1.2 };
+const DEFAULT_MODEL_HOSTS = {
+	// Every quantization OpenRouter names but the 4-bit ones (the cheapest hosts are 4-bit,
+	// and Czech is where that slips). A host that does not say is let through, or too few
+	// would be left.
+	quantizations: ['int8', 'fp6', 'fp8', 'mxfp8', 'fp16', 'bf16', 'fp32', 'unknown'],
+	// USD per million tokens: dearer than DeepSeek's own peak price is not "decent".
+	max_price: { prompt: 0.3, completion: 1.2 }
+};
 
 export function buildBody(config: AiConfig, messages: readonly Message[]): Record<string, unknown> {
 	const body: Record<string, unknown> = {
@@ -42,11 +48,8 @@ export function buildBody(config: AiConfig, messages: readonly Message[]): Recor
 			// Only hosts that honour the parameters above, and none that train on what they see.
 			require_parameters: true,
 			data_collection: 'deny',
-			// No host that says it is 4-bit (the cheapest are; Czech is where that slips). One that
-			// does not say is let through, or too few would be left.
-			quantizations: ['fp8', 'mxfp8', 'fp16', 'bf16', 'fp32', 'unknown'],
-			// Dearer than DeepSeek's own peak price is not "decent"; a whole card costs cents anyway.
-			max_price: MAX_PRICE,
+			// For the default model only: the limits below are its prices and its hosts.
+			...(config.model === OPENROUTER_MODEL ? DEFAULT_MODEL_HOSTS : {}),
 			// A preference, not a filter: OpenRouter keeps its own routing, which stays on the host
 			// whose prompt cache holds the dossier, and only moves slow hosts to the back.
 			preferred_min_throughput: { p50: config.minTokensPerSecond },

@@ -37,12 +37,11 @@ export type AiConfig = {
 
 type Env = Readonly<Record<string, string | undefined>>;
 
+/** The dated build, so a new release behind the alias changes nothing unannounced. */
+export const OPENROUTER_MODEL = 'deepseek/deepseek-v4.1-flash-1017';
+
 const DEFAULTS: Record<Provider, { model: string; baseURL: string }> = {
-	// The dated build, so a new release behind the alias changes nothing unannounced.
-	openrouter: {
-		model: 'deepseek/deepseek-v4.1-flash-1017',
-		baseURL: 'https://openrouter.ai/api/v1'
-	},
+	openrouter: { model: OPENROUTER_MODEL, baseURL: 'https://openrouter.ai/api/v1' },
 	deepseek: { model: 'deepseek-flash', baseURL: 'https://api.deepseek.com' },
 	fake: { model: 'fake', baseURL: '' }
 };
