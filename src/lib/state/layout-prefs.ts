@@ -10,7 +10,10 @@ export const UI_KEY = 'edu-editor:ui:v1';
 export type LayoutPrefs = {
 	sidebarCollapsed: boolean;
 	previewCollapsed: boolean;
-	/** The right column shows the AI tab rather than Náhled or Vyzkoušet. */
+	/**
+	 * The right side's open panel is AI pomocník rather than the preview (whether the
+	 * side is folded is `previewCollapsed`, whichever panel it shows).
+	 */
 	aiTab: boolean;
 };
 

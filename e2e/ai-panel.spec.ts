@@ -1,7 +1,7 @@
 import { test, expect, openEditor, type Page } from './fixtures';
 
 /**
- * The AI tab: a proposal is asked for, shaped, and only then put into the course, where
+ * AI pomocník: a proposal is asked for, shaped, and only then put into the course, where
  * the cards are written one by one.
  *
  * Runs against the `fake` provider (`playwright.config.ts`): a prompt about „karty“ with a
@@ -9,7 +9,11 @@ import { test, expect, openEditor, type Page } from './fixtures';
  * proposal and adds a card called „Změna: …“.
  */
 
-const aiTab = (page: Page) => page.getByRole('button', { name: 'AI', exact: true });
+/** The tiles on the right side's edge, one per panel. */
+const aiTab = (page: Page) => page.getByRole('button', { name: 'AI pomocník', exact: true });
+const previewTab = (page: Page) => page.getByRole('button', { name: 'Náhled', exact: true });
+const foldAi = (page: Page) => page.getByRole('button', { name: 'Skrýt AI pomocníka' });
+const folded = (page: Page) => page.locator('aside.preview.collapsed');
 const box = (page: Page) => page.getByRole('textbox', { name: /^Co (mám vytvořit|změnit)\?$/ });
 const send = (page: Page) => page.getByRole('button', { name: 'Odeslat', exact: true });
 const create = (page: Page) => page.getByRole('button', { name: 'Vytvořit vybrané', exact: true });
@@ -26,67 +30,118 @@ test.beforeEach(async ({ page }) => {
 	await aiTab(page).click();
 });
 
-test('the AI tab replaces Náhled in the column and the player stays mounted', async ({ page }) => {
+test('AI pomocník takes the preview’s place, and the player stays mounted', async ({ page }) => {
 	await expect(panel(page)).toBeVisible();
 	await expect(panel(page).getByText('Napiš, co chceš vytvořit.')).toBeVisible();
 	// Empty: nothing to create, no history.
 	await expect(create(page)).toHaveCount(0);
 	// The player is still in the page, untouched, only covered and inert.
 	await expect(page.locator('iframe[title="Náhled kurzu očima žáka"]')).toHaveCount(1);
-	await expect(page.locator('.player')).toHaveAttribute('inert', '');
+	await expect(page.locator('.preview-pane')).toHaveAttribute('inert', '');
 
-	await page.getByRole('radio', { name: 'Náhled', exact: true }).click();
+	await previewTab(page).click();
 	await expect(panel(page)).toHaveCount(0);
-	await expect(page.locator('.player')).not.toHaveAttribute('inert', '');
+	await expect(page.locator('.preview-pane')).not.toHaveAttribute('inert', '');
 	await expect(page.locator('iframe[title="Náhled kurzu očima žáka"]')).toHaveCount(1);
+	await expect(page.getByRole('radio', { name: 'Náhled', exact: true })).toBeChecked();
 });
 
-test('the AI button is its own, between the fold button and the switch, and presses back to the preview', async ({
+test('AI pomocník has its own header, and the preview’s header has nothing of AI', async ({
 	page
 }) => {
-	const header = page.locator('aside.preview header');
-	const buttons = header.getByRole('button');
-	await expect(buttons.nth(0)).toHaveAccessibleName('Skrýt náhled');
-	await expect(buttons.nth(1)).toHaveAccessibleName('AI');
-	// The switch has two choices only, and none is chosen while AI is on.
-	const group = page.getByRole('radiogroup', { name: 'Co je v náhledu' });
-	await expect(group.getByRole('radio')).toHaveCount(2);
-	await expect(group.getByRole('radio', { checked: true })).toHaveCount(0);
+	const pane = page.locator('.ai-pane');
+	await expect(pane.getByRole('heading', { name: 'AI pomocník' })).toBeVisible();
+	await expect(pane.locator('header').getByRole('button')).toHaveCount(1);
+	await expect(foldAi(page)).toBeVisible();
+	// Nothing of the preview above it: no switch, no player controls.
+	await expect(pane.getByRole('radiogroup')).toHaveCount(0);
 
-	await aiTab(page).click();
+	await previewTab(page).click();
+	const header = page.locator('.preview-pane header');
+	await expect(header.getByRole('button')).toHaveCount(1);
+	await expect(header.getByRole('button')).toHaveAccessibleName('Skrýt náhled');
+	await expect(
+		page.getByRole('radiogroup', { name: 'Co je v náhledu' }).getByRole('radio')
+	).toHaveCount(2);
+	await expect(page.locator('.ai-pane')).toHaveCount(0);
+});
+
+test('the tiles switch between the two panels, one at a time, and the open one is pressed', async ({
+	page
+}) => {
+	await expect(aiTab(page)).toHaveAttribute('aria-pressed', 'true');
+	await expect(previewTab(page)).toHaveAttribute('aria-pressed', 'false');
+
+	await previewTab(page).click();
 	await expect(panel(page)).toHaveCount(0);
-	await expect(group.getByRole('radio', { name: 'Náhled' })).toBeChecked();
+	await expect(previewTab(page)).toHaveAttribute('aria-pressed', 'true');
+	await expect(aiTab(page)).toHaveAttribute('aria-pressed', 'false');
+
+	// A run in Vyzkoušet is left behind for AI, as switching to Náhled leaves it.
+	await page.getByRole('radio', { name: 'Vyzkoušet', exact: true }).click();
 	await aiTab(page).click();
 	await expect(panel(page)).toBeVisible();
-	await page.getByRole('radio', { name: 'Vyzkoušet', exact: true }).click();
-	await expect(panel(page)).toHaveCount(0);
-	await expect(group.getByRole('radio', { name: 'Vyzkoušet' })).toBeChecked();
+	await previewTab(page).click();
+	await expect(page.getByRole('radio', { name: 'Náhled', exact: true })).toBeChecked();
+	await expect(folded(page)).toHaveCount(0);
 });
 
-test('folding the column on the AI tab leaves nothing of the panel, and the strip opens straight into AI', async ({
+test('the AI header’s button folds the side; the edge keeps both tiles, and each opens its panel', async ({
 	page
 }) => {
-	await page.getByRole('button', { name: 'Skrýt náhled' }).click();
+	await foldAi(page).click();
+	await expect(folded(page)).toHaveCount(1);
 	await expect(panel(page)).toBeHidden();
 	await expect(box(page)).toBeHidden();
-	await expect(page.locator('.ai-slot')).toHaveCSS('visibility', 'hidden');
-	await expect(page.locator('.ai-slot')).toHaveAttribute('inert', '');
-	await expect(page.getByRole('button', { name: 'Ukázat náhled' })).toBeVisible();
+	await expect(page.locator('.ai-pane')).toHaveCSS('visibility', 'hidden');
+	await expect(page.locator('.inner')).toHaveAttribute('inert', '');
+	// Folding from a button inside the panel hands focus to its tile.
+	await expect(aiTab(page)).toBeFocused();
+	await expect(aiTab(page)).toHaveAttribute('aria-pressed', 'false');
+	await expect(previewTab(page)).toHaveAttribute('aria-pressed', 'false');
+	await expect(previewTab(page)).toBeVisible();
+	await expect(page.locator('.tiles .divider')).toHaveCount(1);
+	// Narrow: only the edge is left.
+	expect((await page.locator('aside.preview').boundingBox())!.width).toBeLessThan(60);
 
-	await page.getByRole('button', { name: 'Otevřít AI' }).click();
+	await previewTab(page).click();
+	await expect(folded(page)).toHaveCount(0);
+	await expect(panel(page)).toHaveCount(0);
+	await expect(previewTab(page)).toHaveAttribute('aria-pressed', 'true');
+
+	// Pressing the open panel's tile folds the side; the other tile opens straight into AI.
+	await previewTab(page).click();
+	await expect(folded(page)).toHaveCount(1);
+	await aiTab(page).click();
+	await expect(folded(page)).toHaveCount(0);
 	await expect(panel(page)).toBeVisible();
 	await expect(box(page)).toBeVisible();
-	await expect(aiTab(page)).toHaveAttribute('aria-pressed', 'true');
-
-	// From Náhled: fold, then the strip's AI button opens AI, not Náhled.
 	await aiTab(page).click();
-	await page.getByRole('button', { name: 'Skrýt náhled' }).click();
-	await page.getByRole('button', { name: 'Otevřít AI' }).click();
+	await expect(folded(page)).toHaveCount(1);
+
+	// Ctrl+Shift+B opens the side as it was left.
+	await page.keyboard.press('Control+Shift+B');
 	await expect(panel(page)).toBeVisible();
-	// The strip's other button opens the column as it was left.
-	await page.getByRole('button', { name: 'Skrýt náhled' }).click();
-	await page.getByRole('button', { name: 'Ukázat náhled' }).click();
+});
+
+test('a side remembered as folded on AI pomocník boots no player until Náhled is opened', async ({
+	page
+}) => {
+	await page.reload();
+	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
+	await foldAi(page).click();
+	await expect(folded(page)).toHaveCount(1);
+	await page.reload();
+	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
+	await expect(folded(page)).toHaveCount(1);
+	await expect(page.locator('iframe[title="Náhled kurzu očima žáka"]')).toHaveCount(0);
+
+	await aiTab(page).click();
 	await expect(panel(page)).toBeVisible();
+	await expect(page.locator('iframe[title="Náhled kurzu očima žáka"]')).toHaveCount(0);
+	await previewTab(page).click();
+	await expect(page.locator('iframe[title="Náhled kurzu očima žáka"]')).toHaveCount(1);
+	await expect(page.locator('aside.preview')).toHaveAttribute('data-player', 'ready');
 });
 
 test('a proposal appears lesson by lesson, and can be created when it is complete', async ({
@@ -136,11 +191,17 @@ test('a card still waiting for AI shows no errors, however often it is opened', 
 	await expect(waiting.locator('.chip.error')).toHaveCount(0);
 });
 
-test('the choice is remembered after a reload', async ({ page }) => {
+test('the open panel is remembered after a reload', async ({ page }) => {
 	await page.reload();
 	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
 	await expect(aiTab(page)).toHaveAttribute('aria-pressed', 'true');
 	await expect(panel(page)).toBeVisible();
+
+	await previewTab(page).click();
+	await page.reload();
+	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
+	await expect(previewTab(page)).toHaveAttribute('aria-pressed', 'true');
+	await expect(panel(page)).toHaveCount(0);
 });
 
 test('a proposal is shaped, created as cards that are then written, and undone', async ({
@@ -264,4 +325,35 @@ test('a card is dragged by its handle to another place in its lesson', async ({ 
 	await page.mouse.move(from.x + 2, to.y + 4, { steps: 8 });
 	await page.mouse.up();
 	await expect.poll(names).toEqual(['Ověření', 'Co to je', 'Procvičení']);
+});
+
+test.describe('without AI', () => {
+	test.beforeEach(async ({ page }) => {
+		await page.route('**/ai/block', (route) =>
+			route.request().method() === 'GET'
+				? route.fulfill({ json: { configured: false } })
+				: route.continue()
+		);
+		await page.reload();
+		await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
+	});
+
+	test('nothing of AI shows, even when it was the open panel, and the preview folds as before', async ({
+		page
+	}) => {
+		// Remembered as open on AI (the suite's beforeEach), it is the preview that shows.
+		await expect(page.locator('aside.preview')).toHaveAttribute('data-player', 'ready');
+		await expect(aiTab(page)).toHaveCount(0);
+		await expect(previewTab(page)).toHaveCount(0);
+		await expect(page.locator('.tiles')).toHaveCount(0);
+		await expect(panel(page)).toHaveCount(0);
+
+		await page.getByRole('button', { name: 'Skrýt náhled' }).click();
+		await expect(folded(page)).toHaveCount(1);
+		await expect(page.getByRole('button', { name: 'Ukázat náhled' })).toBeFocused();
+		await expect(aiTab(page)).toHaveCount(0);
+		await page.getByRole('button', { name: 'Ukázat náhled' }).click();
+		await expect(folded(page)).toHaveCount(0);
+		await expect(panel(page)).toHaveCount(0);
+	});
 });

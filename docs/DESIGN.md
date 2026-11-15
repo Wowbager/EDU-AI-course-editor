@@ -139,6 +139,7 @@ Each row is a design the agents chose, and what the owner said once he saw it.
 | Dragging an answer faded it and drew a line at the drop place; the list moved only on release, and a drag the window lost stayed in that look | "when moving the answers around it looks weird" | A drag moves the thing itself: lifted under the pointer, the others slide aside, like a step. Every way a press ends, ends the drag |
 | Answers stacked part by part (handle, mark, text, actions each on a line) below 760 px, which a 1440–1600 px desktop hits | "weird behaviour of multiple choice questions" | Check layouts at 1440, with both side columns open, not only on a wide screen |
 | A formula row with its own bordered field, ⌨, a checkbox, „LaTeX“ and Hotovo; the LaTeX in a second labelled box with a help icon; the library's grey keyboard across the bottom of the page | "looks really out of place", "creates a lot of visual load" | A tool inside a field is part of that field: one line in the field's own look, rare options in its ⋯, one place for one value, a keyboard inside the field in the editor's colours |
+| AI as a button in the preview's header, its panel laid over the player under the Náhled/Vyzkoušet switch, and an AI button on the folded preview's strip | "it feels like the AI functions are in the náhled, but they are separate" | Separate things get separate panels: each its own header, and an icon tile each on the edge to switch or open them |
 
 
 ## Known gaps in the current editor

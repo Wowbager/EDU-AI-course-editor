@@ -106,7 +106,7 @@
 	 * defaults of a page that has not looked yet never overwrite what was saved.
 	 */
 	let previewCollapsed = $state<boolean | null>(null);
-	/** The right column shows the AI tab (remembered with the rest of the layout). */
+	/** The right side shows AI pomocník rather than the preview (remembered with the layout). */
 	let aiTab = $state(false);
 	/** Set two frames after mount, so restoring a folded panel does not animate. */
 	let settled = $state(false);
