@@ -13,7 +13,7 @@ import { error, json } from '@sveltejs/kit';
 import { isConfigured, readAiConfig } from '$lib/server/ai/config';
 import { sharedLimits } from '$lib/server/ai/limits';
 import { ProviderError, visionist } from '$lib/server/ai/provider';
-import { MAX_PICTURE_BYTES, readPicture } from '$lib/server/ai/read';
+import { ESTIMATED_READ_TOKENS, MAX_PICTURE_BYTES, readPicture } from '$lib/server/ai/read';
 import { ownerOf } from '$lib/server/versions/http';
 import type { RequestHandler } from './$types';
 
@@ -47,9 +47,12 @@ export const POST: RequestHandler = async ({ request }) => {
 			mime,
 			base64: bytes.toString('base64')
 		});
-		limits.record(owner, tokens);
+		// A host that does not say what it used is counted by estimate, not as nothing.
+		limits.record(owner, tokens > 0 ? tokens : ESTIMATED_READ_TOKENS);
 		return json({ text }, { headers: { 'cache-control': 'no-store' } });
 	} catch (e) {
+		// A call that failed was still sent, and parallel pages must not overrun the budget unseen.
+		limits.record(owner, ESTIMATED_READ_TOKENS);
 		if (!(e instanceof ProviderError)) throw e;
 		console.error('[ai] provider call failed:', e.kind, e.message);
 		error(e.kind === 'busy' ? 503 : 502, e.kind);
