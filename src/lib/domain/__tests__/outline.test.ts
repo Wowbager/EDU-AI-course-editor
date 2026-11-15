@@ -1,9 +1,22 @@
 import { describe, expect, it } from 'vitest';
+import { emptyCourse } from '../document';
 import {
 	anyTicked,
+	buildOutlineRequest,
+	addDraftCard,
+	addDraftLesson,
+	canAddCard,
+	canAddLesson,
+	currentOutlineSchema,
+	emptyDraft,
+	MAX_CARDS_PER_LESSON,
+	MAX_LESSONS,
+	moveCardTo,
+	setDraftKind,
+	stepCard,
+	type Draft,
 	addToDraft,
 	applyEvent,
-	emptyDraft,
 	lineSplitter,
 	readLine,
 	cardCount,
@@ -20,6 +33,7 @@ import {
 	removeCard,
 	removeLesson,
 	renameDraftCard,
+	renameDraftLesson,
 	setCardTick,
 	setLessonTick,
 	toOutline,
@@ -78,6 +92,17 @@ describe('the outline schema', () => {
 });
 
 describe('the request', () => {
+	it('sends an outline made by hand without a first prompt', () => {
+		const doc = emptyCourse('K', 'Zlomky');
+		const current = { scope: 'lessons', lessons: [{ name: 'A', cards: [] }] } as Outline;
+		const made = buildOutlineRequest(doc, null, 'doplň karty', { current, original: '' });
+		expect(made.original).toBeUndefined();
+		expect(made.current).toEqual(current);
+		expect(outlineRequestSchema.safeParse(made).success).toBe(true);
+		const asked = buildOutlineRequest(doc, null, 'doplň', { current, original: 'Kurz' });
+		expect(asked.original).toBe('Kurz');
+	});
+
 	const request = (over: Partial<OutlineRequest> = {}): OutlineRequest => ({
 		schema: 'eduai.outline-request/1',
 		prompt: 'Kurz o zlomcích',
@@ -154,8 +179,11 @@ describe('the draft', () => {
 
 		draft = removeCard(draft, draft.lessons[1].cards[0].key);
 		expect(draft.lessons[1].cards).toHaveLength(1);
+		// The last card goes; its lesson stays, empty, to be filled or removed by hand.
 		draft = removeCard(draft, draft.lessons[1].cards[0].key);
-		expect(draft.lessons.map((l) => l.name)).toEqual(['Třetina']);
+		expect(draft.lessons.map((l) => l.name)).toEqual(['Třetina', 'Polovina']);
+		expect(draft.lessons[1].cards).toEqual([]);
+		draft = removeLesson(draft, draft.lessons[1].key);
 		expect(removeLesson(draft, draft.lessons[0].key).lessons).toEqual([]);
 	});
 
@@ -180,6 +208,132 @@ describe('the draft', () => {
 		expect(draft.lessons).toHaveLength(1);
 		expect(removeCard(draft, draft.lessons[0].cards[0].key).lessons).toHaveLength(1);
 		expect(toOutline(draft)).toEqual({ scope: 'cards', cards: [card('A'), card('B')] });
+	});
+});
+
+describe('an outline made by hand', () => {
+	const make = () => draftOf(lessons, keyMaker());
+	const names = (draft: Draft) => draft.lessons.map((l) => l.cards.map((c) => c.name));
+
+	it('adds a lesson with no name, ticked, at the end or in place', () => {
+		let draft = addDraftLesson(emptyDraft('lessons', keyMaker()), 'n1');
+		expect(draft.lessons).toEqual([{ key: 'n1', name: '', cards: [], on: true }]);
+		draft = addDraftLesson(draft, 'n2', 0);
+		expect(draft.lessons.map((l) => l.key)).toEqual(['n2', 'n1']);
+		// A nameless lesson is not part of the outline yet.
+		expect(toOutline(draft)).toBeUndefined();
+	});
+
+	it('adds a card of the kind above it, or the first kind; never with sources', () => {
+		let draft = make();
+		const second = draft.lessons[1].key;
+		draft = addDraftCard(draft, second, 'n1', 2);
+		expect(draft.lessons[1].cards[2]).toEqual({ key: 'n1', kind: 'question', name: '', on: true });
+		draft = addDraftCard(draft, second, 'n2', 0);
+		expect(draft.lessons[1].cards[0].kind).toBe('display');
+		draft = addDraftCard(draft, draft.lessons[0].key, 'n3');
+		expect(draft.lessons[0].cards.at(-1)).toMatchObject({ key: 'n3', kind: 'exercise' });
+		draft = addDraftLesson(draft, 'l');
+		draft = addDraftCard(draft, 'l', 'n4');
+		expect(draft.lessons[2].cards[0].kind).toBe('display');
+		// Unnamed cards are left out of what is created or sent.
+		expect(cardCount(toOutline(draft)!)).toBe(5);
+	});
+
+	it('changes a kind and keeps the name, tick and sources', () => {
+		let draft = draftOf(
+			{
+				scope: 'cards',
+				cards: [{ kind: 'display', name: 'A', sources: ['k.0'] }]
+			} as Outline,
+			keyMaker()
+		);
+		const key = draft.lessons[0].cards[0].key;
+		draft = setCardTick(draft, key, false);
+		draft = setDraftKind(draft, key, 'exercise');
+		expect(draft.lessons[0].cards[0]).toEqual({
+			key,
+			kind: 'exercise',
+			name: 'A',
+			sources: ['k.0'],
+			on: false
+		});
+		draft = renameDraftCard(draft, key, 'B');
+		expect(draft.lessons[0].cards[0].sources).toEqual(['k.0']);
+	});
+
+	it('creates a ticked lesson without cards, and leaves it out unticked', () => {
+		let draft = addDraftLesson(make(), 'n');
+		draft = renameDraftLesson(draft, 'n', 'Prázdná');
+		expect(lessonTick(draft.lessons[2])).toBe('all');
+		expect(toOutline(draft, 'ticked')).toMatchObject({
+			lessons: [{}, {}, { name: 'Prázdná', cards: [] }]
+		});
+		draft = setLessonTick(draft, 'n', false);
+		expect(lessonTick(draft.lessons[2])).toBe('none');
+		expect((toOutline(draft, 'ticked') as { lessons: unknown[] }).lessons).toHaveLength(2);
+		// It is still sent with „Co změnit?“, for the model to fill.
+		expect((toOutline(draft, 'all') as { lessons: unknown[] }).lessons).toHaveLength(3);
+		// A lesson with cards, all unticked, is left out as before.
+		draft = setLessonTick(draft, draft.lessons[0].key, false);
+		expect((toOutline(draft, 'ticked') as { lessons: unknown[] }).lessons).toHaveLength(1);
+	});
+
+	it('is a valid "current" for „Co změnit?“ with an empty lesson, which the model may not answer with', () => {
+		const draft = renameDraftLesson(addDraftLesson(make(), 'n'), 'n', 'Prázdná');
+		const current = toOutline(draft)!;
+		expect(currentOutlineSchema.safeParse(current).success).toBe(true);
+		expect(outlineSchema.safeParse(current).success).toBe(false);
+	});
+
+	it('moves a card into another lesson, at a place or at its end', () => {
+		let draft = make();
+		const [a, b] = draft.lessons.map((l) => l.key);
+		const pulka = draft.lessons[0].cards[0].key;
+		draft = moveCardTo(draft, pulka, b, 1);
+		expect(names(draft)).toEqual([
+			['Příklady'],
+			['Co je třetina', 'Co je půlka', 'Kvíz', 'Shrnutí']
+		]);
+		draft = moveCardTo(draft, pulka, a, 'end');
+		expect(names(draft)[0]).toEqual(['Příklady', 'Co je půlka']);
+		draft = moveCardTo(draft, pulka, a, 0);
+		expect(names(draft)[0]).toEqual(['Co je půlka', 'Příklady']);
+		expect(moveCardTo(draft, 'nic', a, 0)).toBe(draft);
+	});
+
+	it('steps a card past the end of its lesson into the next, and stops at the ends', () => {
+		let draft = make();
+		const priklady = draft.lessons[0].cards[1].key;
+		draft = stepCard(draft, priklady, 1);
+		expect(names(draft)).toEqual([
+			['Co je půlka'],
+			['Příklady', 'Co je třetina', 'Kvíz', 'Shrnutí']
+		]);
+		draft = stepCard(draft, priklady, -1);
+		expect(names(draft)[0]).toEqual(['Co je půlka', 'Příklady']);
+		const first = draft.lessons[0].cards[0].key;
+		expect(stepCard(draft, first, -1)).toEqual(draft);
+		const last = draft.lessons[1].cards[2].key;
+		expect(stepCard(draft, last, 1)).toEqual(draft);
+		// Into a lesson with no cards.
+		draft = addDraftLesson(draft, 'n');
+		draft = stepCard(draft, last, 1);
+		expect(draft.lessons[2].cards.map((c) => c.name)).toEqual(['Shrnutí']);
+	});
+
+	it('keeps to the limits the model works to', () => {
+		let draft = emptyDraft('lessons', keyMaker());
+		for (let i = 0; i < MAX_LESSONS + 2; i++) draft = addDraftLesson(draft, `l${i}`);
+		expect(draft.lessons).toHaveLength(MAX_LESSONS);
+		expect(canAddLesson(draft)).toBe(false);
+		for (let i = 0; i < MAX_CARDS_PER_LESSON + 2; i++) draft = addDraftCard(draft, 'l0', `c${i}`);
+		expect(draft.lessons[0].cards).toHaveLength(MAX_CARDS_PER_LESSON);
+		expect(canAddCard(draft, 'l0')).toBe(false);
+		draft = addDraftCard(draft, 'l1', 'x');
+		// A full lesson takes no card from another.
+		expect(moveCardTo(draft, 'x', 'l0', 0)).toBe(draft);
+		expect(canAddLesson(emptyDraft('cards', keyMaker()))).toBe(false);
 	});
 });
 

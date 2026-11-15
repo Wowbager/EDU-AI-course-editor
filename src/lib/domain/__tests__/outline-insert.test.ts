@@ -39,6 +39,20 @@ const structure: Outline = {
 };
 
 describe('inserting a proposal of lessons', () => {
+	it('creates a lesson the teacher left without cards, empty, with nothing to write', () => {
+		const { doc, l1 } = course();
+		const outline: Outline = {
+			scope: 'lessons',
+			lessons: [{ name: 'Prázdná', cards: [] }, ...structure.lessons]
+		};
+		const result = insertOutline(doc, outline, { lessonId: l1 });
+		expect(lessonNames(result.doc)).toEqual(['Jedna', 'Prázdná', 'Polovina', 'Třetina', 'Dvě']);
+		const empty = result.doc.lessons[1];
+		expect(empty.blocks).toEqual([]);
+		expect(result.added.some((a) => a.lessonId === empty.lesson_id)).toBe(false);
+		expect(result.added).toHaveLength(3);
+	});
+
 	it('puts the lessons after the selected lesson, in order', () => {
 		const { doc, l1 } = course();
 		const result = insertOutline(doc, structure, { lessonId: l1 });
