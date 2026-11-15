@@ -552,6 +552,7 @@
 
 			<Segmented
 				label="Co je v náhledu"
+				compact={ai.available}
 				value={aiShown ? 'ai' : view}
 				options={[
 					{

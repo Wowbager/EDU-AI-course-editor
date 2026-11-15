@@ -199,9 +199,11 @@ test('the counter sits right beside the mode switch in both modes, and wraps at 
 	};
 	await beside('0 / 14 XP');
 	const back = page.locator('aside.preview').getByRole('button', { name: 'Zpět', exact: true });
-	expect((await back.boundingBox())!.x).toBeGreaterThan(
-		(await counter(page, '0 / 14 XP').boundingBox())!.x
-	);
+	// The third choice (AI) leaves no room for Zpět on the switch's line: it wraps with
+	// Od začátku below, inside the header.
+	const headerBox = (await page.locator('aside.preview header').boundingBox())!;
+	const backBox = (await back.boundingBox())!;
+	expect(backBox.x + backBox.width).toBeLessThanOrEqual(headerBox.x + headerBox.width);
 	await page.getByRole('radio', { name: 'Náhled' }).click();
 	await beside('2 XP');
 
