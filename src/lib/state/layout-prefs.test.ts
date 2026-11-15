@@ -19,18 +19,25 @@ const memory = () => {
 
 describe('layout prefs', () => {
 	it('defaults to both panels open', () => {
-		expect(DEFAULT_LAYOUT).toEqual({ sidebarCollapsed: false, previewCollapsed: false });
+		expect(DEFAULT_LAYOUT).toEqual({
+			sidebarCollapsed: false,
+			previewCollapsed: false,
+			aiTab: false
+		});
 		expect(parseLayout(null)).toEqual(DEFAULT_LAYOUT);
 	});
 
 	it('round-trips', () => {
-		const prefs = { sidebarCollapsed: true, previewCollapsed: true };
+		const prefs = { sidebarCollapsed: true, previewCollapsed: true, aiTab: true };
 		expect(parseLayout(serialiseLayout(prefs))).toEqual(prefs);
 		expect(
-			parseLayout(serialiseLayout({ sidebarCollapsed: true, previewCollapsed: false }))
+			parseLayout(
+				serialiseLayout({ sidebarCollapsed: true, previewCollapsed: false, aiTab: false })
+			)
 		).toEqual({
 			sidebarCollapsed: true,
-			previewCollapsed: false
+			previewCollapsed: false,
+			aiTab: false
 		});
 	});
 
@@ -44,19 +51,32 @@ describe('layout prefs', () => {
 	it('keeps a good field when its neighbour is damaged', () => {
 		expect(parseLayout('{"format":1,"sidebarCollapsed":true,"previewCollapsed":"yes"}')).toEqual({
 			sidebarCollapsed: true,
-			previewCollapsed: false
+			previewCollapsed: false,
+			aiTab: false
 		});
 		expect(parseLayout('{"format":1,"previewCollapsed":true}')).toEqual({
 			sidebarCollapsed: false,
-			previewCollapsed: true
+			previewCollapsed: true,
+			aiTab: false
 		});
+	});
+
+	it('reads a layout saved before the AI tab existed as not on it', () => {
+		expect(parseLayout('{"format":1,"sidebarCollapsed":true,"previewCollapsed":true}').aiTab).toBe(
+			false
+		);
+		expect(parseLayout('{"format":1,"aiTab":true}').aiTab).toBe(true);
 	});
 
 	it('writes under its own key and reads it back', () => {
 		const storage = memory();
-		writeLayout(storage, { sidebarCollapsed: true, previewCollapsed: false });
+		writeLayout(storage, { sidebarCollapsed: true, previewCollapsed: false, aiTab: true });
 		expect([...storage.map.keys()]).toEqual([UI_KEY]);
-		expect(readLayout(storage)).toEqual({ sidebarCollapsed: true, previewCollapsed: false });
+		expect(readLayout(storage)).toEqual({
+			sidebarCollapsed: true,
+			previewCollapsed: false,
+			aiTab: true
+		});
 	});
 
 	it('never throws when storage does', () => {

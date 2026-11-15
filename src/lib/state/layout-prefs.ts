@@ -7,22 +7,32 @@ import { z } from 'zod';
  */
 export const UI_KEY = 'edu-editor:ui:v1';
 
-export type LayoutPrefs = { sidebarCollapsed: boolean; previewCollapsed: boolean };
+export type LayoutPrefs = {
+	sidebarCollapsed: boolean;
+	previewCollapsed: boolean;
+	/** The right column shows the AI tab rather than Náhled or Vyzkoušet. */
+	aiTab: boolean;
+};
 
-export const DEFAULT_LAYOUT: LayoutPrefs = { sidebarCollapsed: false, previewCollapsed: false };
+export const DEFAULT_LAYOUT: LayoutPrefs = {
+	sidebarCollapsed: false,
+	previewCollapsed: false,
+	aiTab: false
+};
 
 const layoutSchema = z.object({
 	format: z.literal(1),
 	sidebarCollapsed: z.boolean().catch(false),
-	previewCollapsed: z.boolean().catch(false)
+	previewCollapsed: z.boolean().catch(false),
+	aiTab: z.boolean().catch(false)
 });
 
 /** Never throws: a missing, damaged or foreign value is the default layout. */
 export function parseLayout(text: string | null): LayoutPrefs {
 	if (text === null) return { ...DEFAULT_LAYOUT };
 	try {
-		const { sidebarCollapsed, previewCollapsed } = layoutSchema.parse(JSON.parse(text));
-		return { sidebarCollapsed, previewCollapsed };
+		const { sidebarCollapsed, previewCollapsed, aiTab } = layoutSchema.parse(JSON.parse(text));
+		return { sidebarCollapsed, previewCollapsed, aiTab };
 	} catch {
 		return { ...DEFAULT_LAYOUT };
 	}
@@ -32,7 +42,8 @@ export function serialiseLayout(prefs: LayoutPrefs): string {
 	return JSON.stringify({
 		format: 1,
 		sidebarCollapsed: prefs.sidebarCollapsed,
-		previewCollapsed: prefs.previewCollapsed
+		previewCollapsed: prefs.previewCollapsed,
+		aiTab: prefs.aiTab
 	});
 }
 

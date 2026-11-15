@@ -31,6 +31,9 @@
 	import Chip from '$lib/ui/Chip.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import RunSummary from './RunSummary.svelte';
+	import AiPanel from './AiPanel.svelte';
+	import AiIcon from '$lib/ui/AiIcon.svelte';
+	import { ai } from '$lib/state/ai.svelte';
 	import { PreviewBridge, type PreviewView } from '$lib/preview/bridge';
 	import { serialise } from '$lib/domain/document';
 	import { useStepView, useStore } from '$lib/ui/context';
@@ -62,8 +65,16 @@
 		 */
 		collapsed: boolean | null;
 		ontoggle: () => void;
+		/**
+		 * The AI tab is the one the teacher chose. It is shown only while AI is on offer
+		 * (`ai.available`); the choice is remembered either way. Like folding, it never
+		 * unmounts or hides the player: the panel covers the frame, which is `inert`.
+		 */
+		aiTab?: boolean;
+		onaiTab?: (on: boolean) => void;
 	}
-	let { doc, block, lessonId, collapsed, ontoggle }: Props = $props();
+	let { doc, block, lessonId, collapsed, ontoggle, aiTab = false, onaiTab }: Props = $props();
+	const aiShown = $derived(aiTab && ai.available);
 
 	const store = useStore();
 	const stepView = useStepView();
@@ -478,9 +489,10 @@
 			if (playLessonId === undefined) return;
 			bridge.showLesson(source, playLessonId, exportMode, serialise, playStart);
 		} else if (block !== undefined) {
-			// A folded column draws nothing anyone can see; it catches up when opened.
-			// Only here: re-sending a played lesson would restart the run.
-			if (collapsed === true) return;
+			// A folded column, or one covered by the AI tab, draws nothing anyone can see;
+			// it catches up when shown. Only here: re-sending a played lesson would restart
+			// the run.
+			if (collapsed === true || aiShown) return;
 			bridge.showBlocks(
 				blocksOfCard(block.block_id),
 				exportMode,
@@ -540,7 +552,7 @@
 
 			<Segmented
 				label="Co je v náhledu"
-				value={view}
+				value={aiShown ? 'ai' : view}
 				options={[
 					{
 						value: 'expanded',
@@ -553,9 +565,29 @@
 						label: 'Vyzkoušet',
 						title:
 							'Projdi lekci od vybrané karty tak, jak ji potká žák: kroky se odkrývají po jednom, další se objeví až tlačítkem pod kartou. Zpětem se vrátíš a můžeš zkusit druhou větev.'
-					}
+					},
+					...(ai.available
+						? [
+								{
+									value: 'ai' as const,
+									label: 'AI',
+									icon: AiIcon,
+									title:
+										'Napiš, co chceš vytvořit. AI navrhne lekce nebo karty, ty je upravíš a ona je dopíše. Náhled běží dál a po návratu je hned tam.'
+								}
+							]
+						: [])
 				]}
 				onchange={(next) => {
+					if (next === 'ai') {
+						// Leaving a run behind, as Náhled does.
+						stepView.endRun();
+						finished = null;
+						view = 'expanded';
+						onaiTab?.(true);
+						return;
+					}
+					onaiTab?.(false);
 					if (next === 'play') {
 						playStart = block === undefined ? undefined : blocksOfCard(block.block_id)[0]?.block_id;
 						playLessonId = lessonId;
@@ -567,7 +599,7 @@
 					view = next;
 				}}
 			/>
-			{#if view === 'play' ? booted && playLessonId !== undefined : cardXp !== undefined}
+			{#if aiShown ? false : view === 'play' ? booted && playLessonId !== undefined : cardXp !== undefined}
 				<!-- A number, not a verdict: the card's worth in Náhled, the run's score in Vyzkoušet. -->
 				<span
 					class="xp"
@@ -580,7 +612,9 @@
 			{/if}
 
 			<!-- Running has no chip: only the two states a teacher has to wait out or act on. -->
-			{#if !booted && failed}
+			{#if aiShown}
+				<!-- The player's state is of no use to someone writing with AI. -->
+			{:else if !booted && failed}
 				<Chip tone="warning">přehrávač neběží</Chip>
 			{:else if !booted && available === true}
 				<Chip>spouští se…</Chip>
@@ -615,30 +649,35 @@
 		</header>
 
 		<div class="frame">
-			{#if failed === 'stalled' && !booted}
-				<div class="fallback">
-					<p><strong>Přehrávač se nespustil.</strong></p>
-					<p>
-						Zkusili jsme ho načíst {BOOT_ATTEMPTS}krát a pokaždé se zasekl — nejspíš přerušené
-						spojení při stahování. Kurz se dál ukládá, jen ho teď nevidíš očima žáka.
-					</p>
-					<Button variant="secondary" size="s" onclick={retry}>Zkusit znovu</Button>
-				</div>
-			{:else if failed === 'missing' && !booted}
-				<div class="fallback">
-					<p><strong>Náhled zatím není k dispozici.</strong></p>
-					<p>
-						Náhled je skutečný přehrávač z aplikace, ne jeho napodobenina — proto potřebuje webový
-						build aplikace obsluhovaný na <code>/player/</code> a v něm route
-						<code>/preview</code>. Dokud tam není, edituj naslepo, nebo si kurz stáhni a otevři v
-						aplikaci.
-					</p>
-				</div>
-			{/if}
-			{#if available === true && everRevealed && failed !== 'stalled'}
-				{#key attempt}
-					<iframe bind:this={frame} src={PLAYER_URL} title="Náhled kurzu očima žáka"></iframe>
-				{/key}
+			<div class="player" inert={aiShown}>
+				{#if failed === 'stalled' && !booted}
+					<div class="fallback">
+						<p><strong>Přehrávač se nespustil.</strong></p>
+						<p>
+							Zkusili jsme ho načíst {BOOT_ATTEMPTS}krát a pokaždé se zasekl — nejspíš přerušené
+							spojení při stahování. Kurz se dál ukládá, jen ho teď nevidíš očima žáka.
+						</p>
+						<Button variant="secondary" size="s" onclick={retry}>Zkusit znovu</Button>
+					</div>
+				{:else if failed === 'missing' && !booted}
+					<div class="fallback">
+						<p><strong>Náhled zatím není k dispozici.</strong></p>
+						<p>
+							Náhled je skutečný přehrávač z aplikace, ne jeho napodobenina — proto potřebuje webový
+							build aplikace obsluhovaný na <code>/player/</code> a v něm route
+							<code>/preview</code>. Dokud tam není, edituj naslepo, nebo si kurz stáhni a otevři v
+							aplikaci.
+						</p>
+					</div>
+				{/if}
+				{#if available === true && everRevealed && failed !== 'stalled'}
+					{#key attempt}
+						<iframe bind:this={frame} src={PLAYER_URL} title="Náhled kurzu očima žáka"></iframe>
+					{/key}
+				{/if}
+			</div>
+			{#if aiShown}
+				<div class="ai-slot"><AiPanel /></div>
 			{/if}
 		</div>
 		{#if view === 'play' && finished !== null}
@@ -745,6 +784,19 @@
 		position: relative;
 		flex: 1;
 		min-height: 0;
+	}
+
+	.player {
+		position: absolute;
+		inset: 0;
+	}
+
+	/* Over the player, which keeps its size and keeps running underneath. */
+	.ai-slot {
+		position: absolute;
+		inset: 0;
+		z-index: 1;
+		background: var(--surface);
 	}
 
 	iframe {

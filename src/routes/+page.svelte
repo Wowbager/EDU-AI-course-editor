@@ -105,16 +105,20 @@
 	 * defaults of a page that has not looked yet never overwrite what was saved.
 	 */
 	let previewCollapsed = $state<boolean | null>(null);
+	/** The right column shows the AI tab (remembered with the rest of the layout). */
+	let aiTab = $state(false);
 	/** Set two frames after mount, so restoring a folded panel does not animate. */
 	let settled = $state(false);
 
 	$effect(() => {
 		const preview = previewCollapsed;
 		const sidebar = sidebarCollapsed;
+		const tab = aiTab;
 		if (preview === null) return;
 		writeLayout(localStorage, {
 			sidebarCollapsed: sidebar,
-			previewCollapsed: preview
+			previewCollapsed: preview,
+			aiTab: tab
 		});
 	});
 
@@ -346,6 +350,7 @@
 		const layout = readLayout(localStorage);
 		sidebarCollapsed = layout.sidebarCollapsed;
 		previewCollapsed = layout.previewCollapsed;
+		aiTab = layout.aiTab;
 		const flush = () => session.flush();
 		const hidden = () => {
 			if (document.visibilityState === 'hidden') flush();
@@ -702,6 +707,8 @@
 			lessonId={lesson?.lesson_id}
 			collapsed={previewCollapsed}
 			ontoggle={flipPreview}
+			{aiTab}
+			onaiTab={(on) => (aiTab = on)}
 		/>
 
 		<!-- Over the editor column, bottom left: where the eye is after clicking a card. -->
