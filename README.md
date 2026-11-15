@@ -186,8 +186,11 @@ above).
 ### Writing cards with AI
 
 An empty card can be written by AI („Dopsat kartu“), and a card you started can have
-its empty parts written („Dopsat, co chybí“ in the card's ⋯ menu). What is already
-written is never changed. Without a provider on the server the editor shows nothing
+its empty parts written („Dopsat, co chybí“ in the card's ⋯ menu). AI writes the whole
+card, as many steps as it needs: a Výklad of several screens, an exercise of several
+questions. What is already written is never changed. Before each card the model reads a
+text of the whole course (about 150 000 tokens at most) so that it builds on the earlier
+lessons. Without a provider on the server the editor shows nothing
 about AI. The provider is set by environment variables on the editor's server; the
 key never reaches the browser.
 
@@ -196,15 +199,15 @@ key never reaches the browser.
 | `AI_API_KEY` | The provider's key. Without it there is no AI in the editor. |
 | `AI_PROVIDER` | `openrouter` (default), `deepseek`, or `fake` (no key, no network, canned answers; the e2e suite uses it). |
 | `AI_MODEL`, `AI_BASE_URL`, `AI_REASONING_EFFORT` | Optional overrides of the provider's defaults (`src/lib/server/ai/config.ts`). |
-| `AI_DAILY_TOKEN_BUDGET`, `AI_MAX_REQUESTS_PER_MINUTE` | Limits per workspace, kept in memory. |
+| `AI_DAILY_TOKEN_BUDGET`, `AI_MAX_REQUESTS_PER_MINUTE` | Limits per workspace, kept in memory. The budget (default 20 000 000 a day) counts the prompt tokens the provider served from its cache at a tenth, because the course text is sent with every card and is cached after the first one. |
 
 ```bash
 AI_API_KEY=… npm run dev
 docker run -p 8080:8080 -e AI_API_KEY=… -v edu-editor-data:/data edu-editor
 ```
 
-The text of the card, its lesson's card names and the course's audience are sent to
-the provider. With OpenRouter the request asks for hosts that do not keep or train on
+The text of the course (the dossier of the card being written) and the course's audience
+are sent to the provider. With OpenRouter the request asks for hosts that do not keep or train on
 it (`data_collection: deny`).
 
 ### Version history

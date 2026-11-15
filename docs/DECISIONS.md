@@ -2949,10 +2949,10 @@ separate system that builds a course from blocks and hands the JSON over; the ow
 chose to have it in the editor, with the lesson and card tree as the outline.
 
 - **One rule: a filled part is never overwritten, an empty one is written.**
-  `missingSlots` (`domain/authoring.ts`) is the only definition of "empty". The button,
-  the request, the server and `fillBlock` all ask it, and `fillBlock` asks again when
-  the answer arrives, so what the teacher typed meanwhile stays. The server also cuts
-  the model's answer down to the slots asked for, and counts right answers itself.
+  `missingParts` (`domain/authoring.ts`) is the only definition of "empty". The button,
+  the request, the server and `fillCard` all ask it, and `fillCard` asks again when
+  the answer arrives, so what the teacher typed meanwhile stays. The server rejects an
+  answer that fills a part that was not empty, and counts right answers itself.
 - **Where it shows.** A card with nothing written shows one line („O čem karta je“) and
   „Dopsat kartu“. A card the teacher started has „Dopsat, co chybí“ in its ⋯ menu. A
   finished card shows nothing. Without a provider on the server, nothing anywhere.
@@ -2969,8 +2969,20 @@ chose to have it in the editor, with the lesson and card tree as the outline.
   repeats, then "failed". The Round 14 assistant and its screen model stay unmerged;
   from that branch came only the provider settings and the per-workspace limits.
   Rejected: the `openai` SDK (one `fetch` does it, and there is no stream).
-- **A card with several questions, or drawn from several blocks, is not written by
-  AI**: which question a text belongs to is the teacher's to say.
+- **The AI writes a whole card, not one step** (after the first test of PR #66: "quite
+  weak, it can't create multiple steps"). The answer is `eduai.gen-card/2`: the card's
+  steps in order, each new, or `keep` of a step the teacher has with only its empty
+  parts filled. The server checks that every existing step comes back once and in order;
+  `fillCard` puts new steps next to the nearest kept one. The result goes into the
+  view's card, and `fromView` splits the questions into blocks as for any edit, so a
+  card of several questions is written like any other (the first stage refused them).
+  Sizes: Výklad 1–6 text steps, Cvičení 2–8 questions, Otázka 1–4, linear; a number the
+  teacher states wins, and the server's hard limits are wider (10 / 12 / 6).
+- **The model reads the whole course first** (`dossier.ts`): a message of its own
+  before the card's request, so the provider's prefix cache serves it for every later
+  card of the course. Cached prompt tokens count a tenth against the daily budget
+  (`limits.ts`), which is 20 M. Rejected: the model fetching more with tools; it is the
+  planned next step for courses larger than the dossier's budget.
 - **„Pro koho kurz je“** is a fold of the course settings in Učitel, four fields. It is
   the one teacher fold outside „Základní“ (`fields.test.ts` names the exception).
 - **`AI_PROVIDER=fake`** answers from the request alone. The e2e server runs it.
