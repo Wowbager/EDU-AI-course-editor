@@ -11,8 +11,8 @@
 	let { size = 16 }: Props = $props();
 
 	/** A four-point star around (x, y) with tips `r` away; the sides bow in towards the centre. */
-	const star = (x: number, y: number, r: number): string => {
-		const k = r * 0.2;
+	const star = (x: number, y: number, r: number, bow = 0.12): string => {
+		const k = r * bow;
 		return (
 			`M${x} ${y - r}Q${x + k} ${y - k} ${x + r} ${y}Q${x + k} ${y + k} ${x} ${y + r}` +
 			`Q${x - k} ${y + k} ${x - r} ${y}Q${x - k} ${y - k} ${x} ${y - r}Z`
@@ -21,6 +21,6 @@
 </script>
 
 <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-	<path d={star(9, 15, 8.5)} />
-	<path d={star(18, 6, 5)} />
+	<path d={star(8, 16, 8)} />
+	<path d={star(18.5, 5.5, 3.6, 0.16)} />
 </svg>

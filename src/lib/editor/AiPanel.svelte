@@ -2,8 +2,7 @@
 	/**
 	 * The AI tab of the right column. Top to bottom: what the AI has proposed, or how
 	 * its writing goes, or one line inviting the teacher; and the box, pinned at the
-	 * bottom. There is no history: only the last instruction, as one quiet line above
-	 * the box.
+	 * bottom. There is no history of instructions.
 	 *
 	 * The box does what the state asks: with nothing proposed it asks for a proposal;
 	 * with one on screen it asks for it to be changed. The proposal lives in `aiPanel`
@@ -84,7 +83,9 @@
 					disabled={aiPanel.asking || !anyTicked(draft)}
 					onclick={() => aiPanel.create(store)}>Vytvořit vybrané</Button
 				>
-				<Button variant="ghost" size="s" onclick={() => aiPanel.discard()}>Zahodit návrh</Button>
+				<button type="button" class="text-button" onclick={() => aiPanel.discard()}>
+					Zahodit návrh
+				</button>
 			</div>
 		{:else if showRows}
 			<div class="scroll">
@@ -99,19 +100,25 @@
 								class="queue-row {row.state}"
 								onclick={() => open(row.lessonId, row.blockId)}
 							>
-								<span class="mark" title={stateLabel[row.state]}>
+								<span class="mark" aria-hidden="true">
 									{#if row.state === 'done'}
-										<Check size={14} aria-hidden="true" />
+										<Check size={16} />
 									{:else if row.state === 'writing'}
-										<LoaderCircle size={14} class="spin" aria-hidden="true" />
+										<LoaderCircle size={16} class="spin" />
 									{:else if row.state === 'failed'}
-										<CircleAlert size={14} aria-hidden="true" />
+										<CircleAlert size={16} />
 									{:else}
-										<Circle size={14} aria-hidden="true" />
+										<Circle size={16} />
 									{/if}
 								</span>
-								<span class="row-name">{name}</span>
-								<span class="state">{stateLabel[row.state]}</span>
+								<span class="row-text">
+									<span class="row-name">{name}</span>
+									{#if row.state === 'writing' || row.state === 'failed'}
+										<span class="state">{stateLabel[row.state]}</span>
+									{:else}
+										<span class="sr">{stateLabel[row.state]}</span>
+									{/if}
+								</span>
 							</button>
 						</li>
 					{/each}
@@ -119,10 +126,12 @@
 			</div>
 			{#if queue.stoppedBy === 'budget'}
 				<p class="quiet">Dnešní příděl pro AI je vyčerpaný. Zítra to půjde znovu.</p>
+			{:else if queue.stoppedBy === 'rate'}
+				<p class="quiet">AI má teď moc práce. Zbytek dopiš za chvíli.</p>
 			{/if}
 			{#if queue.running}
 				<div class="actions">
-					<Button variant="secondary" onclick={() => aiPanel.stop()}>Zastavit</Button>
+					<button type="button" class="text-button" onclick={() => aiPanel.stop()}>Zastavit</button>
 				</div>
 			{:else if queue.rest.length > 0}
 				<div class="actions">
@@ -146,9 +155,6 @@
 		{/if}
 		{#if aiPanel.problem !== ''}
 			<p class="quiet" role="status">{aiPanel.problem}</p>
-		{/if}
-		{#if aiPanel.last !== '' && (draft !== null || showRows)}
-			<p class="last" title={aiPanel.last}>{aiPanel.last}</p>
 		{/if}
 		<form
 			class="box"
@@ -285,16 +291,26 @@
 		color: var(--e-text-faint);
 	}
 
-	.row-name {
+	.row-text {
+		display: flex;
 		flex: 1;
+		flex-direction: column;
 		min-width: 0;
+	}
+
+	.row-name {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 
-	/* The state in words only where there is something to say; done and waiting say it by their mark. */
+	/* What is going on, quietly under the name, like a proposal's brief. Done says it by its mark. */
 	.state {
+		color: var(--e-text-faint);
+		font: var(--type-caption);
+	}
+
+	.sr {
 		position: absolute;
 		width: 1px;
 		height: 1px;
@@ -302,14 +318,32 @@
 		clip-path: inset(50%);
 	}
 
-	.writing .state,
-	.failed .state {
-		position: static;
-		width: auto;
-		height: auto;
-		clip-path: none;
+	/* The card being written is the one that is alive; those waiting are fainter still. */
+	.writing .mark {
+		color: var(--e-accent-text);
+	}
+
+	.waiting .mark {
+		opacity: 0.35;
+	}
+
+	.waiting .row-name {
 		color: var(--e-text-faint);
-		font: var(--type-caption);
+	}
+
+	.text-button {
+		padding: 4px 6px;
+		border: none;
+		border-radius: var(--radius-xs);
+		background: none;
+		color: var(--e-text-muted);
+		font: var(--type-body-small);
+		cursor: pointer;
+	}
+
+	.text-button:hover {
+		color: var(--e-text);
+		text-decoration: underline;
 	}
 
 	.queue-row :global(.spin),
@@ -332,7 +366,6 @@
 		border-top: 1px solid var(--e-border);
 	}
 
-	.last,
 	.quiet {
 		display: flex;
 		align-items: center;
@@ -352,11 +385,6 @@
 
 	.foot .quiet {
 		padding: 0;
-	}
-
-	.last {
-		display: block;
-		font-style: italic;
 	}
 
 	.box {

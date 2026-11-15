@@ -57,10 +57,7 @@ test('a proposal is shaped, created as cards that are then written, and undone',
 	await expect(page.getByRole('checkbox', { name: 'Vytvořit lekci: První lekce' })).toBeChecked();
 	await expect(page.getByRole('checkbox', { name: 'Vytvořit: Co to je' })).toBeVisible();
 	await expect(page.getByRole('checkbox', { name: 'Vytvořit: Jak se to používá' })).toHaveCount(0);
-	// The line under the box says what was asked; the box is now for changes.
-	await expect(
-		panel(page).getByText('Kurz o zlomcích pro 5. třídu', { exact: true })
-	).toBeVisible();
+	// The box is now for changes.
 	await expect(box(page)).toHaveAttribute('placeholder', 'Co změnit?');
 	// Nothing is in the course yet.
 	await expect(lessons(page)).toHaveCount(1);
@@ -122,13 +119,12 @@ test('„Co změnit?“ replaces the proposal and keeps what the teacher unticke
 	await page.getByRole('checkbox', { name: 'Vytvořit: Procvičení' }).uncheck();
 
 	await ask(page, 'přidej kvíz na konec');
-	// The model changed the proposal: a new card, and the line under the box is the change.
+	// The model changed the proposal: a new card.
 	await expect(page.getByRole('button', { name: 'Změna: přidej kvíz na konec' })).toHaveCount(0);
 	await page.getByRole('button', { name: /Rozbalit lekci: Druhá lekce/ }).click();
 	await expect(
 		page.getByRole('checkbox', { name: 'Vytvořit: Změna: přidej kvíz na konec' })
 	).toBeChecked();
-	await expect(panel(page).getByText('přidej kvíz na konec', { exact: true })).toBeVisible();
 	// The card the teacher unticked is still unticked.
 	await expect(page.getByRole('checkbox', { name: 'Vytvořit: Procvičení' })).not.toBeChecked();
 	await expect(lessons(page)).toHaveCount(1);
