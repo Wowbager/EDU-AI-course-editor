@@ -18,6 +18,7 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "test": "vitest run --config vitest.config.ts",
+    "eval:ai": "EVAL=1 vitest run --config vitest.config.ts src/lib/server/ai/__tests__/outline.eval.test.ts",
     "test:watch": "vitest --config vitest.config.ts",
     "test:e2e": "playwright test",
     "format": "prettier --write .",
