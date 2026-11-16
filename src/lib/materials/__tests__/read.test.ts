@@ -7,6 +7,7 @@ import { MAX_PAGES } from '$lib/domain/materials';
 import { readMaterial, hashOf, kindOf, unsupported, type Libraries } from '../read';
 import { readDocx } from '../docx';
 import { readPdf } from '../pdf';
+import UTIF from 'utif2';
 import { Refused, type ReadIO } from '../types';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -24,6 +25,7 @@ function io(overrides: Partial<ReadIO> = {}): ReadIO & { read: number } {
 			return `Přepis obrázku ($${picture.size > 0 ? 'x' : '?'}$)`;
 		},
 		shrink: async (picture: Blob) => picture,
+		fromPixels: async () => new Blob(['p'], { type: 'image/png' }),
 		renderPage: async () => new Blob(['page'], { type: 'image/png' }),
 		...overrides
 	};
@@ -37,7 +39,11 @@ const libraries: Libraries = {
 	pdfjs: async () =>
 		(await import('pdfjs-dist/legacy/build/pdf.mjs')) as unknown as Awaited<
 			ReturnType<Libraries['pdfjs']>
-		>
+		>,
+	utif: async () => UTIF as unknown as Awaited<ReturnType<Libraries['utif']>>,
+	heic: async () => {
+		throw new Error('no converter');
+	}
 };
 
 const room = { pages: MAX_PAGES };
@@ -180,11 +186,133 @@ describe('a picture', () => {
 		await expect(readMaterial(heic, reader, room, libraries)).rejects.toThrow(/HEIC/);
 	});
 
+	it('converts a HEIC photo the browser cannot decode, and reads the converted JPEG', async () => {
+		const heic = Object.assign(new Blob(['x']), { name: 'foto.HEIF' });
+		const shrunk: string[] = [];
+		const reader = io({
+			shrink: async (b) => {
+				shrunk.push(b.type);
+				if (b === heic) throw new Error('cannot decode');
+				return b;
+			}
+		});
+		let asked: { toType: string } | undefined;
+		const file = await readMaterial(heic, reader, room, {
+			...libraries,
+			heic: async () => async (o) => {
+				asked = o;
+				return [new Blob(['jpg'], { type: 'image/jpeg' })];
+			}
+		});
+		expect(asked?.toType).toBe('image/jpeg');
+		expect(shrunk).toEqual(['', 'image/jpeg']);
+		expect(file.pages).toBe(1);
+		expect(reader.read).toBe(1);
+	});
+
+	it('does not try the converter for other formats, and says so when both fail', async () => {
+		let called = 0;
+		const failing = io({
+			shrink: async () => {
+				throw new Error('cannot decode');
+			}
+		});
+		const heic = async () => {
+			called++;
+			return async () => {
+				throw new Error('bad');
+			};
+		};
+		await expect(
+			readMaterial(Object.assign(new Blob(['x']), { name: 'a.gif' }), failing, room, {
+				...libraries,
+				heic
+			})
+		).rejects.toThrow(/nepodařilo otevřít/);
+		expect(called).toBe(0);
+		await expect(
+			readMaterial(Object.assign(new Blob(['x']), { name: 'a.heic' }), failing, room, {
+				...libraries,
+				heic
+			})
+		).rejects.toThrow(/HEIC/);
+		expect(called).toBe(1);
+	});
+
 	it('is refused when the reading finds nothing', async () => {
 		const reader = io({ ocr: async () => '' });
 		await expect(readMaterial(await fixture('page.png'), reader, room, libraries)).rejects.toThrow(
 			/nenašel žádný text/
 		);
+	});
+});
+
+/**
+ * An uncompressed grayscale TIFF of `n` pages of 4x4 pixels, written by hand (utif2's
+ * encoder writes one page only).
+ */
+function tiff(n: number): Blob & { name: string } {
+	const entries = 8;
+	const ifdSize = 2 + entries * 12 + 4;
+	const bytes = new Uint8Array(8 + n * (ifdSize + 16));
+	const view = new DataView(bytes.buffer);
+	view.setUint16(0, 0x4949, true);
+	view.setUint16(2, 42, true);
+	view.setUint32(4, 8, true);
+	for (let page = 0; page < n; page++) {
+		const ifd = 8 + page * (ifdSize + 16);
+		const data = ifd + ifdSize;
+		view.setUint16(ifd, entries, true);
+		// tag, type (3 = SHORT, 4 = LONG), value
+		[
+			[256, 3, 4],
+			[257, 3, 4],
+			[258, 3, 8],
+			[262, 3, 1],
+			[273, 4, data],
+			[277, 3, 1],
+			[278, 3, 4],
+			[279, 4, 16]
+		].forEach(([tag, type, value], i) => {
+			const at = ifd + 2 + i * 12;
+			view.setUint16(at, tag, true);
+			view.setUint16(at + 2, type, true);
+			view.setUint32(at + 4, 1, true);
+			if (type === 3) view.setUint16(at + 8, value, true);
+			else view.setUint32(at + 8, value, true);
+		});
+		view.setUint32(ifd + 2 + entries * 12, page < n - 1 ? data + 16 : 0, true);
+		bytes.fill(40 + page * 50, data, data + 16);
+	}
+	return Object.assign(new Blob([bytes]), { name: n === 1 ? 'sken.tif' : 'sken.tiff' });
+}
+
+describe('a TIFF', () => {
+	it('is one page, titled by the file name', async () => {
+		const reader = io();
+		const file = await readMaterial(tiff(1), reader, room, libraries);
+		expect(file.pages).toBe(1);
+		expect(file.sections.map((s) => s.title)).toEqual(['sken']);
+		expect(reader.read).toBe(1);
+	});
+
+	it('counts and reads every page of a multi-page scan, a failed page said in Czech', async () => {
+		let calls = 0;
+		const reader = io({
+			ocr: async () => {
+				if (++calls === 2) throw new Error('server');
+				return 'Text strany';
+			}
+		});
+		const file = await readMaterial(tiff(3), reader, room, libraries);
+		expect(file.pages).toBe(3);
+		expect(file.sections).toHaveLength(2);
+		expect(file.unread).toHaveLength(1);
+		expect(file.unread[0]).toMatch(/^Stranu \d se nepodařilo přečíst$/);
+	});
+
+	it('respects the pages left in the budget', async () => {
+		await expect(readMaterial(tiff(3), io(), { pages: 2 }, libraries)).rejects.toThrow(/nejvýše/);
 	});
 });
 
@@ -198,6 +326,13 @@ describe('which files are taken', () => {
 			'image',
 			'image'
 		]);
+		expect(['a.gif', 'b.BMP', 'c.avif', 'd.heif'].map(kindOf)).toEqual([
+			'image',
+			'image',
+			'image',
+			'image'
+		]);
+		expect(['a.tif', 'b.TIFF'].map(kindOf)).toEqual(['tiff', 'tiff']);
 		expect(kindOf('x.doc')).toBeUndefined();
 		expect(unsupported('x.doc')).toContain('.docx');
 		expect(unsupported('x.zip')).toContain('Word, PowerPoint, PDF');

@@ -27,6 +27,14 @@ export const libraries: Libraries = {
 			await import('pdfjs-dist/build/pdf.worker.min.mjs?url')
 		).default;
 		return pdfjs as unknown as Parameters<typeof import('./pdf').readPdf>[3];
+	},
+	utif: async () => {
+		const module = await import('utif2');
+		return (module.default ?? module) as unknown as Parameters<typeof import('./tiff').readTiff>[3];
+	},
+	heic: async () => {
+		const module = await import('heic2any');
+		return (module.default ?? module) as unknown as import('./image').HeicConverter;
 	}
 };
 
@@ -127,6 +135,12 @@ export const browserIO: ReadIO = {
 		} finally {
 			bitmap.close();
 		}
+	},
+
+	async fromPixels(rgba, width, height) {
+		const { canvas, context } = white(width, height);
+		context.putImageData(new ImageData(new Uint8ClampedArray(rgba), width, height), 0, 0);
+		return encode(canvas);
 	},
 
 	async renderPage(page) {

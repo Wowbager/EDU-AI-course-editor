@@ -154,11 +154,18 @@ describe('a Word file with equations', () => {
 		jszip: async () => JSZip,
 		pdfjs: async () => {
 			throw new Error('not used');
+		},
+		utif: async () => {
+			throw new Error('not used');
+		},
+		heic: async () => {
+			throw new Error('not used');
 		}
 	};
 	const io = {
 		ocr: async () => '',
 		shrink: async (b: Blob) => b,
+		fromPixels: async () => new Blob(),
 		renderPage: async () => new Blob()
 	};
 

@@ -12,17 +12,30 @@ import {
 } from '$lib/domain/materials';
 import { Refused, type ReadIO, type ReadOut, type Room } from './types';
 
-export type Kind = 'docx' | 'pptx' | 'pdf' | 'image';
+export type Kind = 'docx' | 'pptx' | 'pdf' | 'image' | 'tiff';
 
-export const IMAGE_TYPES = ['.png', '.jpg', '.jpeg', '.webp', '.heic'];
+export const IMAGE_TYPES = [
+	'.png',
+	'.jpg',
+	'.jpeg',
+	'.webp',
+	'.gif',
+	'.bmp',
+	'.avif',
+	'.heic',
+	'.heif'
+];
+/** A scanner's pictures: one file can hold several pages. */
+export const TIFF_TYPES = ['.tif', '.tiff'];
 /** For the file picker. */
-export const ACCEPT = ['.docx', '.pptx', '.pdf', ...IMAGE_TYPES].join(',');
+export const ACCEPT = ['.docx', '.pptx', '.pdf', ...IMAGE_TYPES, ...TIFF_TYPES].join(',');
 
 export function kindOf(name: string): Kind | undefined {
 	const ext = /\.[^.]+$/.exec(name.toLowerCase())?.[0] ?? '';
 	if (ext === '.docx') return 'docx';
 	if (ext === '.pptx') return 'pptx';
 	if (ext === '.pdf') return 'pdf';
+	if (TIFF_TYPES.includes(ext)) return 'tiff';
 	return IMAGE_TYPES.includes(ext) ? 'image' : undefined;
 }
 
@@ -55,6 +68,9 @@ export interface Libraries {
 	mammoth(): Promise<Parameters<typeof import('./docx').readDocx>[3]>;
 	jszip(): Promise<Parameters<typeof import('./pptx').readPptx>[3]>;
 	pdfjs(): Promise<Parameters<typeof import('./pdf').readPdf>[3]>;
+	utif(): Promise<Parameters<typeof import('./tiff').readTiff>[3]>;
+	/** Converts a HEIC photo the browser cannot decode; large, so loaded only then. */
+	heic(): Promise<import('./image').HeicConverter>;
 }
 
 export async function readMaterial(
@@ -77,7 +93,14 @@ export async function readMaterial(
 		out = await (await import('./pptx')).readPptx(data, io, room, await libraries.jszip());
 	else if (kind === 'pdf')
 		out = await (await import('./pdf')).readPdf(data, io, room, await libraries.pdfjs());
-	else out = await (await import('./image')).readImage(file as Blob & { name: string }, io);
+	else if (kind === 'tiff')
+		out = await (
+			await import('./tiff')
+		).readTiff(data, io, room, await libraries.utif(), file.name);
+	else
+		out = await (
+			await import('./image')
+		).readImage(file as Blob & { name: string }, io, libraries.heic);
 
 	if (out.pieces.length === 0)
 		throw new Refused(
