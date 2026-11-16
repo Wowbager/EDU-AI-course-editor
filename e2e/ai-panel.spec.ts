@@ -166,8 +166,8 @@ test('a card still waiting for AI shows no errors, however often it is opened', 
 }) => {
 	let release!: () => void;
 	const gate = new Promise<void>((resolve) => (release = resolve));
-	await page.route('**/ai/block', async (route) => {
-		if (route.request().method() === 'POST') await gate;
+	await page.route('**/ai/lesson', async (route) => {
+		await gate;
 		await route.continue();
 	});
 	await page.locator('.tree-card').first().click();
@@ -192,6 +192,38 @@ test('a card still waiting for AI shows no errors, however often it is opened', 
 	await expect(panel(page).locator('.queue-row.done')).toHaveCount(3);
 	await expect(page.locator('.step.invalid')).toHaveCount(0);
 	await expect(waiting.locator('.chip.error')).toHaveCount(0);
+});
+
+test('while the plan is made the panel says so, and no card is written before it', async ({
+	page
+}) => {
+	const order: string[] = [];
+	let release!: () => void;
+	const gate = new Promise<void>((resolve) => (release = resolve));
+	await page.route('**/ai/plan', async (route) => {
+		order.push('plan');
+		await gate;
+		await route.continue();
+	});
+	await page.route('**/ai/lesson', async (route) => {
+		order.push('lesson');
+		await route.continue();
+	});
+	await page.locator('.tree-card').first().click();
+	await ask(page, 'Dej mi karty na procvičení');
+	await expect(create(page)).toBeEnabled();
+	await create(page).click();
+	await expect(panel(page).getByText('Promýšlím karty…')).toBeVisible();
+	await expect(panel(page).locator('.queue-row')).not.toHaveCount(0);
+	await expect(panel(page).locator('.queue-row.done')).toHaveCount(0);
+	expect(order).toEqual(['plan']);
+
+	release();
+	await expect(panel(page).getByText('Promýšlím karty…')).toHaveCount(0);
+	await expect(panel(page).locator('.queue-row.done')).toHaveCount(3);
+	await expect(panel(page).locator('.queue-row:not(.done)')).toHaveCount(0);
+	expect(order[0]).toBe('plan');
+	expect(order).toContain('lesson');
 });
 
 test('the open panel is remembered after a reload', async ({ page }) => {
