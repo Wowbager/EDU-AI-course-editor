@@ -3209,6 +3209,14 @@ did not see each other.
   converted to JPEG with `heic2any`, loaded then (its own 1.3 MB chunk). *Rejected:*
   `heic-to` (LGPL libheif build, not something to ship in the editor's bundle).
 
+- **More kinds of file are read in the browser** (`materials/html.ts`, `odf.ts`): web pages
+  and e-books (turndown with its GFM plugin; an e-book is one page per chapter, in spine
+  order) and OpenDocument texts and presentations (our own walk over `content.xml`, like
+  `pptx.ts`; formulas are MathML objects, converted by `mathml-to-latex`). Each library is
+  its own chunk, loaded when a file of its kind is read. *Rejected:* converting with
+  LibreOffice on the server for now: the original file never leaves the browser, and only
+  the text of its pictures does.
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

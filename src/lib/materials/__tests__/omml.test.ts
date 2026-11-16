@@ -163,6 +163,12 @@ describe('a Word file with equations', () => {
 		},
 		heic: async () => {
 			throw new Error('not used');
+		},
+		turndown: async () => {
+			throw new Error('not used');
+		},
+		mathml: async () => {
+			throw new Error('not used');
 		}
 	};
 	const io = {

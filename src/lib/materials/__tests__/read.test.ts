@@ -45,6 +45,14 @@ const libraries: Libraries = {
 	utif: async () => UTIF as unknown as Awaited<ReturnType<Libraries['utif']>>,
 	heic: async () => {
 		throw new Error('no converter');
+	},
+	turndown: async () => ({
+		TurndownService: (await import('turndown')).default,
+		gfm: (await import('@joplin/turndown-plugin-gfm')).gfm
+	}),
+	mathml: async () => {
+		const { MathMLToLaTeX } = await import('mathml-to-latex');
+		return (mathml) => MathMLToLaTeX.convert(mathml);
 	}
 };
 
