@@ -3072,6 +3072,30 @@ written from them.
   nothing), a materials section in course settings (this is the one place), showing the
   sections to the teacher.
 
+## Round 32 — AI pomocník as its own panel, and an outline made by hand
+
+- **Two panels, one side.** Náhled and AI pomocník each have a header and an icon tile on
+  the right edge; one is open at a time and the player keeps running under the other.
+  Rejected: the outline as a second view of the left sidebar (too narrow for the box, the
+  chips and the drop zone), and both panels side by side (no room at 1440).
+- **The outline stays a draft beside the course**, now also made by hand („+ lekce“,
+  „+ karta“, a card's kind from its icon, Enter to the next card, cards carried between
+  lessons). Rejected: letting the course tree be the outline (empty named cards the AI
+  fills), which loses the look-and-tick step before anything enters the course.
+- **The outline has its own undo history**, apart from the course's: Ctrl+Z in the panel
+  takes back outline steps and falls through to the course only when there are none. It
+  ends at „Vytvořit vybrané“. The draft, with the request it started from, is kept per
+  course in the browser.
+- **A placeholder is replaced, not kept beside the new cards** (`domain/starter.ts`): a
+  lesson still named as the editor named it, with nothing set and at most one card equal
+  to what `addBlock` makes. A lesson the teacher named „Nová lekce“ by hand cannot be told
+  apart and counts as one. A placeholder something still points at stays.
+- **Cards made by hand get their sources named** (`POST /ai/sources`) only when the
+  materials do not fit whole (`fitsFully`), because only then does a card without sources
+  get no material text. They are written to the cards with `DocStore.amend`, which is not
+  an undo step. A failed request is not said: the cards are written without sources.
+  Rejected: asking always (when everything fits the answer changes nothing).
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today
