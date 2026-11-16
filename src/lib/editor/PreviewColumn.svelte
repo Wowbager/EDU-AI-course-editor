@@ -25,7 +25,7 @@
 	 * blocks, and `store.toView` turns them into the card the editor shows.
 	 */
 	import { tick, untrack } from 'svelte';
-	import { ArrowLeft, Eye, PanelRightClose, PanelRightOpen, RotateCcw } from '@lucide/svelte';
+	import { ArrowLeft, Eye, PanelRightClose, RotateCcw } from '@lucide/svelte';
 	import type { BlockV2, CourseV2, ExportType } from '$lib/domain/schema';
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import Chip from '$lib/ui/Chip.svelte';
@@ -127,7 +127,6 @@
 
 	let hideHost = $state<HTMLElement>();
 	let aiHideHost = $state<HTMLElement>();
-	let showButton = $state<HTMLButtonElement>();
 	let previewTile = $state<HTMLButtonElement>();
 	let aiTile = $state<HTMLButtonElement>();
 
@@ -146,8 +145,7 @@
 		await tick();
 		if (!focusHere) return;
 		if (opening) (aiShown ? aiHideHost : hideHost)?.querySelector('button')?.focus();
-		else if (ai.available) (aiShown ? aiTile : previewTile)?.focus();
-		else showButton?.focus();
+		else (aiShown ? aiTile : previewTile)?.focus();
 	}
 
 	/** Leaving a run behind, as Náhled does. */
@@ -557,7 +555,6 @@
 	class="preview"
 	bind:this={root}
 	class:collapsed
-	class:tiled={ai.available}
 	data-player={playerState}
 	aria-label={aiShown ? 'AI pomocník' : 'Náhled pro žáka'}
 >
@@ -717,20 +714,24 @@
 		{/if}
 	</div>
 
-	{#if ai.available}
-		<!-- The side's edge: one tile per panel. The open one is pressed; pressing it folds the side. -->
-		<div class="tiles">
-			<button
-				type="button"
-				class="side-tile"
-				bind:this={previewTile}
-				aria-label="Náhled"
-				title="Náhled"
-				aria-pressed={collapsed !== true && !aiShown}
-				onclick={() => choose(false)}
-			>
-				<Eye size={18}></Eye>
-			</button>
+	<!--
+		The side's edge: one tile per panel. The open one is pressed; pressing it folds the side.
+		The strip is there with or without AI, so the side does not change its width when the
+		server says AI is on offer, a moment after the page is drawn.
+	-->
+	<div class="tiles">
+		<button
+			type="button"
+			class="side-tile"
+			bind:this={previewTile}
+			aria-label="Náhled"
+			title="Náhled"
+			aria-pressed={collapsed !== true && !aiShown}
+			onclick={() => choose(false)}
+		>
+			<Eye size={18}></Eye>
+		</button>
+		{#if ai.available}
 			<span class="divider" aria-hidden="true"></span>
 			<button
 				type="button"
@@ -743,20 +744,8 @@
 			>
 				<AiIcon size={18} />
 			</button>
-		</div>
-	{:else if collapsed === true}
-		<button
-			type="button"
-			class="rail"
-			bind:this={showButton}
-			aria-label="Ukázat náhled"
-			title="Ukázat náhled (Ctrl+Shift+B)"
-			onclick={toggle}
-		>
-			<PanelRightOpen size={18}></PanelRightOpen>
-			<span class="rail-text" aria-hidden="true">Náhled</span>
-		</button>
-	{/if}
+		{/if}
+	</div>
 </aside>
 
 <style>
@@ -764,17 +753,13 @@
 		position: relative;
 		display: flex;
 		flex-direction: column;
-		width: var(--e-preview-width);
+		/* The tiles take their own strip on the edge, beside the panel, not out of it. */
+		width: calc(var(--e-preview-width) + var(--e-preview-rail));
 		flex: none;
 		border-left: 1px solid var(--e-border);
 		background: var(--surface);
 		overflow: hidden;
 		transition: width 0.3s ease-in-out;
-	}
-
-	/* The tiles take their own strip on the edge, beside the panel, not out of it. */
-	.preview.tiled {
-		width: calc(var(--e-preview-width) + var(--e-preview-rail));
 	}
 
 	/* No transition: animating the width would make the player lay itself out on every frame. */
@@ -797,31 +782,6 @@
 		flex: 1;
 		flex-direction: column;
 		min-height: 0;
-	}
-
-	.rail {
-		position: absolute;
-		z-index: 2;
-		inset: 0;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 12px;
-		padding: 14px 0;
-		border: none;
-		background: var(--surface);
-		color: var(--e-text-muted);
-		cursor: pointer;
-	}
-
-	.rail:hover {
-		background: var(--surface-light);
-		color: var(--e-text);
-	}
-
-	.rail-text {
-		font: var(--type-meta-bold);
-		writing-mode: vertical-rl;
 	}
 
 	/* Over the folded panel too, which stays painted (and clipped) underneath. */

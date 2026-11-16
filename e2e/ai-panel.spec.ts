@@ -347,22 +347,43 @@ test.describe('without AI', () => {
 		await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
 	});
 
-	test('nothing of AI shows, even when it was the open panel, and the preview folds as before', async ({
+	test('nothing of AI shows, even when it was the open panel; the preview has its tile alone', async ({
 		page
 	}) => {
 		// Remembered as open on AI (the suite's beforeEach), it is the preview that shows.
 		await expect(page.locator('aside.preview')).toHaveAttribute('data-player', 'ready');
 		await expect(aiTab(page)).toHaveCount(0);
-		await expect(previewTab(page)).toHaveCount(0);
-		await expect(page.locator('.tiles')).toHaveCount(0);
+		await expect(page.locator('.tiles .divider')).toHaveCount(0);
+		await expect(previewTab(page)).toHaveAttribute('aria-pressed', 'true');
 		await expect(panel(page)).toHaveCount(0);
 
 		await page.getByRole('button', { name: 'Skrýt náhled' }).click();
 		await expect(folded(page)).toHaveCount(1);
-		await expect(page.getByRole('button', { name: 'Ukázat náhled' })).toBeFocused();
+		await expect(previewTab(page)).toBeFocused();
 		await expect(aiTab(page)).toHaveCount(0);
-		await page.getByRole('button', { name: 'Ukázat náhled' }).click();
+		await previewTab(page).click();
 		await expect(folded(page)).toHaveCount(0);
 		await expect(panel(page)).toHaveCount(0);
 	});
+});
+
+test("the side keeps its width when the server's answer about AI arrives after the page", async ({
+	page
+}) => {
+	let answer = () => {};
+	const held = new Promise<void>((resolve) => (answer = resolve));
+	await page.route('**/ai/block', async (route) => {
+		if (route.request().method() !== 'GET') return route.continue();
+		await held;
+		await route.continue();
+	});
+	await page.reload();
+	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
+	const side = page.locator('aside.preview');
+	await expect(previewTab(page)).toBeVisible();
+	await expect(aiTab(page)).toHaveCount(0);
+	const before = (await side.boundingBox())!.width;
+	answer();
+	await expect(aiTab(page)).toBeVisible();
+	expect((await side.boundingBox())!.width).toBe(before);
 });
