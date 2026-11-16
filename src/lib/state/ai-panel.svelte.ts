@@ -38,7 +38,13 @@ import {
 	sourcesWanted
 } from '$lib/domain/source-assign';
 import { sourceRefsOf } from '$lib/domain/authoring';
-import { buildDossier, lessonSnapshot } from '$lib/domain/dossier';
+import {
+	buildDossier,
+	lessonBaseline,
+	lessonChanges,
+	lessonSnapshot,
+	withWritten
+} from '$lib/domain/dossier';
 import { buildLessonRequest, type AssistantTurnData } from '$lib/domain/lesson-writing';
 import { fitsFully, renderMaterials } from '$lib/domain/materials';
 import { applyPlan, buildPlanRequest, type PlanRequest, type PlanTargets } from '$lib/domain/plan';
@@ -178,6 +184,8 @@ class AiPanel {
 		const byTurn = built.ids.map((id) => rows.find((r) => r.blockId === id)!);
 		const abort = new AbortController();
 		this.#lessonAborts.add(abort);
+		// What the conversation knows of the lesson; the teacher's edits since come with each card.
+		let taught = lessonBaseline(doc, lessonId);
 		const end = await askLesson(
 			built.request,
 			(event) => {
@@ -191,12 +199,20 @@ class AiPanel {
 				if (event.type === 'writing') return report(row, 'writing');
 				if (event.type === 'card') {
 					const result = ai.apply(store, row.blockId, row.lessonId, event.answer, { quiet: true });
+					taught = withWritten(taught, store.doc, row.blockId);
 					report(row, result.status === 'problem' ? 'failed' : 'done');
 				} else report(row, 'failed');
 				// Stopped: the card being written was finished; no further one is started.
 				if (stopped()) abort.abort();
 			},
-			abort.signal
+			abort.signal,
+			{
+				changed: () => {
+					const seen = lessonChanges(taught, store.doc, lessonId);
+					taught = seen.baseline;
+					return seen.text;
+				}
+			}
 		).finally(() => this.#lessonAborts.delete(abort));
 		if (end === 'done') return 'done';
 		if (end.problem === 'rate')

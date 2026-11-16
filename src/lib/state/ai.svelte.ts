@@ -21,7 +21,8 @@ import {
 	planEventSchema,
 	type LessonEvent,
 	type LessonRequest,
-	type PlanEvent
+	type PlanEvent,
+	type TurnMessage
 } from '$lib/domain/lesson-writing';
 import type { PlanRequest } from '$lib/domain/plan';
 import { outlineEventSchema, type OutlineEvent, type OutlineRequest } from '$lib/domain/outline';
@@ -146,25 +147,65 @@ export async function askOutline(
 /** How a lesson's conversation ended, when it did not end with every card answered. */
 export type LessonEnd = 'done' | Failure;
 
+/** What a lesson's request is given besides the request. */
+export type LessonOptions = {
+	/**
+	 * Before each card after the first: what the teacher changed in the lesson since the
+	 * conversation last knew it, or nothing. It goes into that card's message.
+	 */
+	changed?: () => string | undefined;
+};
+
 /**
- * Write the cards of a lesson: each event goes to `onEvent` as it comes. Aborting
- * `signal` ends the conversation (the card being written is lost); the promise then
- * says `done`.
+ * Write the cards of a lesson: each event goes to `onEvent` as it comes. The conversation
+ * is one request a card, the server handing back what each turn added, so that what the
+ * teacher changed in between reaches the next one (`options.changed`). Aborting `signal`
+ * ends the conversation (the card being written is lost); the promise then says `done`.
  */
 export async function askLesson(
 	request: LessonRequest,
-	onEvent: (event: Exclude<LessonEvent, { type: 'done' | 'failed' | 'stopped' }>) => void,
-	signal?: AbortSignal
+	onEvent: (event: Exclude<LessonEvent, { type: 'done' | 'failed' | 'stopped' | 'turn' }>) => void,
+	signal?: AbortSignal,
+	options: LessonOptions = {}
 ): Promise<LessonEnd> {
+	const messages: TurnMessage[] = [];
+	for (let next = 0; next < request.cards.length; next++) {
+		const changed = next > 0 ? options.changed?.() : undefined;
+		const turn = await lessonTurn(
+			{
+				...request,
+				resume: { next, messages, ...(changed !== undefined ? { changed } : {}) }
+			},
+			onEvent,
+			signal
+		);
+		if (turn.end !== 'done') return turn.end;
+		if (signal?.aborted) return 'done';
+		// A turn that ends without handing its messages back was cut, unless none follows.
+		if (turn.messages === undefined) {
+			if (next < request.cards.length - 1) return { problem: 'offline' };
+			continue;
+		}
+		messages.push(...turn.messages);
+	}
+	return 'done';
+}
+
+async function lessonTurn(
+	request: LessonRequest,
+	onEvent: (event: Exclude<LessonEvent, { type: 'done' | 'failed' | 'stopped' | 'turn' }>) => void,
+	signal?: AbortSignal
+): Promise<{ end: LessonEnd; messages?: TurnMessage[] }> {
 	let answer: { response: Response } | Failure;
 	try {
 		answer = await send('/ai/lesson', request, signal);
 	} catch {
 		answer = { problem: 'offline' };
 	}
-	if (signal?.aborted) return 'done';
-	if ('problem' in answer) return answer;
+	if (signal?.aborted) return { end: 'done' };
+	if ('problem' in answer) return { end: answer };
 	let ended: LessonEnd | undefined;
+	let messages: TurnMessage[] | undefined;
 	const read = await readLines(answer.response, (json) => {
 		const event = lessonEventSchema.safeParse(json);
 		if (!event.success) return;
@@ -173,11 +214,12 @@ export async function askLesson(
 		else if (e.type === 'failed') ended = { problem: e.problem };
 		else if (e.type === 'stopped')
 			ended = { problem: e.reason, ...(e.retryAfter > 0 ? { retryAfter: e.retryAfter } : {}) };
+		else if (e.type === 'turn') messages = e.messages;
 		else onEvent(e);
 	});
-	if (signal?.aborted) return 'done';
-	if (!read) return { problem: 'offline' };
-	return ended ?? { problem: 'offline' };
+	if (signal?.aborted) return { end: 'done' };
+	if (!read) return { end: { problem: 'offline' } };
+	return { end: ended ?? { problem: 'offline' }, ...(messages !== undefined ? { messages } : {}) };
 }
 
 /** Ask for the plan of the cards about to be written; what went wrong, or the plan. */

@@ -55,7 +55,11 @@ test('a file is attached with the paperclip, shown as a chip while it is read, a
 test('a proposal made from materials shows where each card comes from, and the cards are written from them', async ({
 	page
 }) => {
-	type Sent = { materials?: string; cards: { title: string; draws_on?: string[] }[] };
+	type Sent = {
+		materials?: string;
+		cards: { title: string; draws_on?: string[] }[];
+		resume?: unknown;
+	};
 	const sent: Sent[] = [];
 	const planned: { materials?: string }[] = [];
 	await page.route('**/ai/lesson', async (route) => {
@@ -98,8 +102,9 @@ test('a proposal made from materials shows where each card comes from, and the c
 	expect(planned[0].materials).toContain('x + 5 = 12');
 	expect(planned[0].materials).toContain('Ukázkový přepis obrázku');
 	for (const request of sent) expect(request.materials ?? '').toBe('');
-	// A card names the sections it draws on; one without sources names none.
-	const cards = sent.flatMap((r) => r.cards);
+	// A card names the sections it draws on; one without sources names none. A lesson's
+	// first request lists its cards; the next ones carry the conversation on (`resume`).
+	const cards = sent.filter((r) => r.resume === undefined).flatMap((r) => r.cards);
 	expect(cards).toHaveLength(5);
 	expect(cards.find((c) => c.title === 'Co to je')!.draws_on).toEqual([
 		expect.stringMatching(/^[0-9a-f]{8}\.0$/)

@@ -49,6 +49,22 @@ export type AssistantTurnData = z.infer<typeof assistantTurnSchema>;
 /** The plan's answer with its reasoning, at most this long as JSON. */
 export const MAX_TURN_CHARS = 400_000;
 
+/**
+ * A message of a lesson's conversation after its opening: the card turns, the model's
+ * answers and the tool results. Never a system message: the opening has the only one.
+ */
+export const turnMessageSchema = z.union([
+	assistantTurnSchema,
+	z.object({ role: z.literal('user'), content: z.string() }),
+	z.object({ role: z.literal('tool'), tool_call_id: z.string(), content: z.string() })
+]);
+export type TurnMessage = z.infer<typeof turnMessageSchema>;
+
+/** What the earlier turns of a lesson's conversation may add up to, as JSON. */
+export const MAX_RESUME_CHARS = 1_500_000;
+/** What the teacher changed since the lesson began, as the card message carries it. */
+export const MAX_CHANGED_CHARS = 40_000;
+
 export const lessonCardSchema = genRequestSchema.shape.card.extend({
 	/** The card's number in the plan, when the conversation starts with one. */
 	plan_card: z.number().int().min(1).optional(),
@@ -65,6 +81,22 @@ export const lessonRequestSchema = z.object({
 	/** The dossier: of the course, or with a plan only the lesson as it is now. */
 	context: z.string().max(MAX_CONTEXT_CHARS),
 	materials: z.string().max(MAX_MATERIALS_CHARS).optional(),
+	/**
+	 * The conversation goes on one card a turn, a request each, so that the browser can say
+	 * what the teacher changed in between: card `next` is written after `messages` (what the
+	 * earlier requests returned as `turn`), and `changed` goes into its message. The
+	 * request is otherwise the one that began the lesson, unchanged: its opening is the
+	 * conversation's prefix.
+	 */
+	resume: z
+		.object({
+			next: z.number().int().min(0),
+			messages: z
+				.array(turnMessageSchema)
+				.refine((m) => JSON.stringify(m).length <= MAX_RESUME_CHARS, { message: 'too long' }),
+			changed: z.string().max(MAX_CHANGED_CHARS).optional()
+		})
+		.optional(),
 	plan: z
 		.object({
 			request: planRequestSchema,
@@ -156,12 +188,14 @@ export function buildLessonRequest(
  * `writing`: card `card` (its index in the request) is being written; `card`: it is, here
  * it is; `card-failed`: it could not be, and the conversation goes on with the next;
  * `stopped`: the limits stopped the conversation before the next call (`retryAfter` in
- * seconds); `done` / `failed`: the end.
+ * seconds); `done` / `failed`: the end. A request with `resume` writes one card and sends
+ * `turn` before `done`: the messages it added to the conversation, to be sent back.
  */
 export type LessonEvent =
 	| { type: 'writing'; card: number }
 	| { type: 'card'; card: number; answer: GeneratedCard }
 	| { type: 'card-failed'; card: number }
+	| { type: 'turn'; messages: TurnMessage[] }
 	| { type: 'stopped'; reason: 'rate' | 'budget'; retryAfter: number }
 	| { type: 'done' }
 	| { type: 'failed'; problem: 'busy' | 'failed' };
@@ -170,6 +204,7 @@ export const lessonEventSchema: z.ZodType<LessonEvent> = z.union([
 	z.object({ type: z.literal('writing'), card: z.number().int().min(0) }),
 	z.object({ type: z.literal('card'), card: z.number().int().min(0), answer: generatedCardSchema }),
 	z.object({ type: z.literal('card-failed'), card: z.number().int().min(0) }),
+	z.object({ type: z.literal('turn'), messages: z.array(turnMessageSchema) }),
 	z.object({
 		type: z.literal('stopped'),
 		reason: z.enum(['rate', 'budget']),

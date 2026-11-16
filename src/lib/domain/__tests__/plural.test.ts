@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { answersCount, counted, errorsCount, plural } from '$lib/ui/plural';
+import { answersCount, counted, errorsCount, plural } from '$lib/domain/plural';
 
 describe('Czech noun agreement', () => {
 	it('picks the three forms a count can take', () => {

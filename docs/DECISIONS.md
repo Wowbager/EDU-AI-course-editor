@@ -738,7 +738,7 @@ followed by a table was called "Části zlomku | Pozice | Název | Co říká | 
 takes the first non-empty line, which is what its own doc comment always claimed.
 
 **Counted nouns were not Czech.** The chips printed „1 chyb“ and the tree „1 kroků“.
-Czech takes three forms after a number — 1, 2–4, and 0 or 5+ — and `ui/plural.ts` is
+Czech takes three forms after a number — 1, 2–4, and 0 or 5+ — and `domain/plural.ts` is
 now the one place that knows them, shared by the chips, the tree, the lesson settings
 and the question-type dialog.
 
@@ -3248,6 +3248,24 @@ did not see each other.
   offers them and `#write` uses the restored plan like the in-memory one. *Rejected:*
   resuming by itself on load (a reload would spend tokens nobody asked for), and
   localStorage (the plan request carries the materials and can be large).
+- **What the teacher edits during a lesson reaches the next card.** The conversation takes
+  the lesson's text once, at its start, so later cards wrote as if the teacher's edits were
+  not there. Now a lesson is one request a card (`resume`: the messages the earlier requests
+  returned as `turn`, sent back unchanged), and before each card after the first the browser
+  puts `changed_since_start` on that card's message: the cards the teacher edited, added or
+  removed since the conversation last knew them, in full as the dossier shows a card, once
+  (`lessonChanges`). A card the conversation wrote is known as written, so only the
+  teacher's later edit to it is reported. A report holds at most 12 000 characters of card
+  text; the rest comes with the next card. The server cannot ask the browser mid-stream and
+  keeps nothing between requests, hence a request a card. *Rejected:* re-sending the whole
+  lesson snapshot every turn (breaks the prefix cache, repeats what the model has);
+  rewriting earlier messages (same); a server-side store of the conversation, or a second
+  route the browser posts changes to (state on the server, racy). A moved card is not a
+  change; the next card's own steps in the message are still those of the start, the report
+  carries the teacher's current text.
+- **The dossier shows empty cards**: `### Cvičení (zatím prázdná)` in the current lesson
+  and the earlier ones, `- Cvičení (zatím prázdná)` in the outline, „+2 prázdné karty“ in
+  lessons shown as lines; the model used to not know the slot existed.
 
 ## Still open
 

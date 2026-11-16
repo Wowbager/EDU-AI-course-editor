@@ -8,6 +8,7 @@
  * which the provider's prefix cache relies on.
  */
 import { AUDIENCE_KEY, BRIEF_KEY, REQUEST_KEY } from './authoring';
+import { plural } from './plural';
 import type { BlockStep, BlockV2, CourseV2, LessonV2, QuestionConfig } from './schema';
 
 export const DOSSIER_BUDGET_TOKENS = 150_000;
@@ -68,6 +69,8 @@ function titleOf(block: BlockV2): string {
 	}
 	return '';
 }
+
+const EMPTY_NOTE = '(zatím prázdná)';
 
 const kindOf = (block: BlockV2): string => KIND_LABEL[block.type] ?? 'Karta';
 
@@ -155,7 +158,11 @@ function cardInFull(block: BlockV2, current: boolean): string {
 	}
 	if (text(block.hint) !== '') lines.push(`Nápověda ke kartě: ${clean(block.hint)}`);
 	if (text(block.help) !== '') lines.push(`Pomoc ke kartě: ${clean(block.help)}`);
-	if (current && lines.length === 1) lines.push('(zatím prázdná)');
+	// The marked card says it on a line of its own; any other empty card on its heading.
+	if (lines.length === 1) {
+		if (current) lines.push(EMPTY_NOTE);
+		else lines[0] += ` ${EMPTY_NOTE}`;
+	}
 	const body = lines.join('\n');
 	return current ? `${MARKER_OPEN}\n${body}\n${MARKER_CLOSE}` : body;
 }
@@ -187,18 +194,23 @@ function renderLesson(
 	const cards = cardsOf(doc, lesson);
 	if (level === 'full') {
 		for (const card of cards) {
-			const current = card.block_id === currentId;
-			if (!current && isEmptyCard(card)) continue;
-			lines.push('', cardInFull(card, current));
+			lines.push('', cardInFull(card, card.block_id === currentId));
 		}
 	} else {
+		// A slot is not a card to read: later lessons only say how many are still empty.
+		let empty = 0;
 		for (const card of cards) {
-			if (isEmptyCard(card)) continue;
+			if (isEmptyCard(card)) {
+				empty++;
+				continue;
+			}
 			const first = level === 'lines' ? firstText(card) : '';
 			lines.push(
 				`- ${kindOf(card)}: ${titleOf(card)}${first === '' || first === titleOf(card) ? '' : ` — ${first}`}`
 			);
 		}
+		if (empty > 0)
+			lines.push(`+${empty} ${plural(empty, 'prázdná karta', 'prázdné karty', 'prázdných karet')}`);
 	}
 	return lines.join('\n');
 }
@@ -209,8 +221,8 @@ function renderOutline(doc: CourseV2, upTo: number): string {
 		out.push('', ...lessonHead(lesson, i));
 		for (const card of cardsOf(doc, lesson)) {
 			const title = titleOf(card);
-			if (title === '') continue;
-			out.push(`- ${kindOf(card)}: ${title}`);
+			if (title !== '') out.push(`- ${kindOf(card)}: ${title}`);
+			else if (isEmptyCard(card)) out.push(`- ${kindOf(card)} ${EMPTY_NOTE}`);
 		}
 	});
 	if (upTo < doc.lessons.length) out.push('', TRUNCATED_NOTE);
@@ -328,4 +340,103 @@ export function lessonSnapshot(doc: CourseV2, lessonId: string): string {
 	const index = doc.lessons.findIndex((l) => l.lesson_id === lessonId);
 	if (index < 0) return '';
 	return `# Current lesson\n\n${renderLesson(doc, doc.lessons[index], index, 'full')}\n`;
+}
+
+// ───────────────────────── the teacher's changes during a lesson ─────────────────────────
+
+/** The most card text one report carries; the rest waits for the next turn. */
+export const CHANGES_MAX_CHARS = 12_000;
+/** Removed cards one report names; the rest are named in the next one. */
+export const CHANGES_MAX_REMOVED = 30;
+const MIN_CARD_ROOM = 300;
+
+/**
+ * What a lesson's conversation last knew of each card: the card as the dossier renders it
+ * (no ids, no URLs), and the line that names it when it is gone.
+ */
+export type LessonBaseline = ReadonlyMap<string, { text: string; label: string }>;
+
+const known = (card: BlockV2) => ({
+	text: cardInFull(card, false),
+	label: `- ${kindOf(card)}${titleOf(card) === '' ? ` ${EMPTY_NOTE}` : `: ${titleOf(card)}`}`
+});
+
+/** The lesson as the conversation starts with it. */
+export function lessonBaseline(doc: CourseV2, lessonId: string): LessonBaseline {
+	const lesson = doc.lessons.find((l) => l.lesson_id === lessonId);
+	return new Map(
+		(lesson === undefined ? [] : cardsOf(doc, lesson)).map((c) => [c.block_id, known(c)])
+	);
+}
+
+/**
+ * The conversation wrote `blockId`, and `doc` is the document right after it: from now on
+ * that text is what the conversation knows of the card, so its own writing is not reported
+ * back to it, and only what the teacher does to it afterwards is.
+ */
+export function withWritten(
+	baseline: LessonBaseline,
+	doc: CourseV2,
+	blockId: string
+): LessonBaseline {
+	const card = doc.blocks.find((b) => b.block_id === blockId);
+	return card === undefined ? baseline : new Map(baseline).set(blockId, known(card));
+}
+
+/**
+ * What the teacher changed in the lesson since the conversation last knew it: cards
+ * edited, added and removed, the first two in full as the dossier shows a card. `text` is
+ * `undefined` when nothing changed. `baseline` is what the conversation knows after the
+ * report (use it for the next call); a card left out of a report that is too long keeps its
+ * old baseline, so it comes in the next one. Moving a card is not a change.
+ */
+export function lessonChanges(
+	baseline: LessonBaseline,
+	doc: CourseV2,
+	lessonId: string
+): { text: string | undefined; baseline: LessonBaseline } {
+	const lesson = doc.lessons.find((l) => l.lesson_id === lessonId);
+	if (lesson === undefined) return { text: undefined, baseline };
+	const next = new Map(baseline);
+	const edited: string[] = [];
+	const added: string[] = [];
+	let size = 0;
+	const now = cardsOf(doc, lesson);
+	for (const card of now) {
+		const was = baseline.get(card.block_id);
+		const is = known(card);
+		if (was?.text === is.text) continue;
+		// The report as a whole stays under the cap: a card too long for what is left is cut
+		// (and counts as reported), one that has no room at all waits for the next report.
+		const room = CHANGES_MAX_CHARS - size;
+		if (room < MIN_CARD_ROOM && edited.length + added.length > 0) continue;
+		const shown =
+			is.text.length <= room
+				? is.text
+				: `${is.text.slice(0, Math.max(0, room - TRUNCATED_NOTE.length - 1)).trimEnd()}\n${TRUNCATED_NOTE}`;
+		size += shown.length;
+		(was === undefined ? added : edited).push(shown);
+		next.set(card.block_id, is);
+	}
+	const present = new Set(now.map((c) => c.block_id));
+	const removed: string[] = [];
+	let more = 0;
+	for (const [id, was] of baseline) {
+		if (present.has(id)) continue;
+		if (removed.length >= CHANGES_MAX_REMOVED) {
+			more++;
+			continue;
+		}
+		removed.push(was.label);
+		next.delete(id);
+	}
+	if (more > 0) removed.push(`(+${more} dalších)`);
+	const parts = [
+		...(edited.length > 0 ? ['Upraveno učitelem:', edited.join('\n\n')] : []),
+		...(added.length > 0 ? ['Přidáno učitelem:', added.join('\n\n')] : []),
+		...(removed.length > 0 ? ['Smazáno učitelem:', removed.join('\n')] : [])
+	];
+	return parts.length === 0
+		? { text: undefined, baseline }
+		: { text: parts.join('\n\n'), baseline: next };
 }

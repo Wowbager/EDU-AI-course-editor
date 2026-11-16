@@ -25,7 +25,7 @@
 	import { duplicateLesson, setField } from '$lib/domain/commands';
 	import { removeLesson } from './lesson-actions';
 	import { lessonDidactics, lessonTotals } from '$lib/domain/derive';
-	import { cardsCount } from '$lib/ui/plural';
+	import { cardsCount } from '$lib/domain/plural';
 	import { Copy, Trash } from '@lucide/svelte';
 
 	interface Props {

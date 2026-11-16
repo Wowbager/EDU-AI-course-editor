@@ -17,7 +17,7 @@
 	import Crumbs from '$lib/ui/Crumbs.svelte';
 	import { useStore } from '$lib/ui/context';
 	import { groupIssues, type IssueGroup, type IssueRow } from '$lib/domain/issue-groups';
-	import { counted, warningsCount } from '$lib/ui/plural';
+	import { counted, warningsCount } from '$lib/domain/plural';
 	import { fixModeOf, MODE_LABELS, MODE_RANK, type Mode } from '$lib/ui/fields';
 	import type { Ref } from '$lib/domain/ref';
 	import { ArrowRight, Download } from '@lucide/svelte';

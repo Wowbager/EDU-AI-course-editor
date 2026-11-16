@@ -13,7 +13,7 @@
 	import ExportDialog from './ExportDialog.svelte';
 	import VersionsDialog from './VersionsDialog.svelte';
 	import CourseSwitcher from './CourseSwitcher.svelte';
-	import { errorsCount, warningsCount } from '$lib/ui/plural';
+	import { errorsCount, warningsCount } from '$lib/domain/plural';
 
 	import type { DraftSession } from '$lib/state/draft-session.svelte';
 	import type { CourseEntry } from '$lib/state/courses';

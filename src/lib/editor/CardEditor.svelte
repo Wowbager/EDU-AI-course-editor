@@ -39,7 +39,7 @@
 	import StepEditor from './StepEditor.svelte';
 	import { useStepView, useStore } from '$lib/ui/context';
 	import { uniqueKeys } from '$lib/ui/keys';
-	import { counted } from '$lib/ui/plural';
+	import { counted } from '$lib/domain/plural';
 	import { cardSettingsSummary } from '$lib/ui/fields';
 	import {
 		addStep,

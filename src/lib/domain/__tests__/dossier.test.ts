@@ -10,7 +10,12 @@ import {
 	TRUNCATED_NOTE,
 	buildDossier,
 	estimateTokens,
-	lessonSnapshot
+	CHANGES_MAX_CHARS,
+	CHANGES_MAX_REMOVED,
+	lessonBaseline,
+	lessonChanges,
+	lessonSnapshot,
+	withWritten
 } from '../dossier';
 
 const text = (id: string, content: string): BlockStep => ({ id, type: 'text', content });
@@ -235,10 +240,35 @@ describe('buildDossier', () => {
 		expect(out).toContain('Viz [odkaz] a [odkaz].');
 	});
 
-	it('skips empty cards in the outline, but shows the current empty card', () => {
+	it('shows an empty card in the outline and the lesson, and marks the current one', () => {
 		const out = buildDossier(small(), 'B_EMPTY');
-		expect(out.split('## Outline')[1].split('# Earlier')[0]).not.toContain('Výklad:\n');
+		const outline = out.split('## Outline')[1].split('# Earlier')[0];
+		expect(outline).toContain('- Výklad (zatím prázdná)');
 		expect(out).toContain(`${MARKER_OPEN}\n### Výklad\n(zatím prázdná)\n${MARKER_CLOSE}`);
+		// Marked once; the heading form is for the cards that are not the current one.
+		expect(out.split('### Výklad (zatím prázdná)').length).toBe(1);
+	});
+
+	it('shows an empty card that is not the current one on its heading', () => {
+		const out = buildDossier(small(), 'B_T1');
+		const current = out.slice(out.indexOf('# Current lesson'), out.indexOf('# Later lessons'));
+		expect(current).toContain('### Výklad (zatím prázdná)');
+		expect(current).not.toContain(`${MARKER_OPEN}\n### Výklad (zatím prázdná)`);
+		expect(current).toContain(MARKER_OPEN);
+		expect(lessonSnapshot(small(), 'LES_TWO')).toContain('### Výklad (zatím prázdná)');
+	});
+
+	it('counts the empty cards of a later lesson instead of listing them', () => {
+		const doc = small();
+		doc.lessons[2].blocks.push({ block_id: 'B_E1' }, { block_id: 'B_E2' });
+		doc.blocks.push(block('B_E1', 'display', []), block('B_E2', 'exercise', []));
+		const out = buildDossier(doc, 'B_T1');
+		const later = out.slice(out.indexOf('# Later lessons'));
+		expect(later).toContain('+2 prázdné karty');
+		expect(later).not.toContain('zatím prázdná');
+		doc.blocks.pop();
+		doc.lessons[2].blocks.pop();
+		expect(buildDossier(doc, 'B_T1')).toContain('+1 prázdná karta');
 	});
 
 	it('uses the first text line as the name of an unnamed card, cut to 70 characters', () => {
@@ -425,5 +455,124 @@ describe('lessonSnapshot', () => {
 		const out = lessonSnapshot(small(), 'LES_ONE');
 		expect(out).toContain('Jen názorně.');
 		expect(out).toContain('Procvičit polovinu');
+	});
+});
+
+describe('lessonChanges: what the teacher changed since the conversation knew the lesson', () => {
+	const LESSON = 'LES_TWO';
+	const edited = (fn: (doc: CourseV2) => void): CourseV2 => {
+		const doc = structuredClone(small());
+		fn(doc);
+		return doc;
+	};
+	const cardOf = (doc: CourseV2, id: string) => doc.blocks.find((b) => b.block_id === id)!;
+
+	it('is nothing when nothing changed', () => {
+		const baseline = lessonBaseline(small(), LESSON);
+		const seen = lessonChanges(baseline, small(), LESSON);
+		expect(seen.text).toBeUndefined();
+		expect(seen.baseline).toBe(baseline);
+	});
+
+	it('reports an edited card in full, without ids, and reports it once', () => {
+		const baseline = lessonBaseline(small(), LESSON);
+		const now = edited((d) => {
+			cardOf(d, 'B_T1').steps[0].content = 'Nový text https://x.cz/tajne.png';
+		});
+		const first = lessonChanges(baseline, now, LESSON);
+		expect(first.text).toContain('Upraveno učitelem:');
+		expect(first.text).toContain('Nový text [odkaz]');
+		expect(first.text).not.toMatch(/B_T1|x\.cz/);
+		// Only that card; the lesson's other cards are not repeated.
+		expect(first.text).not.toContain('Přidáno');
+		expect(lessonChanges(first.baseline, now, LESSON).text).toBeUndefined();
+		// A further edit is a change again.
+		const more = edited((d) => {
+			cardOf(d, 'B_T1').steps[0].content = 'Ještě jinak';
+		});
+		expect(lessonChanges(first.baseline, more, LESSON).text).toContain('Ještě jinak');
+	});
+
+	it('reports a card the teacher added, and one the teacher removed', () => {
+		const baseline = lessonBaseline(small(), LESSON);
+		const now = edited((d) => {
+			d.blocks.push(block('B_NEW', 'exercise', [text('s_n', 'Příklad od učitele')]));
+			d.lessons[1].blocks = [{ block_id: 'B_NEW' }, { block_id: 'B_T1' }, { block_id: 'B_EMPTY' }];
+		});
+		const seen = lessonChanges(baseline, now, LESSON);
+		expect(seen.text).toContain('Přidáno učitelem:\n\n### Cvičení\nKrok 1:\nPříklad od učitele');
+		expect(seen.text).toContain('Smazáno učitelem:\n\n- Cvičení: Cvičení sčítání');
+		expect(seen.text).not.toContain('B_MERGED');
+		expect(lessonChanges(seen.baseline, now, LESSON).text).toBeUndefined();
+	});
+
+	it('does not report the cards the conversation wrote itself, only the teacher editing them after', () => {
+		const baseline = lessonBaseline(small(), LESSON);
+		const written = edited((d) => {
+			cardOf(d, 'B_EMPTY').steps = [text('s_e', 'Napsala AI')];
+		});
+		const known = withWritten(baseline, written, 'B_EMPTY');
+		expect(lessonChanges(known, written, LESSON).text).toBeUndefined();
+		const touched = structuredClone(written);
+		cardOf(touched, 'B_EMPTY').steps[0].content = 'Opravil učitel';
+		const seen = lessonChanges(known, touched, LESSON);
+		expect(seen.text).toContain('Opravil učitel');
+		expect(seen.text).not.toContain('Napsala AI');
+		// Without `withWritten` the AI's own text would have been reported.
+		expect(lessonChanges(baseline, written, LESSON).text).toContain('Napsala AI');
+	});
+
+	it('ignores other lessons and a card that only moved', () => {
+		const baseline = lessonBaseline(small(), LESSON);
+		const now = edited((d) => {
+			cardOf(d, 'B_LATE').steps[0].content = 'Jiná lekce';
+			d.lessons[1].blocks.reverse();
+		});
+		expect(lessonChanges(baseline, now, LESSON).text).toBeUndefined();
+		expect(lessonChanges(baseline, now, 'NENÍ').text).toBeUndefined();
+	});
+
+	it('holds back what does not fit one report, for the next', () => {
+		const baseline = lessonBaseline(small(), LESSON);
+		const now = edited((d) => {
+			cardOf(d, 'B_T1').steps[0].content = 'a'.repeat(CHANGES_MAX_CHARS);
+			cardOf(d, 'B_EMPTY').steps = [text('s_e', 'druhá')];
+		});
+		const first = lessonChanges(baseline, now, LESSON);
+		expect(first.text).toContain('aaaa');
+		expect(first.text).not.toContain('druhá');
+		const second = lessonChanges(first.baseline, now, LESSON);
+		expect(second.text).toContain('druhá');
+		expect(second.text).not.toContain('aaaa');
+	});
+
+	it('cuts a card longer than the cap, so that the report always fits', () => {
+		const baseline = lessonBaseline(small(), LESSON);
+		const now = edited((d) => {
+			cardOf(d, 'B_T1').steps[0].content = 'a'.repeat(60_000);
+		});
+		const first = lessonChanges(baseline, now, LESSON);
+		expect(first.text!.length).toBeLessThanOrEqual(CHANGES_MAX_CHARS + 200);
+		expect(first.text).toContain(TRUNCATED_NOTE);
+		// Reported as far as it goes: not again.
+		expect(lessonChanges(first.baseline, now, LESSON).text).toBeUndefined();
+	});
+
+	it('names a limited number of removed cards, the rest in the next report', () => {
+		const many = edited((d) => {
+			for (let i = 0; i < 50; i++) {
+				d.blocks.push(block(`X${i}`, 'display', [text(`x${i}`, `Karta ${i}`)]));
+				d.lessons[1].blocks.push({ block_id: `X${i}` });
+			}
+		});
+		const baseline = lessonBaseline(many, LESSON);
+		const first = lessonChanges(baseline, small(), LESSON);
+		expect(first.text!.split('\n').filter((l) => l.startsWith('- ')).length).toBe(
+			CHANGES_MAX_REMOVED
+		);
+		expect(first.text).toContain('(+20 dalších)');
+		const second = lessonChanges(first.baseline, small(), LESSON);
+		expect(second.text).toContain('Karta 49');
+		expect(second.text).not.toContain('dalších');
 	});
 });
