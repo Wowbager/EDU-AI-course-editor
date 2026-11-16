@@ -341,3 +341,86 @@ export function lessonSnapshot(doc: CourseV2, lessonId: string): string {
 	if (index < 0) return '';
 	return `# Current lesson\n\n${renderLesson(doc, doc.lessons[index], index, 'full')}\n`;
 }
+
+// ───────────────────────── the teacher's changes during a lesson ─────────────────────────
+
+/** The most card text one report carries; the rest waits for the next turn. */
+export const CHANGES_MAX_CHARS = 12_000;
+
+/**
+ * What a lesson's conversation last knew of each card: the card as the dossier renders it
+ * (no ids, no URLs), and the line that names it when it is gone.
+ */
+export type LessonBaseline = ReadonlyMap<string, { text: string; label: string }>;
+
+const known = (card: BlockV2) => ({
+	text: cardInFull(card, false),
+	label: `- ${kindOf(card)}${titleOf(card) === '' ? ` ${EMPTY_NOTE}` : `: ${titleOf(card)}`}`
+});
+
+/** The lesson as the conversation starts with it. */
+export function lessonBaseline(doc: CourseV2, lessonId: string): LessonBaseline {
+	const lesson = doc.lessons.find((l) => l.lesson_id === lessonId);
+	return new Map(
+		(lesson === undefined ? [] : cardsOf(doc, lesson)).map((c) => [c.block_id, known(c)])
+	);
+}
+
+/**
+ * The conversation wrote `blockId`, and `doc` is the document right after it: from now on
+ * that text is what the conversation knows of the card, so its own writing is not reported
+ * back to it, and only what the teacher does to it afterwards is.
+ */
+export function withWritten(
+	baseline: LessonBaseline,
+	doc: CourseV2,
+	blockId: string
+): LessonBaseline {
+	const card = doc.blocks.find((b) => b.block_id === blockId);
+	return card === undefined ? baseline : new Map(baseline).set(blockId, known(card));
+}
+
+/**
+ * What the teacher changed in the lesson since the conversation last knew it: cards
+ * edited, added and removed, the first two in full as the dossier shows a card. `text` is
+ * `undefined` when nothing changed. `baseline` is what the conversation knows after the
+ * report (use it for the next call); a card left out of a report that is too long keeps its
+ * old baseline, so it comes in the next one. Moving a card is not a change.
+ */
+export function lessonChanges(
+	baseline: LessonBaseline,
+	doc: CourseV2,
+	lessonId: string
+): { text: string | undefined; baseline: LessonBaseline } {
+	const lesson = doc.lessons.find((l) => l.lesson_id === lessonId);
+	if (lesson === undefined) return { text: undefined, baseline };
+	const next = new Map(baseline);
+	const edited: string[] = [];
+	const added: string[] = [];
+	let size = 0;
+	const now = cardsOf(doc, lesson);
+	for (const card of now) {
+		const was = baseline.get(card.block_id);
+		const is = known(card);
+		if (was?.text === is.text) continue;
+		if (edited.length + added.length > 0 && size + is.text.length > CHANGES_MAX_CHARS) continue;
+		size += is.text.length;
+		(was === undefined ? added : edited).push(is.text);
+		next.set(card.block_id, is);
+	}
+	const present = new Set(now.map((c) => c.block_id));
+	const removed: string[] = [];
+	for (const [id, was] of baseline) {
+		if (present.has(id)) continue;
+		removed.push(was.label);
+		next.delete(id);
+	}
+	const parts = [
+		...(edited.length > 0 ? ['Upraveno učitelem:', edited.join('\n\n')] : []),
+		...(added.length > 0 ? ['Přidáno učitelem:', added.join('\n\n')] : []),
+		...(removed.length > 0 ? ['Smazáno učitelem:', removed.join('\n')] : [])
+	];
+	return parts.length === 0
+		? { text: undefined, baseline }
+		: { text: parts.join('\n\n'), baseline: next };
+}

@@ -10,7 +10,11 @@ import {
 	TRUNCATED_NOTE,
 	buildDossier,
 	estimateTokens,
-	lessonSnapshot
+	CHANGES_MAX_CHARS,
+	lessonBaseline,
+	lessonChanges,
+	lessonSnapshot,
+	withWritten
 } from '../dossier';
 
 const text = (id: string, content: string): BlockStep => ({ id, type: 'text', content });
@@ -450,5 +454,94 @@ describe('lessonSnapshot', () => {
 		const out = lessonSnapshot(small(), 'LES_ONE');
 		expect(out).toContain('Jen názorně.');
 		expect(out).toContain('Procvičit polovinu');
+	});
+});
+
+describe('lessonChanges: what the teacher changed since the conversation knew the lesson', () => {
+	const LESSON = 'LES_TWO';
+	const edited = (fn: (doc: CourseV2) => void): CourseV2 => {
+		const doc = structuredClone(small());
+		fn(doc);
+		return doc;
+	};
+	const cardOf = (doc: CourseV2, id: string) => doc.blocks.find((b) => b.block_id === id)!;
+
+	it('is nothing when nothing changed', () => {
+		const baseline = lessonBaseline(small(), LESSON);
+		const seen = lessonChanges(baseline, small(), LESSON);
+		expect(seen.text).toBeUndefined();
+		expect(seen.baseline).toBe(baseline);
+	});
+
+	it('reports an edited card in full, without ids, and reports it once', () => {
+		const baseline = lessonBaseline(small(), LESSON);
+		const now = edited((d) => {
+			cardOf(d, 'B_T1').steps[0].content = 'Nový text https://x.cz/tajne.png';
+		});
+		const first = lessonChanges(baseline, now, LESSON);
+		expect(first.text).toContain('Upraveno učitelem:');
+		expect(first.text).toContain('Nový text [odkaz]');
+		expect(first.text).not.toMatch(/B_T1|x\.cz/);
+		// Only that card; the lesson's other cards are not repeated.
+		expect(first.text).not.toContain('Přidáno');
+		expect(lessonChanges(first.baseline, now, LESSON).text).toBeUndefined();
+		// A further edit is a change again.
+		const more = edited((d) => {
+			cardOf(d, 'B_T1').steps[0].content = 'Ještě jinak';
+		});
+		expect(lessonChanges(first.baseline, more, LESSON).text).toContain('Ještě jinak');
+	});
+
+	it('reports a card the teacher added, and one the teacher removed', () => {
+		const baseline = lessonBaseline(small(), LESSON);
+		const now = edited((d) => {
+			d.blocks.push(block('B_NEW', 'exercise', [text('s_n', 'Příklad od učitele')]));
+			d.lessons[1].blocks = [{ block_id: 'B_NEW' }, { block_id: 'B_T1' }, { block_id: 'B_EMPTY' }];
+		});
+		const seen = lessonChanges(baseline, now, LESSON);
+		expect(seen.text).toContain('Přidáno učitelem:\n\n### Cvičení\nKrok 1:\nPříklad od učitele');
+		expect(seen.text).toContain('Smazáno učitelem:\n\n- Cvičení: Cvičení sčítání');
+		expect(seen.text).not.toContain('B_MERGED');
+		expect(lessonChanges(seen.baseline, now, LESSON).text).toBeUndefined();
+	});
+
+	it('does not report the cards the conversation wrote itself, only the teacher editing them after', () => {
+		const baseline = lessonBaseline(small(), LESSON);
+		const written = edited((d) => {
+			cardOf(d, 'B_EMPTY').steps = [text('s_e', 'Napsala AI')];
+		});
+		const known = withWritten(baseline, written, 'B_EMPTY');
+		expect(lessonChanges(known, written, LESSON).text).toBeUndefined();
+		const touched = structuredClone(written);
+		cardOf(touched, 'B_EMPTY').steps[0].content = 'Opravil učitel';
+		const seen = lessonChanges(known, touched, LESSON);
+		expect(seen.text).toContain('Opravil učitel');
+		expect(seen.text).not.toContain('Napsala AI');
+		// Without `withWritten` the AI's own text would have been reported.
+		expect(lessonChanges(baseline, written, LESSON).text).toContain('Napsala AI');
+	});
+
+	it('ignores other lessons and a card that only moved', () => {
+		const baseline = lessonBaseline(small(), LESSON);
+		const now = edited((d) => {
+			cardOf(d, 'B_LATE').steps[0].content = 'Jiná lekce';
+			d.lessons[1].blocks.reverse();
+		});
+		expect(lessonChanges(baseline, now, LESSON).text).toBeUndefined();
+		expect(lessonChanges(baseline, now, 'NENÍ').text).toBeUndefined();
+	});
+
+	it('holds back what does not fit one report, for the next', () => {
+		const baseline = lessonBaseline(small(), LESSON);
+		const now = edited((d) => {
+			cardOf(d, 'B_T1').steps[0].content = 'a'.repeat(CHANGES_MAX_CHARS);
+			cardOf(d, 'B_EMPTY').steps = [text('s_e', 'druhá')];
+		});
+		const first = lessonChanges(baseline, now, LESSON);
+		expect(first.text).toContain('aaaa');
+		expect(first.text).not.toContain('druhá');
+		const second = lessonChanges(first.baseline, now, LESSON);
+		expect(second.text).toContain('druhá');
+		expect(second.text).not.toContain('aaaa');
 	});
 });
