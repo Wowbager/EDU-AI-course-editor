@@ -1,15 +1,18 @@
 /**
- * Writing many cards, a few at a time, in course order.
+ * Writing many cards: a lesson at a time in one conversation, a few lessons at once, in
+ * course order.
  *
  * The browser runs it (there is no job server): every card that is finished is in the
  * document at once, so it is saved like any edit, and a closed tab loses only the cards
- * not yet started. `stop` stops *starting* cards; the ones being written finish. `resume`
- * starts again with the cards that are not done.
+ * not yet written. The runner takes a lesson's waiting cards together and reports each
+ * card as it goes (`writing`, `done`, `failed`). `stop` starts no lesson and no card
+ * after the ones being written; `resume` starts again with the cards that are not done.
  *
- * The runner does the writing and says how it went. A request the server refused for
- * speed (`rate`) waits as long as the server said and tries once more; a spent day
+ * The runner says how the lesson ended. Refused for speed (`rate`), the lesson's
+ * unfinished cards wait as long as the server said and are tried once more; a spent day
  * (`budget`) stops the queue, since every other card would fail the same way; so does a
- * second `rate` right after the wait.
+ * second `rate` right after the wait. Then the card that was next is failed and the rest
+ * wait for „Dopsat zbytek“. Any other problem fails the lesson's unfinished cards.
  *
  * A card can be held (`start`'s `held`): it waits, as any card does, and is not started
  * until it is released, while the others go on.
@@ -24,6 +27,15 @@ export interface Row {
 	state: RowState;
 }
 
+/** What the runner is given with a lesson's cards. */
+export interface RunContext {
+	/** Says how one of the cards is doing. */
+	report(row: Row, state: RowState): void;
+	/** The queue was stopped: write no further card. */
+	stopped(): boolean;
+}
+
+/** Lessons written at once. */
 export const CONCURRENCY = 4;
 /** Without a `Retry-After`, and at most, in seconds. */
 const DEFAULT_WAIT = 15;
@@ -38,9 +50,11 @@ export class WriteQueue {
 	#inflight = 0;
 	/** Cards not to be started yet. */
 	#held = new Set<string>();
+	/** Rows a running lesson has taken, waiting or not. */
+	#claimed = new Set<Row>();
 
 	constructor(
-		private readonly run: (row: Row) => Promise<RunResult>,
+		private readonly run: (rows: Row[], context: RunContext) => Promise<RunResult>,
 		private readonly options: {
 			concurrency?: number;
 			wait?: (seconds: number) => Promise<void>;
@@ -63,13 +77,18 @@ export class WriteQueue {
 		);
 	}
 
-	/** A card the teacher opens is written next: it goes ahead of the cards still waiting. */
+	/**
+	 * A card the teacher opens is written soon: its lesson's waiting cards go ahead of the
+	 * other cards still waiting, in their order, since a lesson is written front to back.
+	 */
 	prioritise(blockId: string) {
-		const at = this.rows.findIndex((r) => r.blockId === blockId && r.state === 'waiting');
-		const first = this.rows.findIndex((r) => r.state === 'waiting');
-		if (at < 0 || at === first) return;
-		const [row] = this.rows.splice(at, 1);
-		this.rows.splice(first, 0, row);
+		const row = this.rows.find((r) => r.blockId === blockId && this.#free(r));
+		const first = this.rows.findIndex((r) => this.#free(r));
+		if (row === undefined || first < 0) return;
+		const ahead = this.rows.filter((r) => this.#free(r) && r.lessonId === row.lessonId);
+		if (ahead.every((r, i) => this.rows[first + i] === r)) return;
+		const others = this.rows.slice(first).filter((r) => !ahead.includes(r));
+		this.rows = [...this.rows.slice(0, first), ...ahead, ...others];
 	}
 
 	get writing(): boolean {
@@ -122,16 +141,24 @@ export class WriteQueue {
 		this.rows = [];
 		this.stoppedBy = null;
 		this.#held.clear();
+		this.#claimed.clear();
+	}
+
+	/** Waiting, not held and not taken by a lesson being written. */
+	#free(row: Row): boolean {
+		return row.state === 'waiting' && !this.#held.has(row.blockId) && !this.#claimed.has(row);
 	}
 
 	#pump() {
 		const limit = this.options.concurrency ?? CONCURRENCY;
 		while (this.running && this.#inflight < limit) {
-			const row = this.rows.find((r) => r.state === 'waiting' && !this.#held.has(r.blockId));
-			if (row === undefined) break;
-			row.state = 'writing';
+			const first = this.rows.find((r) => this.#free(r));
+			if (first === undefined) break;
+			const batch = this.rows.filter((r) => this.#free(r) && r.lessonId === first.lessonId);
+			for (const row of batch) this.#claimed.add(row);
 			this.#inflight++;
-			void this.#one(row).finally(() => {
+			void this.#lesson(batch).finally(() => {
+				for (const row of batch) this.#claimed.delete(row);
 				this.#inflight--;
 				this.#pump();
 			});
@@ -140,30 +167,42 @@ export class WriteQueue {
 			this.running = false;
 	}
 
-	async #one(row: Row) {
-		let result = await this.run(row);
+	async #lesson(batch: Row[]) {
+		const context: RunContext = {
+			report: (row, state) => {
+				if (this.rows.includes(row)) row.state = state;
+			},
+			stopped: () => !this.running
+		};
+		const left = () =>
+			batch.filter(
+				(r) => this.rows.includes(r) && (r.state === 'waiting' || r.state === 'writing')
+			);
+		let result = await this.run(batch, context);
 		if (typeof result === 'object' && result.problem === 'rate') {
+			for (const row of left()) row.state = 'waiting';
 			const seconds = Math.min(result.retryAfter ?? DEFAULT_WAIT, MAX_WAIT);
 			await (this.options.wait ?? ((s) => new Promise<void>((r) => setTimeout(r, s * 1000))))(
 				seconds
 			);
-			// Stopped meanwhile: the card is not started again.
-			if (!this.running || !this.rows.includes(row)) {
-				if (this.rows.includes(row)) row.state = 'waiting';
-				return;
-			}
-			result = await this.run(row);
+			// Stopped meanwhile: the cards are not started again.
+			if (!this.running || left().length === 0) return;
+			result = await this.run(left(), context);
 		}
-		if (!this.rows.includes(row)) return;
-		if (result === 'done') row.state = 'done';
-		else {
-			row.state = 'failed';
-			// Refused again right after waiting: every other card would be too. Stop, with
-			// the rest waiting, so „Dopsat zbytek“ goes on later.
-			if (result.problem === 'budget' || result.problem === 'rate') {
-				this.stoppedBy = result.problem;
-				this.running = false;
-			}
+		const rest = left();
+		if (result === 'done') {
+			// Stopped half way: the cards not reached wait. Otherwise none should be left.
+			for (const row of rest) row.state = this.running ? 'failed' : 'waiting';
+			return;
 		}
+		if (result.problem === 'other') {
+			for (const row of rest) row.state = 'failed';
+			return;
+		}
+		// Refused again right after waiting, or the day is spent: every other card would be
+		// too. Stop, with the rest waiting, so „Dopsat zbytek“ goes on later.
+		rest.forEach((row, i) => (row.state = i === 0 ? 'failed' : 'waiting'));
+		this.stoppedBy = result.problem;
+		this.running = false;
 	}
 }

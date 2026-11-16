@@ -3149,6 +3149,49 @@ existed (versions, outlines, materials) but no way to reach another course.
 - **Proposed, not built:** a per-row ⋯ menu („Vytvořit kopii“, „Smazat“), a full
   management dialog, search. The popover scrolls past ~8 rows instead.
 
+## Round 34 — a plan first, then one conversation per lesson
+
+Cards written one request each drifted: terms, notation, examples, difficulty and tone
+were decided again for every card, and cards written at the same time in one lesson
+did not see each other.
+
+- **A plan between „Vytvořit vybrané“ and the writing** (`domain/plan.ts`, `/ai/plan`):
+  one call at `high` effort that writes out the course's terms, notation, address and
+  running examples, a note per lesson, and per card what it teaches, assumes, uses as
+  example and which mistake its questions aim at. The prompt asks for every decision in
+  writing: a model told only to decide did not carry it over. It is kept where the
+  dossier already reads it, and only where the field is empty: the course's and the
+  lesson's `ai_context` („Poznámka pro AI“) and the card's `brief` („Záměr karty“),
+  through `DocStore.amend`, so the insert's undo takes it along. A later „Dopsat kartu“
+  follows it from there. *Rejected:* a new course key for the conventions (invisible and
+  not editable for the teacher; `ai_context` is read by nothing in the app yet). When the
+  teacher already wrote the course's note, the plan's conventions are only in the
+  conversation, not kept.
+- **One conversation per lesson, one card a turn** (`server/ai/lesson.ts`, `/ai/lesson`):
+  lessons in parallel (4), cards in a lesson in order, each earlier card and its
+  reasoning in the conversation. A card arrives as a `write_card` tool call and the tool
+  result is the check: "ok", or the reason (`cardProblem`), twice at most, then the card
+  fails and the next one is written. Every request defines both tools: hosts keep the
+  model's earlier reasoning only when the request has tools (measured on OpenRouter:
+  dropped silently without them). Each turn is a non-streamed call; the route streams one
+  event per card and an empty line every 15 s, so a long plan is not cut by a proxy.
+- **The plan's reasoning is carried** by handing its turn back: the browser keeps the plan
+  request and the model's answer in memory and sends them with each lesson, which opens
+  with exactly that, so the opening is the same for every lesson of the course (prefix
+  cache). After a reload only what the plan left in the document is followed.
+- **„Dopsat kartu“ is a lesson of one card** on the same route and prompt; `/ai/block` is
+  only the GET that says whether AI is offered. *Rejected:* keeping the one-shot JSON route
+  beside it (two prompts to keep in step).
+- **Limits count model calls, not requests.** The first call is checked before the answer
+  starts (a 429 as before); every later call is checked in the conversation, and a refusal
+  ends it with `stopped`: the queue waits and continues the lesson's unfinished cards, or
+  stops on a spent day.
+- **The queue takes a lesson at a time.** Opening a card moves its lesson ahead, not the
+  card alone (a lesson is written front to back). „Zastavit“ lets each running lesson
+  finish the card it is writing, then ends that conversation.
+- **One line while the plan is made**: „Promýšlím karty…“ above the rows, which otherwise
+  all say „Čeká na řadu“ for the plan's minute.
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

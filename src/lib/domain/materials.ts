@@ -173,7 +173,7 @@ const titlesText = (sections: readonly Section[]): string =>
 const fullText = (sections: readonly Section[]): string =>
 	sections.map((s) => `### ${heading(s)}\n\n${s.text.trim()}`).join('\n\n');
 
-export type MaterialsFor = 'outline' | 'card';
+export type MaterialsFor = 'outline' | 'card' | 'lesson';
 
 /**
  * The materials as one text for the model, or '' when there are none.
@@ -183,6 +183,8 @@ export type MaterialsFor = 'outline' | 'card';
  *   (`refs`) are said at the end, so the text before them is the same for every card.
  *   When it does not fit, the named sections in full (as many as fit) and only the titles
  *   of the others; a card that names none gets the index.
+ * - `lesson`: as `card`, for the cards of one lesson written in one conversation: `refs`
+ *   are all their sections, and each card says its own in its turn.
  */
 export function renderMaterials(
 	sections: readonly Section[],
@@ -192,8 +194,10 @@ export function renderMaterials(
 	const fits = fitsFully(sections);
 	const refs = new Set(use.refs ?? []);
 	const named = sections.filter((s) => refs.has(s.key));
+	const lesson = use.for === 'lesson';
+	// A lesson's cards say each in their own turn which sections they draw on.
 	const mainly =
-		named.length === 0
+		named.length === 0 || lesson
 			? ''
 			: `\n\nThis card draws mainly on: ${named.map((s) => `[${s.key}]`).join(', ')}.`;
 
@@ -204,7 +208,7 @@ export function renderMaterials(
 
 	if (fits) return `The materials in full:\n\n${fullText(sections)}${mainly}`;
 	if (named.length === 0)
-		return `Index of the materials (only the index, no section is named for this card):\n${indexText(sections)}`;
+		return `Index of the materials (only the index, no section is named for ${lesson ? 'these cards' : 'this card'}):\n${indexText(sections)}`;
 	// The named sections in full, as many as fit; the rest, and the others, by title.
 	let room = FULL_TEXT_TOKENS;
 	const whole: Section[] = [];
@@ -216,7 +220,7 @@ export function renderMaterials(
 		} else left.push(s);
 	}
 	const others = [...sections.filter((s) => !refs.has(s.key)), ...left];
-	return `The sections this card draws on, in full:\n\n${fullText(whole)}\n\nThe other sections, by title only:\n${titlesText(others)}`;
+	return `The sections ${lesson ? 'these cards draw' : 'this card draws'} on, in full:\n\n${fullText(whole)}\n\nThe other sections, by title only:\n${titlesText(others)}`;
 }
 
 // ───────────────────────────────── a Word file into sections ─────────────────────────────────

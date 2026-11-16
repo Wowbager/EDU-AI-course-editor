@@ -9,7 +9,8 @@ import {
 	MARKER_OPEN,
 	TRUNCATED_NOTE,
 	buildDossier,
-	estimateTokens
+	estimateTokens,
+	lessonSnapshot
 } from '../dossier';
 
 const text = (id: string, content: string): BlockStep => ({ id, type: 'text', content });
@@ -353,5 +354,76 @@ describe("the teacher's request in the dossier", () => {
 		expect(out).toContain('Zadání učitele');
 		expect(out).toContain('Kurz o zlomcích pro 5. třídu, 3 lekce');
 		expect(buildDossier(small(), 'B_T1')).not.toContain('Zadání učitele');
+	});
+});
+
+describe("a lesson's dossier (no card)", () => {
+	it('shows the current lesson in full with no card marked, and the earlier ones in full', () => {
+		const out = buildDossier(small(), undefined, 'LES_TWO');
+		expect(out).not.toContain(MARKER_OPEN);
+		expect(out).not.toContain(MARKER_CLOSE);
+		const at = (s: string) => out.indexOf(s);
+		const order = [
+			'# Earlier lessons',
+			'Zlomek má čitatele',
+			'# Current lesson',
+			'Společný jmenovatel'
+		];
+		const places = order.map(at);
+		expect(places.every((p) => p >= 0)).toBe(true);
+		expect(places).toEqual([...places].sort((a, b) => a - b));
+		// The current lesson is in full: the merged exercise's steps are there.
+		expect(out).toContain('Kolik je 1/2 + 1/2?');
+		// The later lesson is only first lines.
+		expect(out).toContain('# Later lessons');
+		expect(out).toContain('Pozdní výklad');
+	});
+
+	it('is the same as the card dossier but for the marker', () => {
+		const doc = small();
+		const lesson = buildDossier(doc, undefined, 'LES_ONE');
+		const card = buildDossier(doc, 'B_Q', 'LES_ONE');
+		expect(card).toContain(MARKER_OPEN);
+		expect(
+			card
+				.replace(MARKER_OPEN, '')
+				.replace(MARKER_CLOSE, '')
+				.replace(/\n{3,}/g, '\n\n')
+		).toContain('Procvičit polovinu');
+		expect(lesson).toContain('Procvičit polovinu');
+	});
+
+	it('is the course and the outline when the lesson is unknown or not given', () => {
+		const doc = small();
+		for (const out of [buildDossier(doc, undefined, 'GONE'), buildDossier(doc, undefined)]) {
+			expect(out).toContain('## Course');
+			expect(out).toContain('## Outline');
+			expect(out).not.toContain('# Current lesson');
+			expect(out).not.toContain(MARKER_OPEN);
+		}
+	});
+});
+
+describe('lessonSnapshot', () => {
+	it('renders one lesson in full under "# Current lesson", with no card marked', () => {
+		const out = lessonSnapshot(small(), 'LES_TWO');
+		expect(out.startsWith('# Current lesson\n\n')).toBe(true);
+		expect(out).toContain('Sčítání');
+		expect(out).toContain('Společný jmenovatel');
+		expect(out).toContain('Kolik je 1/2 + 1/2?');
+		expect(out).not.toContain(MARKER_OPEN);
+		expect(out).not.toContain('Zlomek má čitatele');
+		expect(out).not.toContain('Pozdní výklad');
+		expect(out.endsWith('\n')).toBe(true);
+	});
+
+	it('is empty for an unknown lesson', () => {
+		expect(lessonSnapshot(small(), 'GONE')).toBe('');
+	});
+
+	it("shows the teacher's note and brief of the lesson's cards", () => {
+		const out = lessonSnapshot(small(), 'LES_ONE');
+		expect(out).toContain('Jen názorně.');
+		expect(out).toContain('Procvičit polovinu');
 	});
 });

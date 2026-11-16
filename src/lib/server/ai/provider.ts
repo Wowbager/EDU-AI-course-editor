@@ -1,10 +1,10 @@
 /**
- * One call to an OpenAI-compatible chat endpoint (OpenRouter, or DeepSeek directly),
- * asking for a JSON object. This is the only file that knows a provider; everything
- * else sees `Complete`.
+ * Calls to an OpenAI-compatible chat endpoint (OpenRouter, or DeepSeek directly): a JSON
+ * object (`Complete`), lines of them (`Stream`), a turn of a conversation with tools
+ * (`Chat`), or a picture read (`Vision`). This is the only file that knows a provider.
  */
-import type { AiConfig } from './config';
-import { fakeComplete, fakeRead, fakeStream } from './fake';
+import type { AiConfig, ReasoningEffort } from './config';
+import { fakeChat, fakeComplete, fakeRead, fakeStream } from './fake';
 import { weightedTokens, type Usage } from './limits';
 
 export type Message = { role: 'system' | 'user' | 'assistant'; content: string };
@@ -63,6 +63,201 @@ export function buildBody(
 		};
 	}
 	return body;
+}
+
+// ───────────────────────────── a conversation with a tool ─────────────────────────────
+
+/** A tool call as the host returns it; `arguments` is the JSON text the model wrote. */
+export type ToolCall = {
+	id: string;
+	type: 'function';
+	function: { name: string; arguments: string };
+};
+
+/**
+ * What the model said in one turn, kept to be sent back as it came: its reasoning goes
+ * with it, in whichever field the host used (`reasoning_details` exactly as returned).
+ * A host keeps earlier reasoning only when the request defines tools; every request
+ * here does.
+ */
+export type AssistantTurn = {
+	role: 'assistant';
+	content: string;
+	tool_calls?: ToolCall[];
+	reasoning_details?: unknown[];
+	reasoning_content?: string;
+	reasoning?: string;
+};
+
+export type ChatMessage =
+	Message | AssistantTurn | { role: 'tool'; tool_call_id: string; content: string };
+
+/** The tools every conversation defines, so that their prefix is the same everywhere. */
+export type ToolName = 'save_plan' | 'write_card';
+
+export type ChatOptions = {
+	/** The tool the model must call this turn. */
+	tool: ToolName;
+	/** Instead of the configured effort (the plan thinks harder than a card). */
+	effort?: ReasoningEffort;
+	timeoutMs?: number;
+	signal?: AbortSignal;
+};
+
+/** One turn of a conversation: the model's answer, and what the call used. */
+export type Chat = (
+	messages: readonly ChatMessage[],
+	options: ChatOptions
+) => Promise<{ turn: AssistantTurn; tokens: number }>;
+
+/**
+ * The two tools. Their parameters are described loosely: the system prompt gives the
+ * shape, and the answer is checked here, so a host's own schema check adds nothing.
+ */
+export const TOOLS = [
+	{
+		type: 'function',
+		function: {
+			name: 'save_plan',
+			description: 'Save the plan for the new cards, before any card is written.',
+			parameters: {
+				type: 'object',
+				properties: {
+					conventions: { type: 'string' },
+					lessons: {
+						type: 'array',
+						items: {
+							type: 'object',
+							properties: { lesson: { type: 'integer' }, note: { type: 'string' } },
+							required: ['lesson', 'note']
+						}
+					},
+					cards: {
+						type: 'array',
+						items: {
+							type: 'object',
+							properties: { card: { type: 'integer' }, brief: { type: 'string' } },
+							required: ['card', 'brief']
+						}
+					}
+				},
+				required: ['conventions', 'lessons', 'cards']
+			}
+		}
+	},
+	{
+		type: 'function',
+		function: {
+			name: 'write_card',
+			description: 'Write the whole card asked for in the last message.',
+			parameters: {
+				type: 'object',
+				properties: { steps: { type: 'array', items: { type: 'object' } } },
+				required: ['steps']
+			}
+		}
+	}
+] as const;
+
+/** The longest a turn may take: a plan of a whole course thinks for a while. */
+export const PLAN_TIMEOUT_MS = 300_000;
+
+export function buildChatBody(
+	config: AiConfig,
+	messages: readonly ChatMessage[],
+	options: Pick<ChatOptions, 'tool' | 'effort'>
+): Record<string, unknown> {
+	const effort = options.effort ?? config.reasoningEffort;
+	const body: Record<string, unknown> = { model: config.model, messages, tools: TOOLS };
+	if (config.provider === 'deepseek') {
+		// Whether DeepSeek's own API takes a forced tool while thinking is not known; the
+		// answer is read from the text when the model writes it there instead.
+		body.thinking = { type: effort === 'none' ? 'disabled' : 'enabled' };
+	} else {
+		body.tool_choice = { type: 'function', function: { name: options.tool } };
+		body.reasoning = { effort };
+		body.provider = { require_parameters: true, data_collection: 'deny', max_price: MAX_PRICE };
+	}
+	return body;
+}
+
+type HostMessage = {
+	content?: unknown;
+	tool_calls?: unknown;
+	reasoning_details?: unknown;
+	reasoning_content?: unknown;
+	reasoning?: unknown;
+};
+
+/** The answer as it will be sent back: one reasoning field, the one the host filled. */
+export function turnOf(message: HostMessage): AssistantTurn {
+	const turn: AssistantTurn = {
+		role: 'assistant',
+		content: typeof message.content === 'string' ? message.content : ''
+	};
+	if (Array.isArray(message.tool_calls)) {
+		const calls = message.tool_calls.flatMap((c): ToolCall[] => {
+			const call = c as { id?: unknown; function?: { name?: unknown; arguments?: unknown } };
+			if (typeof call.id !== 'string' || typeof call.function?.name !== 'string') return [];
+			const args = call.function.arguments;
+			return [
+				{
+					id: call.id,
+					type: 'function',
+					function: {
+						name: call.function.name,
+						arguments: typeof args === 'string' ? args : JSON.stringify(args ?? {})
+					}
+				}
+			];
+		});
+		if (calls.length > 0) turn.tool_calls = calls;
+	}
+	if (Array.isArray(message.reasoning_details) && message.reasoning_details.length > 0)
+		turn.reasoning_details = message.reasoning_details;
+	else if (typeof message.reasoning_content === 'string' && message.reasoning_content !== '')
+		turn.reasoning_content = message.reasoning_content;
+	else if (typeof message.reasoning === 'string' && message.reasoning !== '')
+		turn.reasoning = message.reasoning;
+	return turn;
+}
+
+export function chatter(config: AiConfig, fetcher: typeof fetch = fetch): Chat {
+	if (config.provider === 'fake') return fakeChat;
+	return async (messages, options) => {
+		const timeout = AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS);
+		let response: Response;
+		try {
+			response = await fetcher(`${config.baseURL}/chat/completions`, {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/json',
+					authorization: `Bearer ${config.apiKey}`,
+					...(config.provider === 'openrouter'
+						? { 'HTTP-Referer': 'https://edu-ai.eu', 'X-Title': 'EDU-AI course editor' }
+						: {})
+				},
+				body: JSON.stringify(buildChatBody(config, messages, options)),
+				signal: options.signal === undefined ? timeout : AbortSignal.any([options.signal, timeout])
+			});
+		} catch (e) {
+			throw new ProviderError('network', e instanceof Error ? e.message : String(e));
+		}
+		if (!response.ok) {
+			const detail = `${response.status} ${(await response.text().catch(() => '')).slice(0, 300)}`;
+			if ([401, 402, 403].includes(response.status)) throw new ProviderError('auth', detail);
+			if ([429, 503, 529].includes(response.status)) throw new ProviderError('busy', detail);
+			throw new ProviderError('failed', detail);
+		}
+		const data = (await response.json().catch(() => null)) as {
+			choices?: { message?: HostMessage }[];
+			usage?: Usage;
+			error?: unknown;
+		} | null;
+		const message = data?.choices?.[0]?.message;
+		if (message === undefined) throw new ProviderError('failed', 'no message');
+		return { turn: turnOf(message), tokens: weightedTokens(data?.usage) };
+	};
 }
 
 export function completer(config: AiConfig, fetcher: typeof fetch = fetch): Complete {

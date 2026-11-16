@@ -286,6 +286,11 @@
 			</div>
 		{:else if showRows}
 			<div class="scroll">
+				{#if aiPanel.planning}
+					<p class="writing-line">
+						<LoaderCircle size={14} class="spin" aria-hidden="true" /> Promýšlím karty…
+					</p>
+				{/if}
 				<ul class="queue">
 					{#each rows as { row, name, lesson }, i (row.blockId)}
 						{#if manyLessons && (i === 0 || rows[i - 1].row.lessonId !== row.lessonId)}
