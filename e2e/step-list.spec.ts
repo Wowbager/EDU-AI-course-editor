@@ -197,8 +197,10 @@ test('an open add-step menu stays open and follows its button when the column sc
 	// Scrolled down the column, so the button moves up: a menu that flipped above it
 	// then keeps its offset. Scrolling the other way would push both towards the
 	// window's bottom edge, where the menu is clamped and its offset must change.
+	const yBefore = (await trigger.boundingBox())!.y;
 	await page.locator('main.editor').evaluate((el) => (el.scrollTop += 30));
-	await expect.poll(async () => (await trigger.boundingBox())!.y).toBeGreaterThan(0);
+	// The column really moved, so the comparison below is not between two identical frames.
+	await expect.poll(async () => (await trigger.boundingBox())!.y).toBeLessThan(yBefore);
 	await expect(menu).toBeVisible();
 	await expect
 		.poll(async () => (await menu.boundingBox())!.y - (await trigger.boundingBox())!.y)
