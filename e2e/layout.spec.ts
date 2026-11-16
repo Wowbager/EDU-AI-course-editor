@@ -1,4 +1,4 @@
-import { expect, test, openEditor, type Page } from './fixtures';
+import { expect, test, openEditor, activeDraftKey, type Page } from './fixtures';
 
 /**
  * Which side panels are folded is remembered in the browser (`state/layout-prefs.ts`)
@@ -101,8 +101,9 @@ test('another tab does not see a layout change as a conflicting edit', async ({
 	await expect(other.getByText(/změnil v jiné kartě/)).toHaveCount(0);
 	await expect(other.getByRole('button', { name: /^Ukládání pozastaveno\./ })).toHaveCount(0);
 
-	// Control: the draft's own key still is a conflict for the second tab.
-	await page.evaluate(() => localStorage.setItem('edu-editor:draft:v1', '{}'));
+	// Control: the open course's draft key still is a conflict for the second tab.
+	const key = await activeDraftKey(page);
+	await page.evaluate((k) => localStorage.setItem(k, '{}'), key);
 	await expect(other.getByText(/změnil v jiné kartě/)).toBeVisible();
 	await expect(other.getByRole('button', { name: /^Ukládání pozastaveno\./ })).toBeVisible();
 });

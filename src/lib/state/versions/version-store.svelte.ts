@@ -13,6 +13,7 @@
 import type { CourseV2 } from '$lib/domain/schema';
 import {
 	contentHash,
+	type CourseSummary,
 	emptyIndex,
 	latest,
 	nextVersion,
@@ -79,6 +80,18 @@ export class VersionStore {
 	modified(doc: CourseV2): boolean {
 		const newest = this.latest;
 		return newest === undefined || newest.hash !== contentHash($state.snapshot(doc) as CourseV2);
+	}
+
+	/**
+	 * Every course any backend knows about, for „Moje kurzy“. A backend that cannot
+	 * be reached contributes nothing rather than failing the list; duplicates across
+	 * backends are merged by the caller (`state/courses.ts`).
+	 */
+	async listAll(): Promise<CourseSummary[]> {
+		const found = await Promise.all(
+			this.#backends.map((backend) => backend.list().catch(() => [] as CourseSummary[]))
+		);
+		return found.flat();
 	}
 
 	/**

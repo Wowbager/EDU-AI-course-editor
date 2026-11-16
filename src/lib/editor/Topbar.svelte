@@ -12,10 +12,22 @@
 	import Modal from '$lib/ui/Modal.svelte';
 	import ExportDialog from './ExportDialog.svelte';
 	import VersionsDialog from './VersionsDialog.svelte';
+	import CourseSwitcher from './CourseSwitcher.svelte';
 	import { errorsCount, warningsCount } from '$lib/ui/plural';
 
 	import type { DraftSession } from '$lib/state/draft-session.svelte';
-	import { CircleCheck, Download, Eye, EyeOff, History, Redo, Undo, Upload } from '@lucide/svelte';
+	import type { CourseEntry } from '$lib/state/courses';
+	import {
+		CircleCheck,
+		ChevronDown,
+		Download,
+		Eye,
+		EyeOff,
+		History,
+		Redo,
+		Undo,
+		Upload
+	} from '@lucide/svelte';
 	import { courseFileName } from '$lib/domain/filename';
 	interface Props {
 		doc: CourseV2;
@@ -24,13 +36,31 @@
 		onimport: (file: File) => void;
 		/** The export review; bindable so the page can open it from its own banner. */
 		reviewOpen?: boolean;
+		/** „Moje kurzy“: the rows, and the three things the switcher does. */
+		courses: CourseEntry[];
+		onopencourse: (courseId: string) => void;
+		onnewcourse: () => void;
+		onrefreshcourses: () => void;
 	}
-	let { doc, recovery, onvalidation, onimport, reviewOpen = $bindable(false) }: Props = $props();
+	let {
+		doc,
+		recovery,
+		onvalidation,
+		onimport,
+		reviewOpen = $bindable(false),
+		courses,
+		onopencourse,
+		onnewcourse,
+		onrefreshcourses
+	}: Props = $props();
 
 	const store = useStore();
 	const versions = useVersions();
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let explainStorage = $state(false);
+	let switcher = $state<ReturnType<typeof CourseSwitcher>>();
+	let switcherButton = $state<HTMLButtonElement | null>(null);
+	let coursesOpen = $state(false);
 
 	/**
 	 * The version button says where the working copy stands: the newest saved
@@ -188,6 +218,20 @@
 			emptyText="Název kurzu"
 			onchange={(v) => store.apply((d) => setField(d, { field: 'name' }, v))}
 		/>
+		<button
+			type="button"
+			class="switcher"
+			bind:this={switcherButton}
+			aria-label="Moje kurzy"
+			aria-expanded={coursesOpen}
+			title="Moje kurzy — přepnout kurz, založit nový nebo nahrát ze souboru"
+			onclick={() => {
+				onrefreshcourses();
+				if (switcherButton !== null) switcher?.show(switcherButton);
+			}}
+		>
+			<ChevronDown size={14} aria-hidden="true"></ChevronDown>
+		</button>
 	</div>
 
 	<button
@@ -335,6 +379,16 @@
 	<ExportDialog ondownload={download} onclose={() => (reviewOpen = false)} />
 {/if}
 
+<CourseSwitcher
+	bind:this={switcher}
+	entries={courses}
+	openId={doc.course_id}
+	onopen={onopencourse}
+	onnew={onnewcourse}
+	onimport={() => fileInput?.click()}
+	onshowchange={(open) => (coursesOpen = open)}
+/>
+
 {#if explainStorage}
 	<Modal title="Kde je kurz uložený" onclose={() => (explainStorage = false)}>
 		<div class="storage">
@@ -381,12 +435,49 @@
 	}
 
 	.title {
+		display: flex;
+		align-items: center;
+		gap: 2px;
 		min-width: 160px;
-		max-width: 260px;
-		overflow: hidden;
+		max-width: 280px;
 		font: var(--type-card-title-alt);
-		text-overflow: ellipsis;
-		white-space: nowrap;
+	}
+
+	/* FocusField's root is a plain div. */
+	.title > :global(div) {
+		min-width: 0;
+		flex: 1;
+	}
+
+	/* The door to the other courses: there on hover and focus, never a permanent
+	   control shouting for attention (DESIGN.md §3). It keeps its width, so the
+	   title does not move when it appears. */
+	.switcher {
+		flex: none;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 20px;
+		height: 20px;
+		padding: 0;
+		border: none;
+		border-radius: var(--radius-xs);
+		background: none;
+		color: var(--e-text-faint);
+		opacity: 0;
+		cursor: pointer;
+	}
+
+	.title:hover .switcher,
+	.title:focus-within .switcher,
+	.switcher:focus-visible,
+	.switcher[aria-expanded='true'] {
+		opacity: 1;
+	}
+
+	.switcher:hover {
+		background: var(--e-field-hover);
+		color: var(--e-text);
 	}
 
 	.spacer {

@@ -1,5 +1,14 @@
 import { readFileSync } from 'node:fs';
-import { addStep, cardMenu, expect, openEditor, test, type Page } from './fixtures';
+import {
+	addStep,
+	cardMenu,
+	expect,
+	openEditor,
+	OPEN_COURSE_KEY,
+	DRAFT_PREFIX,
+	test,
+	type Page
+} from './fixtures';
 
 /**
  * Every question is its own card in the app, because the app grades a card as one
@@ -28,7 +37,17 @@ async function exported(page: Page): Promise<Course> {
 	// The draft is written a moment after the edit; wait until it has the edit.
 	const read = () =>
 		page.evaluate(
-			() => JSON.parse(localStorage.getItem('edu-editor:draft:v1') ?? 'null')?.doc ?? null
+			([open, prefix]) => {
+				const id = localStorage.getItem(open);
+				const key =
+					id !== null && localStorage.getItem(prefix + id) !== null
+						? prefix + id
+						: Object.keys(localStorage).find((k) => k.startsWith(prefix));
+				return key === undefined
+					? null
+					: (JSON.parse(localStorage.getItem(key) ?? 'null')?.doc ?? null);
+			},
+			[OPEN_COURSE_KEY, DRAFT_PREFIX]
 		);
 	await expect.poll(async () => (await read()) !== null).toBe(true);
 	return read();

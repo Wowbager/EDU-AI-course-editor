@@ -11,11 +11,13 @@
  * browser made up; later it is a signed-in teacher, and sharing a course between
  * teachers is an access list on the course, not a change to this interface.
  */
-import type { CourseVersion, Publication, VersionIndex } from '$lib/domain/versions';
+import type { CourseSummary, CourseVersion, Publication, VersionIndex } from '$lib/domain/versions';
 
 export interface VersionBackend {
 	/** A short name for messages: where the versions are. */
 	readonly name: 'browser' | 'server';
+	/** Every course this place knows about, for „Moje kurzy“. Rejects when unreachable. */
+	list(): Promise<CourseSummary[]>;
 	/** Everything known about a course. Resolves to an empty index, never throws for "none". */
 	index(courseId: string): Promise<VersionIndex>;
 	get(courseId: string, version: number): Promise<CourseVersion | null>;
@@ -42,6 +44,20 @@ export class MemoryBackend implements VersionBackend {
 
 	constructor(name: 'browser' | 'server' = 'browser') {
 		this.name = name;
+	}
+
+	async list(): Promise<CourseSummary[]> {
+		const newest = new Map<string, CourseVersion>();
+		for (const v of this.#versions.values()) {
+			const seen = newest.get(v.courseId);
+			if (seen === undefined || v.version > seen.version) newest.set(v.courseId, v);
+		}
+		return [...newest.values()].map((v) => ({
+			courseId: v.courseId,
+			name: v.doc.name ?? '',
+			savedAt: v.savedAt,
+			version: v.version
+		}));
 	}
 
 	async index(courseId: string): Promise<VersionIndex> {

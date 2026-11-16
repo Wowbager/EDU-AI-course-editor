@@ -1399,6 +1399,25 @@ export function restoreVersion(doc: CourseV2, saved: CourseV2, number: number): 
 	else restored.logged_only = doc.logged_only;
 	return { doc: restored, description: `Obnovena verze ${number}` };
 }
+
+/**
+ * A file loaded into the course that is already open: the file's content as one
+ * undoable edit, the course's identity and visibility kept (they describe the
+ * course, not the file), and the number never lowered — a file published as 6
+ * cannot come back as 1 (`nextVersion`).
+ */
+export function importOver(doc: CourseV2, imported: CourseV2): CommandResult {
+	const next: CourseV2 = {
+		...deepCopy(imported),
+		course_id: doc.course_id,
+		version: Math.max(doc.version ?? 1, imported.version ?? 1)
+	};
+	if (doc.status === undefined) delete next.status;
+	else next.status = doc.status;
+	if (doc.logged_only === undefined) delete next.logged_only;
+	else next.logged_only = doc.logged_only;
+	return { doc: next, description: 'Načteno ze souboru' };
+}
 // ──────────────────────────────────────── images ──────────────────────────────────────────
 
 /**

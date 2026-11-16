@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { expect, openEditor, test, type Page } from './fixtures';
+import { expect, openEditor, OPEN_COURSE_KEY, DRAFT_PREFIX, test, type Page } from './fixtures';
 
 /**
  * Zpětná vazba is one switch for the whole course: what the pupil is told aside from
@@ -8,7 +8,6 @@ import { expect, openEditor, test, type Page } from './fixtures';
  * The toggle keeps one name; `aria-pressed` carries the state.
  */
 
-const draftKey = 'edu-editor:draft:v1';
 const fixture = readFileSync(
 	new URL('../src/lib/domain/__tests__/fixtures/spec-16-course.json', import.meta.url)
 );
@@ -24,8 +23,17 @@ const answerText = (page: Page) => page.getByRole('textbox', { name: 'Text odpov
 
 const savedFeedbackVisible = (page: Page) =>
 	page.evaluate(
-		(key) => JSON.parse(localStorage.getItem(key) ?? 'null')?.feedbackVisible,
-		draftKey
+		([open, prefix]) => {
+			const id = localStorage.getItem(open);
+			const key =
+				id !== null && localStorage.getItem(prefix + id) !== null
+					? prefix + id
+					: Object.keys(localStorage).find((k) => k.startsWith(prefix));
+			return key === undefined
+				? undefined
+				: JSON.parse(localStorage.getItem(key) ?? 'null')?.feedbackVisible;
+		},
+		[OPEN_COURSE_KEY, DRAFT_PREFIX]
 	);
 
 test.beforeEach(async ({ page }) => {

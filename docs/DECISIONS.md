@@ -3096,6 +3096,59 @@ written from them.
   an undo step. A failed request is not said: the cards are written without sources.
   Rejected: asking always (when everything fits the answer changes nothing).
 
+## Round 33 — „Moje kurzy“: more than one course, switched without losing work
+
+The owner asked for a better way to manage multiple courses, with the weight on
+design and UX. Until now the browser held exactly one draft: starting a second
+course meant downloading the first and importing the other behind „Nahradit
+rozepsaný kurz…“, with the backup burden on the teacher. Per-course data already
+existed (versions, outlines, materials) but no way to reach another course.
+
+- **The course name is the door.** A chevron beside the topbar title appears on
+  hover/focus and opens „Moje kurzy“, a native popover like the shared pickers:
+  a row per course (name + one muted „upraveno včera“ line, a check on the open
+  one), and „Nový kurz“ / „Nahrát ze souboru…“ below. The title stays editable in
+  place. *Rejected:* a dedicated library screen (a whole navigation step between
+  the teacher and the lesson, against one clear focus), courses listed in the
+  sidebar (the owner has refused sidebar bloat before), and a permanent switcher
+  control (DESIGN.md: nothing on screen unless acted on now).
+- **Switching and importing never replace work, so nothing asks.** Each course
+  keeps its own draft; switching flushes the one being left and opens the
+  target's draft, its durable copy, or its newest saved version. A file adds a
+  course, opens one the browser knows, or updates the open one as a single
+  undoable edit (`importOver`, the number never lowered). The import confirm is
+  gone. Undo belongs to a course: it starts empty on a switch, so Zpět never
+  walks into another course's work (OPEN-PROBLEMS 43).
+- **Drafts stay synchronous; the archive is IndexedDB.** The open course's draft
+  lives under `edu-editor:draft:v1:<courseId>` in localStorage, flushed
+  synchronously as before — the last keystroke before the tab closes is written
+  in `beforeunload`, and a promise there is not a save. Every flush also copies
+  the draft to IndexedDB (`draft-archive.ts`), best-effort. When the quota is
+  full, other courses' drafts *with a confirmed copy* are evicted from
+  localStorage (their meta stays; they open from the archive). *Rejected:*
+  drafts wholly in IndexedDB — an async flush cannot honour the unload guarantee
+  the recovery suite tests.
+- **The conflict watch is per course.** Two tabs on two courses save
+  independently; two tabs on one course keep the exact pause-and-back-up
+  semantics (`DraftSession.use` re-anchors the watch; the storage event compares
+  the open course's key). An evicted course's key vanishing pauses a tab still
+  editing it — protective, rare (quota + two tabs), and nothing is lost.
+- **A flush that changes nothing writes nothing.** The draft's durable values
+  are compared in the domain's canonical form (`serialiseToJson`), timestamp
+  aside. Restoring or opening a course is not an edit: rewriting it would bump
+  its „upraveno“ time and pause another tab that merely opened the same course.
+  *Rejected:* writing on every restore (the old single-key behaviour) — with
+  per-course keys it made a second tab's quiet restore look like a conflicting
+  edit to the first.
+- **The list is merged from what exists** (`state/courses.ts`): local meta keys
+  ∪ the IndexedDB archive ∪ every backend's histories (`VersionBackend.list`,
+  new `GET /versions` naming each course by its newest version). A course whose
+  draft this browser lost is still findable while the workspace key survives.
+  The pointer `edu-editor:open-course:v1` says which course a reload opens; the
+  legacy single draft migrates to its course's key on first restore, copy first.
+- **Proposed, not built:** a per-row ⋯ menu („Vytvořit kopii“, „Smazat“), a full
+  management dialog, search. The popover scrolls past ~8 rows instead.
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

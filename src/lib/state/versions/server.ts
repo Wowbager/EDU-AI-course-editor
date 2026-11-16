@@ -9,7 +9,7 @@
  * own copy is unaffected by the server being down, and the server's copy is
  * unaffected by the browser's being cleared, as long as the key survives.
  */
-import type { CourseVersion, Publication, VersionIndex } from '$lib/domain/versions';
+import type { CourseSummary, CourseVersion, Publication, VersionIndex } from '$lib/domain/versions';
 import { VersionConflict, type VersionBackend } from './backend';
 
 const KEY_STORAGE = 'edu-editor:workspace:v1';
@@ -43,11 +43,17 @@ export class ServerBackend implements VersionBackend {
 	}
 
 	async #call(path: string, init: RequestInit = {}): Promise<Response> {
-		const response = await this.#fetch(`/versions/${path}`, {
+		const response = await this.#fetch(`/versions${path === '' ? '' : `/${path}`}`, {
 			...init,
 			headers: { ...(init.headers ?? {}), [HEADER]: this.#key, 'content-type': 'application/json' }
 		});
 		return response;
+	}
+
+	async list(): Promise<CourseSummary[]> {
+		const response = await this.#call('');
+		if (!response.ok) throw new Error(`Server: ${response.status}`);
+		return (await response.json()) as CourseSummary[];
 	}
 
 	async index(courseId: string): Promise<VersionIndex> {

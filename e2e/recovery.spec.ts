@@ -1,7 +1,15 @@
-import { expect, test, openEditor, type Page } from './fixtures';
+import {
+	expect,
+	test,
+	openEditor,
+	activeDraftKey,
+	readActiveDraftText,
+	OPEN_COURSE_KEY,
+	DRAFT_PREFIX,
+	type Page
+} from './fixtures';
 import { readFileSync } from 'node:fs';
 
-const key = 'edu-editor:draft:v1';
 const fixture = readFileSync(
 	new URL('../src/lib/domain/__tests__/fixtures/spec-16-course.json', import.meta.url)
 );
@@ -162,37 +170,52 @@ test('storage failure is visible and unload is guarded', async ({ page }) => {
 test('corrupt draft is not overwritten without an explicit backed-up replacement', async ({
 	page
 }) => {
+	const key = await activeDraftKey(page);
 	// Install after this page unloads so its final save cannot replace the fixture.
-	await page.addInitScript((key) => localStorage.setItem(key, '{broken'), key);
+	await page.addInitScript((k) => localStorage.setItem(k, '{broken'), key);
 	await page.reload();
 	await expect(paused(page)).toHaveText('Ukládání pozastaveno');
 	await page.getByRole('textbox', { name: 'Název kurzu', exact: true }).fill('Náhradní kurz');
-	expect(await page.evaluate((key) => localStorage.getItem(key), key)).toBe('{broken');
+	expect(await page.evaluate((k) => localStorage.getItem(k), key)).toBe('{broken');
 	page.once('dialog', (dialog) => dialog.accept());
 	await page.getByRole('button', { name: 'Zálohovat původní a uložit tento kurz' }).click();
 	await expect(saved(page)).toBeVisible();
 	expect(
 		await page.evaluate(
-			(key) =>
+			(k) =>
 				Object.keys(localStorage).some(
-					(k) => k.startsWith(key + ':backup:') && localStorage.getItem(k) === '{broken'
+					(key) => key.startsWith(k + ':backup:') && localStorage.getItem(key) === '{broken'
 				),
 			key
 		)
 	).toBe(true);
 });
 
-test('import replacement can be cancelled without losing current work', async ({ page }) => {
+test('import keeps the current work: the file arrives as a course of its own', async ({ page }) => {
 	const name = page.getByRole('textbox', { name: 'Název kurzu', exact: true });
 	await name.fill('Zachovat kurz');
-	page.once('dialog', (dialog) => dialog.dismiss());
+	await expect(saved(page)).toBeVisible();
+	// Nothing asks any more: no work is replaced, so there is nothing to confirm.
+	let asked = false;
+	page.on('dialog', (dialog) => {
+		asked = true;
+		void dialog.dismiss();
+	});
 	await page.setInputFiles('input[type=file]', {
 		name: 'course.json',
 		mimeType: 'application/json',
 		buffer: fixture
 	});
-	await expect(name).toHaveValue('Zachovat kurz');
+	await expect(name).toHaveValue('Zlomky pro 5. třídu');
+	expect(asked).toBe(false);
 	await expect(saved(page)).toBeVisible();
+	// The previous course is intact, one click away.
+	await page.getByRole('button', { name: 'Moje kurzy', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: 'Moje kurzy' })
+		.getByRole('button', { name: /Zachovat kurz/ })
+		.click();
+	await expect(name).toHaveValue('Zachovat kurz');
 	await page.reload();
 	await expect(name).toHaveValue('Zachovat kurz');
 });
@@ -208,9 +231,8 @@ test('another tab pauses writes instead of silently replacing its draft', async 
 	await expect(saved(other)).toBeVisible();
 	await expect(paused(page)).toHaveText('Ukládání pozastaveno');
 	await page.getByRole('textbox', { name: 'Název kurzu', exact: true }).fill('První karta');
-	expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).doc.name, key)).toBe(
-		'Druhá karta'
-	);
+	const text = await page.evaluate(readActiveDraftText, [OPEN_COURSE_KEY, DRAFT_PREFIX]);
+	expect(JSON.parse(text!).doc.name).toBe('Druhá karta');
 });
 
 /**

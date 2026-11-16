@@ -7,6 +7,7 @@ const course = () => ({ ...emptyCourse('C1', 'Fotosyntéza'), lessons: [] });
 
 class Failing implements VersionBackend {
 	readonly name = 'server' as const;
+	list = () => Promise.reject(new Error('down'));
 	index = () => Promise.reject(new Error('down'));
 	get = () => Promise.reject(new Error('down'));
 	put = () => Promise.reject(new Error('down'));
@@ -64,5 +65,32 @@ describe('merging what is kept where', () => {
 		await store.recordImport({ ...course(), version: 6 });
 		expect(store.versions.map((v) => [v.version, v.origin])).toEqual([[6, 'import']]);
 		expect(store.next({ ...course(), version: 6 })).toBe(7);
+	});
+
+	it('lists every course any backend knows, and a down backend contributes nothing', async () => {
+		const browser = new MemoryBackend('browser');
+		const server = new MemoryBackend('server');
+		const store = new VersionStore([browser, server, new Failing()]);
+		await browser.put({
+			...course(),
+			courseId: 'C1',
+			version: 1,
+			savedAt: '2026-11-09T10:00:00.000Z',
+			hash: 'x',
+			doc: course()
+		});
+		await server.put({
+			...course(),
+			courseId: 'C2',
+			version: 3,
+			savedAt: '2026-11-10T10:00:00.000Z',
+			hash: 'y',
+			doc: { ...course(), course_id: 'C2', name: 'Druhý' }
+		});
+		const listed = await store.listAll();
+		expect(listed.map((c) => [c.courseId, c.name, c.version]).sort()).toEqual([
+			['C1', 'Fotosyntéza', 1],
+			['C2', 'Druhý', 3]
+		]);
 	});
 });
