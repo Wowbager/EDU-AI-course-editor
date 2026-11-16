@@ -52,6 +52,19 @@ function withoutLesson(doc: CourseV2, lessonId: string): CourseV2 {
 	return next;
 }
 
+/**
+ * The course without a placeholder, or nothing when something still points at it (a
+ * „Přejít na“, a prerequisite): then it stays, and the new cards go in beside it.
+ */
+function unlessReferenced(remove: () => CourseV2): CourseV2 | undefined {
+	try {
+		return remove();
+	} catch (e) {
+		if (e instanceof CommandError) return undefined;
+		throw e;
+	}
+}
+
 /** After a placeholder was replaced: the first new card, and back to the placeholder on undo. */
 function moved(
 	back: { lessonId: string; blockId?: string },
@@ -153,12 +166,19 @@ export function insertOutline(
 		);
 		next = result.doc;
 		added.push(...result.added);
-		if (placeholder !== undefined)
-			next = deleteBlock(unbindBlock(next, lessonId, placeholder).doc, placeholder).doc;
+		const without =
+			placeholder === undefined
+				? undefined
+				: unlessReferenced(
+						() => deleteBlock(unbindBlock(next, lessonId, placeholder).doc, placeholder).doc
+					);
+		if (without !== undefined) next = without;
 		return {
 			doc: next,
 			added,
-			...(placeholder !== undefined ? moved({ lessonId, blockId: placeholder }, added) : {}),
+			...(placeholder !== undefined && without !== undefined
+				? moved({ lessonId, blockId: placeholder }, added)
+				: {}),
 			description: `Přidány karty z návrhu AI (${outline.cards.length})`
 		};
 	}
@@ -192,13 +212,17 @@ export function insertOutline(
 					lessonId: placeholder,
 					blockId: doc.lessons.find((l) => l.lesson_id === placeholder)!.blocks[0]?.block_id
 				};
-	if (placeholder !== undefined) next = withoutLesson(next, placeholder);
+	const without =
+		placeholder === undefined
+			? undefined
+			: unlessReferenced(() => withoutLesson(next, placeholder));
+	if (without !== undefined) next = without;
 	const asked = request?.trim() ?? '';
 	if (asked !== '') next = { ...next, [REQUEST_KEY]: asked };
 	return {
 		doc: next,
 		added,
-		...(back !== undefined ? moved(back, added, firstLesson) : {}),
+		...(back !== undefined && without !== undefined ? moved(back, added, firstLesson) : {}),
 		description: `Přidány lekce z návrhu AI (${outline.lessons.length})`
 	};
 }

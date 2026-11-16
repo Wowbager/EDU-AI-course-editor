@@ -195,6 +195,16 @@ describe('an outline made by hand, and its undo', () => {
 		expect(aiPanel.redo()).toBe(false);
 	});
 
+	it('a change that made no step is not taken back as the step before it', () => {
+		aiPanel.start('lessons');
+		aiPanel.amend(renameDraftLesson(aiPanel.draft!, aiPanel.typing!.key, 'Moje'));
+		const step = aiPanel.change(aiPanel.draft);
+		expect(step).toBe(-1);
+		aiPanel.takeBack(step, aiPanel.draft);
+		expect(aiPanel.draft?.lessons[0].name).toBe('Moje');
+		expect(aiPanel.canUndo).toBe(true);
+	});
+
 	it('takes back an unnamed row by removing it once another step came after', () => {
 		aiPanel.start('lessons');
 		const step = aiPanel.typing!.step;

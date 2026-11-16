@@ -172,8 +172,9 @@
 		const key = event.key.toLowerCase();
 		if ((key !== 'z' && key !== 'y') || typesText(event.target)) return;
 		const done = key === 'y' || event.shiftKey ? aiPanel.redo() : aiPanel.undo();
-		// Handled here, so the course's own undo does not run as well.
-		if (done) event.preventDefault();
+		// Handled here, so the course's own undo does not run as well; nor while the AI is
+		// writing the outline, when the key would quietly take back an edit of the course.
+		if (done || aiPanel.asking) event.preventDefault();
 	}
 
 	/**
@@ -272,7 +273,10 @@
 					class:armed
 					onclick={clickDiscard}
 					onblur={() => (armed = false)}
-					onpointerleave={() => (armed = false)}
+					onpointerleave={(e) => {
+						// A finger leaves with every tap, before its click: only the mouse disarms.
+						if (e.pointerType === 'mouse') armed = false;
+					}}
 					onkeydown={(e) => {
 						if (e.key === 'Escape') armed = false;
 					}}

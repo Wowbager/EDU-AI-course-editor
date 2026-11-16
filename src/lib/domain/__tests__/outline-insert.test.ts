@@ -247,6 +247,27 @@ describe('standing in for a placeholder', () => {
 		expect(result.undoRef).toEqual({ lessonId, blockId });
 	});
 
+	it('keeps a placeholder another card still points at, and puts the new ones beside it', () => {
+		const { doc, lessonId, blockId } = fresh();
+		const second = addLesson(doc, 'Další');
+		const other = addBlock(second.doc, second.ref!.lessonId!, 'display');
+		const pointing = {
+			...other.doc,
+			blocks: other.doc.blocks.map((b) =>
+				b.block_id === other.ref!.blockId
+					? { ...b, learning: { prerequisites: [{ block_id: blockId, min_level: 1 }] } }
+					: b
+			)
+		};
+		const withCards = insertOutline(pointing, cards, { lessonId, blockId });
+		expect(withCards.doc.blocks.some((b) => b.block_id === blockId)).toBe(true);
+		expect(cardNames(withCards.doc, lessonId)).toContain('Nová A');
+		expect(withCards.undoRef).toBeUndefined();
+		const withLessons = insertOutline(pointing, structure, { lessonId });
+		expect(withLessons.doc.lessons.some((l) => l.lesson_id === lessonId)).toBe(true);
+		expect(lessonNames(withLessons.doc)).toContain('Polovina');
+	});
+
 	it('keeps anything the teacher typed into: a name, a step, and a lesson that is not selected', () => {
 		const { doc, lessonId, blockId } = fresh();
 		const renamed = named(doc, lessonId, 'Zlomky');

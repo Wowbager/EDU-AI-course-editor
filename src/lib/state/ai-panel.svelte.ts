@@ -113,14 +113,15 @@ class AiPanel {
 
 	/**
 	 * The teacher changed the outline: one undo step. Returns the step's number, for
-	 * `takeBack`. While the AI is writing a fresh proposal its edits are not steps: the
-	 * proposal arrives as one.
+	 * `takeBack`, or -1 when no step was made: nothing changed, or the AI is writing a
+	 * fresh proposal, whose edits are not steps (the proposal arrives as one).
 	 */
 	change(next: Draft | null): number {
-		if (next === this.draft) return this.#steps;
-		if (!this.incoming) this.#step(record(this.#history, this.draft));
+		if (next === this.draft) return -1;
+		const stepped = !this.incoming;
+		if (stepped) this.#step(record(this.#history, this.draft));
 		this.draft = next;
-		return this.#steps;
+		return stepped ? this.#steps : -1;
 	}
 
 	/** A change that belongs to the last step, like the name of a row it added. */
@@ -341,10 +342,13 @@ class AiPanel {
 		cards: { blockId: string; lessonId: string }[],
 		sections: typeof materials.sections
 	): Promise<void> {
+		// The answer is for this course: card ids repeat from course to course.
+		const course = store.doc.course_id;
 		try {
 			const request = buildSourcesRequest(store.doc, cards, sections);
 			const assigned = await askSources(request);
-			if (assigned.length > 0) store.amend((doc) => setSourceRefs(doc, cards, assigned));
+			if (assigned.length > 0 && store.doc.course_id === course)
+				store.amend((doc) => setSourceRefs(doc, cards, assigned));
 		} catch {
 			// Written without sources.
 		} finally {
