@@ -12,25 +12,60 @@ import {
 } from '$lib/domain/materials';
 import { Refused, type ReadIO, type ReadOut, type Room } from './types';
 
-export type Kind = 'docx' | 'pptx' | 'pdf' | 'image';
+export type Kind =
+	'docx' | 'pptx' | 'pdf' | 'image' | 'tiff' | 'text' | 'sheet' | 'html' | 'epub' | 'odt' | 'odp';
 
-export const IMAGE_TYPES = ['.png', '.jpg', '.jpeg', '.webp', '.heic'];
+export const IMAGE_TYPES = [
+	'.png',
+	'.jpg',
+	'.jpeg',
+	'.webp',
+	'.gif',
+	'.bmp',
+	'.avif',
+	'.heic',
+	'.heif'
+];
+/** A scanner's pictures: one file can hold several pages. */
+export const TIFF_TYPES = ['.tif', '.tiff'];
+export const TEXT_TYPES = ['.txt', '.md'];
+export const SHEET_TYPES = ['.xlsx', '.xls', '.ods', '.csv', '.tsv', '.numbers'];
 /** For the file picker. */
-export const ACCEPT = ['.docx', '.pptx', '.pdf', ...IMAGE_TYPES].join(',');
+export const ACCEPT = [
+	'.docx',
+	'.pptx',
+	'.pdf',
+	'.odt',
+	'.odp',
+	'.html',
+	'.htm',
+	'.epub',
+	...IMAGE_TYPES,
+	...TIFF_TYPES,
+	...TEXT_TYPES,
+	...SHEET_TYPES
+].join(',');
 
 export function kindOf(name: string): Kind | undefined {
 	const ext = /\.[^.]+$/.exec(name.toLowerCase())?.[0] ?? '';
 	if (ext === '.docx') return 'docx';
 	if (ext === '.pptx') return 'pptx';
 	if (ext === '.pdf') return 'pdf';
+	if (TIFF_TYPES.includes(ext)) return 'tiff';
+	if (TEXT_TYPES.includes(ext)) return 'text';
+	if (SHEET_TYPES.includes(ext)) return 'sheet';
+	if (ext === '.html' || ext === '.htm') return 'html';
+	if (ext === '.epub') return 'epub';
+	if (ext === '.odt') return 'odt';
+	if (ext === '.odp') return 'odp';
 	return IMAGE_TYPES.includes(ext) ? 'image' : undefined;
 }
 
 /** Why a name is not a kind of file we read, as a sentence. */
 export function unsupported(name: string): string {
-	return /\.(doc|ppt|odt|odp)$/i.test(name)
+	return /\.(doc|ppt)$/i.test(name)
 		? `Soubor ${name} je ve starém formátu. Ulož ho jako .docx nebo .pptx.`
-		: `Soubor ${name} neumím přečíst. Zkus Word, PowerPoint, PDF nebo obrázek.`;
+		: `Soubor ${name} neumím přečíst. Zkus Word, PowerPoint, PDF, tabulku, text nebo obrázek.`;
 }
 
 /** SHA-256 of the bytes in hex, or, where the browser has no `crypto.subtle`, a 53-bit hash. */
@@ -55,6 +90,12 @@ export interface Libraries {
 	mammoth(): Promise<Parameters<typeof import('./docx').readDocx>[3]>;
 	jszip(): Promise<Parameters<typeof import('./pptx').readPptx>[3]>;
 	pdfjs(): Promise<Parameters<typeof import('./pdf').readPdf>[3]>;
+	xlsx(): Promise<Parameters<typeof import('./sheets').readSheets>[3]>;
+	utif(): Promise<Parameters<typeof import('./tiff').readTiff>[3]>;
+	/** Converts a HEIC photo the browser cannot decode; large, so loaded only then. */
+	heic(): Promise<import('./image').HeicConverter>;
+	turndown(): Promise<import('./html').TurndownLib>;
+	mathml(): Promise<(mathml: string) => string>;
 }
 
 export async function readMaterial(
@@ -77,7 +118,35 @@ export async function readMaterial(
 		out = await (await import('./pptx')).readPptx(data, io, room, await libraries.jszip());
 	else if (kind === 'pdf')
 		out = await (await import('./pdf')).readPdf(data, io, room, await libraries.pdfjs());
-	else out = await (await import('./image')).readImage(file as Blob & { name: string }, io);
+	else if (kind === 'html')
+		out = await (
+			await import('./html')
+		).readHtml(data, io, room, {
+			turndown: await libraries.turndown(),
+			mathml: await libraries.mathml()
+		});
+	else if (kind === 'epub')
+		out = await (
+			await import('./html')
+		).readEpub(data, io, room, await libraries.jszip(), {
+			turndown: await libraries.turndown(),
+			mathml: await libraries.mathml()
+		});
+	else if (kind === 'odt' || kind === 'odp')
+		out = await (
+			await import('./odf')
+		).readOdf(data, kind, io, room, await libraries.jszip(), await libraries.mathml());
+	else if (kind === 'tiff')
+		out = await (
+			await import('./tiff')
+		).readTiff(data, io, room, await libraries.utif(), file.name);
+	else if (kind === 'text') out = (await import('./text')).readText(data, file.name, room);
+	else if (kind === 'sheet')
+		out = (await import('./sheets')).readSheets(data, file.name, room, await libraries.xlsx());
+	else
+		out = await (
+			await import('./image')
+		).readImage(file as Blob & { name: string }, io, libraries.heic);
 
 	if (out.pieces.length === 0)
 		throw new Refused(

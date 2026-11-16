@@ -10,6 +10,8 @@ export interface ReadIO {
 	ocr(picture: Blob): Promise<string>;
 	/** A picture small enough to send: the same one, or shrunk. Rejects for a format the browser cannot decode. */
 	shrink(picture: Blob): Promise<Blob>;
+	/** Decoded RGBA pixels (a TIFF page) drawn as a picture. */
+	fromPixels(rgba: Uint8Array, width: number, height: number): Promise<Blob>;
 	/** A PDF page drawn as a picture. */
 	renderPage(page: unknown): Promise<Blob>;
 }

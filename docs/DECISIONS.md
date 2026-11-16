@@ -3191,6 +3191,31 @@ did not see each other.
   finish the card it is writing, then ends that conversation.
 - **One line while the plan is made**: „Promýšlím karty…“ above the rows, which otherwise
   all say „Čeká na řadu“ for the plan's minute.
+- **Text and spreadsheets are read in the browser, like the other files.** Text is UTF-8,
+  or windows-1250 when the bytes are not UTF-8 (a page is 3000 characters). A spreadsheet
+  is a table per sheet, with the values as shown; SheetJS is loaded on demand from its own
+  CDN build, since the npm `xlsx` 0.18.5 has open advisories. Reading on the server was
+  rejected: the original is never sent. SheetJS cannot show a date written `d.m.yyyy`, so
+  that format is retried with its dots escaped (`sheets.ts`).
+
+## Round 35 — more kinds of picture in the materials
+
+- **GIF, BMP and AVIF** are read as pictures: the browser decodes them and `shrink` draws
+  anything that is not PNG, JPEG or WebP into a JPEG, so `/ai/read` gets a type it takes
+  (an animated GIF is its first frame).
+- **TIFF** (`materials/tiff.ts`, `utif2` on demand): every page is drawn and read, counts
+  as a page against `MAX_PAGES`, and a page that fails is an `unread` line, as in a PDF.
+- **HEIC/HEIF** is tried in the browser first; only when that cannot decode it is it
+  converted to JPEG with `heic2any`, loaded then (its own 1.3 MB chunk). *Rejected:*
+  `heic-to` (LGPL libheif build, not something to ship in the editor's bundle).
+
+- **More kinds of file are read in the browser** (`materials/html.ts`, `odf.ts`): web pages
+  and e-books (turndown with its GFM plugin; an e-book is one page per chapter, in spine
+  order) and OpenDocument texts and presentations (our own walk over `content.xml`, like
+  `pptx.ts`; formulas are MathML objects, converted by `mathml-to-latex`). Each library is
+  its own chunk, loaded when a file of its kind is read. *Rejected:* converting with
+  LibreOffice on the server for now: the original file never leaves the browser, and only
+  the text of its pictures does.
 
 - **The teacher's request outranks the prompt's defaults** (`OUTLINE_SYSTEM_PROMPT`). „Jen
   test o zlomcích“ got an explanation card because "explain, practise, check" was an

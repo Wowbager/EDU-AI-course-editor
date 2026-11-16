@@ -4,6 +4,7 @@
  */
 import { workspaceKey } from '$lib/state/versions/server';
 import type { Libraries } from './read';
+import { fitSide } from './image';
 import type { ReadIO } from './types';
 
 /** The longest side of a picture sent for reading, in pixels. */
@@ -21,12 +22,29 @@ export const libraries: Libraries = {
 			}
 		).default,
 	jszip: async () => (await import('jszip')).default,
+	turndown: async () => ({
+		TurndownService: (await import('turndown')).default,
+		gfm: (await import('@joplin/turndown-plugin-gfm')).gfm
+	}),
+	mathml: async () => {
+		const { MathMLToLaTeX } = await import('mathml-to-latex');
+		return (mathml) => MathMLToLaTeX.convert(mathml);
+	},
 	pdfjs: async () => {
 		const pdfjs = await import('pdfjs-dist');
 		pdfjs.GlobalWorkerOptions.workerSrc = (
 			await import('pdfjs-dist/build/pdf.worker.min.mjs?url')
 		).default;
 		return pdfjs as unknown as Parameters<typeof import('./pdf').readPdf>[3];
+	},
+	xlsx: async () => await import('xlsx'),
+	utif: async () => {
+		const module = await import('utif2');
+		return (module.default ?? module) as unknown as Parameters<typeof import('./tiff').readTiff>[3];
+	},
+	heic: async () => {
+		const module = await import('heic2any');
+		return (module.default ?? module) as unknown as import('./image').HeicConverter;
 	}
 };
 
@@ -126,6 +144,28 @@ export const browserIO: ReadIO = {
 			return await toBlob(canvas, 'image/jpeg', 0.88);
 		} finally {
 			bitmap.close();
+		}
+	},
+
+	async fromPixels(rgba, width, height) {
+		// putImageData replaces pixels, so the pixels go on a scratch canvas and are drawn,
+		// scaled down, over white: transparent ones then come out white, not black.
+		const source = document.createElement('canvas');
+		try {
+			source.width = width;
+			source.height = height;
+			source
+				.getContext('2d')!
+				.putImageData(new ImageData(new Uint8ClampedArray(rgba), width, height), 0, 0);
+			const size = fitSide(width, height, SIDE);
+			const { canvas, context } = white(size.width, size.height);
+			// A scan shrinks several times over: thin strokes stay readable for the reader.
+			context.imageSmoothingQuality = 'high';
+			context.drawImage(source, 0, 0, size.width, size.height);
+			return await encode(canvas);
+		} finally {
+			// A full-size page is large; let it go whether or not the page was read.
+			source.width = source.height = 0;
 		}
 	},
 
