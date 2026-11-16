@@ -171,10 +171,36 @@ test('corrupt draft is not overwritten without an explicit backed-up replacement
 	page
 }) => {
 	const key = await activeDraftKey(page);
+	// The course's durable copy (IndexedDB, `draft-archive.ts`) is written after the
+	// draft, asynchronously. Wait for it: a boot that falls back to it once the draft
+	// cannot be read used to write it over that draft. Whether it got that far depended
+	// on the IndexedDB read beating the first edit of the seed, which CI's runners did.
+	await expect
+		.poll(() =>
+			page.evaluate(
+				(id) =>
+					new Promise<boolean>((resolve) => {
+						const open = indexedDB.open('edu-editor-drafts');
+						open.onerror = () => resolve(false);
+						open.onsuccess = () => {
+							const db = open.result;
+							if (!db.objectStoreNames.contains('drafts')) return resolve(false);
+							const get = db.transaction('drafts').objectStore('drafts').get(id);
+							get.onsuccess = () => resolve(get.result !== undefined);
+							get.onerror = () => resolve(false);
+						};
+					}),
+				key!.slice(DRAFT_PREFIX.length)
+			)
+		)
+		.toBe(true);
 	// Install after this page unloads so its final save cannot replace the fixture.
 	await page.addInitScript((k) => localStorage.setItem(k, '{broken'), key);
 	await page.reload();
+	// Hydration includes the read of the durable copy, so whatever boot writes is written.
+	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
 	await expect(paused(page)).toHaveText('Ukládání pozastaveno');
+	expect(await page.evaluate((k) => localStorage.getItem(k), key)).toBe('{broken');
 	await page.getByRole('textbox', { name: 'Název kurzu', exact: true }).fill('Náhradní kurz');
 	expect(await page.evaluate((k) => localStorage.getItem(k), key)).toBe('{broken');
 	page.once('dialog', (dialog) => dialog.accept());

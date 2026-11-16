@@ -488,7 +488,12 @@
 			if (restored) {
 				store.splitQuestions();
 			}
-			if (!store.dirty && !restored) {
+			// A stored draft that could not be read pauses saving (`restore`), and nothing
+			// here may switch it back on: the durable copy and the seed both `use` + `flush`,
+			// which would write over the unread draft. The seed is then in memory only, and
+			// only „Zálohovat původní a uložit tento kurz“ writes, after a backup.
+			const blocked = session.status === 'blocked';
+			if (!store.dirty && !restored && !blocked) {
 				const open = readOpenCourse(localStorage);
 				const archived = open !== null ? await readArchivedDraft(open).catch(() => null) : null;
 				if (!store.dirty && archived !== null) {
@@ -514,8 +519,10 @@
 				store.load(emptyCourse(newCourseId(), 'Nový kurz'));
 				store.apply((d, r) => withStarter(d, r));
 				store.dirty = false;
-				session.use(store.doc.course_id);
-				session.flush();
+				if (!blocked) {
+					session.use(store.doc.course_id);
+					session.flush();
+				}
 			}
 			void loadConfig();
 			refreshCourses();
