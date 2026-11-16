@@ -8,15 +8,22 @@
  */
 import { SvelteSet } from 'svelte/reactivity';
 import {
-	buildGenRequest,
 	sourceRefsOf,
 	describeWritten,
 	fillCard,
-	generatedCardSchema,
 	type GeneratedCard,
 	type WrittenCount
 } from '$lib/domain/authoring';
 import { buildDossier } from '$lib/domain/dossier';
+import {
+	buildLessonRequest,
+	lessonEventSchema,
+	planEventSchema,
+	type LessonEvent,
+	type LessonRequest,
+	type PlanEvent
+} from '$lib/domain/lesson-writing';
+import type { PlanRequest } from '$lib/domain/plan';
 import { outlineEventSchema, type OutlineEvent, type OutlineRequest } from '$lib/domain/outline';
 import { workspaceKey } from '$lib/state/versions/server';
 import { renderMaterials } from '$lib/domain/materials';
@@ -36,10 +43,14 @@ export const TEXT = {
 export type Problem = keyof typeof TEXT;
 type Outcome = { card: GeneratedCard } | { problem: Problem; retryAfter?: number };
 
-type Failure = { problem: Problem; retryAfter?: number };
+export type Failure = { problem: Problem; retryAfter?: number };
 
 /** One POST to an AI route: the response of a 200, or what went wrong. */
-async function send(route: string, request: unknown): Promise<{ response: Response } | Failure> {
+async function send(
+	route: string,
+	request: unknown,
+	signal?: AbortSignal
+): Promise<{ response: Response } | Failure> {
 	const key = workspaceKey();
 	if (!key) return { problem: 'failed' };
 	let response: Response;
@@ -47,7 +58,8 @@ async function send(route: string, request: unknown): Promise<{ response: Respon
 		response = await fetch(route, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json', 'x-editor-workspace': key },
-			body: JSON.stringify(request)
+			body: JSON.stringify(request),
+			...(signal !== undefined ? { signal } : {})
 		});
 	} catch {
 		return { problem: 'offline' };
@@ -71,13 +83,40 @@ async function post(route: string, request: unknown): Promise<{ body: unknown } 
 	return { body: await answer.response.json().catch(() => null) };
 }
 
-async function ask(request: unknown): Promise<Outcome> {
-	const answer = await post('/ai/block', request);
-	if ('problem' in answer) return answer;
-	const body = answer.body as { status?: string; card?: unknown } | null;
-	const card = generatedCardSchema.safeParse(body?.card);
-	if (body?.status !== 'ok' || !card.success) return { problem: 'failed' };
-	return { card: card.data };
+/**
+ * The lines of an answer of one JSON event per line, each to `take` as it arrives; empty
+ * lines (the server's heartbeat) are skipped. `false` when the connection broke.
+ */
+async function readLines(response: Response, take: (json: unknown) => void): Promise<boolean> {
+	const body = response.body;
+	if (body === null) return false;
+	const decoder = new TextDecoder();
+	let rest = '';
+	const line = (raw: string) => {
+		if (raw.trim() === '') return;
+		try {
+			take(JSON.parse(raw));
+		} catch {
+			// A damaged line is skipped; the stream says how it ended.
+		}
+	};
+	try {
+		const reader = body.getReader();
+		for (;;) {
+			const { value, done } = await reader.read();
+			if (value !== undefined) rest += decoder.decode(value, { stream: !done });
+			let at: number;
+			while ((at = rest.indexOf('\n')) >= 0) {
+				line(rest.slice(0, at));
+				rest = rest.slice(at + 1);
+			}
+			if (done) break;
+		}
+		line(rest);
+	} catch {
+		return false;
+	}
+	return true;
 }
 
 /**
@@ -90,43 +129,79 @@ export async function askOutline(
 ): Promise<'done' | Failure> {
 	const answer = await send('/ai/outline', request);
 	if ('problem' in answer) return answer;
-	const body = answer.response.body;
-	if (body === null) return { problem: 'failed' };
-	const decoder = new TextDecoder();
-	let rest = '';
 	let ended: 'done' | Failure | undefined;
-	const take = (raw: string) => {
-		if (raw.trim() === '') return;
-		let json: unknown;
-		try {
-			json = JSON.parse(raw);
-		} catch {
-			return;
-		}
+	const read = await readLines(answer.response, (json) => {
 		const event = outlineEventSchema.safeParse(json);
 		if (!event.success) return;
 		if (event.data.type === 'done') ended = 'done';
 		else if (event.data.type === 'failed')
 			ended = { problem: event.data.problem === 'busy' ? 'busy' : 'failed' };
 		else onEvent(event.data);
-	};
+	});
+	if (!read) return { problem: 'offline' };
+	// A stream that stops without saying so was cut.
+	return ended ?? { problem: 'offline' };
+}
+
+/** How a lesson's conversation ended, when it did not end with every card answered. */
+export type LessonEnd = 'done' | Failure;
+
+/**
+ * Write the cards of a lesson: each event goes to `onEvent` as it comes. Aborting
+ * `signal` ends the conversation (the card being written is lost); the promise then
+ * says `done`.
+ */
+export async function askLesson(
+	request: LessonRequest,
+	onEvent: (event: Exclude<LessonEvent, { type: 'done' | 'failed' | 'stopped' }>) => void,
+	signal?: AbortSignal
+): Promise<LessonEnd> {
+	let answer: { response: Response } | Failure;
 	try {
-		const reader = body.getReader();
-		for (;;) {
-			const { value, done } = await reader.read();
-			if (value !== undefined) rest += decoder.decode(value, { stream: !done });
-			let at: number;
-			while ((at = rest.indexOf('\n')) >= 0) {
-				take(rest.slice(0, at));
-				rest = rest.slice(at + 1);
-			}
-			if (done) break;
-		}
-		take(rest);
+		answer = await send('/ai/lesson', request, signal);
+	} catch {
+		answer = { problem: 'offline' };
+	}
+	if (signal?.aborted) return 'done';
+	if ('problem' in answer) return answer;
+	let ended: LessonEnd | undefined;
+	const read = await readLines(answer.response, (json) => {
+		const event = lessonEventSchema.safeParse(json);
+		if (!event.success) return;
+		const e = event.data;
+		if (e.type === 'done') ended = 'done';
+		else if (e.type === 'failed') ended = { problem: e.problem };
+		else if (e.type === 'stopped')
+			ended = { problem: e.reason, ...(e.retryAfter > 0 ? { retryAfter: e.retryAfter } : {}) };
+		else onEvent(e);
+	});
+	if (signal?.aborted) return 'done';
+	if (!read) return { problem: 'offline' };
+	return ended ?? { problem: 'offline' };
+}
+
+/** Ask for the plan of the cards about to be written; what went wrong, or the plan. */
+export async function askPlan(
+	request: PlanRequest,
+	signal?: AbortSignal
+): Promise<Extract<PlanEvent, { type: 'plan' }> | Failure> {
+	let answer: { response: Response } | Failure;
+	try {
+		answer = await send('/ai/plan', request, signal);
 	} catch {
 		return { problem: 'offline' };
 	}
-	// A stream that stops without saying so was cut.
+	if ('problem' in answer) return answer;
+	let ended: Extract<PlanEvent, { type: 'plan' }> | Failure | undefined;
+	const read = await readLines(answer.response, (json) => {
+		const event = planEventSchema.safeParse(json);
+		if (!event.success) return;
+		const e = event.data;
+		if (e.type === 'plan') ended = e;
+		else if (e.type === 'failed') ended = { problem: e.problem };
+		else ended = { problem: e.reason, ...(e.retryAfter > 0 ? { retryAfter: e.retryAfter } : {}) };
+	});
+	if (!read) return { problem: 'offline' };
 	return ended ?? { problem: 'offline' };
 }
 
@@ -170,51 +245,95 @@ class Ai {
 	}
 
 	/**
-	 * Write the card: its empty parts and the steps the model adds. What the teacher
-	 * fills in while the model works is kept: `fillCard` looks again at what is empty
-	 * when the answer arrives.
+	 * Write the card: its empty parts and the steps the model adds, as a lesson of one
+	 * card. What the teacher fills in while the model works is kept: `fillCard` looks
+	 * again at what is empty when the answer arrives.
 	 */
 	async write(
 		store: DocStore,
 		blockId: string,
 		lessonId: string | undefined,
-		/** `quiet`: the caller reports problems and the result itself (the panel's queue). */
+		/** `quiet`: the caller reports problems and the result itself. */
 		options: { quiet?: boolean } = {}
 	): Promise<WriteResult> {
 		if (this.writing.has(blockId)) return { status: 'nothing' };
 		if (!store.doc.blocks.some((b) => b.block_id === blockId)) return { status: 'gone' };
-		// The card's sources, and the course's other materials by what fits (`renderMaterials`).
-		await materials.ready(store.doc.course_id);
-		if (!store.doc.blocks.some((b) => b.block_id === blockId)) return { status: 'gone' };
-		const target = store.doc.blocks.find((b) => b.block_id === blockId);
-		const request = buildGenRequest(
-			store.doc,
-			blockId,
-			lessonId,
-			buildDossier(store.doc, blockId, lessonId),
-			renderMaterials(materials.sections, { for: 'card', refs: sourceRefsOf(target) })
-		);
-		if (request === undefined) return { status: 'nothing' };
+		// Taken at once: a second click while the materials load must not write it twice.
 		this.writing.add(blockId);
-		let outcome: Outcome;
 		try {
-			outcome = await ask(request);
+			return await this.#write(store, blockId, lessonId, options);
 		} finally {
 			this.writing.delete(blockId);
 		}
-		if ('problem' in outcome) {
-			// A 503 is also what a server that has lost its provider says: ask again, and
-			// if AI is gone the offer goes with it.
-			if (outcome.problem === 'busy') await this.detect();
-			if (options.quiet !== true)
-				notices.show({ text: TEXT[this.available ? outcome.problem : 'failed'] });
-			return { status: 'problem', ...outcome };
-		}
+	}
+
+	async #write(
+		store: DocStore,
+		blockId: string,
+		lessonId: string | undefined,
+		options: { quiet?: boolean }
+	): Promise<WriteResult> {
+		// The card's sources, and the course's other materials by what fits (`renderMaterials`).
+		await materials.ready(store.doc.course_id);
+		const target = store.doc.blocks.find((b) => b.block_id === blockId);
+		if (target === undefined) return { status: 'gone' };
+		const lesson =
+			lessonId ??
+			store.doc.lessons.find((l) => l.blocks.some((b) => b.block_id === blockId))?.lesson_id;
+		const built =
+			lesson === undefined
+				? undefined
+				: buildLessonRequest(store.doc, lesson, [blockId], {
+						context: buildDossier(store.doc, blockId, lesson),
+						materials: renderMaterials(materials.sections, {
+							for: 'lesson',
+							refs: sourceRefsOf(target)
+						})
+					});
+		if (built === undefined) return { status: 'nothing' };
+		let card: GeneratedCard | undefined;
+		let failedCard = false;
+		const end = await askLesson(built.request, (event) => {
+			if (event.type === 'card') card = event.answer;
+			else if (event.type === 'card-failed') failedCard = true;
+		});
+		const outcome: Outcome =
+			card !== undefined
+				? { card }
+				: end !== 'done'
+					? end
+					: { problem: failedCard ? 'failed' : 'offline' };
+		if ('problem' in outcome) return this.#report(outcome, options);
+		return this.apply(store, blockId, lessonId, outcome.card, options);
+	}
+
+	/** A problem said to the teacher (unless `quiet`), and as the result. */
+	async #report(
+		outcome: { problem: Problem; retryAfter?: number },
+		options: { quiet?: boolean }
+	): Promise<WriteResult> {
+		// A 503 is also what a server that has lost its provider says: ask again, and if AI
+		// is gone the offer goes with it.
+		if (outcome.problem === 'busy') await this.detect();
+		if (options.quiet !== true)
+			notices.show({ text: TEXT[this.available ? outcome.problem : 'failed'] });
+		return { status: 'problem', ...outcome };
+	}
+
+	/**
+	 * A card the model wrote, into the document: its own undo step, never folded into a
+	 * run of the teacher's typing, and only into parts that are still empty.
+	 */
+	apply(
+		store: DocStore,
+		blockId: string,
+		lessonId: string | undefined,
+		card: GeneratedCard,
+		options: { quiet?: boolean } = {}
+	): WriteResult {
 		// The card may be gone by now; then there is nothing to write and nothing to say.
 		if (!store.doc.blocks.some((b) => b.block_id === blockId)) return { status: 'gone' };
-		const { card } = outcome;
 		let written: WrittenCount | undefined;
-		// Its own undo step: never folded into a run of the teacher's typing.
 		store.endEdit();
 		const before = store.undoStack.at(-1);
 		// Where the teacher is now stays where they are: no selection change.

@@ -12,7 +12,8 @@ import type {
 	GeneratedCard,
 	GeneratedStep
 } from '$lib/domain/authoring';
-import type { Complete, Message, Stream, Vision } from './provider';
+import type { AssistantTurn, Chat, Complete, Message, Stream, Vision } from './provider';
+import type { Plan, PlanRequest } from '$lib/domain/plan';
 import type { SourcesRequest } from '$lib/domain/source-assign';
 import type { Outline, OutlineCard, OutlineRequest } from '$lib/domain/outline';
 
@@ -172,6 +173,53 @@ export const fakeComplete: Complete = async (messages) => {
 	if ('schema' in request && request.schema === 'eduai.sources-request/1')
 		return { text: JSON.stringify(fakeSources(request, keysIn(messages))), tokens: 0 };
 	return { text: JSON.stringify(fakeCard(request as GenRequest)), tokens: 0 };
+};
+
+/** The plan from its request alone: a brief the teacher gave is kept as it is. */
+export function fakePlan(request: Pick<PlanRequest, 'lessons'>): Plan {
+	return {
+		conventions: 'Ukázkové úmluvy kurzu.',
+		lessons: request.lessons.map((l) => ({
+			lesson: l.lesson,
+			note: `Ukázková poznámka: ${l.name}.`
+		})),
+		cards: request.lessons.flatMap((l) =>
+			l.cards.map((c) => ({ card: c.card, brief: c.brief ?? `Ukázkový záměr: ${c.title}.` }))
+		)
+	};
+}
+
+/** What the fake "thinks", so a suite can see that it is handed back. */
+export const FAKE_REASONING = [
+	{ type: 'reasoning.text', text: 'Ukázková úvaha.', format: 'unknown', index: 0 }
+];
+
+/**
+ * A turn of a conversation (`lesson.ts`): the plan for a plan's request, else the card
+ * the last card turn asks for, as a call of the tool it was asked for.
+ */
+export const fakeChat: Chat = async (messages, { tool }) => {
+	const last = (prefix: string) =>
+		messages.findLast(
+			(m) => m.role === 'user' && typeof m.content === 'string' && m.content.startsWith(prefix)
+		)?.content;
+	const args =
+		tool === 'save_plan'
+			? fakePlan(JSON.parse(last('{"task":"plan"') ?? '{"lessons":[]}') as PlanRequest)
+			: fakeCard(JSON.parse(last('{"write"') ?? '{}') as GenRequest);
+	const turn: AssistantTurn = {
+		role: 'assistant',
+		content: '',
+		tool_calls: [
+			{
+				id: `fake-${messages.length}`,
+				type: 'function',
+				function: { name: tool, arguments: JSON.stringify(args) }
+			}
+		],
+		reasoning_details: FAKE_REASONING
+	};
+	return { turn, tokens: 0 };
 };
 
 const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));

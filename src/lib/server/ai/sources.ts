@@ -7,7 +7,7 @@
  * then the materials' index, then the request.
  */
 import { usableSources, type Assigned, type SourcesRequest } from '$lib/domain/source-assign';
-import { parseJson } from './generate';
+import { parseJson } from './json';
 import type { Complete, Message } from './provider';
 
 export const SOURCES_SYSTEM_PROMPT = `You help plan a course ("kurz") for a mobile learning app from the teacher's materials (Word, PowerPoint, PDF, scans). Each card of the course will be written later from the sections of the materials named for it; the materials are too long for a card to see them all.

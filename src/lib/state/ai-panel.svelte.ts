@@ -30,15 +30,20 @@ import {
 import { CommandError } from '$lib/domain/commands';
 import { emptyHistory, record, redo, retract, undo, type History } from '$lib/domain/history';
 import { insertOutline } from '$lib/domain/outline-insert';
-import { ai, askOutline, askSources, TEXT, type Problem } from './ai.svelte';
+import { ai, askLesson, askOutline, askPlan, askSources, TEXT, type Problem } from './ai.svelte';
 import {
 	buildSourcesRequest,
 	cardsWithoutSources,
 	setSourceRefs,
 	sourcesWanted
 } from '$lib/domain/source-assign';
+import { sourceRefsOf } from '$lib/domain/authoring';
+import { buildDossier, lessonSnapshot } from '$lib/domain/dossier';
+import { buildLessonRequest, type AssistantTurnData } from '$lib/domain/lesson-writing';
+import { fitsFully, renderMaterials } from '$lib/domain/materials';
+import { applyPlan, buildPlanRequest, type PlanRequest, type PlanTargets } from '$lib/domain/plan';
 import { materials } from './materials.svelte';
-import { WriteQueue, type RunResult, type Row } from './write-queue.svelte';
+import { WriteQueue, type RunContext, type RunResult, type Row } from './write-queue.svelte';
 import { readOutline, writeOutline } from './outline-store';
 import type { DocStore } from './doc-store.svelte';
 
@@ -84,19 +89,83 @@ class AiPanel {
 	#key: KeyMaker = keyMaker();
 	#store: DocStore | null = null;
 
-	queue = new WriteQueue((row) => this.#write(row));
+	queue = new WriteQueue((rows, context) => this.#write(rows, context));
+	/** Ends the plan's request when the teacher stops before it is made. */
+	#planAbort: AbortController | null = null;
+	/** The plan is being made: the cards wait for it. */
+	planning = $state(false);
+	/**
+	 * The plan of the cards being written, and the model's turn that made it, handed back
+	 * with each lesson so it starts from the plan's own reasoning. Only in memory: after a
+	 * reload the cards follow what the plan left in the document.
+	 */
+	#plan: {
+		course: string;
+		request: PlanRequest;
+		turn: AssistantTurnData;
+		targets: PlanTargets;
+	} | null = null;
 
-	async #write(row: Row): Promise<RunResult> {
+	/** A lesson's cards, in one conversation. */
+	async #write(rows: Row[], { report, stopped }: RunContext): Promise<RunResult> {
 		const store = this.#store;
-		if (store === null) return { problem: 'other' };
-		const result = await ai.write(store, row.blockId, row.lessonId, { quiet: true });
-		if (result.status !== 'problem') return 'done';
-		if (result.problem === 'rate')
+		if (store === null || rows.length === 0) return { problem: 'other' };
+		const lessonId = rows[0].lessonId;
+		await materials.ready(store.doc.course_id);
+		const doc = store.doc;
+		// The plan is for the cards it planned: a later batch, or a card added since, has none.
+		const known = this.#plan?.course === doc.course_id ? this.#plan : null;
+		const plan =
+			known !== null && rows.every((r) => known.targets.cards.includes(r.blockId)) ? known : null;
+		const sections = materials.sections;
+		const refs = rows.flatMap((r) =>
+			sourceRefsOf(doc.blocks.find((b) => b.block_id === r.blockId))
+		);
+		const built = buildLessonRequest(
+			doc,
+			lessonId,
+			rows.map((r) => r.blockId),
+			{
+				// With the plan the conversation has the course already; it needs the lesson as it is.
+				context:
+					plan !== null ? lessonSnapshot(doc, lessonId) : buildDossier(doc, undefined, lessonId),
+				// The plan's request has the materials in full when they all fit.
+				materials:
+					plan !== null && fitsFully(sections)
+						? ''
+						: renderMaterials(sections, { for: 'lesson', refs }),
+				...(plan !== null ? { plan } : {})
+			}
+		);
+		// A card with nothing left to write (or gone) is done with.
+		const carried = new Set(built?.ids ?? []);
+		for (const row of rows) if (!carried.has(row.blockId)) report(row, 'done');
+		if (built === undefined) return 'done';
+		const byTurn = built.ids.map((id) => rows.find((r) => r.blockId === id)!);
+		const abort = new AbortController();
+		const end = await askLesson(
+			built.request,
+			(event) => {
+				const row = byTurn[event.card];
+				if (row === undefined) return;
+				if (event.type === 'writing') return report(row, 'writing');
+				if (event.type === 'card') {
+					const result = ai.apply(store, row.blockId, row.lessonId, event.answer, { quiet: true });
+					report(row, result.status === 'problem' ? 'failed' : 'done');
+				} else report(row, 'failed');
+				// Stopped: the card being written was finished; no further one is started.
+				if (stopped()) abort.abort();
+			},
+			abort.signal
+		);
+		if (end === 'done') return 'done';
+		if (end.problem === 'rate')
 			return {
 				problem: 'rate',
-				...(result.retryAfter !== undefined ? { retryAfter: result.retryAfter } : {})
+				...(end.retryAfter !== undefined ? { retryAfter: end.retryAfter } : {})
 			};
-		return { problem: result.problem === 'budget' ? 'budget' : 'other' };
+		if (end.problem === 'busy') await ai.detect();
+		return { problem: end.problem === 'budget' ? 'budget' : 'other' };
 	}
 
 	get canUndo(): boolean {
@@ -171,6 +240,7 @@ class AiPanel {
 		this.incoming = false;
 		this.problem = '';
 		this.#course = courseId;
+		this.planning = false;
 		this.#step(emptyHistory());
 		this.typing = null;
 		this.#draft = readOutline(storage(), courseId, this.#key);
@@ -323,18 +393,70 @@ class AiPanel {
 		this.draft = null;
 		this.forget();
 		this.problem = '';
-		// Materials too long for a card to get them all: the cards with no sources of their
-		// own wait until the model has named theirs; the others are written at once.
+		// The cards wait for the plan, and before it, when the materials are too long for a
+		// card to get them all, for the model to name the sources of the cards with none.
 		const sections = materials.sections;
 		const unsourced = sourcesWanted(sections) ? cardsWithoutSources(store.doc, added) : [];
-		const held = unsourced.map((c) => c.blockId);
-		this.queue.start(added, held);
-		if (held.length > 0) void this.#source(store, unsourced, sections);
+		this.queue.start(
+			added,
+			added.map((c) => c.blockId)
+		);
+		void this.#prepare(store, added, unsourced, sections);
+	}
+
+	/** Sources where they are missing, then the plan; then the cards are written. */
+	async #prepare(
+		store: DocStore,
+		added: { blockId: string; lessonId: string }[],
+		unsourced: { blockId: string; lessonId: string }[],
+		sections: typeof materials.sections
+	): Promise<void> {
+		const course = store.doc.course_id;
+		try {
+			if (unsourced.length > 0) await this.#source(store, unsourced, sections);
+			if (store.doc.course_id !== course) return;
+			this.planning = true;
+			await this.#makePlan(store, added, sections);
+		} finally {
+			if (this.#course === course || this.#course === null) this.planning = false;
+			this.queue.release(added.map((c) => c.blockId));
+		}
+	}
+
+	/**
+	 * The plan, kept in the document where the teacher left a field empty, without an
+	 * undo step of its own (`DocStore.amend`): an undo of the insert takes it with the cards.
+	 * When it cannot be made the cards are written without it.
+	 */
+	async #makePlan(
+		store: DocStore,
+		added: { blockId: string; lessonId: string }[],
+		sections: typeof materials.sections
+	): Promise<void> {
+		const course = store.doc.course_id;
+		const built = buildPlanRequest(
+			store.doc,
+			added,
+			buildDossier(store.doc, undefined, added[0]?.lessonId),
+			renderMaterials(sections, { for: 'outline' })
+		);
+		if (built === undefined) return;
+		// Stopped while the sources were named: no plan is asked for.
+		if (!this.queue.running) return;
+		const abort = new AbortController();
+		this.#planAbort = abort;
+		const answer = await askPlan(built.request, abort.signal).catch(() => undefined);
+		if (this.#planAbort === abort) this.#planAbort = null;
+		// Stopped meanwhile: the teacher asked for nothing more to be written, the plan too.
+		if (abort.signal.aborted || !this.queue.running) return;
+		if (answer === undefined || 'problem' in answer || store.doc.course_id !== course) return;
+		store.amend((doc) => applyPlan(doc, answer.plan, built.targets));
+		this.#plan = { course, request: built.request, turn: answer.turn, targets: built.targets };
 	}
 
 	/**
 	 * Name the sources of `cards` and keep them on the cards as if they had come with them
-	 * (no undo step of their own, `DocStore.amend`); then they are written, with or
+	 * (no undo step of their own, `DocStore.amend`). When that fails they are written
 	 * without sources. Nothing about it is shown.
 	 */
 	async #source(
@@ -351,13 +473,12 @@ class AiPanel {
 				store.amend((doc) => setSourceRefs(doc, cards, assigned));
 		} catch {
 			// Written without sources.
-		} finally {
-			this.queue.release(cards.map((c) => c.blockId));
 		}
 	}
 
 	stop() {
 		this.queue.stop();
+		this.#planAbort?.abort();
 	}
 
 	/** „Dopsat zbytek“. */

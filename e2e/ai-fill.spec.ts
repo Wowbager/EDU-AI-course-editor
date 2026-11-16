@@ -112,10 +112,12 @@ test('without a provider on the server nothing about AI is shown', async ({ page
 test('a failed request says so and leaves the card as it was', async ({ page }) => {
 	await openEditor(page);
 	await expect(write(page)).toBeVisible();
-	await page.route('**/ai/block', (route) =>
-		route.request().method() === 'POST'
-			? route.fulfill({ json: { status: 'failed' } })
-			: route.fallback()
+	// A card that could not be written is a line of the stream, not an HTTP error.
+	await page.route('**/ai/lesson', (route) =>
+		route.fulfill({
+			contentType: 'application/x-ndjson',
+			body: '{"type":"writing","card":0}\n{"type":"card-failed","card":0}\n{"type":"done"}\n'
+		})
 	);
 	await name(page).fill('Co je polovina');
 	await write(page).click();
@@ -134,13 +136,13 @@ test('who the course is for is set once, in the course settings', async ({ page 
 	await dialog.getByRole('textbox', { name: 'Co už žáci umí' }).fill('dělení do 20');
 	await dialog.getByRole('button', { name: 'Hotovo' }).click();
 
-	const sent = page.waitForRequest((r) => r.url().endsWith('/ai/block') && r.method() === 'POST');
+	const sent = page.waitForRequest((r) => r.url().endsWith('/ai/lesson') && r.method() === 'POST');
 	await name(page).fill('Co je polovina');
 	await write(page).click();
 	const body = (await sent).postDataJSON();
 	expect(body.course.audience).toEqual({ grade: 4, prior_knowledge: 'dělení do 20' });
 	// The card's steps travel by id, and the course's text with them.
-	expect(body.card.steps).toHaveLength(1);
+	expect(body.cards[0].steps).toHaveLength(1);
 	expect(typeof body.context).toBe('string');
 });
 
@@ -148,11 +150,8 @@ test('a busy provider and a dropped connection leave the offer where it was', as
 	await openEditor(page);
 	await expect(write(page)).toBeVisible();
 	// From here on the provider is busy, and asking the server about AI gets no answer.
-	await page.route('**/ai/block', (route) =>
-		route.request().method() === 'POST'
-			? route.fulfill({ status: 503, body: 'busy' })
-			: route.abort()
-	);
+	await page.route('**/ai/lesson', (route) => route.fulfill({ status: 503, body: 'busy' }));
+	await page.route('**/ai/block', (route) => route.abort());
 	await name(page).fill('Co je polovina');
 	await write(page).click();
 	await expect(page.getByText('AI je teď přetížená. Zkus to za chvíli.')).toBeVisible();
@@ -162,11 +161,10 @@ test('a busy provider and a dropped connection leave the offer where it was', as
 test('a server that has lost its provider takes the offer away', async ({ page }) => {
 	await openEditor(page);
 	await expect(write(page)).toBeVisible();
-	await page.route('**/ai/block', (route) =>
-		route.request().method() === 'POST'
-			? route.fulfill({ status: 503, body: 'AI není nastavena.' })
-			: route.fulfill({ json: { configured: false } })
+	await page.route('**/ai/lesson', (route) =>
+		route.fulfill({ status: 503, body: 'AI není nastavena.' })
 	);
+	await page.route('**/ai/block', (route) => route.fulfill({ json: { configured: false } }));
 	await name(page).fill('Co je polovina');
 	await write(page).click();
 	await expect(page.getByText('Kartu se nepodařilo dopsat. Zkus to znovu.')).toBeVisible();

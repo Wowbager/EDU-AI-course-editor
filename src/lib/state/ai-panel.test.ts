@@ -13,14 +13,22 @@ import {
 	toOutline,
 	type Outline
 } from '$lib/domain/outline';
-import { fakeCard, fakeOutline } from '$lib/server/ai/fake';
-import { REQUEST_KEY, sourceRefsOf, type GenRequest } from '$lib/domain/authoring';
+import { fakeChat, fakeOutline, FAKE_REASONING } from '$lib/server/ai/fake';
+import { lessonEvents, makePlan } from '$lib/server/ai/lesson';
+import { BRIEF_KEY, REQUEST_KEY, sourceRefsOf } from '$lib/domain/authoring';
 
 vi.mock('$lib/state/versions/server', () => ({ workspaceKey: () => 'k'.repeat(43) }));
 
-function setup() {
+let courses = 0;
+/**
+ * A course with one lesson and one card. Its id is new every time: the panel keeps the plan
+ * of a course in memory, so a plan must not leak from one test to the next.
+ */
+function setup(id = `KURZ${++courses}`) {
 	const store = new DocStore();
-	let doc = addLesson(emptyCourse('KURZ', 'Zlomky'), 'Polovina').doc;
+	// The panel is on this course, as it is in the app (`planning` is reset only there).
+	aiPanel.follow(id);
+	let doc = addLesson(emptyCourse(id, 'Zlomky'), 'Polovina').doc;
 	const lessonId = doc.lessons[0].lesson_id;
 	const added = addBlock(doc, lessonId, 'display');
 	store.load(added.doc);
@@ -41,18 +49,63 @@ function stream(outline: Outline, ending: unknown = { type: 'done' }): Response 
 	return new Response(events.map((e) => `${JSON.stringify(e)}\n`).join(''));
 }
 
-/** The fake provider behind `fetch`, with the requests it saw. */
-function server() {
-	const seen: { route: string; body: any }[] = [];
-	const fetcher = vi.fn(async (route: string, init: RequestInit) => {
+const ndjson = (events: unknown[]) =>
+	new Response(events.map((e) => `${JSON.stringify(e)}\n`).join(''));
+
+/**
+ * What the real server answers to a route that holds a conversation with the model, with
+ * the fake provider behind it. `undefined` for a route that is not one of them.
+ */
+async function answerAi(route: string, body: any): Promise<Response | undefined> {
+	if (route === '/ai/outline') return stream(fakeOutline(body));
+	if (route === '/ai/lesson') {
+		const events: unknown[] = [];
+		for await (const e of lessonEvents(body, fakeChat)) events.push(e);
+		return ndjson(events);
+	}
+	if (route === '/ai/plan') return ndjson([await makePlan(body, fakeChat)]);
+	return undefined;
+}
+
+type Seen = { route: string; body: any };
+
+/** The events the real lesson route would send for `body`. */
+async function answerLesson(body: any): Promise<any[]> {
+	const events: any[] = [];
+	for await (const e of lessonEvents(body, fakeChat)) events.push(e);
+	return events;
+}
+
+/**
+ * The fake provider behind `fetch`, with the requests it saw. `plan`: `'fail'` answers
+ * /ai/plan with a 500; `'hold'` keeps it pending until `release()`.
+ */
+function server(options: { plan?: 'fail' | 'hold' } = {}) {
+	const seen: Seen[] & { release: () => void } = Object.assign([] as Seen[], {
+		release: () => {}
+	});
+	const held = new Promise<void>((resolve) => (seen.release = resolve));
+	const fetcher = vi.fn(async (route: string, init?: RequestInit) => {
+		if (init?.body === undefined) {
+			// The course's materials, and whether AI is on offer.
+			return route === '/ai/block'
+				? Response.json({ configured: true })
+				: Response.json({ files: [] });
+		}
 		const body = JSON.parse(String(init.body));
 		seen.push({ route, body });
-		if (route === '/ai/outline') return stream(fakeOutline(body));
-		return Response.json({ status: 'ok', card: fakeCard(body as GenRequest) });
+		if (route === '/ai/plan') {
+			if (options.plan === 'fail') return new Response('x', { status: 500 });
+			if (options.plan === 'hold') await held;
+		}
+		return (await answerAi(route, body)) ?? Response.json({ status: 'ok', cards: [] });
 	});
 	vi.stubGlobal('fetch', fetcher);
 	return seen;
 }
+
+const routes = (seen: Seen[]) => seen.map((s) => s.route);
+const only = (seen: Seen[], route: string) => seen.filter((s) => s.route === route);
 
 const done = async () => {
 	while (aiPanel.queue.writing) await new Promise((r) => setTimeout(r, 2));
@@ -155,6 +208,276 @@ describe('the AI panel state', () => {
 		await done();
 		for (let i = 0; i < 4; i++) store.undo();
 		expect(store.doc.blocks).toHaveLength(1);
+	});
+});
+
+describe('planning before writing, and a lesson per request', () => {
+	/** Cards for the selected lesson, accepted. */
+	async function accept(store: DocStore, lessonId: string, prompt = 'Dej mi karty') {
+		store.selection = { lessonId };
+		await aiPanel.send(store, prompt);
+		aiPanel.create(store);
+	}
+
+	it('asks /ai/plan once, before any lesson is written', async () => {
+		const { store, lessonId } = setup();
+		const seen = server();
+		await accept(store, lessonId, 'Kurz o zlomcích');
+		await done();
+		expect(only(seen, '/ai/plan')).toHaveLength(1);
+		expect(only(seen, '/ai/lesson').length).toBeGreaterThan(1);
+		const rest = routes(seen).slice(routes(seen).indexOf('/ai/plan'));
+		expect(routes(seen).indexOf('/ai/plan')).toBeLessThan(routes(seen).indexOf('/ai/lesson'));
+		expect(rest.filter((r) => r === '/ai/plan')).toHaveLength(1);
+		// The plan is for the new cards, by lesson.
+		const request = only(seen, '/ai/plan')[0].body;
+		expect(request.schema).toBe('eduai.plan-request/1');
+		expect(request.lessons.map((l: { name: string }) => l.name)).toEqual([
+			'První lekce',
+			'Druhá lekce'
+		]);
+	});
+
+	it('hands the plan and the model\u2019s turn back, unchanged, with every lesson', async () => {
+		const { store, lessonId } = setup();
+		const seen = server();
+		await accept(store, lessonId, 'Kurz o zlomcích');
+		await done();
+		const lessons = only(seen, '/ai/lesson');
+		expect(lessons).toHaveLength(2);
+		for (const { body } of lessons) {
+			expect(body.plan.request).toEqual(only(seen, '/ai/plan')[0].body);
+			expect(body.plan.turn.reasoning_details).toEqual(FAKE_REASONING);
+			expect(body.plan.turn.role).toBe('assistant');
+			expect(body.plan.turn.tool_calls[0].function.name).toBe('save_plan');
+			// Each card knows its number in the plan.
+			expect(body.cards.every((c: { plan_card?: number }) => c.plan_card !== undefined)).toBe(true);
+		}
+	});
+
+	it('sends a lesson\u2019s cards in one request, in course order, a request per lesson', async () => {
+		const { store, lessonId } = setup();
+		const seen = server();
+		await accept(store, lessonId, 'Kurz o zlomcích');
+		await done();
+		const byLesson = new Map(
+			only(seen, '/ai/lesson').map(({ body }) => [
+				body.lesson.name as string,
+				body.cards.map((c: { title: string }) => c.title)
+			])
+		);
+		expect(byLesson.get('První lekce')).toEqual(['Co to je', 'Procvičení', 'Ověření']);
+		expect(byLesson.get('Druhá lekce')).toEqual(['Jak se to používá', 'Úlohy']);
+		expect(aiPanel.queue.rows.every((r) => r.state === 'done')).toBe(true);
+		for (const row of aiPanel.queue.rows)
+			expect(
+				store.doc.blocks.find((b) => b.block_id === row.blockId)!.steps.length
+			).toBeGreaterThan(1);
+	});
+
+	it('the plan is not asked again for cards of the same batch written later', async () => {
+		const { store, lessonId } = setup();
+		const seen = server();
+		await accept(store, lessonId);
+		await done();
+		expect(only(seen, '/ai/plan')).toHaveLength(1);
+	});
+
+	it('is planning while /ai/plan is pending, and not after', async () => {
+		const { store, lessonId } = setup();
+		const seen = server({ plan: 'hold' });
+		expect(aiPanel.planning).toBe(false);
+		await accept(store, lessonId);
+		await new Promise((r) => setTimeout(r, 5));
+		expect(aiPanel.planning).toBe(true);
+		expect(only(seen, '/ai/plan')).toHaveLength(1);
+		// The cards wait for it.
+		expect(only(seen, '/ai/lesson')).toHaveLength(0);
+		expect(aiPanel.queue.rows.map((r) => r.state)).toEqual(['waiting', 'waiting', 'waiting']);
+		seen.release();
+		await done();
+		expect(aiPanel.planning).toBe(false);
+		expect(aiPanel.queue.rows.every((r) => r.state === 'done')).toBe(true);
+	});
+
+	it('a stop while the plan is made keeps the plan out of the course, and resume writes the cards', async () => {
+		const { store, lessonId } = setup();
+		const seen = server({ plan: 'hold' });
+		await accept(store, lessonId);
+		await new Promise((r) => setTimeout(r, 5));
+		aiPanel.stop();
+		seen.release();
+		// The queue is stopped at once; the plan's answer still arrives, and is dropped.
+		await vi.waitFor(() => expect(aiPanel.planning).toBe(false));
+		expect(only(seen, '/ai/lesson')).toHaveLength(0);
+		const briefs = (store.source.blocks as Record<string, unknown>[]).map((b) => b[BRIEF_KEY]);
+		expect(briefs.every((b) => b === undefined)).toBe(true);
+		aiPanel.resume(store);
+		await done();
+		expect(aiPanel.queue.rows.every((r) => r.state === 'done')).toBe(true);
+		expect(only(seen, '/ai/lesson').every((s) => s.body.plan === undefined)).toBe(true);
+	});
+
+	it('puts the plan in the document only where nothing is written, and keeps what the teacher typed', async () => {
+		const { store, lessonId } = setup();
+		const seen = server({ plan: 'hold' });
+		await accept(store, lessonId, 'Kurz o zlomcích');
+		await new Promise((r) => setTimeout(r, 5));
+		const [typed, other] = aiPanel.queue.rows.map((r) => r.blockId);
+		// While the plan is being made the teacher gives a card a brief, and the first new lesson a note.
+		store.apply((d) => ({
+			doc: {
+				...d,
+				lessons: d.lessons.map((l) =>
+					l.blocks.some((b) => b.block_id === typed) ? { ...l, ai_context: 'Moje poznámka' } : l
+				),
+				blocks: d.blocks.map((b) => (b.block_id === typed ? { ...b, [BRIEF_KEY]: 'Můj záměr' } : b))
+			},
+			description: 'x'
+		}));
+		seen.release();
+		await done();
+		const blocks = store.source.blocks as Record<string, unknown>[];
+		const brief = (id: string) => blocks.find((b) => b.block_id === id)![BRIEF_KEY];
+		expect(brief(typed)).toBe('Můj záměr');
+		expect(brief(other)).toMatch(/^Ukázkový záměr: /);
+		const lessons = store.source.lessons as Record<string, unknown>[];
+		expect(lessons.map((l) => l.ai_context)).toEqual([
+			undefined,
+			'Moje poznámka',
+			'Ukázková poznámka: Druhá lekce.'
+		]);
+		expect((store.source as Record<string, unknown>).ai_context).toBe('Ukázkové úmluvy kurzu.');
+		// What the lesson requests carried is what stood in the document by then.
+		const first = only(seen, '/ai/lesson').find((s) => s.body.lesson.name === 'První lekce')!;
+		expect(first.body.context).toContain('Můj záměr');
+	});
+
+	it('undoing the insert takes the cards and their briefs; one undo step per written card, none for the plan', async () => {
+		const { store, lessonId } = setup();
+		server();
+		const before = store.undoStack.length;
+		await accept(store, lessonId);
+		await done();
+		const added = aiPanel.queue.rows.length;
+		expect(added).toBe(3);
+		expect(store.undoStack.length).toBe(before + 1 + added);
+		const briefs = () =>
+			(store.source.blocks as Record<string, unknown>[]).filter((b) => b[BRIEF_KEY] !== undefined);
+		expect(briefs()).toHaveLength(added);
+		for (let i = 0; i < added; i++) store.undo();
+		// The cards are back to what the plan left, still in the document, so are their briefs.
+		expect(store.doc.blocks).toHaveLength(4);
+		store.undo();
+		expect(store.doc.blocks).toHaveLength(1);
+		expect(briefs()).toEqual([]);
+		expect(store.undoStack.length).toBe(before);
+		// Redo brings the cards back with the plan.
+		store.redo();
+		expect(store.doc.blocks).toHaveLength(4);
+		expect(briefs()).toHaveLength(added);
+		expect((store.source as Record<string, unknown>).ai_context).toBe('Ukázkové úmluvy kurzu.');
+	});
+
+	it('writes the cards without a plan when /ai/plan fails', async () => {
+		const { store, lessonId } = setup();
+		const seen = server({ plan: 'fail' });
+		await accept(store, lessonId);
+		await done();
+		expect(only(seen, '/ai/plan')).toHaveLength(1);
+		const lessons = only(seen, '/ai/lesson');
+		expect(lessons).toHaveLength(1);
+		expect(lessons[0].body.plan).toBeUndefined();
+		expect(lessons[0].body.cards).toHaveLength(3);
+		expect(aiPanel.queue.rows.every((r) => r.state === 'done')).toBe(true);
+		expect(aiPanel.planning).toBe(false);
+		// No plan: no briefs, no course note.
+		expect((store.source.blocks as Record<string, unknown>[]).some((b) => BRIEF_KEY in b)).toBe(
+			false
+		);
+		expect((store.source as Record<string, unknown>).ai_context).toBeUndefined();
+		expect(aiPanel.problem).toBe('');
+	});
+
+	it('a plan that is a refusal from the limits does not stop the cards either', async () => {
+		const { store, lessonId } = setup();
+		const seen = server();
+		const fetcher = vi.mocked(fetch);
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (route: string, init?: RequestInit) =>
+				route === '/ai/plan'
+					? new Response('{"reason":"budget"}', { status: 429 })
+					: fetcher(route, init)
+			)
+		);
+		await accept(store, lessonId);
+		await done();
+		expect(only(seen, '/ai/lesson')[0].body.plan).toBeUndefined();
+		expect(aiPanel.queue.rows.every((r) => r.state === 'done')).toBe(true);
+	});
+
+	it('a second batch whose plan fails does not carry the first batch\u2019s plan', async () => {
+		const { store, lessonId } = setup();
+		server();
+		await accept(store, lessonId);
+		await done();
+		aiPanel.queue.clear();
+		const seen = server({ plan: 'fail' });
+		await accept(store, lessonId);
+		await done();
+		// The first batch's plan is about other cards: it is not sent with these.
+		expect(only(seen, '/ai/lesson')[0].body.plan).toBeUndefined();
+	});
+
+	it('stopping during a lesson leaves the cards not reached waiting, and resume writes them', async () => {
+		const { store, lessonId } = setup();
+		const seen = server();
+		// The lesson request is let through by hand, one line at a time.
+		let controller!: ReadableStreamDefaultController<Uint8Array>;
+		const encoder = new TextEncoder();
+		const lessonSeen: any[] = [];
+		const inner = vi.mocked(fetch);
+		let first = true;
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (route: string, init?: RequestInit) => {
+				if (route === '/ai/lesson' && first) {
+					first = false;
+					lessonSeen.push(JSON.parse(String(init!.body)));
+					return new Response(new ReadableStream<Uint8Array>({ start: (c) => (controller = c) }));
+				}
+				return inner(route, init);
+			})
+		);
+		await accept(store, lessonId);
+		while (lessonSeen.length === 0) await new Promise((r) => setTimeout(r, 2));
+		const line = async (event: unknown) => {
+			controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+			await new Promise((r) => setTimeout(r, 5));
+		};
+		const [a, b, c] = aiPanel.queue.rows.map((r) => r.blockId);
+		await line({ type: 'writing', card: 0 });
+		expect(aiPanel.queue.rows.map((r) => r.state)).toEqual(['writing', 'waiting', 'waiting']);
+		const answer = (await answerLesson(lessonSeen[0])).find((e) => e.type === 'card')!;
+		aiPanel.stop();
+		// The card being written is finished, then the conversation ends.
+		await line(answer);
+		await line({ type: 'writing', card: 1 });
+		controller.close();
+		while (aiPanel.queue.writing) await new Promise((r) => setTimeout(r, 2));
+		expect(aiPanel.queue.rows.map((r) => r.state)).toEqual(['done', 'waiting', 'waiting']);
+		expect(store.doc.blocks.find((x) => x.block_id === a)!.steps.length).toBeGreaterThan(1);
+		expect(store.doc.blocks.find((x) => x.block_id === b)!.steps).toHaveLength(1);
+
+		aiPanel.resume(store);
+		await done();
+		expect(aiPanel.queue.rows.every((r) => r.state === 'done')).toBe(true);
+		const resumed = only(seen, '/ai/lesson').at(-1)!.body;
+		// Only the cards that were not written; the plan goes along.
+		expect(resumed.cards).toHaveLength(2);
+		expect(resumed.plan).toBeDefined();
+		expect(store.doc.blocks.find((x) => x.block_id === c)!.steps.length).toBeGreaterThan(1);
 	});
 });
 
@@ -639,12 +962,11 @@ describe('cards made by hand get sources when the materials do not all fit', () 
 				if (init?.body === undefined) return Response.json({ files: [] });
 				const body = JSON.parse(String(init.body));
 				seen.push({ route, body });
-				if (route === '/ai/outline') return stream(fakeOutline(body));
 				if (route === '/ai/sources') {
 					await held;
 					return reply();
 				}
-				return Response.json({ status: 'ok', card: fakeCard(body as GenRequest) });
+				return (await answerAi(route, body)) ?? Response.json({ status: 'ok', cards: [] });
 			})
 		);
 		return { seen, answer };
@@ -664,6 +986,22 @@ describe('cards made by hand get sources when the materials do not all fit', () 
 		return before;
 	}
 
+	it('a stop while the sources are named asks for no plan', async () => {
+		const { store } = setup();
+		materials.files = [file(100_000)];
+		const { seen, answer } = sourcesServer(() => Response.json({ status: 'ok', cards: [] }));
+		await handMade(store);
+		await new Promise((r) => setTimeout(r, 5));
+		aiPanel.stop();
+		answer();
+		await vi.waitFor(() =>
+			expect(aiPanel.queue.rows.every((r) => r.state === 'waiting')).toBe(true)
+		);
+		await new Promise((r) => setTimeout(r, 5));
+		expect(only(seen, '/ai/plan')).toHaveLength(0);
+		expect(only(seen, '/ai/lesson')).toHaveLength(0);
+	});
+
 	it('asks once, holds the cards until then, keeps the sources with no undo step of their own', async () => {
 		const { store } = setup();
 		materials.files = [file(100_000)];
@@ -682,7 +1020,8 @@ describe('cards made by hand get sources when the materials do not all fit', () 
 		expect(asked).toHaveLength(1);
 		expect(asked[0].body.cards.map((c: { name: string }) => c.name)).toEqual(['Úvod', 'Příklady']);
 		// Held: waiting, not written.
-		expect(seen.filter((s) => s.route === '/ai/block')).toHaveLength(0);
+		expect(only(seen, '/ai/lesson')).toHaveLength(0);
+		expect(only(seen, '/ai/plan')).toHaveLength(0);
 		expect(aiPanel.queue.rows.map((r) => r.state)).toEqual(['waiting', 'waiting']);
 		answer();
 		await done();
@@ -691,7 +1030,9 @@ describe('cards made by hand get sources when the materials do not all fit', () 
 		);
 		expect(sourceRefsOf(uvod)).toEqual(['abcdef01.1']);
 		expect(sourceRefsOf(priklady)).toEqual([]);
-		expect(seen.filter((s) => s.route === '/ai/block')).toHaveLength(2);
+		// The two cards are one lesson: one request.
+		expect(only(seen, '/ai/lesson')).toHaveLength(1);
+		expect(only(seen, '/ai/lesson')[0].body.cards).toHaveLength(2);
 		// The insert and two cards written: the sources are no step of their own.
 		expect(store.undoStack.length).toBe(before + 3);
 		store.undo();
@@ -707,6 +1048,29 @@ describe('cards made by hand get sources when the materials do not all fit', () 
 		]);
 	});
 
+	it('asks for the sources before the plan, and writes no card before both have finished', async () => {
+		const { store } = setup();
+		materials.files = [file(100_000)];
+		const { seen, answer } = sourcesServer(() =>
+			Response.json({ status: 'ok', cards: [{ id: '1', sources: ['abcdef01.1'] }] })
+		);
+		await handMade(store);
+		await new Promise((r) => setTimeout(r, 5));
+		expect(only(seen, '/ai/sources')).toHaveLength(1);
+		expect(only(seen, '/ai/plan')).toHaveLength(0);
+		expect(only(seen, '/ai/lesson')).toHaveLength(0);
+		expect(aiPanel.planning).toBe(false);
+		answer();
+		await done();
+		const order = routes(seen);
+		expect(order.indexOf('/ai/sources')).toBeLessThan(order.indexOf('/ai/plan'));
+		expect(order.indexOf('/ai/plan')).toBeLessThan(order.indexOf('/ai/lesson'));
+		// The plan's request already has the sources.
+		const planned = only(seen, '/ai/plan')[0].body;
+		expect(planned.lessons[0].cards[0].sources).toEqual(['abcdef01.1']);
+		expect(only(seen, '/ai/lesson')[0].body.plan).toBeDefined();
+	});
+
 	it('writes the cards anyway, without sources, when the request fails', async () => {
 		const { store } = setup();
 		materials.files = [file(100_000)];
@@ -714,7 +1078,7 @@ describe('cards made by hand get sources when the materials do not all fit', () 
 		await handMade(store);
 		answer();
 		await done();
-		expect(seen.filter((s) => s.route === '/ai/block')).toHaveLength(2);
+		expect(only(seen, '/ai/lesson')).toHaveLength(1);
 		expect(aiPanel.queue.rows.every((r) => r.state === 'done')).toBe(true);
 		expect(aiPanel.problem).toBe('');
 	});
@@ -728,7 +1092,7 @@ describe('cards made by hand get sources when the materials do not all fit', () 
 			await handMade(store);
 			await done();
 			expect(seen.filter((s) => s.route === '/ai/sources')).toHaveLength(0);
-			expect(seen.filter((s) => s.route === '/ai/block')).toHaveLength(2);
+			expect(only(seen, '/ai/lesson')).toHaveLength(1);
 			aiPanel.queue.clear();
 		}
 	});

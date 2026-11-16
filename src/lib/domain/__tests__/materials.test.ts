@@ -263,3 +263,58 @@ describe('a proposal and a card with materials', () => {
 		);
 	});
 });
+
+describe('materials for the cards of one lesson', () => {
+	const small = [big(0, 100), big(1, 100), big(2, 100)];
+	const long = [big(0, 40_000), big(1, 40_000), big(2, 40_000)];
+
+	it('never says which section a card draws mainly on', () => {
+		const text = renderMaterials(small, { for: 'lesson', refs: ['aaaaaaaa.1'] });
+		expect(text).not.toContain('draws mainly on');
+	});
+
+	it('when everything fits is the card text without that line, whatever the refs, so it is a cached prefix', () => {
+		const card = renderMaterials(small, { for: 'card' });
+		expect(renderMaterials(small, { for: 'lesson' })).toBe(card);
+		expect(renderMaterials(small, { for: 'lesson', refs: ['aaaaaaaa.1'] })).toBe(card);
+		expect(renderMaterials(small, { for: 'lesson', refs: ['aaaaaaaa.0', 'aaaaaaaa.2'] })).toBe(
+			card
+		);
+		expect(renderMaterials(small, { for: 'card', refs: ['aaaaaaaa.1'] }).startsWith(card)).toBe(
+			true
+		);
+	});
+
+	it('when it does not fit, gives the named sections in full and the rest by title, worded "these cards"', () => {
+		const text = renderMaterials(long, { for: 'lesson', refs: ['aaaaaaaa.1'] });
+		expect(text).toContain('The sections these cards draw on, in full:');
+		expect(text).not.toContain('this card draws');
+		expect(text).toContain('Začátek kapitoly 1.');
+		expect(text).not.toContain('Začátek kapitoly 0.');
+		expect(text).not.toContain('Začátek kapitoly 2.');
+		expect(text).toContain('- [aaaaaaaa.0] Učebnice.pdf, str. 1 — Kapitola 0');
+		expect(text).toContain('- [aaaaaaaa.2] Učebnice.pdf, str. 3 — Kapitola 2');
+	});
+
+	it('when it does not fit and nothing is named, gives the index, worded "these cards"', () => {
+		const text = renderMaterials(long, { for: 'lesson' });
+		expect(text).toContain('no section is named for these cards');
+		expect(text).not.toContain('this card');
+		expect(text).toContain('[aaaaaaaa.1]');
+		expect(text).not.toContain('The sections these cards draw on, in full');
+	});
+
+	it('named sections too long to all fit go in as far as they fit, the rest by title', () => {
+		const text = renderMaterials(long, {
+			for: 'lesson',
+			refs: ['aaaaaaaa.0', 'aaaaaaaa.1', 'aaaaaaaa.2']
+		});
+		expect(text).toContain('Začátek kapitoly 0.');
+		expect(text).not.toContain('Začátek kapitoly 1.');
+		expect(text).toContain('- [aaaaaaaa.1]');
+	});
+
+	it('is empty when there are no materials', () => {
+		expect(renderMaterials([], { for: 'lesson', refs: ['x'] })).toBe('');
+	});
+});

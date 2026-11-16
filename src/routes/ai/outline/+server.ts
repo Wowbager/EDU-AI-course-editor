@@ -4,7 +4,7 @@
  *   POST /ai/outline  OutlineRequest  → application/x-ndjson, one OutlineEvent per line
  *     (the scope, then a lesson, or a card, at a time as the model writes, then `done`)
  *
- * Same provider, key and limits as `/ai/block` (`server/ai/limits.ts`).
+ * Same provider, key and limits as the other AI routes (`server/ai/limits.ts`).
  */
 import { env } from '$env/dynamic/private';
 import { error, json } from '@sveltejs/kit';

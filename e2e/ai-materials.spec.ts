@@ -55,12 +55,18 @@ test('a file is attached with the paperclip, shown as a chip while it is read, a
 test('a proposal made from materials shows where each card comes from, and the cards are written from them', async ({
 	page
 }) => {
-	const sent: { materials?: string; card: { title: string } }[] = [];
-	await page.route('**/ai/block', async (route) => {
-		if (route.request().method() === 'POST') sent.push(route.request().postDataJSON());
+	type Sent = { materials?: string; cards: { title: string; draws_on?: string[] }[] };
+	const sent: Sent[] = [];
+	const planned: { materials?: string }[] = [];
+	await page.route('**/ai/lesson', async (route) => {
+		sent.push(route.request().postDataJSON());
 		await route.continue();
 	});
-	// The materials fit in a card's request: nothing is asked about sources.
+	await page.route('**/ai/plan', async (route) => {
+		planned.push(route.request().postDataJSON());
+		await route.continue();
+	});
+	// The materials fit in the plan's request: nothing is asked about sources.
 	let sourcesAsked = 0;
 	await page.route('**/ai/sources', async (route) => {
 		sourcesAsked++;
@@ -87,16 +93,18 @@ test('a proposal made from materials shows where each card comes from, and the c
 	await expect(panel(page).locator('.queue-row.done')).toHaveCount(5);
 
 	expect(sourcesAsked).toBe(0);
-	// Every card's request carried the materials; the card with sources named them.
-	expect(sent).toHaveLength(5);
-	for (const request of sent) {
-		expect(request.materials).toContain('x + 5 = 12');
-		expect(request.materials).toContain('Ukázkový přepis obrázku');
-	}
-	const withSources = sent.find((r) => r.card.title === 'Co to je')!;
-	expect(withSources.materials).toMatch(/This card draws mainly on: \[[0-9a-f]{8}\.0\]\./);
-	const without = sent.find((r) => r.card.title === 'Procvičení')!;
-	expect(without.materials).not.toContain('This card draws mainly on');
+	// The plan was made from the materials in full; the lessons' requests do not repeat them.
+	expect(planned).toHaveLength(1);
+	expect(planned[0].materials).toContain('x + 5 = 12');
+	expect(planned[0].materials).toContain('Ukázkový přepis obrázku');
+	for (const request of sent) expect(request.materials ?? '').toBe('');
+	// A card names the sections it draws on; one without sources names none.
+	const cards = sent.flatMap((r) => r.cards);
+	expect(cards).toHaveLength(5);
+	expect(cards.find((c) => c.title === 'Co to je')!.draws_on).toEqual([
+		expect.stringMatching(/^[0-9a-f]{8}\.0$/)
+	]);
+	expect(cards.find((c) => c.title === 'Procvičení')!.draws_on ?? []).toEqual([]);
 });
 
 test('the materials belong to the course: they are there after a reload, and × takes one out for good', async ({
@@ -243,9 +251,9 @@ test('when the materials do not all fit, the cards without sources wait until th
 		await gate;
 		await route.continue();
 	});
-	const sent: { materials?: string; card: { title: string } }[] = [];
-	await page.route('**/ai/block', async (route) => {
-		if (route.request().method() === 'POST') sent.push(route.request().postDataJSON());
+	const sent: { materials?: string; cards: { title: string; draws_on?: string[] }[] }[] = [];
+	await page.route('**/ai/lesson', async (route) => {
+		sent.push(route.request().postDataJSON());
 		await route.continue();
 	});
 	await page.reload();
@@ -257,21 +265,21 @@ test('when the materials do not all fit, the cards without sources wait until th
 	await expect(create(page)).toBeEnabled();
 	await create(page).click();
 
-	// The two cards the outline gave sources are written at once; the other three wait,
-	// as any card waits, while their sources are named.
-	await expect(panel(page).locator('.queue-row.done')).toHaveCount(2);
+	// Nothing is written while the sources of the cards without them are named, and then
+	// the plan is made: the cards wait for both.
 	await expect.poll(() => asked.length).toBe(1);
 	expect(asked[0].cards.map((c) => c.name)).toEqual(['Procvičení', 'Ověření', 'Úlohy']);
-	await expect(panel(page).locator('.queue-row.waiting')).toHaveCount(3);
-	await expect(panel(page).getByText('Čeká na řadu')).toHaveCount(3);
-	expect(sent).toHaveLength(2);
+	await expect(panel(page).locator('.queue-row.waiting')).toHaveCount(5);
+	await expect(panel(page).locator('.queue-row.done')).toHaveCount(0);
+	expect(sent).toHaveLength(0);
 
 	release();
 	await expect(panel(page).locator('.queue-row.done')).toHaveCount(5);
 	expect(asked).toHaveLength(1);
 	// Each was written from the sections named for it, in full.
-	for (const name of ['Procvičení', 'Ověření', 'Úlohy']) {
-		const request = sent.find((r) => r.card.title === name)!;
-		expect(request.materials).toContain('The sections this card draws on, in full');
+	expect(sent.length).toBeGreaterThan(0);
+	for (const request of sent) {
+		expect(request.materials).toContain('The sections these cards draw on, in full');
+		for (const card of request.cards) expect(card.draws_on?.length ?? 0).toBeGreaterThan(0);
 	}
 });

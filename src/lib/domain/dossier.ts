@@ -237,22 +237,29 @@ function renderCourse(doc: CourseV2): string {
 
 // ───────────────────────────────── the dossier ─────────────────────────────────
 
-/** Plain text the model reads before the card request. */
+/**
+ * Plain text the model reads before the card request. Without a card, it is the dossier
+ * of a lesson: the lesson in full with no card marked, for writing several of its cards
+ * in one conversation, or for planning them.
+ */
 export function buildDossier(
 	doc: CourseV2,
-	cardId: string,
+	cardId: string | undefined,
 	lessonId?: string,
 	budgetTokens: number = DOSSIER_BUDGET_TOKENS
 ): string {
 	const budget = Math.max(0, budgetTokens) * 3;
 	const course = renderCourse(doc);
 
-	const exists = doc.blocks.some((b) => b.block_id === cardId);
-	const lesson = exists
-		? (doc.lessons.find(
-				(l) => l.lesson_id === lessonId && l.blocks.some((b) => b.block_id === cardId)
-			) ?? doc.lessons.find((l) => l.blocks.some((b) => b.block_id === cardId)))
-		: undefined;
+	const exists = cardId !== undefined && doc.blocks.some((b) => b.block_id === cardId);
+	const lesson =
+		cardId === undefined
+			? doc.lessons.find((l) => l.lesson_id === lessonId)
+			: exists
+				? (doc.lessons.find(
+						(l) => l.lesson_id === lessonId && l.blocks.some((b) => b.block_id === cardId)
+					) ?? doc.lessons.find((l) => l.blocks.some((b) => b.block_id === cardId)))
+				: undefined;
 	const cur = lesson === undefined ? -1 : doc.lessons.indexOf(lesson);
 
 	if (cur < 0) return [course, renderOutline(doc, doc.lessons.length)].join('\n\n') + '\n';
@@ -310,4 +317,15 @@ export function buildDossier(
 	const room = budget - head.length - TRUNCATED_NOTE.length - 4;
 	const tail = room > 0 ? body.slice(Math.max(0, body.length - room)) : '';
 	return `${head}\n\n${TRUNCATED_NOTE}\n${tail}\n`;
+}
+
+/**
+ * One lesson as it is now, in full, with no card marked: what a conversation that already
+ * holds the course's plan needs to see of the lesson it writes (the cards written so far,
+ * the teacher's own, the briefs).
+ */
+export function lessonSnapshot(doc: CourseV2, lessonId: string): string {
+	const index = doc.lessons.findIndex((l) => l.lesson_id === lessonId);
+	if (index < 0) return '';
+	return `# Current lesson\n\n${renderLesson(doc, doc.lessons[index], index, 'full')}\n`;
 }
