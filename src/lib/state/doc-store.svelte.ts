@@ -438,6 +438,36 @@ export class DocStore {
 		return owners.includes(lessonId) ? { ...ref, lessonId } : ref;
 	}
 
+	/**
+	 * Change the document as if the change had been part of it all along: the source and
+	 * every state in the undo and redo logs get it, and no step is recorded. Only for a
+	 * change the teacher did not make, that is idempotent and leaves a document without
+	 * its subject as it is — the sources the AI names for new cards (`setSourceRefs`):
+	 * an undo of the insert takes the cards away with their sources, a redo brings both.
+	 */
+	amend(command: (doc: CourseV2) => CommandResult): void {
+		const fix = (doc: CourseV2) => command(doc).doc;
+		const next = fix(this.source);
+		if (next === this.source) return;
+		this.source = next;
+		this.#reserve(next);
+		const entry = (e: UndoEntry): UndoEntry => {
+			const before = fix(e.before);
+			const after = fix(e.after);
+			return before === e.before && after === e.after ? e : { ...e, before, after };
+		};
+		const open = this.#edit?.entry;
+		this.#undo = this.#undo.map((e) => {
+			const fixed = entry(e);
+			// A field still being typed in keeps adding to its own step.
+			if (e === open) this.#edit!.entry = fixed;
+			return fixed;
+		});
+		this.#redo = this.#redo.map(entry);
+		if (this.#edit) this.#edit.before = fix(this.#edit.before);
+		this.dirty = true;
+	}
+
 	undo() {
 		this.endEdit();
 		const entry = this.#undo.at(-1);

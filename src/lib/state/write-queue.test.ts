@@ -247,4 +247,35 @@ describe('the write queue', () => {
 		q.resume();
 		expect(q.stoppedBy).toBeNull();
 	});
+
+	it('holds cards until they are released, and writes the others meanwhile', async () => {
+		const m = manual();
+		const q = new WriteQueue(m.run, { concurrency: 2 });
+		q.start(cards(4), ['B0', 'B2']);
+		expect(m.started).toEqual(['B1', 'B3']);
+		expect(states(q)).toEqual(['waiting', 'writing', 'waiting', 'writing']);
+		expect(q.pending).toEqual(new Set(['B0', 'B1', 'B2', 'B3']));
+		await m.finish('B1');
+		await m.finish('B3');
+		// Held cards keep the queue running, waiting.
+		expect(q.running).toBe(true);
+		expect(m.started).toEqual(['B1', 'B3']);
+		q.release(['B0', 'B2']);
+		expect(m.started).toEqual(['B1', 'B3', 'B0', 'B2']);
+		await m.finish('B0');
+		await m.finish('B2');
+		expect(states(q)).toEqual(Array(4).fill('done'));
+		expect(q.running).toBe(false);
+	});
+
+	it('a stopped queue starts nothing on release; resume does', async () => {
+		const m = manual();
+		const q = new WriteQueue(m.run);
+		q.start(cards(1), ['B0']);
+		q.stop();
+		q.release(['B0']);
+		expect(m.started).toEqual([]);
+		q.resume();
+		expect(m.started).toEqual(['B0']);
+	});
 });

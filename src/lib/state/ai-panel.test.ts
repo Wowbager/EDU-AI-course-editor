@@ -14,7 +14,7 @@ import {
 	type Outline
 } from '$lib/domain/outline';
 import { fakeCard, fakeOutline } from '$lib/server/ai/fake';
-import { REQUEST_KEY, type GenRequest } from '$lib/domain/authoring';
+import { REQUEST_KEY, sourceRefsOf, type GenRequest } from '$lib/domain/authoring';
 
 vi.mock('$lib/state/versions/server', () => ({ workspaceKey: () => 'k'.repeat(43) }));
 
@@ -596,5 +596,130 @@ describe('sending with files only', () => {
 		aiPanel.create(store);
 		expect((store.source as Record<string, unknown>)[REQUEST_KEY]).toBe(FROM_MATERIALS);
 		await done();
+	});
+});
+
+describe('cards made by hand get sources when the materials do not all fit', () => {
+	const sections = (chars: number) =>
+		[0, 1].map((i) => ({
+			key: `abcdef01.${i}`,
+			file: 'Učebnice.pdf',
+			title: `Kapitola ${i}`,
+			text: 'x'.repeat(chars)
+		}));
+	const file = (chars: number) => ({
+		hash: 'abcdef01',
+		name: 'Učebnice.pdf',
+		pages: 2,
+		unread: [],
+		sections: sections(chars)
+	});
+	afterEach(() => {
+		materials.files = [];
+	});
+
+	/** The fake server, with `/ai/sources` held until `answer` is called. */
+	function sourcesServer(reply: () => Response) {
+		const seen: { route: string; body: any }[] = [];
+		let answer!: () => void;
+		const held = new Promise<void>((resolve) => (answer = resolve));
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (route: string, init?: RequestInit) => {
+				if (init?.body === undefined) return Response.json({ files: [] });
+				const body = JSON.parse(String(init.body));
+				seen.push({ route, body });
+				if (route === '/ai/outline') return stream(fakeOutline(body));
+				if (route === '/ai/sources') {
+					await held;
+					return reply();
+				}
+				return Response.json({ status: 'ok', card: fakeCard(body as GenRequest) });
+			})
+		);
+		return { seen, answer };
+	}
+
+	async function handMade(store: DocStore) {
+		aiPanel.start('lessons');
+		const lessonKey = aiPanel.typing!.key;
+		aiPanel.amend(renameDraftLesson(aiPanel.draft!, lessonKey, 'Moje lekce'));
+		for (const name of ['Úvod', 'Příklady']) {
+			const key = aiPanel.key();
+			aiPanel.change(addDraftCard(aiPanel.draft!, lessonKey, key));
+			aiPanel.amend(renameDraftCard(aiPanel.draft!, key, name));
+		}
+		const before = store.undoStack.length;
+		aiPanel.create(store);
+		return before;
+	}
+
+	it('asks once, holds the cards until then, keeps the sources with no undo step of their own', async () => {
+		const { store } = setup();
+		materials.files = [file(100_000)];
+		const { seen, answer } = sourcesServer(() =>
+			Response.json({
+				status: 'ok',
+				cards: [
+					{ id: '1', sources: ['abcdef01.1', 'made.up'] },
+					{ id: '2', sources: ['made.up'] }
+				]
+			})
+		);
+		const before = await handMade(store);
+		await new Promise((r) => setTimeout(r, 5));
+		const asked = seen.filter((s) => s.route === '/ai/sources');
+		expect(asked).toHaveLength(1);
+		expect(asked[0].body.cards.map((c: { name: string }) => c.name)).toEqual(['Úvod', 'Příklady']);
+		// Held: waiting, not written.
+		expect(seen.filter((s) => s.route === '/ai/block')).toHaveLength(0);
+		expect(aiPanel.queue.rows.map((r) => r.state)).toEqual(['waiting', 'waiting']);
+		answer();
+		await done();
+		const [uvod, priklady] = aiPanel.queue.rows.map((r) =>
+			store.source.blocks.find((b) => b.block_id === r.blockId)!
+		);
+		expect(sourceRefsOf(uvod)).toEqual(['abcdef01.1']);
+		expect(sourceRefsOf(priklady)).toEqual([]);
+		expect(seen.filter((s) => s.route === '/ai/block')).toHaveLength(2);
+		// The insert and two cards written: the sources are no step of their own.
+		expect(store.undoStack.length).toBe(before + 3);
+		store.undo();
+		store.undo();
+		expect(sourceRefsOf(store.source.blocks.find((b) => b.block_id === uvod.block_id))).toEqual([
+			'abcdef01.1'
+		]);
+		store.undo();
+		expect(store.source.blocks.some((b) => b.block_id === uvod.block_id)).toBe(false);
+		store.redo();
+		expect(sourceRefsOf(store.source.blocks.find((b) => b.block_id === uvod.block_id))).toEqual([
+			'abcdef01.1'
+		]);
+	});
+
+	it('writes the cards anyway, without sources, when the request fails', async () => {
+		const { store } = setup();
+		materials.files = [file(100_000)];
+		const { seen, answer } = sourcesServer(() => new Response('busy', { status: 503 }));
+		await handMade(store);
+		answer();
+		await done();
+		expect(seen.filter((s) => s.route === '/ai/block')).toHaveLength(2);
+		expect(aiPanel.queue.rows.every((r) => r.state === 'done')).toBe(true);
+		expect(aiPanel.problem).toBe('');
+	});
+
+	it('asks nothing when the materials fit, or there are none', async () => {
+		for (const files of [[file(100)], []]) {
+			const { store } = setup();
+			materials.files = files;
+			const { seen, answer } = sourcesServer(() => Response.json({ status: 'ok', cards: [] }));
+			answer();
+			await handMade(store);
+			await done();
+			expect(seen.filter((s) => s.route === '/ai/sources')).toHaveLength(0);
+			expect(seen.filter((s) => s.route === '/ai/block')).toHaveLength(2);
+			aiPanel.queue.clear();
+		}
 	});
 });

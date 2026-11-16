@@ -20,6 +20,7 @@ import { buildDossier } from '$lib/domain/dossier';
 import { outlineEventSchema, type OutlineEvent, type OutlineRequest } from '$lib/domain/outline';
 import { workspaceKey } from '$lib/state/versions/server';
 import { renderMaterials } from '$lib/domain/materials';
+import { usableSources, type Assigned, type SourcesRequest } from '$lib/domain/source-assign';
 import { materials } from './materials.svelte';
 import { notices } from './notice.svelte';
 import type { DocStore } from './doc-store.svelte';
@@ -127,6 +128,19 @@ export async function askOutline(
 	}
 	// A stream that stops without saying so was cut.
 	return ended ?? { problem: 'offline' };
+}
+
+/**
+ * Ask which sections of the materials each card is written from. Nothing named, for any
+ * reason, is an empty list: the cards are then written without sources.
+ */
+export async function askSources(request: SourcesRequest): Promise<Assigned> {
+	const answer = await post('/ai/sources', request);
+	if ('problem' in answer) return [];
+	const body = answer.body as { status?: string; cards?: unknown } | null;
+	if (body?.status !== 'ok') return [];
+	// Checked again here: only the request's cards and the materials' keys.
+	return usableSources(request, { cards: body.cards });
 }
 
 /** What `write` came to, for the queue that writes many cards. */

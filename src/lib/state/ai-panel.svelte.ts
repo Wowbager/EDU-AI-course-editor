@@ -30,7 +30,13 @@ import {
 import { CommandError } from '$lib/domain/commands';
 import { emptyHistory, record, redo, retract, undo, type History } from '$lib/domain/history';
 import { insertOutline } from '$lib/domain/outline-insert';
-import { ai, askOutline, TEXT, type Problem } from './ai.svelte';
+import { ai, askOutline, askSources, TEXT, type Problem } from './ai.svelte';
+import {
+	buildSourcesRequest,
+	cardsWithoutSources,
+	setSourceRefs,
+	sourcesWanted
+} from '$lib/domain/source-assign';
 import { materials } from './materials.svelte';
 import { WriteQueue, type RunResult, type Row } from './write-queue.svelte';
 import { readOutline, writeOutline } from './outline-store';
@@ -316,7 +322,34 @@ class AiPanel {
 		this.draft = null;
 		this.forget();
 		this.problem = '';
-		this.queue.start(added);
+		// Materials too long for a card to get them all: the cards with no sources of their
+		// own wait until the model has named theirs; the others are written at once.
+		const sections = materials.sections;
+		const unsourced = sourcesWanted(sections) ? cardsWithoutSources(store.doc, added) : [];
+		const held = unsourced.map((c) => c.blockId);
+		this.queue.start(added, held);
+		if (held.length > 0) void this.#source(store, unsourced, sections);
+	}
+
+	/**
+	 * Name the sources of `cards` and keep them on the cards as if they had come with them
+	 * (no undo step of their own, `DocStore.amend`); then they are written, with or
+	 * without sources. Nothing about it is shown.
+	 */
+	async #source(
+		store: DocStore,
+		cards: { blockId: string; lessonId: string }[],
+		sections: typeof materials.sections
+	): Promise<void> {
+		try {
+			const request = buildSourcesRequest(store.doc, cards, sections);
+			const assigned = await askSources(request);
+			if (assigned.length > 0) store.amend((doc) => setSourceRefs(doc, cards, assigned));
+		} catch {
+			// Written without sources.
+		} finally {
+			this.queue.release(cards.map((c) => c.blockId));
+		}
 	}
 
 	stop() {
