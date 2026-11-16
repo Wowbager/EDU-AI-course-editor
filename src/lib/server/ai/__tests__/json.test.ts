@@ -21,6 +21,11 @@ describe('parseJson', () => {
 		expect(parseJson(raw)).toEqual({ a: String.raw`$\left(\tfrac{1}{2}\right)$ $\top$` });
 	});
 
+	it('puts back \\tanh, \\tbinom, \\rbrace and \\rvert', () => {
+		const raw = String.raw`{"a":"$\tanh x$ $\tbinom{n}{k}$ $\rbrace$ $\rvert$"}`;
+		expect(parseJson(raw)).toEqual({ a: String.raw`$\tanh x$ $\tbinom{n}{k}$ $\rbrace$ $\rvert$` });
+	});
+
 	it('reads LaTeX whose backslash starts no JSON escape, instead of giving up on the answer', () => {
 		const raw = String.raw`{"a":"$\sqrt{2} \cdot \underline{x}$"}`;
 		expect(parseJson(raw)).toEqual({ a: String.raw`$\sqrt{2} \cdot \underline{x}$` });

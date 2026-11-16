@@ -441,6 +441,8 @@ class AiPanel {
 			renderMaterials(sections, { for: 'outline' })
 		);
 		if (built === undefined) return;
+		// Stopped while the sources were named: no plan is asked for.
+		if (!this.queue.running) return;
 		const abort = new AbortController();
 		this.#planAbort = abort;
 		const answer = await askPlan(built.request, abort.signal).catch(() => undefined);

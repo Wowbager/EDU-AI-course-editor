@@ -22,7 +22,7 @@ export function parseJson(text: string): unknown {
  * can be meant. `\n` is left alone: a new line before a word is ordinary text.
  */
 const SWALLOWED =
-	/[\f\b]|\t(?=imes|ext|heta|ilde|riangle|herefore|frac|au\b|o\b|op\b|an\b)|\r(?=ight|angle|floor|ceil|ho\b|m\b)/g;
+	/[\f\b]|\t(?=imes|ext|heta|ilde|riangle|herefore|frac|binom|au\b|o\b|op\b|anh?\b)|\r(?=ight|angle|floor|ceil|brace|brack|[vV]ert|ho\b|m\b)/g;
 /**
  * A backslash that starts no JSON escape (`\left`, `\sqrt`, `\cdot`, `\underline`) makes
  * the whole answer invalid JSON; it can only be LaTeX, so it is doubled before parsing.

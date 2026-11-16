@@ -986,6 +986,22 @@ describe('cards made by hand get sources when the materials do not all fit', () 
 		return before;
 	}
 
+	it('a stop while the sources are named asks for no plan', async () => {
+		const { store } = setup();
+		materials.files = [file(100_000)];
+		const { seen, answer } = sourcesServer(() => Response.json({ status: 'ok', cards: [] }));
+		await handMade(store);
+		await new Promise((r) => setTimeout(r, 5));
+		aiPanel.stop();
+		answer();
+		await vi.waitFor(() =>
+			expect(aiPanel.queue.rows.every((r) => r.state === 'waiting')).toBe(true)
+		);
+		await new Promise((r) => setTimeout(r, 5));
+		expect(only(seen, '/ai/plan')).toHaveLength(0);
+		expect(only(seen, '/ai/lesson')).toHaveLength(0);
+	});
+
 	it('asks once, holds the cards until then, keeps the sources with no undo step of their own', async () => {
 		const { store } = setup();
 		materials.files = [file(100_000)];

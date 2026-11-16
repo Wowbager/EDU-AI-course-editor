@@ -38,7 +38,7 @@ export async function readAiRequest<T extends z.ZodTypeAny>(
 	if (!parsed.success) {
 		// Too long a text (a dossier, the materials, the plan's turn); too many cards is a shape.
 		const tooLong = parsed.error.issues.some(
-			(i) => (i.code === 'too_big' && i.origin === 'string') || i.message === 'too long'
+			(i) => (i.code === 'too_big' && i.origin === 'string') || i.path.at(-1) === 'turn'
 		);
 		error(
 			tooLong ? 413 : 400,

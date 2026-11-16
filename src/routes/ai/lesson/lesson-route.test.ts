@@ -5,6 +5,7 @@ import { emptyCourse } from '$lib/domain/document';
 import {
 	buildLessonRequest,
 	lessonEventSchema,
+	MAX_TURN_CHARS,
 	type LessonRequest
 } from '$lib/domain/lesson-writing';
 
@@ -88,6 +89,22 @@ describe('POST /ai/lesson', () => {
 			status: 413
 		});
 		await expect(post('x'.repeat(4_000_000))).rejects.toMatchObject({ status: 413 });
+	});
+
+	it("answers 413 to a plan's turn past its limit, and 400 to too many cards", async () => {
+		const plan = {
+			request: {
+				schema: 'eduai.plan-request/1',
+				course: { title: '', language: 'cs', audience: {} },
+				lessons: [{ lesson: 1, name: 'L', cards: [{ card: 1, kind: 'display', title: 'K' }] }],
+				context: ''
+			},
+			turn: { role: 'assistant', content: 'x'.repeat(MAX_TURN_CHARS + 1) }
+		};
+		await expect(post({ ...lessonRequest(1), plan })).rejects.toMatchObject({ status: 413 });
+		const one = lessonRequest(1);
+		const many = { ...one, cards: Array(61).fill(one.cards[0]) };
+		await expect(post(many)).rejects.toMatchObject({ status: 400 });
 	});
 
 	it("answers 429 with retry-after when the minute's limit is already used up", async () => {
