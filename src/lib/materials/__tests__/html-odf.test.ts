@@ -19,6 +19,15 @@ const libraries: Libraries = {
 	mathml: async () => {
 		const { MathMLToLaTeX } = await import('mathml-to-latex');
 		return (mathml) => MathMLToLaTeX.convert(mathml);
+	},
+	xlsx: async () => {
+		throw new Error('not used');
+	},
+	utif: async () => {
+		throw new Error('not used');
+	},
+	heic: async () => {
+		throw new Error('not used');
 	}
 };
 
@@ -30,7 +39,8 @@ function io(): ReadIO & { read: number } {
 			return 'Přepis obrázku';
 		},
 		shrink: async (picture: Blob) => picture,
-		renderPage: async () => new Blob(['page'], { type: 'image/png' })
+		renderPage: async () => new Blob(['page'], { type: 'image/png' }),
+		fromPixels: async () => new Blob(['page'], { type: 'image/png' })
 	};
 	return state;
 }

@@ -7,7 +7,8 @@ import { Refused, type ReadIO } from '../types';
 const io: ReadIO = {
 	ocr: async () => '',
 	shrink: async (b) => b,
-	renderPage: async () => new Blob()
+	renderPage: async () => new Blob(),
+	fromPixels: async () => new Blob()
 };
 const libraries = {
 	xlsx: async () => XLSX
