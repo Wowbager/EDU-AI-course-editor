@@ -154,6 +154,9 @@ describe('a Word file with equations', () => {
 		jszip: async () => JSZip,
 		pdfjs: async () => {
 			throw new Error('not used');
+		},
+		xlsx: async () => {
+			throw new Error('not used');
 		}
 	};
 	const io = {

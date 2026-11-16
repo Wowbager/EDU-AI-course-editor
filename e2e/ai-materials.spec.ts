@@ -172,7 +172,7 @@ test('a file that is refused says why in one line', async ({ page }) => {
 		{ name: 'archiv.zip', mimeType: 'application/zip', buffer: Buffer.from('x') }
 	]);
 	await expect(panel(page).getByRole('status')).toHaveText(
-		'Soubor archiv.zip neumím přečíst. Zkus Word, PowerPoint, PDF nebo obrázek.'
+		'Soubor archiv.zip neumím přečíst. Zkus Word, PowerPoint, PDF, tabulku, text nebo obrázek.'
 	);
 	await expect(chips(page)).toHaveCount(0);
 

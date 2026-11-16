@@ -84,7 +84,7 @@ describe('the course’s materials in the browser', () => {
 		await materials.load('kurz');
 		await materials.add('kurz', [new File(['x'], 'archiv.zip')]);
 		expect(materials.message).toBe(
-			'Soubor archiv.zip neumím přečíst. Zkus Word, PowerPoint, PDF nebo obrázek.'
+			'Soubor archiv.zip neumím přečíst. Zkus Word, PowerPoint, PDF, tabulku, text nebo obrázek.'
 		);
 		const huge = new File(['x'], 'velky.pdf');
 		Object.defineProperty(huge, 'size', { value: 51 * 1024 * 1024 });

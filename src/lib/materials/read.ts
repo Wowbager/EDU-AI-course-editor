@@ -12,17 +12,28 @@ import {
 } from '$lib/domain/materials';
 import { Refused, type ReadIO, type ReadOut, type Room } from './types';
 
-export type Kind = 'docx' | 'pptx' | 'pdf' | 'image';
+export type Kind = 'docx' | 'pptx' | 'pdf' | 'image' | 'text' | 'sheet';
 
 export const IMAGE_TYPES = ['.png', '.jpg', '.jpeg', '.webp', '.heic'];
+export const TEXT_TYPES = ['.txt', '.md'];
+export const SHEET_TYPES = ['.xlsx', '.xls', '.ods', '.csv', '.tsv', '.numbers'];
 /** For the file picker. */
-export const ACCEPT = ['.docx', '.pptx', '.pdf', ...IMAGE_TYPES].join(',');
+export const ACCEPT = [
+	'.docx',
+	'.pptx',
+	'.pdf',
+	...IMAGE_TYPES,
+	...TEXT_TYPES,
+	...SHEET_TYPES
+].join(',');
 
 export function kindOf(name: string): Kind | undefined {
 	const ext = /\.[^.]+$/.exec(name.toLowerCase())?.[0] ?? '';
 	if (ext === '.docx') return 'docx';
 	if (ext === '.pptx') return 'pptx';
 	if (ext === '.pdf') return 'pdf';
+	if (TEXT_TYPES.includes(ext)) return 'text';
+	if (SHEET_TYPES.includes(ext)) return 'sheet';
 	return IMAGE_TYPES.includes(ext) ? 'image' : undefined;
 }
 
@@ -30,7 +41,7 @@ export function kindOf(name: string): Kind | undefined {
 export function unsupported(name: string): string {
 	return /\.(doc|ppt|odt|odp)$/i.test(name)
 		? `Soubor ${name} je ve starém formátu. Ulož ho jako .docx nebo .pptx.`
-		: `Soubor ${name} neumím přečíst. Zkus Word, PowerPoint, PDF nebo obrázek.`;
+		: `Soubor ${name} neumím přečíst. Zkus Word, PowerPoint, PDF, tabulku, text nebo obrázek.`;
 }
 
 /** SHA-256 of the bytes in hex, or, where the browser has no `crypto.subtle`, a 53-bit hash. */
@@ -55,6 +66,7 @@ export interface Libraries {
 	mammoth(): Promise<Parameters<typeof import('./docx').readDocx>[3]>;
 	jszip(): Promise<Parameters<typeof import('./pptx').readPptx>[3]>;
 	pdfjs(): Promise<Parameters<typeof import('./pdf').readPdf>[3]>;
+	xlsx(): Promise<Parameters<typeof import('./sheets').readSheets>[3]>;
 }
 
 export async function readMaterial(
@@ -77,6 +89,9 @@ export async function readMaterial(
 		out = await (await import('./pptx')).readPptx(data, io, room, await libraries.jszip());
 	else if (kind === 'pdf')
 		out = await (await import('./pdf')).readPdf(data, io, room, await libraries.pdfjs());
+	else if (kind === 'text') out = (await import('./text')).readText(data, file.name, room);
+	else if (kind === 'sheet')
+		out = (await import('./sheets')).readSheets(data, file.name, room, await libraries.xlsx());
 	else out = await (await import('./image')).readImage(file as Blob & { name: string }, io);
 
 	if (out.pieces.length === 0)
