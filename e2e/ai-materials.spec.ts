@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { test, expect, openEditor, type Page } from './fixtures';
 
 /**
- * Materials in the AI tab: files are attached, read in the browser, kept with the course,
+ * Materials in AI pomocník: files are attached, read in the browser, kept with the course,
  * and the proposal and the cards written from it carry them.
  *
  * Runs against the `fake` provider: a picture is "read" as a fixed line, and a proposal
@@ -15,7 +15,7 @@ const docx = join(fixtures, 'handout.docx');
 const png = join(fixtures, 'page.png');
 const pdf = join(fixtures, 'scan.pdf');
 
-const aiTab = (page: Page) => page.getByRole('button', { name: 'AI', exact: true });
+const aiTab = (page: Page) => page.getByRole('button', { name: 'AI pomocník', exact: true });
 const panel = (page: Page) => page.getByRole('region', { name: 'AI', exact: true });
 const box = (page: Page) => page.getByRole('textbox', { name: /^Co (mám vytvořit|změnit)\?$/ });
 const chips = (page: Page) => panel(page).getByRole('list', { name: 'Podklady' });
@@ -60,6 +60,12 @@ test('a proposal made from materials shows where each card comes from, and the c
 		if (route.request().method() === 'POST') sent.push(route.request().postDataJSON());
 		await route.continue();
 	});
+	// The materials fit in a card's request: nothing is asked about sources.
+	let sourcesAsked = 0;
+	await page.route('**/ai/sources', async (route) => {
+		sourcesAsked++;
+		await route.continue();
+	});
 	await picker(page).setInputFiles([docx, png]);
 	await expect(chips(page).getByRole('listitem')).toHaveCount(2);
 
@@ -80,6 +86,7 @@ test('a proposal made from materials shows where each card comes from, and the c
 	await create(page).click();
 	await expect(panel(page).locator('.queue-row.done')).toHaveCount(5);
 
+	expect(sourcesAsked).toBe(0);
 	// Every card's request carried the materials; the card with sources named them.
 	expect(sent).toHaveLength(5);
 	for (const request of sent) {
@@ -179,4 +186,92 @@ test('a file dropped on the panel is attached', async ({ page }) => {
 	// It reached the same place as the paperclip: this kind of file is refused with a line.
 	await expect(panel(page).getByRole('status')).toContainText('poznamky.zip');
 	await expect(panel(page).locator('.box.dragging')).toHaveCount(0);
+});
+
+test('with files attached and nothing proposed, the send button asks for a course from them', async ({
+	page
+}) => {
+	const send = page.getByRole('button', { name: 'Odeslat', exact: true });
+	// Without files an empty box sends nothing.
+	await expect(send).toBeDisabled();
+	await expect(send).toHaveAttribute('title', 'Odeslat (Enter)');
+	const asked: { prompt: string; materials?: string }[] = [];
+	await page.route('**/ai/outline', async (route) => {
+		asked.push(route.request().postDataJSON());
+		await route.continue();
+	});
+	await picker(page).setInputFiles([docx]);
+	await expect(chips(page).getByRole('listitem')).toHaveCount(1);
+	await expect(send).toBeEnabled();
+	await expect(send).toHaveAttribute('title', 'Navrhnout kurz z podkladů (Enter)');
+	await send.click();
+	await expect(create(page)).toBeEnabled();
+	expect(asked).toHaveLength(1);
+	expect(asked[0].prompt).toBe('Navrhni kurz z přiložených podkladů.');
+	expect(asked[0].materials).toContain('x + 5 = 12');
+	// With a proposal on screen the box is for changes, and empty it sends nothing.
+	await expect(send).toBeDisabled();
+});
+
+test('when the materials do not all fit, the cards without sources wait until theirs are named', async ({
+	page
+}) => {
+	// A long file, as the server keeps it: two sections that together are too long to send whole.
+	const file = {
+		hash: 'abcdef0123',
+		name: 'Učebnice.pdf',
+		pages: 2,
+		unread: [],
+		sections: [0, 1].map((i) => ({
+			key: `abcdef01.${i}`,
+			file: 'Učebnice.pdf',
+			title: `Kapitola ${i + 1}`,
+			unit: 'page',
+			from: i + 1,
+			text: `Kapitola ${i + 1}. ${'Text učebnice. '.repeat(7000)}`
+		}))
+	};
+	await page.route('**/materials/*', async (route) => {
+		if (route.request().method() === 'GET') await route.fulfill({ json: { files: [file] } });
+		else await route.continue();
+	});
+	const asked: { cards: { name: string }[] }[] = [];
+	let release!: () => void;
+	const gate = new Promise<void>((resolve) => (release = resolve));
+	await page.route('**/ai/sources', async (route) => {
+		asked.push(route.request().postDataJSON());
+		await gate;
+		await route.continue();
+	});
+	const sent: { materials?: string; card: { title: string } }[] = [];
+	await page.route('**/ai/block', async (route) => {
+		if (route.request().method() === 'POST') sent.push(route.request().postDataJSON());
+		await route.continue();
+	});
+	await page.reload();
+	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
+	await expect(chips(page).getByRole('listitem')).toHaveCount(1);
+
+	await box(page).fill('Kurz podle učebnice');
+	await page.getByRole('button', { name: 'Odeslat', exact: true }).click();
+	await expect(create(page)).toBeEnabled();
+	await create(page).click();
+
+	// The two cards the outline gave sources are written at once; the other three wait,
+	// as any card waits, while their sources are named.
+	await expect(panel(page).locator('.queue-row.done')).toHaveCount(2);
+	await expect.poll(() => asked.length).toBe(1);
+	expect(asked[0].cards.map((c) => c.name)).toEqual(['Procvičení', 'Ověření', 'Úlohy']);
+	await expect(panel(page).locator('.queue-row.waiting')).toHaveCount(3);
+	await expect(panel(page).getByText('Čeká na řadu')).toHaveCount(3);
+	expect(sent).toHaveLength(2);
+
+	release();
+	await expect(panel(page).locator('.queue-row.done')).toHaveCount(5);
+	expect(asked).toHaveLength(1);
+	// Each was written from the sections named for it, in full.
+	for (const name of ['Procvičení', 'Ověření', 'Úlohy']) {
+		const request = sent.find((r) => r.card.title === name)!;
+		expect(request.materials).toContain('The sections this card draws on, in full');
+	}
 });

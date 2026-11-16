@@ -8,6 +8,11 @@
 	 * with one on screen it asks for it to be changed. The proposal lives in `aiPanel`
 	 * and is not in the course until „Vytvořit vybrané“ — then the left tree is the
 	 * outline, and every later edit happens there.
+	 *
+	 * With nothing proposed, the teacher can also start the outline by hand („+ lekce“,
+	 * „+ karta“). Ctrl+Z / Ctrl+Shift+Z (Ctrl+Y) inside the panel walk the outline's own
+	 * history while it has one, and the course's undo stays out of it; in a text field
+	 * they are the field's.
 	 */
 	import { tick, untrack } from 'svelte';
 	import { ArrowUp, Check, Circle, CircleAlert, LoaderCircle, Paperclip, X } from '@lucide/svelte';
@@ -27,11 +32,14 @@
 	let text = $state('');
 	let field = $state<HTMLTextAreaElement>();
 
-	// The course's materials follow the course, not every edit of it.
+	// The course's materials and outline follow the course, not every edit of it.
 	const courseId = $derived(store.doc.course_id);
 	$effect(() => {
 		const id = courseId;
-		untrack(() => void materials.load(id));
+		untrack(() => {
+			aiPanel.follow(id);
+			void materials.load(id);
+		});
 	});
 
 	let picker = $state<HTMLInputElement>();
@@ -115,9 +123,12 @@
 	/** What the box is for now, in the words it shows. */
 	const placeholder = $derived(draft !== null ? 'Co změnit?' : 'Co mám vytvořit?');
 
+	/** With files read and nothing proposed, an empty box asks for a proposal from them. */
+	const canSend = $derived(!aiPanel.asking && (text.trim() !== '' || aiPanel.fromMaterials));
+
 	async function send() {
 		const asked = text.trim();
-		if (asked === '' || aiPanel.asking) return;
+		if (!canSend) return;
 		text = '';
 		await aiPanel.send(store, asked);
 		// A request that failed gives the words back, to be tried again.
@@ -146,6 +157,63 @@
 	const open = (lessonId: string, blockId: string) => (store.selection = { lessonId, blockId });
 
 	const showRows = $derived(draft === null && rows.length > 0);
+
+	let section = $state<HTMLElement | null>(null);
+
+	/** A field where Ctrl+Z undoes typing. */
+	const typesText = (target: EventTarget | null): boolean =>
+		target instanceof HTMLTextAreaElement ||
+		(target instanceof HTMLInputElement &&
+			!['checkbox', 'radio', 'button', 'submit', 'file'].includes(target.type)) ||
+		(target instanceof HTMLElement && target.isContentEditable);
+
+	function onkeydown(event: KeyboardEvent) {
+		if (event.defaultPrevented || event.altKey || !(event.ctrlKey || event.metaKey)) return;
+		const key = event.key.toLowerCase();
+		if ((key !== 'z' && key !== 'y') || typesText(event.target)) return;
+		const done = key === 'y' || event.shiftKey ? aiPanel.redo() : aiPanel.undo();
+		// Handled here, so the course's own undo does not run as well; nor while the AI is
+		// writing the outline, when the key would quietly take back an edit of the course.
+		if (done || aiPanel.asking) event.preventDefault();
+	}
+
+	/**
+	 * Focus stays in the panel when the thing that had it goes (a row removed, a step
+	 * undone, „Zahodit návrh“), so the next Ctrl+Z is still the outline's.
+	 */
+	let inside = false;
+	$effect(() => {
+		const down = (e: PointerEvent) => {
+			if (!(e.target instanceof Node && section?.contains(e.target))) inside = false;
+		};
+		window.addEventListener('pointerdown', down, true);
+		return () => window.removeEventListener('pointerdown', down, true);
+	});
+	$effect(() => {
+		void aiPanel.draft;
+		void tick().then(() => {
+			const active = document.activeElement;
+			if (inside && (active === null || active === document.body))
+				section?.focus({ preventScroll: true });
+		});
+	});
+
+	/** „Zahodit návrh“ takes a second click; it disarms when left, on Escape and after a while. */
+	const ARMED_MS = 4000;
+	let armed = $state(false);
+	$effect(() => {
+		if (!armed) return;
+		const timer = setTimeout(() => (armed = false), ARMED_MS);
+		return () => clearTimeout(timer);
+	});
+	function clickDiscard() {
+		if (!armed) {
+			armed = true;
+			return;
+		}
+		armed = false;
+		aiPanel.discard();
+	}
 	const stateLabel = {
 		waiting: 'Čeká na řadu',
 		writing: 'Píšu…',
@@ -155,9 +223,17 @@
 </script>
 
 <!-- Files are dropped anywhere on the panel; the 📎 in the box is the same thing by click. -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions (the key handler is the outline's undo) -->
 <section
 	class="panel"
 	aria-label="AI"
+	tabindex="-1"
+	bind:this={section}
+	{onkeydown}
+	onfocusin={() => (inside = true)}
+	onfocusout={(e) => {
+		if (e.relatedTarget instanceof Node && !section?.contains(e.relatedTarget)) inside = false;
+	}}
 	ondragover={(e) => {
 		if (!ai.available || !hasFiles(e)) return;
 		e.preventDefault();
@@ -191,8 +267,21 @@
 					disabled={aiPanel.asking || !anyTicked(draft)}
 					onclick={() => aiPanel.create(store)}>Vytvořit vybrané</Button
 				>
-				<button type="button" class="text-button" onclick={() => aiPanel.discard()}>
-					Zahodit návrh
+				<button
+					type="button"
+					class="text-button"
+					class:armed
+					onclick={clickDiscard}
+					onblur={() => (armed = false)}
+					onpointerleave={(e) => {
+						// A finger leaves with every tap, before its click: only the mouse disarms.
+						if (e.pointerType === 'mouse') armed = false;
+					}}
+					onkeydown={(e) => {
+						if (e.key === 'Escape') armed = false;
+					}}
+				>
+					{armed ? 'Opravdu zahodit? Klikni znovu' : 'Zahodit návrh'}
 				</button>
 			</div>
 		{:else if showRows}
@@ -249,9 +338,28 @@
 		{:else if aiPanel.asking}
 			<p class="empty"><LoaderCircle size={16} class="spin" aria-hidden="true" /> Navrhuji…</p>
 		{:else}
-			<p class="empty">
-				Napiš, co chceš vytvořit. Třeba celý kurz, nebo jen pár karet do vybrané lekce.
-			</p>
+			<div class="empty">
+				<p>Napiš, co chceš vytvořit. Třeba celý kurz, nebo jen pár karet do vybrané lekce.</p>
+				<!-- Or the outline by hand: a lesson, or cards for the lesson the teacher is in. -->
+				<div class="start">
+					<button
+						type="button"
+						class="text-button"
+						aria-label="Nová lekce"
+						title="Napsat osnovu sám, bez AI: lekce"
+						onclick={() => aiPanel.start('lessons')}>+ lekce</button
+					>
+					{#if store.doc.lessons.length > 0}
+						<button
+							type="button"
+							class="text-button"
+							aria-label="Nová karta"
+							title="Napsat sám, bez AI: karty do vybrané lekce"
+							onclick={() => aiPanel.start('cards')}>+ karta</button
+						>
+					{/if}
+				</div>
+			</div>
 		{/if}
 	</div>
 
@@ -364,8 +472,10 @@
 				type="submit"
 				class="send"
 				aria-label="Odeslat"
-				title="Odeslat (Enter)"
-				disabled={text.trim() === '' || aiPanel.asking}
+				title={text.trim() === '' && aiPanel.fromMaterials
+					? 'Navrhnout kurz z podkladů (Enter)'
+					: 'Odeslat (Enter)'}
+				disabled={!canSend}
 			>
 				<ArrowUp size={16} aria-hidden="true" />
 			</button>
@@ -380,6 +490,10 @@
 		height: 100%;
 		min-height: 0;
 		background: var(--surface);
+	}
+
+	.panel:focus {
+		outline: none;
 	}
 
 	.body {
@@ -420,6 +534,23 @@
 		color: var(--e-text-faint);
 		font: var(--type-body-small);
 		text-align: center;
+	}
+
+	div.empty {
+		flex-direction: column;
+	}
+
+	.empty p {
+		margin: 0;
+	}
+
+	.start {
+		display: flex;
+		gap: 4px;
+	}
+
+	.start .text-button {
+		color: var(--e-text-faint);
 	}
 
 	.queue {
@@ -528,6 +659,12 @@
 	.text-button:hover {
 		color: var(--e-text);
 		text-decoration: underline;
+	}
+
+	/* Red only once it is about to happen: after the first click. */
+	.text-button.armed,
+	.text-button.armed:hover {
+		color: var(--e-error-text);
 	}
 
 	.queue-row :global(.spin),

@@ -25,7 +25,7 @@
 	 * blocks, and `store.toView` turns them into the card the editor shows.
 	 */
 	import { tick, untrack } from 'svelte';
-	import { ArrowLeft, PanelRightClose, PanelRightOpen, RotateCcw } from '@lucide/svelte';
+	import { ArrowLeft, Eye, PanelRightClose, RotateCcw } from '@lucide/svelte';
 	import type { BlockV2, CourseV2, ExportType } from '$lib/domain/schema';
 	import Segmented from '$lib/ui/Segmented.svelte';
 	import Chip from '$lib/ui/Chip.svelte';
@@ -66,17 +66,17 @@
 		collapsed: boolean | null;
 		ontoggle: () => void;
 		/**
-		 * The AI tab is the one the teacher chose. It is shown only while AI is on offer
-		 * (`ai.available`); the choice is remembered either way. Like folding, it never
-		 * unmounts or hides the player: the panel covers the frame, which is `inert`.
+		 * AI pomocník is the panel the teacher chose for this side, rather than the
+		 * preview. It is its own panel, with its own header, and shares the side with the
+		 * preview one at a time; it is shown only while AI is on offer (`ai.available`),
+		 * and the choice is remembered either way. Like folding, it never unmounts or
+		 * hides the player: the panel covers the preview, which is `inert`.
 		 */
 		aiTab?: boolean;
 		onaiTab?: (on: boolean) => void;
 	}
 	let { doc, block, lessonId, collapsed, ontoggle, aiTab = false, onaiTab }: Props = $props();
 	const aiShown = $derived(aiTab && ai.available);
-	/** The switch has nothing chosen while the AI tab is on. */
-	const NO_VIEW = '' as PreviewView;
 
 	const store = useStore();
 	const stepView = useStepView();
@@ -122,11 +122,13 @@
 	 */
 	let everRevealed = $state(false);
 	$effect(() => {
-		if (collapsed === false) everRevealed = true;
+		if (collapsed === false && !aiShown) everRevealed = true;
 	});
 
 	let hideHost = $state<HTMLElement>();
-	let showButton = $state<HTMLButtonElement>();
+	let aiHideHost = $state<HTMLElement>();
+	let previewTile = $state<HTMLButtonElement>();
+	let aiTile = $state<HTMLButtonElement>();
 
 	let root = $state<HTMLElement>();
 
@@ -142,8 +144,26 @@
 		ontoggle();
 		await tick();
 		if (!focusHere) return;
-		if (opening) hideHost?.querySelector('button')?.focus();
-		else showButton?.focus();
+		if (opening) (aiShown ? aiHideHost : hideHost)?.querySelector('button')?.focus();
+		else (aiShown ? aiTile : previewTile)?.focus();
+	}
+
+	/** Leaving a run behind, as Náhled does. */
+	function leaveRun() {
+		stepView.endRun();
+		finished = null;
+		view = 'expanded';
+	}
+
+	/**
+	 * A tile on the side's edge: it opens its panel in place of the other one, or folds
+	 * the side when its panel is the one open.
+	 */
+	function choose(wantAi: boolean) {
+		if (collapsed !== true && aiShown === wantAi) return void toggle();
+		if (wantAi && !aiShown) leaveRun();
+		onaiTab?.(wantAi);
+		if (collapsed === true) void toggle();
 	}
 
 	/**
@@ -491,7 +511,7 @@
 			if (playLessonId === undefined) return;
 			bridge.showLesson(source, playLessonId, exportMode, serialise, playStart);
 		} else if (block !== undefined) {
-			// A folded column, or one covered by the AI tab, draws nothing anyone can see;
+			// A folded column, or one covered by AI pomocník, draws nothing anyone can see;
 			// it catches up when shown. Only here: re-sending a played lesson would restart
 			// the run.
 			if (collapsed === true || aiShown) return;
@@ -536,196 +556,196 @@
 	bind:this={root}
 	class:collapsed
 	data-player={playerState}
-	aria-label="Náhled pro žáka"
+	aria-label={aiShown ? 'AI pomocník' : 'Náhled pro žáka'}
 >
 	<div class="inner" inert={collapsed === true}>
-		<header>
-			<div class="hide" bind:this={hideHost}>
-				<Button
-					variant="ghost"
-					size="s"
-					ariaLabel="Skrýt náhled"
-					title="Skrýt náhled (Ctrl+Shift+B)"
-					onclick={toggle}
-				>
-					<PanelRightClose size={16}></PanelRightClose>
-				</Button>
-			</div>
+		<div class="preview-pane" inert={aiShown}>
+			<header>
+				<div class="hide" bind:this={hideHost}>
+					<Button
+						variant="ghost"
+						size="s"
+						ariaLabel="Skrýt náhled"
+						title="Skrýt náhled (Ctrl+Shift+B)"
+						onclick={toggle}
+					>
+						<PanelRightClose size={16}></PanelRightClose>
+					</Button>
+				</div>
 
-			{#if ai.available}
-				<!-- Its own button, not a third view: AI is a place to write in, the other two show the card. -->
-				<Button
-					variant="ghost"
-					size="s"
-					ariaLabel="AI"
-					class="ai-button"
-					title="Napiš, co chceš vytvořit. AI navrhne lekce nebo karty, ty je upravíš a ona je dopíše. Náhled běží dál a po návratu je hned tam."
-					pressed={aiShown}
-					onclick={() => {
-						if (aiShown) return onaiTab?.(false);
-						// Leaving a run behind, as Náhled does.
-						stepView.endRun();
-						finished = null;
-						view = 'expanded';
-						onaiTab?.(true);
+				<Segmented
+					label="Co je v náhledu"
+					value={view}
+					options={[
+						{
+							value: 'expanded',
+							label: 'Náhled',
+							title:
+								'Celá karta najednou, včetně zpětné vazby, řešení a větvení. Aktualizuje se během psaní. Kliknutím do náhledu skočíš na odpovídající pole v editoru.'
+						},
+						{
+							value: 'play',
+							label: 'Vyzkoušet',
+							title:
+								'Projdi lekci od vybrané karty tak, jak ji potká žák: kroky se odkrývají po jednom, další se objeví až tlačítkem pod kartou. Zpětem se vrátíš a můžeš zkusit druhou větev.'
+						}
+					]}
+					onchange={(next) => {
+						if (next === 'play') {
+							playStart =
+								block === undefined ? undefined : blocksOfCard(block.block_id)[0]?.block_id;
+							playLessonId = lessonId;
+							startRun();
+						} else {
+							stepView.endRun();
+							finished = null;
+						}
+						view = next;
 					}}
-				>
-					<AiIcon size={18} />
-				</Button>
-			{/if}
-
-			<Segmented
-				label="Co je v náhledu"
-				value={aiShown ? NO_VIEW : view}
-				options={[
-					{
-						value: 'expanded',
-						label: 'Náhled',
-						title:
-							'Celá karta najednou, včetně zpětné vazby, řešení a větvení. Aktualizuje se během psaní. Kliknutím do náhledu skočíš na odpovídající pole v editoru.'
-					},
-					{
-						value: 'play',
-						label: 'Vyzkoušet',
-						title:
-							'Projdi lekci od vybrané karty tak, jak ji potká žák: kroky se odkrývají po jednom, další se objeví až tlačítkem pod kartou. Zpětem se vrátíš a můžeš zkusit druhou větev.'
-					}
-				]}
-				onchange={(next) => {
-					onaiTab?.(false);
-					if (next === 'play') {
-						playStart = block === undefined ? undefined : blocksOfCard(block.block_id)[0]?.block_id;
-						playLessonId = lessonId;
-						startRun();
-					} else {
-						stepView.endRun();
-						finished = null;
-					}
-					view = next;
-				}}
-			/>
-			{#if aiShown ? false : view === 'play' ? booted && playLessonId !== undefined : cardXp !== undefined}
-				<!-- A number, not a verdict: the card's worth in Náhled, the run's score in Vyzkoušet. -->
-				<span
-					class="xp"
-					title={view === 'play'
-						? 'Kolik XP jsi ve zkoušeném průchodu získal/a z toho, co od této karty nabízí'
-						: 'Nejvíc XP, které žák za tuto kartu dostane'}
-				>
-					{view === 'play' ? `${earned} / ${maxXp} XP` : `${cardXp} XP`}
-				</span>
-			{/if}
-
-			<!-- Running has no chip: only the two states a teacher has to wait out or act on. -->
-			{#if aiShown}
-				<!-- The player's state is of no use to someone writing with AI. -->
-			{:else if !booted && failed}
-				<Chip tone="warning">přehrávač neběží</Chip>
-			{:else if !booted && available === true}
-				<Chip>spouští se…</Chip>
-			{/if}
-
-			{#if view === 'play' && booted}
-				<div class="spacer"></div>
-				<Button
-					variant="ghost"
-					size="s"
-					disabled={!canGoBack}
-					title="O krok zpět — můžeš zkusit jinou odpověď"
-					onclick={() => {
-						finished = null;
-						wentBack = true;
-						bridge.back();
-					}}
-				>
-					<ArrowLeft size={16}></ArrowLeft>
-					Zpět
-				</Button>
-				<Button
-					variant="ghost"
-					size="s"
-					title="Znovu od karty, u které jsi začal/a"
-					onclick={restart}
-				>
-					<RotateCcw size={16}></RotateCcw>
-					Od začátku
-				</Button>
-			{/if}
-		</header>
-
-		<div class="frame">
-			<div class="player" inert={aiShown}>
-				{#if failed === 'stalled' && !booted}
-					<div class="fallback">
-						<p><strong>Přehrávač se nespustil.</strong></p>
-						<p>
-							Zkusili jsme ho načíst {BOOT_ATTEMPTS}krát a pokaždé se zasekl — nejspíš přerušené
-							spojení při stahování. Kurz se dál ukládá, jen ho teď nevidíš očima žáka.
-						</p>
-						<Button variant="secondary" size="s" onclick={retry}>Zkusit znovu</Button>
-					</div>
-				{:else if failed === 'missing' && !booted}
-					<div class="fallback">
-						<p><strong>Náhled zatím není k dispozici.</strong></p>
-						<p>
-							Náhled je skutečný přehrávač z aplikace, ne jeho napodobenina — proto potřebuje webový
-							build aplikace obsluhovaný na <code>/player/</code> a v něm route
-							<code>/preview</code>. Dokud tam není, edituj naslepo, nebo si kurz stáhni a otevři v
-							aplikaci.
-						</p>
-					</div>
+				/>
+				{#if view === 'play' ? booted && playLessonId !== undefined : cardXp !== undefined}
+					<!-- A number, not a verdict: the card's worth in Náhled, the run's score in Vyzkoušet. -->
+					<span
+						class="xp"
+						title={view === 'play'
+							? 'Kolik XP jsi ve zkoušeném průchodu získal/a z toho, co od této karty nabízí'
+							: 'Nejvíc XP, které žák za tuto kartu dostane'}
+					>
+						{view === 'play' ? `${earned} / ${maxXp} XP` : `${cardXp} XP`}
+					</span>
 				{/if}
-				{#if available === true && everRevealed && failed !== 'stalled'}
-					{#key attempt}
-						<iframe bind:this={frame} src={PLAYER_URL} title="Náhled kurzu očima žáka"></iframe>
-					{/key}
+
+				<!-- Running has no chip: only the two states a teacher has to wait out or act on. -->
+				{#if !booted && failed}
+					<Chip tone="warning">přehrávač neběží</Chip>
+				{:else if !booted && available === true}
+					<Chip>spouští se…</Chip>
 				{/if}
+
+				{#if view === 'play' && booted}
+					<div class="spacer"></div>
+					<Button
+						variant="ghost"
+						size="s"
+						disabled={!canGoBack}
+						title="O krok zpět — můžeš zkusit jinou odpověď"
+						onclick={() => {
+							finished = null;
+							wentBack = true;
+							bridge.back();
+						}}
+					>
+						<ArrowLeft size={16}></ArrowLeft>
+						Zpět
+					</Button>
+					<Button
+						variant="ghost"
+						size="s"
+						title="Znovu od karty, u které jsi začal/a"
+						onclick={restart}
+					>
+						<RotateCcw size={16}></RotateCcw>
+						Od začátku
+					</Button>
+				{/if}
+			</header>
+
+			<div class="frame">
+				<div class="player">
+					{#if failed === 'stalled' && !booted}
+						<div class="fallback">
+							<p><strong>Přehrávač se nespustil.</strong></p>
+							<p>
+								Zkusili jsme ho načíst {BOOT_ATTEMPTS}krát a pokaždé se zasekl — nejspíš přerušené
+								spojení při stahování. Kurz se dál ukládá, jen ho teď nevidíš očima žáka.
+							</p>
+							<Button variant="secondary" size="s" onclick={retry}>Zkusit znovu</Button>
+						</div>
+					{:else if failed === 'missing' && !booted}
+						<div class="fallback">
+							<p><strong>Náhled zatím není k dispozici.</strong></p>
+							<p>
+								Náhled je skutečný přehrávač z aplikace, ne jeho napodobenina — proto potřebuje
+								webový build aplikace obsluhovaný na <code>/player/</code> a v něm route
+								<code>/preview</code>. Dokud tam není, edituj naslepo, nebo si kurz stáhni a otevři
+								v aplikaci.
+							</p>
+						</div>
+					{/if}
+					{#if available === true && everRevealed && failed !== 'stalled'}
+						{#key attempt}
+							<iframe bind:this={frame} src={PLAYER_URL} title="Náhled kurzu očima žáka"></iframe>
+						{/key}
+					{/if}
+				</div>
 			</div>
-			{#if aiShown}
-				<div class="ai-slot" inert={collapsed === true}><AiPanel /></div>
+			{#if view === 'play' && finished !== null}
+				<RunSummary
+					bind:this={summary}
+					xp={finished.xp}
+					{maxXp}
+					share={finished.share}
+					mark={finished.mark}
+					onretry={restart}
+					onclose={closeSummary}
+				/>
 			{/if}
 		</div>
-		{#if view === 'play' && finished !== null}
-			<RunSummary
-				bind:this={summary}
-				xp={finished.xp}
-				{maxXp}
-				share={finished.share}
-				mark={finished.mark}
-				onretry={restart}
-				onclose={closeSummary}
-			/>
+
+		{#if aiShown}
+			<!-- Its own panel over the preview's whole place, which keeps running underneath. -->
+			<div class="ai-pane">
+				<header>
+					<div class="hide" bind:this={aiHideHost}>
+						<Button
+							variant="ghost"
+							size="s"
+							ariaLabel="Skrýt AI pomocníka"
+							title="Skrýt AI pomocníka (Ctrl+Shift+B)"
+							onclick={toggle}
+						>
+							<PanelRightClose size={16}></PanelRightClose>
+						</Button>
+					</div>
+					<h2 class="ai-title">AI pomocník</h2>
+				</header>
+				<div class="ai-body"><AiPanel /></div>
+			</div>
 		{/if}
 	</div>
 
-	{#if collapsed === true}
+	<!--
+		The side's edge: one tile per panel. The open one is pressed; pressing it folds the side.
+		The strip is there with or without AI, so the side does not change its width when the
+		server says AI is on offer, a moment after the page is drawn.
+	-->
+	<div class="tiles">
 		<button
 			type="button"
-			class="rail"
-			bind:this={showButton}
-			aria-label="Ukázat náhled"
-			title="Ukázat náhled (Ctrl+Shift+B)"
-			onclick={toggle}
+			class="side-tile"
+			bind:this={previewTile}
+			aria-label="Náhled"
+			title="Náhled"
+			aria-pressed={collapsed !== true && !aiShown}
+			onclick={() => choose(false)}
 		>
-			<PanelRightOpen size={18}></PanelRightOpen>
-			<span class="rail-text" class:below={ai.available} aria-hidden="true">Náhled</span>
+			<Eye size={18}></Eye>
 		</button>
 		{#if ai.available}
-			<!-- Under the open button; opens the column straight into AI. -->
+			<span class="divider" aria-hidden="true"></span>
 			<button
 				type="button"
-				class="rail-ai"
-				aria-label="Otevřít AI"
-				title="Otevřít AI"
-				onclick={() => {
-					onaiTab?.(true);
-					void toggle();
-				}}
+				class="side-tile"
+				bind:this={aiTile}
+				aria-label="AI pomocník"
+				title="AI pomocník"
+				aria-pressed={collapsed !== true && aiShown}
+				onclick={() => choose(true)}
 			>
 				<AiIcon size={18} />
 			</button>
 		{/if}
-	{/if}
+	</div>
 </aside>
 
 <style>
@@ -733,7 +753,8 @@
 		position: relative;
 		display: flex;
 		flex-direction: column;
-		width: var(--e-preview-width);
+		/* The tiles take their own strip on the edge, beside the panel, not out of it. */
+		width: calc(var(--e-preview-width) + var(--e-preview-rail));
 		flex: none;
 		border-left: 1px solid var(--e-border);
 		background: var(--surface);
@@ -748,6 +769,7 @@
 
 	/* Always the column's full size, whatever the window around it is. */
 	.inner {
+		position: relative;
 		display: flex;
 		flex: 1;
 		flex-direction: column;
@@ -755,58 +777,75 @@
 		min-height: 0;
 	}
 
-	.rail {
+	.preview-pane {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		min-height: 0;
+	}
+
+	/* Over the folded panel too, which stays painted (and clipped) underneath. */
+	.tiles {
 		position: absolute;
 		z-index: 2;
-		inset: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 12px;
-		padding: 14px 0;
-		border: none;
+		gap: 6px;
+		width: var(--e-preview-rail);
+		/* The first tile on the headers' middle line. */
+		padding-top: 14px;
+		border-left: 1px solid var(--e-border);
 		background: var(--surface);
-		color: var(--e-text-muted);
-		cursor: pointer;
 	}
 
-	.rail:hover {
-		background: var(--surface-light);
-		color: var(--e-text);
+	.preview.collapsed .tiles {
+		border-left: none;
 	}
 
-	/* Room for the AI button between the open icon and the label. */
-	.rail-text.below {
-		margin-top: 40px;
-	}
-
-	.rail-ai {
-		position: absolute;
-		z-index: 3;
-		top: 44px;
-		left: 50%;
+	/* An icon and nothing else, as on the lessons' rail. */
+	.side-tile {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 30px;
-		height: 30px;
+		width: 36px;
+		height: 36px;
 		padding: 0;
 		border: none;
-		border-radius: var(--radius-pill);
+		border-radius: var(--radius-xs);
 		background: none;
 		color: var(--e-text-muted);
 		cursor: pointer;
-		transform: translateX(-50%);
+		transition:
+			background-color 120ms ease,
+			color 120ms ease,
+			box-shadow 120ms ease;
 	}
 
-	.rail-ai:hover {
+	.side-tile:hover {
 		background: var(--primary-dark-06);
 		color: var(--e-text);
 	}
 
-	.rail-text {
-		font: var(--type-meta-bold);
-		writing-mode: vertical-rl;
+	.side-tile:focus-visible {
+		outline: 2px solid var(--e-focus-ring);
+		outline-offset: 1px;
+	}
+
+	/* The open panel's tile: tinted and ringed, like the lessons' rail marks the open card. */
+	.side-tile[aria-pressed='true'] {
+		background: color-mix(in srgb, var(--primary) 26%, var(--surface));
+		box-shadow: inset 0 0 0 1.5px var(--primary);
+		color: var(--gradient-purple);
+	}
+
+	.divider {
+		width: 16px;
+		height: 1px;
+		background: var(--e-border);
 	}
 
 	header {
@@ -814,13 +853,10 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 8px;
+		/* One line of the preview's switch: the two panels' headers are the same height. */
+		min-height: 61px;
 		padding: 12px;
 		border-bottom: 1px solid var(--e-border);
-	}
-
-	/* The mark is the button: in the text colour, not the muted grey of the others. */
-	:global(.btn.ai-button) {
-		color: var(--e-text);
 	}
 
 	.spacer {
@@ -846,20 +882,36 @@
 		inset: 0;
 	}
 
-	/* Over the player, which keeps its size and keeps running underneath. */
-	.ai-slot {
+	/* Over the preview's whole place, header included; the player keeps its size and runs on. */
+	.ai-pane {
 		position: absolute;
 		inset: 0;
 		z-index: 1;
+		display: flex;
+		flex-direction: column;
 		background: var(--surface);
 	}
 
-	/* A folded column shows the strip and nothing of the panel (only the player stays painted). */
-	.preview.collapsed .ai-slot {
+	.ai-title {
+		margin: 0;
+		font: var(--type-action-small);
+		color: var(--e-text);
+	}
+
+	.ai-body {
+		flex: 1;
+		min-height: 0;
+	}
+
+	/* A folded side shows its edge and nothing of the panel (only the player stays painted). */
+	.preview.collapsed .ai-pane {
 		visibility: hidden;
 	}
 
+	/* Block: inline, the line's descender overflowed the column by a few pixels, and the
+	   player taking focus scrolled the whole column, headers included, by that much. */
 	iframe {
+		display: block;
 		width: 100%;
 		height: 100%;
 		border: none;

@@ -12,7 +12,8 @@ import type {
 	GeneratedCard,
 	GeneratedStep
 } from '$lib/domain/authoring';
-import type { Complete, Stream, Vision } from './provider';
+import type { Complete, Message, Stream, Vision } from './provider';
+import type { SourcesRequest } from '$lib/domain/source-assign';
 import type { Outline, OutlineCard, OutlineRequest } from '$lib/domain/outline';
 
 function question(type: GenQuestionType): GenQuestion {
@@ -104,9 +105,11 @@ export function fakeOutline(
 			? { scope: 'cards', cards: [...current.cards, change] }
 			: {
 					scope: 'lessons',
-					lessons: current.lessons.map((l, i, all) =>
-						i === all.length - 1 ? { ...l, cards: [...l.cards, change] } : l
-					)
+					// A lesson the teacher left without cards gets one, as the model is asked to.
+					lessons: current.lessons.map((l, i, all) => {
+						const cards = l.cards.length > 0 ? l.cards : [card('display', `Úvod: ${l.name}`)];
+						return { ...l, cards: i === all.length - 1 ? [...cards, change] : cards };
+					})
 				};
 	}
 	if (/karty/i.test(request.prompt) && request.target.lessons > 0)
@@ -137,12 +140,37 @@ export function fakeOutline(
 	};
 }
 
-/** The last user message that is JSON is the request (`generate.ts`, `outline.ts`). */
+/** The section keys the model sees, in the order of the materials. */
+const keysIn = (messages: readonly Message[]): string[] => [
+	...new Set(
+		messages.flatMap((m) => [...m.content.matchAll(/\[([0-9a-f]{8}\.\d{1,4})\]/g)].map((k) => k[1]))
+	)
+];
+
+/**
+ * Sources for cards: the i-th card gets the i-th section (round the list), and a key
+ * nobody has, which must be dropped.
+ */
+export function fakeSources(
+	request: Pick<SourcesRequest, 'cards'>,
+	keys: readonly string[]
+): { cards: { id: string; sources: string[] }[] } {
+	return {
+		cards: request.cards.map((c, i) => ({
+			id: c.id,
+			sources: keys.length === 0 ? [] : [keys[i % keys.length], 'deadbeef.999']
+		}))
+	};
+}
+
+/** The last user message that is JSON is the request (`generate.ts`, `outline.ts`, `sources.ts`). */
 export const fakeComplete: Complete = async (messages) => {
 	const last = messages.findLast((m) => m.role === 'user' && m.content.startsWith('{'));
-	const request = JSON.parse(last?.content ?? '{}') as GenRequest | OutlineRequest;
+	const request = JSON.parse(last?.content ?? '{}') as GenRequest | OutlineRequest | SourcesRequest;
 	if ('schema' in request && request.schema === 'eduai.outline-request/1')
 		return { text: JSON.stringify(fakeOutline(request)), tokens: 0 };
+	if ('schema' in request && request.schema === 'eduai.sources-request/1')
+		return { text: JSON.stringify(fakeSources(request, keysIn(messages))), tokens: 0 };
 	return { text: JSON.stringify(fakeCard(request as GenRequest)), tokens: 0 };
 };
 
@@ -156,13 +184,7 @@ export const fakeStream: Stream = async (messages, onText) => {
 	const last = messages.findLast((m) => m.role === 'user' && m.content.startsWith('{'));
 	const request = JSON.parse(last?.content ?? '{}') as OutlineRequest;
 	// The model sees the sections' keys in the materials message, not in the request.
-	const keys = [
-		...new Set(
-			messages.flatMap((m) =>
-				[...m.content.matchAll(/\[([0-9a-f]{8}\.\d{1,4})\]/g)].map((k) => k[1])
-			)
-		)
-	];
+	const keys = keysIn(messages);
 	const outline = fakeOutline(request, keys);
 	onText(`${JSON.stringify({ scope: outline.scope })}\n`);
 	const items = outline.scope === 'cards' ? outline.cards : outline.lessons;

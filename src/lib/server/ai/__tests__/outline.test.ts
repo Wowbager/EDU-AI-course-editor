@@ -210,6 +210,22 @@ describe('the fake provider', () => {
 		expect(JSON.stringify(next)).toContain('Změna: přidej kvíz');
 		expect(outlineRequestSchema.safeParse(request({ current: first })).success).toBe(true);
 	});
+
+	it('takes a hand-made proposal with an empty lesson, and answers it with cards in every lesson', () => {
+		const current = {
+			scope: 'lessons' as const,
+			lessons: [
+				{ name: 'Moje lekce', cards: [] },
+				{ name: 'Druhá', cards: [{ kind: 'display' as const, name: 'A' }] }
+			]
+		};
+		expect(outlineRequestSchema.safeParse(request({ prompt: 'doplň', current })).success).toBe(
+			true
+		);
+		const next = fakeOutline(request({ prompt: 'doplň', current }));
+		expect(outlineSchema.safeParse(next).success).toBe(true);
+		expect(OUTLINE_SYSTEM_PROMPT).toMatch(/with no cards yet gets cards from you/);
+	});
 });
 
 describe('the provider stream', () => {

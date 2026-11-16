@@ -8,9 +8,25 @@
  * (or after the lesson of the selected card), else at the end; cards into the selected
  * lesson after the selected card, else at its end. Ids come from the ordinary commands
  * (`addLesson`, `addBlock`) on the document as it grows, so they stay unique.
+ *
+ * The outline stands in for a placeholder still as the editor made it (`starter.ts`):
+ * lessons replace the selected lesson when it is untouched (a new course's „První lekce“
+ * with its empty card, or a „Nová lekce“ just added), and cards put into an untouched
+ * lesson replace its one untouched card. Then the selection moves to the first new card,
+ * and an undo puts it back where it was.
  */
 import type { BlockV2, CourseV2 } from './schema';
-import { addBlock, addLesson, CommandError, reorderLessons, type CommandResult } from './commands';
+import {
+	addBlock,
+	addLesson,
+	CommandError,
+	deleteBlock,
+	deleteLesson,
+	reorderLessons,
+	unbindBlock,
+	type CommandResult
+} from './commands';
+import { isUntouchedLesson } from './starter';
 import { REQUEST_KEY, SOURCE_REFS_KEY } from './authoring';
 import type { Outline, OutlineCard } from './outline';
 import type { Reservations } from './ids';
@@ -20,9 +36,53 @@ export interface InsertAt {
 	blockId?: string;
 }
 
-/** The cards the command added, in course order, for the queue that writes them. */
+/**
+ * The cards the command added, in course order, for the queue that writes them. `ref` is
+ * set only when a placeholder was replaced: the selection was on it.
+ */
 export interface InsertResult extends CommandResult {
 	added: { blockId: string; lessonId: string }[];
+}
+
+/** The lesson's cards and the lesson itself out of the course. */
+function withoutLesson(doc: CourseV2, lessonId: string): CourseV2 {
+	const lesson = doc.lessons.find((l) => l.lesson_id === lessonId)!;
+	let next = deleteLesson(doc, lessonId).doc;
+	for (const { block_id } of lesson.blocks) next = deleteBlock(next, block_id).doc;
+	return next;
+}
+
+/**
+ * The course without a placeholder, or nothing when something still points at it (a
+ * „Přejít na“, a prerequisite): then it stays, and the new cards go in beside it.
+ */
+function unlessReferenced(remove: () => CourseV2): CourseV2 | undefined {
+	try {
+		return remove();
+	} catch (e) {
+		if (e instanceof CommandError) return undefined;
+		throw e;
+	}
+}
+
+/** After a placeholder was replaced: the first new card, and back to the placeholder on undo. */
+function moved(
+	back: { lessonId: string; blockId?: string },
+	added: InsertResult['added'],
+	/** The first new lesson, for an outline whose lessons have no cards yet. */
+	lessonId?: string
+): Pick<CommandResult, 'ref' | 'undoRef'> {
+	const first = added[0];
+	const ref =
+		first !== undefined
+			? { lessonId: first.lessonId, blockId: first.blockId }
+			: lessonId !== undefined
+				? { lessonId }
+				: undefined;
+	return {
+		...(ref !== undefined ? { ref } : {}),
+		undoRef: back.blockId === undefined ? { lessonId: back.lessonId } : back
+	};
 }
 
 const ownerOf = (doc: CourseV2, blockId: string | undefined): string | undefined =>
@@ -94,6 +154,8 @@ export function insertOutline(
 			lessonId = created.ref!.lessonId!;
 		}
 		const lesson = next.lessons.find((l) => l.lesson_id === lessonId)!;
+		// An untouched lesson's one untouched card is what the new cards stand in for.
+		const placeholder = isUntouchedLesson(next, lessonId) ? lesson.blocks[0]?.block_id : undefined;
 		const after = lesson.blocks.findIndex((b) => b.block_id === at.blockId);
 		const result = addCards(
 			next,
@@ -104,9 +166,19 @@ export function insertOutline(
 		);
 		next = result.doc;
 		added.push(...result.added);
+		const without =
+			placeholder === undefined
+				? undefined
+				: unlessReferenced(
+						() => deleteBlock(unbindBlock(next, lessonId, placeholder).doc, placeholder).doc
+					);
+		if (without !== undefined) next = without;
 		return {
 			doc: next,
 			added,
+			...(placeholder !== undefined && without !== undefined
+				? moved({ lessonId, blockId: placeholder }, added)
+				: {}),
 			description: `Přidány karty z návrhu AI (${outline.cards.length})`
 		};
 	}
@@ -115,9 +187,15 @@ export function insertOutline(
 	let previous = at.lessonId ?? ownerOf(doc, at.blockId);
 	if (previous !== undefined && !doc.lessons.some((l) => l.lesson_id === previous))
 		throw new CommandError('Vybraná lekce v kurzu není.');
+	// The selected lesson, or a course's only lesson, when it is still as the editor made it.
+	const candidate = previous ?? (doc.lessons.length === 1 ? doc.lessons[0].lesson_id : undefined);
+	const placeholder =
+		candidate !== undefined && isUntouchedLesson(doc, candidate) ? candidate : undefined;
+	let firstLesson: string | undefined;
 	for (const lesson of outline.lessons) {
 		const created = addLesson(next, lesson.name, reserved);
 		const lessonId = created.ref!.lessonId!;
+		firstLesson ??= lessonId;
 		next = created.doc;
 		const result = addCards(next, lessonId, lesson.cards, undefined, reserved);
 		next = result.doc;
@@ -127,11 +205,24 @@ export function insertOutline(
 		next = reorderLessons(next, ids).doc;
 		previous = lessonId;
 	}
+	const back =
+		placeholder === undefined
+			? undefined
+			: {
+					lessonId: placeholder,
+					blockId: doc.lessons.find((l) => l.lesson_id === placeholder)!.blocks[0]?.block_id
+				};
+	const without =
+		placeholder === undefined
+			? undefined
+			: unlessReferenced(() => withoutLesson(next, placeholder));
+	if (without !== undefined) next = without;
 	const asked = request?.trim() ?? '';
 	if (asked !== '') next = { ...next, [REQUEST_KEY]: asked };
 	return {
 		doc: next,
 		added,
+		...(back !== undefined && without !== undefined ? moved(back, added, firstLesson) : {}),
 		description: `Přidány lekce z návrhu AI (${outline.lessons.length})`
 	};
 }

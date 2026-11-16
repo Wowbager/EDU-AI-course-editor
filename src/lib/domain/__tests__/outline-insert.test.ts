@@ -5,6 +5,8 @@ import { BRIEF_KEY, REQUEST_KEY, canGenerate, completeness } from '../authoring'
 import { insertOutline } from '../outline-insert';
 import { OUTLINE_KINDS, type Outline } from '../outline';
 import { DocStore } from '$lib/state/doc-store.svelte';
+import { withStarter } from '../starter';
+import { setField } from '../commands';
 import type { CourseV2 } from '../schema';
 
 const card = (name: string, kind: (typeof OUTLINE_KINDS)[number] = 'display') => ({
@@ -38,7 +40,26 @@ const structure: Outline = {
 	]
 };
 
+const named = (doc: CourseV2, lessonId: string, name: string): CourseV2 => ({
+	...doc,
+	lessons: doc.lessons.map((l) => (l.lesson_id === lessonId ? { ...l, name } : l))
+});
+
 describe('inserting a proposal of lessons', () => {
+	it('creates a lesson the teacher left without cards, empty, with nothing to write', () => {
+		const { doc, l1 } = course();
+		const outline: Outline = {
+			scope: 'lessons',
+			lessons: [{ name: 'Prázdná', cards: [] }, ...structure.lessons]
+		};
+		const result = insertOutline(doc, outline, { lessonId: l1 });
+		expect(lessonNames(result.doc)).toEqual(['Jedna', 'Prázdná', 'Polovina', 'Třetina', 'Dvě']);
+		const empty = result.doc.lessons[1];
+		expect(empty.blocks).toEqual([]);
+		expect(result.added.some((a) => a.lessonId === empty.lesson_id)).toBe(false);
+		expect(result.added).toHaveLength(3);
+	});
+
 	it('puts the lessons after the selected lesson, in order', () => {
 		const { doc, l1 } = course();
 		const result = insertOutline(doc, structure, { lessonId: l1 });
@@ -180,5 +201,119 @@ describe('through the store', () => {
 		store.undo();
 		expect(store.doc.lessons).toHaveLength(2);
 		expect(store.doc.blocks).toHaveLength(2);
+	});
+});
+
+describe('standing in for a placeholder', () => {
+	const cards: Outline = { scope: 'cards', cards: [card('Nová A'), card('Nová B', 'exercise')] };
+	const fresh = () => {
+		const result = withStarter(emptyCourse('K', 'Nový kurz'));
+		return { doc: result.doc, lessonId: result.ref!.lessonId!, blockId: result.ref!.blockId! };
+	};
+
+	it("replaces a new course's untouched first lesson and its card, selected or not", () => {
+		const { doc, lessonId, blockId } = fresh();
+		for (const at of [{ lessonId, blockId }, {}]) {
+			const result = insertOutline(doc, structure, at);
+			expect(lessonNames(result.doc)).toEqual(['Polovina', 'Třetina']);
+			expect(result.doc.blocks.some((b) => b.block_id === blockId)).toBe(false);
+			expect(result.doc.blocks).toHaveLength(3);
+			// The selection goes to the first new card; an undo puts it back on the placeholder.
+			expect(result.ref).toEqual(result.added[0]);
+			expect(result.undoRef).toEqual({ lessonId, blockId });
+		}
+	});
+
+	it('replaces a „Nová lekce“ the teacher added and selected, with no card or an empty one', () => {
+		const base = course().doc;
+		const added = addLesson(base);
+		const lessonId = added.ref!.lessonId!;
+		const result = insertOutline(added.doc, structure, { lessonId });
+		expect(lessonNames(result.doc)).toEqual(['Jedna', 'Dvě', 'Polovina', 'Třetina']);
+		expect(result.undoRef).toEqual({ lessonId });
+
+		const withCard = addBlock(added.doc, lessonId, 'question');
+		const again = insertOutline(withCard.doc, structure, { lessonId });
+		expect(lessonNames(again.doc)).toEqual(['Jedna', 'Dvě', 'Polovina', 'Třetina']);
+		expect(again.doc.blocks.some((b) => b.block_id === withCard.ref!.blockId)).toBe(false);
+	});
+
+	it("replaces an untouched lesson's one empty card with the cards put into it", () => {
+		const { doc, lessonId, blockId } = fresh();
+		const result = insertOutline(doc, cards, { lessonId, blockId });
+		expect(cardNames(result.doc, lessonId)).toEqual(['Nová A', 'Nová B']);
+		expect(result.doc.blocks.some((b) => b.block_id === blockId)).toBe(false);
+		expect(result.ref).toEqual(result.added[0]);
+		expect(result.undoRef).toEqual({ lessonId, blockId });
+	});
+
+	it('keeps a placeholder another card still points at, and puts the new ones beside it', () => {
+		const { doc, lessonId, blockId } = fresh();
+		const second = addLesson(doc, 'Další');
+		const other = addBlock(second.doc, second.ref!.lessonId!, 'display');
+		const pointing = {
+			...other.doc,
+			blocks: other.doc.blocks.map((b) =>
+				b.block_id === other.ref!.blockId
+					? { ...b, learning: { prerequisites: [{ block_id: blockId, min_level: 1 }] } }
+					: b
+			)
+		};
+		const withCards = insertOutline(pointing, cards, { lessonId, blockId });
+		expect(withCards.doc.blocks.some((b) => b.block_id === blockId)).toBe(true);
+		expect(cardNames(withCards.doc, lessonId)).toContain('Nová A');
+		expect(withCards.undoRef).toBeUndefined();
+		const withLessons = insertOutline(pointing, structure, { lessonId });
+		expect(withLessons.doc.lessons.some((l) => l.lesson_id === lessonId)).toBe(true);
+		expect(lessonNames(withLessons.doc)).toContain('Polovina');
+	});
+
+	it('keeps anything the teacher typed into: a name, a step, and a lesson that is not selected', () => {
+		const { doc, lessonId, blockId } = fresh();
+		const renamed = named(doc, lessonId, 'Zlomky');
+		expect(lessonNames(insertOutline(renamed, structure, { lessonId }).doc)).toEqual([
+			'Zlomky',
+			'Polovina',
+			'Třetina'
+		]);
+		const typed = setField(doc, { blockId, stepId: 's1', field: 'content' }, 'Text').doc;
+		const kept = insertOutline(typed, structure, { lessonId, blockId });
+		expect(lessonNames(kept.doc)).toHaveLength(3);
+		expect(kept.ref).toBeUndefined();
+		expect(cardNames(insertOutline(typed, cards, { lessonId, blockId }).doc, lessonId)).toEqual([
+			undefined,
+			'Nová A',
+			'Nová B'
+		]);
+		const cardNamed = setField(doc, { blockId, field: 'name' }, 'Moje').doc;
+		expect(cardNames(insertOutline(cardNamed, cards, { lessonId }).doc, lessonId)).toEqual([
+			'Moje',
+			'Nová A',
+			'Nová B'
+		]);
+		// With two lessons and another selected, an untouched one elsewhere stays.
+		const { doc: two, l1 } = course();
+		const withNew = addLesson(two).doc;
+		expect(lessonNames(insertOutline(withNew, structure, { lessonId: l1 }).doc)).toContain(
+			'Nová lekce'
+		);
+	});
+
+	it('through the store: one undo step brings the placeholder back, selected', () => {
+		const { doc, lessonId, blockId } = fresh();
+		const store = new DocStore();
+		store.load(doc);
+		store.selection = { lessonId, blockId };
+		const before = store.undoStack.length;
+		store.apply((d, r) => insertOutline(d, structure, { lessonId, blockId }, r));
+		expect(store.undoStack.length).toBe(before + 1);
+		expect(store.selection?.blockId).not.toBe(blockId);
+		expect(store.doc.blocks.some((b) => b.block_id === store.selection?.blockId)).toBe(true);
+		store.undo();
+		expect(store.doc).toEqual(doc);
+		expect(store.selection).toEqual({ lessonId, blockId });
+		store.redo();
+		expect(lessonNames(store.doc)).toEqual(['Polovina', 'Třetina']);
+		expect(store.doc.blocks.some((b) => b.block_id === store.selection?.blockId)).toBe(true);
 	});
 });

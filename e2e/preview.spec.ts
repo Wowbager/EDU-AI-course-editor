@@ -316,7 +316,7 @@ test.describe('live preview', () => {
 
 		await page.getByRole('button', { name: 'Skrýt náhled' }).click();
 		await page.locator('.tree-card').nth(2).click();
-		await page.getByRole('button', { name: 'Ukázat náhled' }).click();
+		await page.getByRole('button', { name: 'Náhled', exact: true }).click();
 		// Folded, nothing was drawn; opened, the card the teacher is on is.
 		await waitForPlayer(page, { view: 'expanded', blockId: QUIZ });
 

@@ -363,3 +363,54 @@ describe('the export review', () => {
 		expect(store.reviewing).toBe(false);
 	});
 });
+
+describe('amend', () => {
+	const tag = (blockId: string) => (doc: import('$lib/domain/schema').CourseV2) => ({
+		doc: doc.blocks.some((b) => b.block_id === blockId && b.name === undefined)
+			? {
+					...doc,
+					blocks: doc.blocks.map((b) => (b.block_id === blockId ? { ...b, name: 'Z AI' } : b))
+				}
+			: doc,
+		description: 'pojmenováno'
+	});
+
+	it('changes the document and every state in the undo log, with no step of its own', () => {
+		const store = new DocStore();
+		store.load(addLesson(emptyCourse('K', 'K'), 'Jedna').doc);
+		const lessonId = store.doc.lessons[0].lesson_id;
+		const added = store.apply((d, r) => addBlock(d, lessonId, 'display', undefined, r));
+		const blockId = added.ref!.blockId!;
+		store.apply((d) => setField(d, { blockId, stepId: 's1', field: 'content' }, 'Text'));
+		const steps = store.undoStack.length;
+		store.amend(tag(blockId));
+		expect(store.undoStack.length).toBe(steps);
+		expect(store.doc.blocks[0].name).toBe('Z AI');
+		store.undo();
+		expect(store.doc.blocks[0].name).toBe('Z AI');
+		store.undo();
+		expect(store.doc.blocks).toHaveLength(0);
+		store.redo();
+		store.redo();
+		expect(store.doc.blocks[0]).toMatchObject({ name: 'Z AI' });
+	});
+
+	it('leaves a field being typed in adding to its own step', () => {
+		const store = new DocStore();
+		store.load(addLesson(emptyCourse('K', 'K'), 'Jedna').doc);
+		const lessonId = store.doc.lessons[0].lesson_id;
+		const blockId = store.apply((d, r) => addBlock(d, lessonId, 'display', undefined, r)).ref!
+			.blockId!;
+		const ref = { blockId, stepId: 's1', field: 'content' };
+		store.beginEdit();
+		store.apply((d) => setField(d, ref, 'T'));
+		const steps = store.undoStack.length;
+		store.amend(tag(blockId));
+		store.apply((d) => setField(d, ref, 'Te'));
+		store.endEdit();
+		expect(store.undoStack.length).toBe(steps);
+		store.undo();
+		expect(store.doc.blocks[0]).toMatchObject({ name: 'Z AI' });
+		expect(store.doc.blocks[0].steps[0].content).toBe('');
+	});
+});

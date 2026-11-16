@@ -56,20 +56,30 @@ export const outlineLessonSchema = z.object({
 });
 export type OutlineLesson = z.infer<typeof outlineLessonSchema>;
 
-const outlineShape = z.discriminatedUnion('scope', [
-	z.object({
-		scope: z.literal('lessons'),
-		lessons: z.array(outlineLessonSchema).min(1).max(MAX_LESSONS)
-	}),
-	z.object({
-		scope: z.literal('cards'),
-		cards: z.array(outlineCardSchema).min(1).max(MAX_CARDS_PER_LESSON)
-	})
-]);
+/** `lesson`: what a lesson must hold; the model's lessons have cards, the teacher's may not yet. */
+const shapeOf = (lesson: typeof outlineLessonSchema) =>
+	z.discriminatedUnion('scope', [
+		z.object({
+			scope: z.literal('lessons'),
+			lessons: z.array(lesson).min(1).max(MAX_LESSONS)
+		}),
+		z.object({
+			scope: z.literal('cards'),
+			cards: z.array(outlineCardSchema).min(1).max(MAX_CARDS_PER_LESSON)
+		})
+	]);
+const outlineShape = shapeOf(outlineLessonSchema);
 export type Outline = z.infer<typeof outlineShape>;
 export const outlineSchema = outlineShape.refine((o) => cardCount(o) <= MAX_CARDS, {
 	message: `at most ${MAX_CARDS} cards in all`
 });
+/**
+ * The proposal the teacher has, sent back with "Co změnit?": a lesson they started by
+ * hand may have no cards yet.
+ */
+export const currentOutlineSchema = shapeOf(
+	outlineLessonSchema.extend({ cards: z.array(outlineCardSchema).max(MAX_CARDS_PER_LESSON) })
+).refine((o) => cardCount(o) <= MAX_CARDS, { message: `at most ${MAX_CARDS} cards in all` });
 
 export const cardCount = (outline: Outline): number =>
 	outline.scope === 'cards'
@@ -91,7 +101,7 @@ export const outlineRequestSchema = z.object({
 		lessons: z.number().int().min(0)
 	}),
 	/** The proposal as the teacher has it now, to be reworked. */
-	current: outlineSchema.optional(),
+	current: currentOutlineSchema.optional(),
 	context: z.string().max(MAX_CONTEXT_CHARS),
 	/** The teacher's materials as `renderMaterials` makes them (index, and the text when it fits). */
 	materials: z.string().max(MAX_MATERIALS_CHARS).optional(),
@@ -266,10 +276,17 @@ export interface DraftLesson {
 	/** Empty for a `cards` proposal, whose one group is not a lesson. */
 	name: string;
 	cards: DraftCard[];
+	/** The tick of a lesson that has no cards (yet); one with cards is ticked through them. */
+	on?: boolean;
 }
 export interface Draft {
 	scope: Outline['scope'];
 	lessons: DraftLesson[];
+	/**
+	 * The prompt the proposal was made from; „Co změnit?“ sends it with a change, and
+	 * „Vytvořit vybrané“ keeps it on the course. None for an outline made by hand.
+	 */
+	original?: string;
 }
 
 export type KeyMaker = () => string;
@@ -369,10 +386,12 @@ export function toOutline(draft: Draft, only: 'ticked' | 'all' = 'all'): Outline
 		const cards = keep(draft.lessons[0]?.cards ?? []);
 		return cards.length === 0 ? undefined : { scope: 'cards', cards };
 	}
+	// A lesson the teacher made and left without cards is still a lesson, ticked on its own.
 	const lessons = draft.lessons.flatMap((lesson) => {
 		const cards = keep(lesson.cards);
 		const name = lesson.name.trim();
-		if (cards.length === 0 || name === '') return [];
+		const bare = lesson.cards.length === 0 && (only === 'all' || lesson.on !== false);
+		if ((cards.length === 0 && !bare) || name === '') return [];
 		return [{ name, cards }];
 	});
 	return lessons.length === 0 ? undefined : { scope: 'lessons', lessons };
@@ -383,6 +402,7 @@ export const anyTicked = (draft: Draft): boolean => toOutline(draft, 'ticked') !
 
 export type Tick = 'all' | 'some' | 'none';
 export function lessonTick(lesson: DraftLesson): Tick {
+	if (lesson.cards.length === 0) return lesson.on === false ? 'none' : 'all';
 	const on = lesson.cards.filter((c) => c.on).length;
 	return on === 0 ? 'none' : on === lesson.cards.length ? 'all' : 'some';
 }
@@ -403,7 +423,11 @@ const mapCard = (draft: Draft, key: string, fn: (c: DraftCard) => DraftCard): Dr
 
 /** Ticking a lesson ticks all its cards; unticking it unticks them. */
 export function setLessonTick(draft: Draft, lessonKey: string, on: boolean): Draft {
-	return mapLesson(draft, lessonKey, (l) => ({ ...l, cards: l.cards.map((c) => ({ ...c, on })) }));
+	return mapLesson(draft, lessonKey, (l) => ({
+		...l,
+		on,
+		cards: l.cards.map((c) => ({ ...c, on }))
+	}));
 }
 export const setCardTick = (draft: Draft, cardKey: string, on: boolean): Draft =>
 	mapCard(draft, cardKey, (c) => ({ ...c, on }));
@@ -416,17 +440,11 @@ export const removeLesson = (draft: Draft, lessonKey: string): Draft => ({
 	...draft,
 	lessons: draft.lessons.filter((l) => l.key !== lessonKey)
 });
-/** A lesson left with no cards goes too (of a `lessons` draft; a `cards` draft keeps its group). */
-export function removeCard(draft: Draft, cardKey: string): Draft {
-	const lessons = draft.lessons.map((l) => ({
-		...l,
-		cards: l.cards.filter((c) => c.key !== cardKey)
-	}));
-	return {
-		...draft,
-		lessons: draft.scope === 'cards' ? lessons : lessons.filter((l) => l.cards.length > 0)
-	};
-}
+/** The lesson stays, with no cards if this was its last: a lesson may be made card by card. */
+export const removeCard = (draft: Draft, cardKey: string): Draft => ({
+	...draft,
+	lessons: draft.lessons.map((l) => ({ ...l, cards: l.cards.filter((c) => c.key !== cardKey) }))
+});
 
 const moved = <T>(list: readonly T[], from: number, to: number): T[] => {
 	if (from < 0 || from >= list.length) return [...list];
@@ -443,6 +461,101 @@ export const moveLesson = (draft: Draft, from: number, to: number): Draft => ({
 	...draft,
 	lessons: moved(draft.lessons, from, to)
 });
+
+// The teacher's own outline: rows added by hand, and a card's kind changed.
+
+const draftCardCount = (draft: Draft): number =>
+	draft.lessons.reduce((sum, l) => sum + l.cards.length, 0);
+
+/**
+ * Whether one more card fits in the lesson: the limits are the ones the model works to,
+ * so a hand-made outline can still be sent with „Co změnit?“.
+ */
+export function canAddCard(draft: Draft, lessonKey: string): boolean {
+	const lesson = draft.lessons.find((l) => l.key === lessonKey);
+	return (
+		lesson !== undefined &&
+		lesson.cards.length < MAX_CARDS_PER_LESSON &&
+		draftCardCount(draft) < MAX_CARDS
+	);
+}
+export const canAddLesson = (draft: Draft): boolean =>
+	draft.scope === 'lessons' && draft.lessons.length < MAX_LESSONS;
+
+/** A new lesson with no name yet, at `at` (or the end), ticked. */
+export function addDraftLesson(draft: Draft, key: string, at?: number): Draft {
+	if (!canAddLesson(draft)) return draft;
+	return { ...draft, lessons: placed(draft.lessons, { key, name: '', cards: [], on: true }, at) };
+}
+
+/**
+ * A new card with no name yet, at `at` in the lesson (or its end), ticked. It is of the
+ * kind of the card above it in the lesson, or the first kind when there is none. It has
+ * no sources: those are only ever the model's.
+ */
+export function addDraftCard(draft: Draft, lessonKey: string, key: string, at?: number): Draft {
+	if (!canAddCard(draft, lessonKey)) return draft;
+	return mapLesson(draft, lessonKey, (l) => {
+		const index = at === undefined ? l.cards.length : Math.min(Math.max(at, 0), l.cards.length);
+		const kind = l.cards[index - 1]?.kind ?? OUTLINE_KINDS[0];
+		return { ...l, cards: placed(l.cards, { key, kind, name: '', on: true }, index) };
+	});
+}
+
+/** The card's kind; its name, tick and sources stay. */
+export const setDraftKind = (draft: Draft, cardKey: string, kind: OutlineKind): Draft =>
+	mapCard(draft, cardKey, (c) => ({ ...c, kind }));
+
+/** Where a card is: its lesson's index and its own. */
+export function findCard(draft: Draft, cardKey: string): { lesson: number; card: number } | null {
+	for (const [lesson, l] of draft.lessons.entries()) {
+		const card = l.cards.findIndex((c) => c.key === cardKey);
+		if (card >= 0) return { lesson, card };
+	}
+	return null;
+}
+
+/**
+ * A card into a lesson, its own or another, at the index it ends at there (clamped; `end`
+ * appends). A lesson that is full takes no card from another, and the draft is unchanged.
+ */
+export function moveCardTo(
+	draft: Draft,
+	cardKey: string,
+	lessonKey: string,
+	index: number | 'end'
+): Draft {
+	const at = findCard(draft, cardKey);
+	const target = draft.lessons.findIndex((l) => l.key === lessonKey);
+	if (at === null || target < 0) return draft;
+	if (target !== at.lesson && draft.lessons[target].cards.length >= MAX_CARDS_PER_LESSON)
+		return draft;
+	const card = draft.lessons[at.lesson].cards[at.card];
+	const lessons = draft.lessons.map((l, i) =>
+		i === at.lesson ? { ...l, cards: l.cards.filter((c) => c.key !== cardKey) } : l
+	);
+	const into = lessons[target];
+	const place =
+		index === 'end' ? into.cards.length : Math.min(Math.max(index, 0), into.cards.length);
+	lessons[target] = { ...into, cards: placed(into.cards, card, place) };
+	return { ...draft, lessons };
+}
+
+/**
+ * A card one place up or down, the keyboard's drag: past the start or end of its lesson
+ * it goes to the end of the lesson above or the start of the one below. At the very
+ * start or end of the outline it stays.
+ */
+export function stepCard(draft: Draft, cardKey: string, by: -1 | 1): Draft {
+	const at = findCard(draft, cardKey);
+	if (at === null) return draft;
+	const lesson = draft.lessons[at.lesson];
+	const to = at.card + by;
+	if (to >= 0 && to < lesson.cards.length) return moveCard(draft, lesson.key, at.card, to);
+	const next = draft.lessons[at.lesson + by];
+	if (next === undefined) return draft;
+	return moveCardTo(draft, cardKey, next.key, by < 0 ? 'end' : 0);
+}
 
 // ───────────────────────────────── the request ─────────────────────────────────
 
@@ -476,7 +589,13 @@ export function buildOutlineRequest(
 	return {
 		schema: 'eduai.outline-request/1',
 		prompt: prompt.trim(),
-		...(change !== undefined ? { original: change.original, current: change.current } : {}),
+		// An outline the teacher made by hand has no first prompt.
+		...(change !== undefined
+			? {
+					...(change.original.trim() !== '' ? { original: change.original } : {}),
+					current: change.current
+				}
+			: {}),
 		course: {
 			title: text(doc.name),
 			language: text(doc.language) || 'cs',

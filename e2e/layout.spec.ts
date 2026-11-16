@@ -67,9 +67,9 @@ test('Ctrl+B while typing is left to the text, and Ctrl+Shift+B still works ther
 	// The preview shortcut has no meaning to a text, so it works from inside one.
 	await expect(hide(page)).toBeVisible();
 	await page.keyboard.press('Control+Shift+B');
-	await expect(show(page)).toBeVisible();
+	await expect(folded(page)).toHaveCount(1);
 	await page.keyboard.press('Control+Shift+B');
-	await expect(hide(page)).toBeVisible();
+	await expect(folded(page)).toHaveCount(0);
 
 	// Out of any text, Ctrl+B folds the panel as before.
 	await page.getByRole('heading', { level: 2, name: 'Lekce' }).click();
@@ -118,7 +118,9 @@ const startWith = (page: Page, layout: { sidebarCollapsed: boolean; previewColla
 
 const player = (page: Page) => page.locator('iframe[title="Náhled kurzu očima žáka"]');
 const hide = (page: Page) => page.getByRole('button', { name: 'Skrýt náhled' });
-const show = (page: Page) => page.getByRole('button', { name: 'Ukázat náhled' });
+/** The preview's tile on the side's edge (AI is on offer in the suite: `AI_PROVIDER=fake`). */
+const show = (page: Page) => page.getByRole('button', { name: 'Náhled', exact: true });
+const folded = (page: Page) => page.locator('aside.preview.collapsed');
 const booted = (page: Page) => page.locator('aside.preview');
 const sent = async (page: Page, type: string) =>
 	(await player(page)
@@ -162,7 +164,7 @@ test('a preview remembered as folded boots no player until it is opened', async 
 	const probed = page.waitForResponse('**/player/preview');
 	await openEditor(page);
 	await probed;
-	await expect(show(page)).toBeVisible();
+	await expect(folded(page)).toHaveCount(1);
 	await expect(player(page)).toHaveCount(0);
 
 	await show(page).click();
@@ -177,12 +179,12 @@ test('Ctrl+Shift+B folds and opens the preview, and the choice survives a reload
 	await openEditor(page);
 	await expect(hide(page)).toBeVisible();
 	await page.keyboard.press('Control+Shift+B');
-	await expect(show(page)).toBeVisible();
+	await expect(folded(page)).toHaveCount(1);
 	await page.reload();
 	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
-	await expect(show(page)).toBeVisible();
+	await expect(folded(page)).toHaveCount(1);
 	await page.keyboard.press('Control+Shift+B');
-	await expect(hide(page)).toBeVisible();
+	await expect(folded(page)).toHaveCount(0);
 	await expect(page.locator('aside.preview.collapsed')).toHaveCount(0);
 });
 
@@ -200,7 +202,7 @@ test('Ctrl+Shift+B from inside the preview hands focus to the other toggle, and 
 	const field = page.getByRole('textbox').first();
 	await field.focus();
 	await page.keyboard.press('Control+Shift+B');
-	await expect(show(page)).toBeVisible();
+	await expect(folded(page)).toHaveCount(1);
 	await expect(field).toBeFocused();
 });
 
@@ -246,7 +248,7 @@ test('a folded preview does not run the boot watchdog, and opening it starts a f
 	// 19 s of a 20 s allowance, then folded: an hour passes and nothing is given up on.
 	await page.clock.runFor(19_000);
 	await hide(page).click();
-	await expect(show(page)).toBeVisible();
+	await expect(folded(page)).toHaveCount(1);
 	await page.clock.runFor(60 * 60_000);
 	await expect(page.locator('iframe[data-probe="1"]')).toHaveCount(1);
 	await expect(page.getByText('přehrávač neběží')).toHaveCount(0);

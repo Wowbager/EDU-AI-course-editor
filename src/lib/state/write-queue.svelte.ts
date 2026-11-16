@@ -10,6 +10,9 @@
  * speed (`rate`) waits as long as the server said and tries once more; a spent day
  * (`budget`) stops the queue, since every other card would fail the same way; so does a
  * second `rate` right after the wait.
+ *
+ * A card can be held (`start`'s `held`): it waits, as any card does, and is not started
+ * until it is released, while the others go on.
  */
 export type RunResult =
 	'done' | { problem: 'rate'; retryAfter?: number } | { problem: 'budget' | 'other' };
@@ -33,6 +36,8 @@ export class WriteQueue {
 	/** Why the queue stopped by itself, if it did. */
 	stoppedBy = $state<'budget' | 'rate' | null>(null);
 	#inflight = 0;
+	/** Cards not to be started yet. */
+	#held = new Set<string>();
 
 	constructor(
 		private readonly run: (row: Row) => Promise<RunResult>,
@@ -75,7 +80,12 @@ export class WriteQueue {
 	 * A new batch joins what the old one left: finished rows go, but cards still being
 	 * written, waiting or failed stay (and stay covered by `resume`), ahead of the new ones.
 	 */
-	start(cards: readonly { blockId: string; lessonId: string }[]) {
+	start(
+		cards: readonly { blockId: string; lessonId: string }[],
+		/** Cards that wait until `release`. */
+		held: readonly string[] = []
+	) {
+		for (const id of held) this.#held.add(id);
 		const kept = this.rows.filter((r) => r.state !== 'done');
 		const known = new Set(kept.map((r) => r.blockId));
 		this.rows = [
@@ -93,6 +103,12 @@ export class WriteQueue {
 		this.running = false;
 	}
 
+	/** Held cards may be started now. */
+	release(blockIds: readonly string[]) {
+		for (const id of blockIds) this.#held.delete(id);
+		this.#pump();
+	}
+
 	/** Start again with what is not done, failed cards included. */
 	resume() {
 		for (const row of this.rows) if (row.state === 'failed') row.state = 'waiting';
@@ -105,12 +121,13 @@ export class WriteQueue {
 		this.running = false;
 		this.rows = [];
 		this.stoppedBy = null;
+		this.#held.clear();
 	}
 
 	#pump() {
 		const limit = this.options.concurrency ?? CONCURRENCY;
 		while (this.running && this.#inflight < limit) {
-			const row = this.rows.find((r) => r.state === 'waiting');
+			const row = this.rows.find((r) => r.state === 'waiting' && !this.#held.has(r.blockId));
 			if (row === undefined) break;
 			row.state = 'writing';
 			this.#inflight++;
