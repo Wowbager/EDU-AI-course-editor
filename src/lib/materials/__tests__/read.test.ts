@@ -37,7 +37,8 @@ const libraries: Libraries = {
 	pdfjs: async () =>
 		(await import('pdfjs-dist/legacy/build/pdf.mjs')) as unknown as Awaited<
 			ReturnType<Libraries['pdfjs']>
-		>
+		>,
+	xlsx: async () => await import('xlsx')
 };
 
 const room = { pages: MAX_PAGES };

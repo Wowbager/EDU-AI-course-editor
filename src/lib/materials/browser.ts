@@ -27,7 +27,8 @@ export const libraries: Libraries = {
 			await import('pdfjs-dist/build/pdf.worker.min.mjs?url')
 		).default;
 		return pdfjs as unknown as Parameters<typeof import('./pdf').readPdf>[3];
-	}
+	},
+	xlsx: async () => await import('xlsx')
 };
 
 const white = (width: number, height: number) => {

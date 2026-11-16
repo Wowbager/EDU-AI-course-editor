@@ -3191,6 +3191,12 @@ did not see each other.
   finish the card it is writing, then ends that conversation.
 - **One line while the plan is made**: „Promýšlím karty…“ above the rows, which otherwise
   all say „Čeká na řadu“ for the plan's minute.
+- **Text and spreadsheets are read in the browser, like the other files.** Text is UTF-8,
+  or windows-1250 when the bytes are not UTF-8 (a page is 3000 characters). A spreadsheet
+  is a table per sheet, with the values as shown; SheetJS is loaded on demand from its own
+  CDN build, since the npm `xlsx` 0.18.5 has open advisories. Reading on the server was
+  rejected: the original is never sent. SheetJS cannot show a date written `d.m.yyyy`, so
+  that format is retried with its dots escaped (`sheets.ts`).
 
 ## Still open
 

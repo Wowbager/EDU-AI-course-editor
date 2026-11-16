@@ -441,7 +441,7 @@
 				type="button"
 				class="clip"
 				aria-label="Přiložit podklady"
-				title="Přiložit podklady (Word, PowerPoint, PDF, obrázek)"
+				title="Přiložit podklady (Word, PowerPoint, PDF, tabulka, text, obrázek)"
 				disabled={!ai.available}
 				onclick={() => picker?.click()}
 			>
