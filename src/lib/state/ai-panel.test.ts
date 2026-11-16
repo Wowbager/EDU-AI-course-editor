@@ -1121,7 +1121,7 @@ describe('the unfinished batch survives a reload', () => {
 		useSnapshotBackend(backend);
 		const { store, lessonId } = setup();
 		const id = store.doc.course_id;
-		const seen = server();
+		const seen = server({ lesson: 'fail' });
 		store.selection = { lessonId };
 		await aiPanel.send(store, 'Kurz o zlomcích');
 		aiPanel.create(store);
@@ -1200,5 +1200,63 @@ describe('the unfinished batch survives a reload', () => {
 		await flush();
 		expect(aiPanel.queue.rows).toEqual([]);
 		expect(await loadSnapshot(id)).toBeUndefined();
+	});
+
+	it('does not delete the batch created while an old entry was being read', async () => {
+		useSnapshotBackend(backend);
+		const { store, lessonId } = setup();
+		const id = store.doc.course_id;
+		kept.set(id, {
+			courseId: id,
+			savedAt: Date.now() - 8 * 24 * 3600 * 1000,
+			rows: [{ blockId: store.doc.blocks[0].block_id, lessonId }],
+			plan: null
+		});
+		aiPanel.queue.clear();
+		const held = server({ plan: 'hold' });
+		// Reading the entry is slow: the teacher creates in the meantime.
+		let open!: () => void;
+		const gate = new Promise<void>((r) => (open = r));
+		useSnapshotBackend({
+			...backend,
+			get: async (c) => {
+				const old = await backend.get(c);
+				await gate;
+				return old;
+			}
+		});
+		aiPanel.follow('ELSE');
+		aiPanel.follow(id, store);
+		store.selection = { lessonId };
+		await aiPanel.send(store, 'Kurz o zlomcích');
+		aiPanel.create(store);
+		open();
+		await flush();
+		await flush();
+		expect(kept.get(id)?.rows.length).toBeGreaterThan(1);
+		aiPanel.stop();
+		held.release();
+		await done();
+	});
+
+	it('keeps each course\u2019s cards in its own record when another course creates meanwhile', async () => {
+		useSnapshotBackend(backend);
+		const a = await failedThenReloaded();
+		const rowsA = kept.get(a.id)!.rows;
+		expect(kept.get(a.id)?.plan).not.toBe(null);
+		// The queue still holds A's failed cards when the teacher creates in B.
+		const b = setup();
+		const idB = b.store.doc.course_id;
+		aiPanel.follow(idB);
+		const seen = server();
+		b.store.selection = { lessonId: b.lessonId };
+		await aiPanel.send(b.store, 'Kurz o zlomcích');
+		aiPanel.create(b.store);
+		await done();
+		await flush();
+		expect(kept.get(a.id)?.rows).toEqual(rowsA);
+		expect(kept.get(a.id)?.plan?.course).toBe(a.id);
+		expect(kept.has(idB)).toBe(false);
+		expect(only(seen, '/ai/plan').length).toBe(1);
 	});
 });

@@ -24,14 +24,28 @@ let db: Promise<IDBDatabase> | null = null;
 function openOnce(): Promise<IDBDatabase> {
 	db ??= new Promise<IDBDatabase>((resolve, reject) => {
 		if (typeof indexedDB === 'undefined') return reject(new Error('IndexedDB není k dispozici.'));
+		let settled = false;
 		const request = indexedDB.open(DB, 1);
 		request.onupgradeneeded = () => {
 			if (!request.result.objectStoreNames.contains(STORE))
 				request.result.createObjectStore(STORE, { keyPath: 'courseId' });
 		};
-		request.onsuccess = () => resolve(request.result);
+		request.onsuccess = () => {
+			const handle = request.result;
+			// Another tab upgrades the database: let it.
+			handle.onversionchange = () => {
+				handle.close();
+				db = null;
+			};
+			// Rejected as blocked meanwhile: nobody will use this one.
+			if (settled) return handle.close();
+			resolve(handle);
+		};
 		request.onerror = () => reject(request.error ?? new Error('IndexedDB se nepodařilo otevřít.'));
-		request.onblocked = () => reject(new Error('IndexedDB je blokovaná jinou kartou.'));
+		request.onblocked = () => {
+			settled = true;
+			reject(new Error('IndexedDB je blokovaná jinou kartou.'));
+		};
 	}).catch((error) => {
 		db = null;
 		throw error;

@@ -24,6 +24,8 @@ export type RowState = 'waiting' | 'writing' | 'done' | 'failed';
 export interface Row {
 	blockId: string;
 	lessonId: string;
+	/** The course the card is in; card ids repeat from course to course. */
+	course?: string;
 	state: RowState;
 }
 
@@ -100,18 +102,17 @@ export class WriteQueue {
 	 * written, waiting or failed stay (and stay covered by `resume`), ahead of the new ones.
 	 */
 	start(
-		cards: readonly { blockId: string; lessonId: string }[],
+		cards: readonly { blockId: string; lessonId: string; course?: string }[],
 		/** Cards that wait until `release`. */
 		held: readonly string[] = []
 	) {
 		for (const id of held) this.#held.add(id);
 		const kept = this.rows.filter((r) => r.state !== 'done');
-		const known = new Set(kept.map((r) => r.blockId));
+		const key = (c: { blockId: string; course?: string }) => `${c.course}\0${c.blockId}`;
+		const known = new Set(kept.map(key));
 		this.rows = [
 			...kept,
-			...cards
-				.filter((c) => !known.has(c.blockId))
-				.map((c) => ({ ...c, state: 'waiting' as const }))
+			...cards.filter((c) => !known.has(key(c))).map((c) => ({ ...c, state: 'waiting' as const }))
 		];
 		this.stoppedBy = null;
 		this.running = true;
@@ -140,7 +141,7 @@ export class WriteQueue {
 	 * Cards left over from before a reload: failed, since nothing is being written, so
 	 * „Dopsat zbytek“ offers them. Nothing starts. Ignored when the queue has rows.
 	 */
-	restore(cards: readonly { blockId: string; lessonId: string }[]) {
+	restore(cards: readonly { blockId: string; lessonId: string; course?: string }[]) {
 		if (this.rows.length > 0 || this.writing) return;
 		this.rows = cards.map((c) => ({ ...c, state: 'failed' as const }));
 	}

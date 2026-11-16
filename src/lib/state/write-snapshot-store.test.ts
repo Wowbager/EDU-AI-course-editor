@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WriteSnapshot } from '$lib/domain/write-snapshot';
 import {
 	dropSnapshot,
@@ -46,5 +46,35 @@ describe('the batch store', () => {
 	it('works without IndexedDB at all', async () => {
 		expect(await loadSnapshot('A')).toBeUndefined();
 		await expect(saveSnapshot(snap('A'))).resolves.toBeUndefined();
+	});
+
+	it('closes a database that opens after the open was given up as blocked', async () => {
+		const handle = { close: vi.fn(), onversionchange: null as null | (() => void) };
+		const request: any = {};
+		vi.stubGlobal('indexedDB', { open: () => request });
+		const loading = loadSnapshot('A');
+		await Promise.resolve();
+		request.onblocked();
+		expect(await loading).toBeUndefined();
+		request.result = handle;
+		request.onsuccess();
+		expect(handle.close).toHaveBeenCalledTimes(1);
+		vi.unstubAllGlobals();
+	});
+
+	it('closes its database when another tab wants to upgrade it', async () => {
+		const handle = { close: vi.fn(), onversionchange: null as null | (() => void) };
+		const request: any = { result: handle };
+		vi.stubGlobal('indexedDB', {
+			open: () => {
+				queueMicrotask(() => request.onsuccess());
+				return request;
+			}
+		});
+		handle.close.mockClear();
+		await loadSnapshot('A').catch(() => undefined);
+		handle.onversionchange?.();
+		expect(handle.close).toHaveBeenCalled();
+		vi.unstubAllGlobals();
 	});
 });

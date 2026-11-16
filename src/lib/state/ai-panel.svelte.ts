@@ -105,8 +105,8 @@ class AiPanel {
 	queue = new WriteQueue((rows, context) => this.#write(rows, context), {
 		concurrency: concurrencyFor(pageProtocol())
 	});
-	/** The course the queue's cards belong to: its unfinished cards are kept for it. */
-	#queueCourse: string | null = null;
+	/** Courses with a kept batch: each is saved from its own rows, or forgotten. */
+	#kept = new Set<string>();
 	/** Ends the plan's request when the teacher stops before it is made. */
 	#planAbort: AbortController | null = null;
 	/** The plan is being made: the cards wait for it. */
@@ -116,12 +116,10 @@ class AiPanel {
 	 * with each lesson so it starts from the plan's own reasoning. Kept with the unfinished
 	 * cards (`write-snapshot-store.ts`), so it is back after a reload.
 	 */
-	#plan: {
-		course: string;
-		request: PlanRequest;
-		turn: AssistantTurnData;
-		targets: PlanTargets;
-	} | null = null;
+	#plans = new Map<
+		string,
+		{ course: string; request: PlanRequest; turn: AssistantTurnData; targets: PlanTargets }
+	>();
 
 	/** A lesson's cards, in one conversation. */
 	async #write(rows: Row[], context: RunContext): Promise<RunResult> {
@@ -136,7 +134,7 @@ class AiPanel {
 		await materials.ready(store.doc.course_id);
 		const doc = store.doc;
 		// The plan is for the cards it planned: a later batch, or a card added since, has none.
-		const known = this.#plan?.course === doc.course_id ? this.#plan : null;
+		const known = this.#plans.get(doc.course_id) ?? null;
 		const plan =
 			known !== null && rows.every((r) => known.targets.cards.includes(r.blockId)) ? known : null;
 		const sections = materials.sections;
@@ -275,22 +273,30 @@ class AiPanel {
 		const found = await loadSnapshot(courseId);
 		if (found === undefined) return;
 		const back = restoreSnapshot(found, store.doc, Date.now());
-		if (back === undefined) return void dropSnapshot(courseId);
-		// The teacher moved on, or something is being written already: it is theirs now.
+		// The teacher moved on, or created a batch while this was read: it is theirs now.
 		if (this.#course !== courseId || store.doc.course_id !== courseId) return;
 		if (this.queue.rows.length > 0 || this.queue.writing) return;
+		if (back === undefined) return void dropSnapshot(courseId);
 		this.#store = store;
-		this.#queueCourse = courseId;
-		this.#plan = back.plan;
-		this.queue.restore(back.rows);
+		this.#kept.add(courseId);
+		if (back.plan !== null) this.#plans.set(courseId, back.plan);
+		this.queue.restore(back.rows.map((r) => ({ ...r, course: courseId })));
 	}
 
 	/** Keeps the cards not written yet, or forgets the batch when none is left. */
 	#save(): void {
-		const course = this.#queueCourse;
-		if (course === null) return;
-		const snapshot = makeSnapshot(course, this.queue.rows, this.#plan, Date.now());
-		void (snapshot === undefined ? dropSnapshot(course) : saveSnapshot(snapshot));
+		const courses = new Set([...this.#kept, ...this.queue.rows.flatMap((r) => r.course ?? [])]);
+		for (const course of courses) {
+			const rows = this.queue.rows.filter((r) => r.course === course);
+			const snapshot = makeSnapshot(course, rows, this.#plans.get(course) ?? null, Date.now());
+			if (snapshot === undefined) {
+				this.#kept.delete(course);
+				void dropSnapshot(course);
+			} else {
+				this.#kept.add(course);
+				void saveSnapshot(snapshot);
+			}
+		}
 	}
 
 	/** The outline's history is over: at „Vytvořit vybrané“. */
@@ -444,10 +450,10 @@ class AiPanel {
 		// card to get them all, for the model to name the sources of the cards with none.
 		const sections = materials.sections;
 		const unsourced = sourcesWanted(sections) ? cardsWithoutSources(store.doc, added) : [];
-		this.#queueCourse = store.doc.course_id;
-		this.#plan = null;
+		const own = store.doc.course_id;
+		this.#plans.delete(own);
 		this.queue.start(
-			added,
+			added.map((c) => ({ ...c, course: own })),
 			added.map((c) => c.blockId)
 		);
 		this.#save();
@@ -501,7 +507,12 @@ class AiPanel {
 		if (abort.signal.aborted || !this.queue.running) return;
 		if (answer === undefined || 'problem' in answer || store.doc.course_id !== course) return;
 		store.amend((doc) => applyPlan(doc, answer.plan, built.targets));
-		this.#plan = { course, request: built.request, turn: answer.turn, targets: built.targets };
+		this.#plans.set(course, {
+			course,
+			request: built.request,
+			turn: answer.turn,
+			targets: built.targets
+		});
 		this.#save();
 	}
 
@@ -535,7 +546,6 @@ class AiPanel {
 	/** „Dopsat zbytek“. */
 	resume(store: DocStore) {
 		this.#store = store;
-		this.#queueCourse = store.doc.course_id;
 		this.queue.resume();
 	}
 
