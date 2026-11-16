@@ -10,7 +10,7 @@ import { test, expect, openEditor, type Page } from './fixtures';
  * používá, Úlohy); a change adds „Změna: …“ to the last lesson and a card to an empty one.
  */
 
-const aiTab = (page: Page) => page.getByRole('button', { name: 'AI', exact: true });
+const aiTab = (page: Page) => page.getByRole('button', { name: 'AI pomocník', exact: true });
 const panel = (page: Page) => page.getByRole('region', { name: 'AI', exact: true });
 const box = (page: Page) => page.getByRole('textbox', { name: /^Co (mám vytvořit|změnit)\?$/ });
 const create = (page: Page) => page.getByRole('button', { name: 'Vytvořit vybrané', exact: true });
