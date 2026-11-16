@@ -3192,6 +3192,14 @@ did not see each other.
 - **One line while the plan is made**: „Promýšlím karty…“ above the rows, which otherwise
   all say „Čeká na řadu“ for the plan's minute.
 
+- **More kinds of file are read in the browser** (`materials/html.ts`, `odf.ts`): web pages
+  and e-books (turndown with its GFM plugin; an e-book is one page per chapter, in spine
+  order) and OpenDocument texts and presentations (our own walk over `content.xml`, like
+  `pptx.ts`; formulas are MathML objects, converted by `mathml-to-latex`). Each library is
+  its own chunk, loaded when a file of its kind is read. *Rejected:* converting with
+  LibreOffice on the server for now: the original file never leaves the browser, and only
+  the text of its pictures does.
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today
