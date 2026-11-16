@@ -199,7 +199,7 @@ key never reaches the browser.
 | `AI_API_KEY` | The provider's key. Without it there is no AI in the editor. |
 | `AI_PROVIDER` | `openrouter` (default), `deepseek`, or `fake` (no key, no network, canned answers; the e2e suite uses it). |
 | `AI_MODEL`, `AI_BASE_URL`, `AI_REASONING_EFFORT` | Optional overrides of the provider's defaults (`src/lib/server/ai/config.ts`). The default model is `deepseek/deepseek-v4.1-flash:nitro` (OpenRouter's fastest host for it) with reasoning `low`; requests carry `provider.max_price` of $0.5 / $2 per million tokens (prompt / completion) and ask for hosts that do not keep or train on the text. |
-| `AI_DAILY_TOKEN_BUDGET`, `AI_MAX_REQUESTS_PER_MINUTE` | Limits per workspace, kept in memory (default 40 requests a minute). The budget (default 20 000 000 a day) counts the prompt tokens the provider served from its cache at a tenth, because the course text is sent with every card and is cached after the first one. |
+| `AI_DAILY_TOKEN_BUDGET`, `AI_MAX_REQUESTS_PER_MINUTE` | Limits per workspace, kept in memory (default 300 requests a minute, only a stop for a runaway loop). The budget (default 20 000 000 a day) counts the prompt tokens the provider served from its cache at a tenth, because the course text is sent with every card and is cached after the first one. |
 
 ```bash
 AI_API_KEY=… npm run dev
