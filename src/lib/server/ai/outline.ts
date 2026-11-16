@@ -13,12 +13,15 @@
  */
 import {
 	applyEvent,
+	cardCount,
+	limitProblem,
 	lineSplitter,
 	outlineSchema,
 	readLine,
 	scopeProblem,
 	type OutlineCard,
 	type OutlineEvent,
+	type OutlineLimits,
 	type OutlineRequest,
 	type Outline
 } from '$lib/domain/outline';
@@ -33,9 +36,13 @@ You get two or three user messages, in this order.
 2. The course dossier: plain text, read-only background: the course, its audience, its outline and the lessons and cards it already has. When a card is shown between the lines "${MARKER_OPEN}" and "${MARKER_CLOSE}", it is only the place the teacher is working at; it is not something to write about.
 3. A JSON request: "prompt" is what the teacher asks for. "target" says where new cards would go: the lesson and the card the teacher has selected (by name), and how many lessons the course has. "course" has the title, the language and the audience. "current", when present, is the proposal the teacher is looking at and "prompt" is what they want changed in it ("original" is what they asked for first): rework it, keep what they did not ask to change exactly as it is (names, order), and return the whole proposal again. The teacher may have written the proposal by hand: then there is no "original", and a lesson in it with no cards yet gets cards from you.
 
-Answer in lines, one JSON object per line, and nothing else (no code fence, no commentary). The first line says what you propose:
-{"scope":"lessons"} a course structure, when the prompt is about a whole course, a topic with several lessons, or says how many lessons;
-{"scope":"cards"} cards for the lesson the teacher is in, when the prompt asks for cards, an example set, a quiz, a revision or "add something" and "target.lesson" exists. Without "target.lesson" (no lesson is selected) always use "lessons". When the prompt is unclear and a lesson is selected, prefer cards.
+Answer in lines, one JSON object per line, and nothing else (no code fence, no commentary). The first line says what you propose and what the teacher's request limits:
+{"scope":"lessons"} a course structure, when the prompt is about a whole course, a topic with several lessons, or says how many lessons. With no "target.lesson" (no lesson is selected) a "lessons" proposal is also how you answer a small request: it may be one lesson that holds only the cards that were asked for;
+{"scope":"cards"} cards for the lesson the teacher is in, when the prompt asks for cards, an example set, a quiz, a test, a revision or "add something" and "target.lesson" exists. When the prompt is unclear and a lesson is selected, prefer cards.
+The same line carries the request's limits, but only those the teacher's prompt sets (when it sets none, write none):
+- "only": the card kinds the prompt allows, as a list, when it asks for one kind of card or a few ("a test", "just exercises", "a quiz question" ...);
+- "count": the number of cards in all, when the prompt says how many ("one card", "10 questions", "three exercises").
+For example {"scope":"cards","only":["question","exercise"],"count":10}. Keep to these limits in every line after it: a card of another kind or a card over the count is thrown away. With "current", the limits are those of the whole proposal as the teacher wants it now, "original" and the change together.
 After it, for "lessons", one line for each lesson, in course order:
 {"name":"Lesson name","cards":[{"kind":"display","name":"Card name"},{"kind":"exercise","name":"Card name"}]}
 and for "cards", one line for each card:
@@ -51,9 +58,10 @@ A card's "kind" is
 A name is short, in the words a pupil or teacher would use, and never numbered ("Co je polovina", not "Karta 1"). When the teacher states a count for a card, put it in the name ("5 příkladů na sčítání"). Write nothing else about a card or lesson: no description, no goal.
 
 Rules:
+- Whose wishes count: the teacher's request first, then the materials, then these defaults. Propose exactly what was asked, nothing extra "for completeness". A test, a quiz or practice means only cards of kind "question" and "exercise", with no explanation card before them; an explanation means only "display" cards; one card means one card; a named topic means that topic only. The default shape of a lesson (below) and the rule to cover every file apply only when the teacher asks for a course or a lesson in general, without saying what it should hold.
 - Language: course.language (Czech when empty). Vocabulary and ambition fit audience.grade and audience.purpose; do not plan what audience.prior_knowledge says the pupils already know, and do not repeat what the existing lessons in the dossier already teach.
-- Build up: explain first, then practise, then check. A lesson usually has 3 to 7 cards, mixing the three kinds with more "display" and "exercise" than "question"; honour the numbers the teacher states (lessons, cards, "a quiz at the end").
-- With materials, cover what they cover, in their order. Each attached file is there for a reason: give the topic of every file at least one lesson or card, unless the prompt says to leave something out (a different grade than a file's is no reason to drop it; adapt it). Do not plan what they do not contain. Do not invent facts, and never mention files, images or links in a name.
+- The default shape, when the request is for a whole course or lesson: build up, explain first, then practise, then check. A lesson then usually has 3 to 7 cards, mixing the three kinds with more "display" and "exercise" than "question". Any number or kind the teacher states ("lessons", "cards", "a quiz at the end") replaces this.
+- With materials, take what the request needs from them, in their order. When the request is a whole course or lesson, cover what they cover: each attached file is there for a reason, so give the topic of every file at least one lesson or card, unless the prompt says to leave something out (a different grade than a file's is no reason to drop it; adapt it). When the request is narrower, use only the sections that serve it and ignore the rest. Do not plan what they do not contain. Do not invent facts, and never mention files, images or links in a name.
 - At most 12 lessons and 15 cards per lesson.
 ${formatRules({ fields: false })}`;
 
@@ -149,6 +157,8 @@ export async function* outlineEvents(
 	/** Lines still to be asked for again. */
 	let pending: Slot[] = [];
 	let slots = 0;
+	/** What the teacher's request limits, from the scope line (`limitProblem`). */
+	let limits: OutlineLimits = {};
 
 	for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
 		// After a good first round only the bad lines are asked for; before that, everything.
@@ -180,7 +190,12 @@ export async function* outlineEvents(
 					const fault = scopeProblem(request, event.scope);
 					if (fault !== undefined) return void (scopeFault = fault);
 					outline = applyEvent(outline, event);
-					return void out.push(event);
+					// The limits are the server's: the teacher is never shown them.
+					limits = {
+						...(event.only ? { only: event.only } : {}),
+						...(event.count ? { count: event.count } : {})
+					};
+					return void out.push({ type: 'scope', scope: event.scope });
 				}
 				if (retry) return void results.push({ event });
 				// A model that forgets the scope line: the line's shape says which it is.
@@ -193,6 +208,11 @@ export async function* outlineEvents(
 					out.push({ type: 'scope', scope });
 				}
 				if (scopeFault !== '') return;
+				const broken = limitProblem(limits, outline === null ? 0 : cardCount(outline), event);
+				if (broken !== undefined) {
+					if (!broken.drop) fresh.push({ slot: slots++, raw, why: broken.problem });
+					return;
+				}
 				present.push(slots++);
 				outline = applyEvent(outline, event);
 				out.push(event);
@@ -252,6 +272,11 @@ export async function* outlineEvents(
 							...line,
 							why: result !== undefined && 'problem' in result ? result.problem : line.why
 						});
+						return;
+					}
+					const broken = limitProblem(limits, outline === null ? 0 : cardCount(outline), fixed);
+					if (broken !== undefined) {
+						if (!broken.drop) left.push({ ...line, why: broken.problem });
 						return;
 					}
 					const at = present.filter((slot) => slot < line.slot).length;

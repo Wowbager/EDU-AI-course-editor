@@ -144,7 +144,7 @@ export const nameProblem = (name: string, why: string): string =>
  * scope, then a lesson (or a card, for `cards`) at a time, then `done`.
  */
 export type OutlineEvent =
-	| { type: 'scope'; scope: Outline['scope'] }
+	| { type: 'scope'; scope: Outline['scope']; only?: OutlineKind[]; count?: number }
 	/** `at`: a line asked for again goes back to its own place, not at the end. */
 	| { type: 'lesson'; lesson: OutlineLesson; at?: number }
 	| { type: 'card'; card: OutlineCard; at?: number }
@@ -152,7 +152,12 @@ export type OutlineEvent =
 	| { type: 'failed'; problem?: 'busy' | 'failed' };
 
 export const outlineEventSchema: z.ZodType<OutlineEvent> = z.union([
-	z.object({ type: z.literal('scope'), scope: z.enum(['lessons', 'cards']) }),
+	z.object({
+		type: z.literal('scope'),
+		scope: z.enum(['lessons', 'cards']),
+		only: z.array(z.enum(OUTLINE_KINDS)).min(1).optional(),
+		count: z.number().int().min(1).optional()
+	}),
 	z.object({
 		type: z.literal('lesson'),
 		lesson: outlineLessonSchema,
@@ -192,7 +197,61 @@ export function applyEvent(so: Outline | null, event: OutlineEvent): Outline | n
 	}
 }
 
-const scopeLine = z.object({ scope: z.enum(['lessons', 'cards']) });
+/**
+ * `only` and `count` are the limits the teacher's prompt sets (kinds allowed, cards in
+ * all). Unusable values are left out rather than failing the line: the proposal is
+ * better unlimited than lost.
+ */
+const scopeLine = z.object({
+	scope: z.enum(['lessons', 'cards']),
+	only: z.unknown().optional(),
+	count: z.unknown().optional()
+});
+
+function limitsOf(only: unknown, count: unknown): { only?: OutlineKind[]; count?: number } {
+	const kinds = Array.isArray(only)
+		? [...new Set(only.filter((k): k is OutlineKind => OUTLINE_KINDS.includes(k)))]
+		: [];
+	const n = typeof count === 'number' && Number.isInteger(count) && count >= 1 ? count : undefined;
+	return {
+		...(kinds.length > 0 ? { only: kinds } : {}),
+		...(n !== undefined ? { count: Math.min(n, MAX_CARDS) } : {})
+	};
+}
+
+/** The limits of a proposal: kinds that may appear, and how many cards in all. */
+export type OutlineLimits = { only?: OutlineKind[]; count?: number };
+
+/**
+ * Why a card or lesson line breaks the limits, or `undefined`. `have` is how many cards
+ * the proposal holds already. `drop`: asking again cannot help (the proposal is full), so
+ * the line is simply left out.
+ */
+export function limitProblem(
+	limits: OutlineLimits,
+	have: number,
+	event: OutlineEvent
+): { problem: string; drop: boolean } | undefined {
+	const cards =
+		event.type === 'card' ? [event.card] : event.type === 'lesson' ? event.lesson.cards : [];
+	const { only, count } = limits;
+	if (only !== undefined) {
+		const bad = cards.find((c) => !only.includes(c.kind));
+		if (bad !== undefined)
+			return {
+				problem: `The card "${bad.name.slice(0, 40)}" is of kind "${bad.kind}", but the teacher's request allows only ${only.map((k) => `"${k}"`).join(' and ')}. Use only those kinds.`,
+				drop: false
+			};
+	}
+	if (count !== undefined && have + cards.length > count) {
+		const left = Math.max(count - have, 0);
+		return {
+			problem: `The request is for ${count} cards in all and ${have} are already given, so ${left} more fit.`,
+			drop: left === 0 || event.type === 'card'
+		};
+	}
+	return undefined;
+}
 
 /**
  * One line of the model's answer: the scope, a lesson or a card, or what is wrong with
@@ -203,7 +262,14 @@ export function readLine(
 	json: unknown
 ): { event: OutlineEvent } | { problem: string; scope?: undefined } {
 	const scope = scopeLine.safeParse(json);
-	if (scope.success) return { event: { type: 'scope', scope: scope.data.scope } };
+	if (scope.success)
+		return {
+			event: {
+				type: 'scope',
+				scope: scope.data.scope,
+				...limitsOf(scope.data.only, scope.data.count)
+			}
+		};
 	const lesson = outlineLessonSchema.safeParse(json);
 	const card = outlineCardSchema.safeParse(json);
 	const isLesson = typeof json === 'object' && json !== null && 'cards' in json;
