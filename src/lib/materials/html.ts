@@ -7,7 +7,7 @@
 import { estimatePages, MAX_PAGES, splitMarkdown, type Piece } from '$lib/domain/materials';
 import type JSZip from 'jszip';
 import type TurndownService from 'turndown';
-import { MEDIA, resolve } from './pptx';
+import { MEDIA, resolve, safeDecode } from './pptx';
 import { MIN_TEXT, Refused, TOO_MANY_PAGES, type ReadIO, type ReadOut, type Room } from './types';
 
 /** turndown and its table plugin, as `browser.ts` loads them. */
@@ -38,6 +38,9 @@ export function htmlToMarkdown(html: string, libs: HtmlLibs): { text: string; im
 		emDelimiter: '*'
 	});
 	service.use(libs.turndown.gfm);
+	// The model reads plain text, so nothing is escaped (a `|` in a table cell still is, by the
+	// table plugin; code stays as it was).
+	service.escape = (text) => text;
 	service.remove((node) =>
 		['script', 'style', 'nav', 'head', 'title', 'noscript', 'template', 'iframe', 'svg'].includes(
 			node.nodeName.toLowerCase()
@@ -67,8 +70,6 @@ export function htmlToMarkdown(html: string, libs: HtmlLibs): { text: string; im
 	const text = service
 		.turndown(html)
 		.replace(/!\[[^\]]*\]\(img:\d+\)/g, '')
-		// turndown escapes Markdown characters in text; the model reads plain text.
-		.replace(/\\([\\`*_{}[\]()#+\-.!|>~$=<])/g, '$1')
 		.replace(/\n{3,}/g, '\n\n')
 		.trim();
 	return { text, images };
@@ -151,8 +152,10 @@ export async function readHtml(
 	return { pieces, pages, unread };
 }
 
-const attr = (tag: string, name: string): string | undefined =>
-	new RegExp(`\\b${name}\\s*=\\s*"([^"]*)"`).exec(tag)?.[1];
+const attr = (tag: string, name: string): string | undefined => {
+	const m = new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`).exec(tag);
+	return m === null ? undefined : (m[1] ?? m[2]);
+};
 
 /** The chapters' paths in the order of the spine. */
 async function chapterPaths(zip: JSZip): Promise<string[]> {
@@ -169,8 +172,11 @@ async function chapterPaths(zip: JSZip): Promise<string[]> {
 		const id = attr(item[0], 'id');
 		const href = attr(item[0], 'href');
 		const type = attr(item[0], 'media-type') ?? '';
-		if (id !== undefined && href !== undefined && /html/i.test(type))
-			manifest.set(id, resolve(root, decodeURI(href.split('#')[0])));
+		if (id !== undefined && href !== undefined && /html/i.test(type)) {
+			const raw = resolve(root, href.split('#')[0]);
+			const decoded = resolve(root, safeDecode(href.split('#')[0]));
+			manifest.set(id, zip.file(decoded) !== null ? decoded : raw);
+		}
 	}
 	return [...opf.matchAll(/<itemref\b[^>]*>/g)]
 		.map((m) => manifest.get(attr(m[0], 'idref') ?? ''))
@@ -191,6 +197,7 @@ export async function readEpub(
 	const pieces: Piece[] = [];
 	const unread: string[] = [];
 	const budget = { left: MAX_PICTURES };
+	let pages = 0;
 	for (const [i, path] of paths.entries()) {
 		const html = decode(await zip.file(path)!.async('arraybuffer'));
 		const converted = htmlToMarkdown(html, libs);
@@ -202,7 +209,10 @@ export async function readEpub(
 				io,
 				async (src) => {
 					const ext = src.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
-					const file = MEDIA[ext] === undefined ? null : zip.file(resolve(path, decodeURI(src)));
+					const file =
+						MEDIA[ext] === undefined
+							? null
+							: (zip.file(resolve(path, safeDecode(src))) ?? zip.file(resolve(path, src)));
 					return file === null ? null : { type: MEDIA[ext], data: await file.async('arraybuffer') };
 				},
 				budget
@@ -211,7 +221,10 @@ export async function readEpub(
 			if (read.length === 0 && text === '') unread.push(`Kapitola ${i + 1} se nepodařilo přečíst`);
 			text = [text, ...read].filter((t) => t !== '').join('\n\n');
 		}
+		// A chapter is at least a page, and a long one is as many as its words make.
+		pages += estimatePages(text);
+		if (pages > Math.min(room.pages, MAX_PAGES)) throw new Refused(TOO_MANY_PAGES(MAX_PAGES));
 		pieces.push(...splitMarkdown(text, `Kapitola ${i + 1}`));
 	}
-	return { pieces, pages: paths.length, unread };
+	return { pieces, pages, unread };
 }

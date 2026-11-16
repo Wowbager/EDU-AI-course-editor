@@ -56,6 +56,15 @@ function relations(xml: string | null): { id: string; type: string; target: stri
 	});
 }
 
+/** A percent-encoded address as text; one with a malformed `%` stays as it was written. */
+export function safeDecode(href: string): string {
+	try {
+		return decodeURI(href);
+	} catch {
+		return href;
+	}
+}
+
 /** `target` as a path in the archive, from the folder of the part that names it. */
 export function resolve(from: string, target: string): string {
 	if (target.startsWith('/')) return target.slice(1);

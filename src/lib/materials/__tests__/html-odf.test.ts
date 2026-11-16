@@ -96,6 +96,15 @@ describe('an HTML page', () => {
 		expect(second.read).toBe(0);
 	});
 
+	it('keeps a backslash and a pipe that are in the page, in a table and in code', async () => {
+		const html =
+			'<table><tr><th>a</th><th>b</th></tr><tr><td>a|b</td><td>c</td></tr></table><pre><code>a\\*b</code></pre>';
+		const read = await readMaterial(file('a.html', html), io(), room, libraries);
+		const text = read.sections.map((s) => s.text).join('\n');
+		expect(text).toContain('| a\\|b | c   |');
+		expect(text).toContain('a\\*b');
+	});
+
 	it('refuses a page longer than the budget', async () => {
 		const words = `<p>${'slovo '.repeat(1100)}</p>`;
 		await expect(
@@ -136,6 +145,20 @@ describe('an e-book', () => {
 		await expect(readMaterial(await epub(5), io(), { pages: 4 }, libraries)).rejects.toBeInstanceOf(
 			Refused
 		);
+	});
+
+	it('counts the pages of long chapters by their words, not one for a chapter', async () => {
+		const long = await zipped('b.epub', {
+			'META-INF/container.xml':
+				"<container><rootfiles><rootfile full-path='c.opf'/></rootfiles></container>",
+			'c.opf':
+				"<package><manifest><item id='a' href='a%20b.xhtml' media-type='application/xhtml+xml'/><item id='b' href='bad%zz.xhtml' media-type='application/xhtml+xml'/></manifest><spine><itemref idref='a'/><itemref idref='b'/></spine></package>",
+			'a b.xhtml': `<html><body><p>${'slovo '.repeat(2600)}</p></body></html>`,
+			'bad%zz.xhtml': `<html><body><p>${LONG}</p></body></html>`
+		});
+		const read = await readMaterial(long, io(), room, libraries);
+		expect(read.pages).toBe(7);
+		await expect(readMaterial(long, io(), { pages: 6 }, libraries)).rejects.toBeInstanceOf(Refused);
 	});
 
 	it('refuses a file with no chapters', async () => {

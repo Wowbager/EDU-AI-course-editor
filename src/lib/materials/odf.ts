@@ -8,7 +8,7 @@
  */
 import { estimatePages, MAX_PAGES, splitMarkdown, type Piece } from '$lib/domain/materials';
 import type JSZip from 'jszip';
-import { MEDIA, resolve, unescapeXml } from './pptx';
+import { MEDIA, resolve, safeDecode, unescapeXml } from './pptx';
 import { MIN_TEXT, Refused, TOO_MANY_PAGES, type ReadIO, type ReadOut, type Room } from './types';
 
 interface El {
@@ -119,7 +119,7 @@ function frame(el: El, ctx: Context): string {
 	const object = find(el, 'draw:object');
 	if (object !== undefined) {
 		const folder = (object.attrs['xlink:href'] ?? '').replace(/^\.\//, '').replace(/\/$/, '');
-		const latex = ctx.formulas.get(folder);
+		const latex = ctx.formulas.get(folder) ?? ctx.formulas.get(safeDecode(folder));
 		return latex === undefined || latex === '' ? '' : `$${latex}$`;
 	}
 	const image = find(el, 'draw:image');
@@ -291,7 +291,11 @@ async function readPictures(
 	const out: { read: string | null; known: boolean }[] = [];
 	for (const href of hrefs) {
 		const ext = href.split('.').pop()?.toLowerCase() ?? '';
-		const file = MEDIA[ext] === undefined ? null : zip.file(resolve('content.xml', href));
+		const file =
+			MEDIA[ext] === undefined
+				? null
+				: (zip.file(resolve('content.xml', href)) ??
+					zip.file(resolve('content.xml', safeDecode(href))));
 		if (file === null) {
 			out.push({ read: null, known: false });
 			continue;
