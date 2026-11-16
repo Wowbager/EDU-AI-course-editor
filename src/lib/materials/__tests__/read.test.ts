@@ -37,7 +37,15 @@ const libraries: Libraries = {
 	pdfjs: async () =>
 		(await import('pdfjs-dist/legacy/build/pdf.mjs')) as unknown as Awaited<
 			ReturnType<Libraries['pdfjs']>
-		>
+		>,
+	turndown: async () => ({
+		TurndownService: (await import('turndown')).default,
+		gfm: (await import('@joplin/turndown-plugin-gfm')).gfm
+	}),
+	mathml: async () => {
+		const { MathMLToLaTeX } = await import('mathml-to-latex');
+		return (mathml) => MathMLToLaTeX.convert(mathml);
+	}
 };
 
 const room = { pages: MAX_PAGES };

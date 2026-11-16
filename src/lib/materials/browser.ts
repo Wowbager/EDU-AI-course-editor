@@ -21,6 +21,14 @@ export const libraries: Libraries = {
 			}
 		).default,
 	jszip: async () => (await import('jszip')).default,
+	turndown: async () => ({
+		TurndownService: (await import('turndown')).default,
+		gfm: (await import('@joplin/turndown-plugin-gfm')).gfm
+	}),
+	mathml: async () => {
+		const { MathMLToLaTeX } = await import('mathml-to-latex');
+		return (mathml) => MathMLToLaTeX.convert(mathml);
+	},
 	pdfjs: async () => {
 		const pdfjs = await import('pdfjs-dist');
 		pdfjs.GlobalWorkerOptions.workerSrc = (
