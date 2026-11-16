@@ -35,7 +35,7 @@ export interface RunContext {
 	stopped(): boolean;
 }
 
-/** Lessons written at once. */
+/** Lessons written at once when nothing says otherwise (`domain/write-concurrency.ts`). */
 export const CONCURRENCY = 4;
 /** Without a `Retry-After`, and at most, in seconds. */
 const DEFAULT_WAIT = 15;
@@ -134,6 +134,15 @@ export class WriteQueue {
 		this.stoppedBy = null;
 		this.running = true;
 		this.#pump();
+	}
+
+	/**
+	 * Cards left over from before a reload: failed, since nothing is being written, so
+	 * „Dopsat zbytek“ offers them. Nothing starts. Ignored when the queue has rows.
+	 */
+	restore(cards: readonly { blockId: string; lessonId: string }[]) {
+		if (this.rows.length > 0 || this.writing) return;
+		this.rows = cards.map((c) => ({ ...c, state: 'failed' as const }));
 	}
 
 	clear() {

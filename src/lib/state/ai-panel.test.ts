@@ -15,6 +15,8 @@ import {
 } from '$lib/domain/outline';
 import { fakeChat, fakeOutline, FAKE_REASONING } from '$lib/server/ai/fake';
 import { lessonEvents, makePlan } from '$lib/server/ai/lesson';
+import { loadSnapshot, useSnapshotBackend, type SnapshotBackend } from './write-snapshot-store';
+import type { WriteSnapshot } from '$lib/domain/write-snapshot';
 import { BRIEF_KEY, REQUEST_KEY, sourceRefsOf } from '$lib/domain/authoring';
 
 vi.mock('$lib/state/versions/server', () => ({ workspaceKey: () => 'k'.repeat(43) }));
@@ -80,7 +82,7 @@ async function answerLesson(body: any): Promise<any[]> {
  * The fake provider behind `fetch`, with the requests it saw. `plan`: `'fail'` answers
  * /ai/plan with a 500; `'hold'` keeps it pending until `release()`.
  */
-function server(options: { plan?: 'fail' | 'hold' } = {}) {
+function server(options: { plan?: 'fail' | 'hold'; lesson?: 'fail' } = {}) {
 	const seen: Seen[] & { release: () => void } = Object.assign([] as Seen[], {
 		release: () => {}
 	});
@@ -98,6 +100,8 @@ function server(options: { plan?: 'fail' | 'hold' } = {}) {
 			if (options.plan === 'fail') return new Response('x', { status: 500 });
 			if (options.plan === 'hold') await held;
 		}
+		if (route === '/ai/lesson' && options.lesson === 'fail')
+			return new Response('x', { status: 500 });
 		return (await answerAi(route, body)) ?? Response.json({ status: 'ok', cards: [] });
 	});
 	vi.stubGlobal('fetch', fetcher);
@@ -1095,5 +1099,106 @@ describe('cards made by hand get sources when the materials do not all fit', () 
 			expect(only(seen, '/ai/lesson')).toHaveLength(1);
 			aiPanel.queue.clear();
 		}
+	});
+});
+
+describe('the unfinished batch survives a reload', () => {
+	const kept = new Map<string, WriteSnapshot>();
+	const backend: SnapshotBackend = {
+		get: async (id) => kept.get(id),
+		put: async (s) => void kept.set(s.courseId, structuredClone(s)),
+		delete: async (id) => void kept.delete(id)
+	};
+	const flush = () => new Promise((r) => setTimeout(r, 0));
+
+	afterEach(() => {
+		kept.clear();
+		useSnapshotBackend();
+	});
+
+	/** Cards written until every lesson fails, then a reload: a fresh queue on the same course. */
+	async function failedThenReloaded() {
+		useSnapshotBackend(backend);
+		const { store, lessonId } = setup();
+		const id = store.doc.course_id;
+		const seen = server();
+		store.selection = { lessonId };
+		await aiPanel.send(store, 'Kurz o zlomcích');
+		aiPanel.create(store);
+		await done();
+		await flush();
+		return { store, id, seen };
+	}
+
+	it('keeps the plan with the unfinished cards, and forgets the entry when all are done', async () => {
+		useSnapshotBackend(backend);
+		const { store, lessonId } = setup();
+		const id = store.doc.course_id;
+		const held = server({ plan: 'hold' });
+		store.selection = { lessonId };
+		await aiPanel.send(store, 'Kurz o zlomcích');
+		aiPanel.create(store);
+		await flush();
+		expect(kept.get(id)?.rows.length).toBeGreaterThan(1);
+		expect(kept.get(id)?.plan).toBe(null);
+		aiPanel.stop();
+		held.release();
+		await done();
+		const seen = server();
+		aiPanel.resume(store);
+		await done();
+		await flush();
+		expect(only(seen, '/ai/lesson').length).toBeGreaterThan(1);
+		expect(kept.has(id)).toBe(false);
+	});
+
+	it('brings the rows back as „Dopsat zbytek“ after a reload and writes nothing by itself', async () => {
+		useSnapshotBackend(backend);
+		const { store, lessonId } = setup();
+		const id = store.doc.course_id;
+		const first = server({ lesson: 'fail' });
+		store.selection = { lessonId };
+		await aiPanel.send(store, 'Kurz o zlomcích');
+		aiPanel.create(store);
+		await done();
+		await flush();
+		// The tab closes with the plan made and every card failed.
+		const ids = kept.get(id)!.rows.map((r) => r.blockId);
+		expect(ids.length).toBeGreaterThan(1);
+		expect(kept.get(id)?.plan).not.toBe(null);
+		aiPanel.queue.clear();
+		const second = server();
+		aiPanel.follow('ELSE');
+		aiPanel.follow(id, store);
+		await vi.waitFor(() => expect(aiPanel.queue.rest.length).toBe(ids.length));
+		expect(aiPanel.queue.running).toBe(false);
+		expect(second.length).toBe(0);
+		// Same plan as the in-memory one: no new plan, every lesson gets it.
+		aiPanel.resume(store);
+		await done();
+		expect(only(second, '/ai/plan')).toHaveLength(0);
+		const lessons = only(second, '/ai/lesson');
+		expect(lessons.length).toBeGreaterThan(0);
+		for (const { body } of lessons)
+			expect(body.plan.request).toEqual(only(first, '/ai/plan')[0].body);
+		await flush();
+		expect(kept.has(id)).toBe(false);
+	});
+
+	it('drops an entry that is old, or whose cards are gone, and restores nothing', async () => {
+		const { store, id } = await failedThenReloaded();
+		kept.set(id, {
+			courseId: id,
+			savedAt: Date.now() - 8 * 24 * 3600 * 1000,
+			rows: [{ blockId: store.doc.blocks[0].block_id, lessonId: store.doc.lessons[0].lesson_id }],
+			plan: null
+		});
+		aiPanel.queue.clear();
+		aiPanel.follow('ELSE');
+		aiPanel.follow(id, store);
+		await flush();
+		await flush();
+		expect(aiPanel.queue.rows).toEqual([]);
+		expect(await loadSnapshot(id)).toBeUndefined();
 	});
 });

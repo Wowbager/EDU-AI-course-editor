@@ -44,6 +44,9 @@ import { fitsFully, renderMaterials } from '$lib/domain/materials';
 import { applyPlan, buildPlanRequest, type PlanRequest, type PlanTargets } from '$lib/domain/plan';
 import { materials } from './materials.svelte';
 import { WriteQueue, type RunContext, type RunResult, type Row } from './write-queue.svelte';
+import { concurrencyFor } from '$lib/domain/write-concurrency';
+import { makeSnapshot, restoreSnapshot } from '$lib/domain/write-snapshot';
+import { dropSnapshot, loadSnapshot, saveSnapshot } from './write-snapshot-store';
 import { readOutline, writeOutline } from './outline-store';
 import type { DocStore } from './doc-store.svelte';
 
@@ -51,6 +54,16 @@ const PROPOSAL_TEXT = {
 	...TEXT,
 	failed: 'Návrh se nepodařilo vytvořit. Zkus to znovu, třeba jinak napsané.'
 } as const;
+
+/** The protocol the page was loaded over, if the browser says. */
+function pageProtocol(): string | undefined {
+	try {
+		const [entry] = performance.getEntriesByType('navigation');
+		return (entry as PerformanceNavigationTiming | undefined)?.nextHopProtocol;
+	} catch {
+		return undefined;
+	}
+}
 
 const storage = (): Storage | undefined =>
 	typeof localStorage === 'undefined' ? undefined : localStorage;
@@ -89,15 +102,19 @@ class AiPanel {
 	#key: KeyMaker = keyMaker();
 	#store: DocStore | null = null;
 
-	queue = new WriteQueue((rows, context) => this.#write(rows, context));
+	queue = new WriteQueue((rows, context) => this.#write(rows, context), {
+		concurrency: concurrencyFor(pageProtocol())
+	});
+	/** The course the queue's cards belong to: its unfinished cards are kept for it. */
+	#queueCourse: string | null = null;
 	/** Ends the plan's request when the teacher stops before it is made. */
 	#planAbort: AbortController | null = null;
 	/** The plan is being made: the cards wait for it. */
 	planning = $state(false);
 	/**
 	 * The plan of the cards being written, and the model's turn that made it, handed back
-	 * with each lesson so it starts from the plan's own reasoning. Only in memory: after a
-	 * reload the cards follow what the plan left in the document.
+	 * with each lesson so it starts from the plan's own reasoning. Kept with the unfinished
+	 * cards (`write-snapshot-store.ts`), so it is back after a reload.
 	 */
 	#plan: {
 		course: string;
@@ -107,7 +124,12 @@ class AiPanel {
 	} | null = null;
 
 	/** A lesson's cards, in one conversation. */
-	async #write(rows: Row[], { report, stopped }: RunContext): Promise<RunResult> {
+	async #write(rows: Row[], context: RunContext): Promise<RunResult> {
+		const stopped = context.stopped;
+		const report: RunContext['report'] = (row, state) => {
+			context.report(row, state);
+			this.#save();
+		};
 		const store = this.#store;
 		if (store === null || rows.length === 0) return { problem: 'other' };
 		const lessonId = rows[0].lessonId;
@@ -233,7 +255,7 @@ class AiPanel {
 	 * The course on screen. Another course brings its own outline (or none) and a history
 	 * of its own; a request still running for the one before is forgotten.
 	 */
-	follow(courseId: string): void {
+	follow(courseId: string, store?: DocStore): void {
 		if (courseId === this.#course) return;
 		this.#generation++;
 		this.asking = false;
@@ -244,6 +266,31 @@ class AiPanel {
 		this.#step(emptyHistory());
 		this.typing = null;
 		this.#draft = readOutline(storage(), courseId, this.#key);
+		if (store !== undefined) void this.#restore(store, courseId);
+	}
+
+	/** The unfinished cards of a course, kept before a reload, wait for „Dopsat zbytek“. */
+	async #restore(store: DocStore, courseId: string): Promise<void> {
+		if (this.queue.rows.length > 0 || this.queue.writing) return;
+		const found = await loadSnapshot(courseId);
+		if (found === undefined) return;
+		const back = restoreSnapshot(found, store.doc, Date.now());
+		if (back === undefined) return void dropSnapshot(courseId);
+		// The teacher moved on, or something is being written already: it is theirs now.
+		if (this.#course !== courseId || store.doc.course_id !== courseId) return;
+		if (this.queue.rows.length > 0 || this.queue.writing) return;
+		this.#store = store;
+		this.#queueCourse = courseId;
+		this.#plan = back.plan;
+		this.queue.restore(back.rows);
+	}
+
+	/** Keeps the cards not written yet, or forgets the batch when none is left. */
+	#save(): void {
+		const course = this.#queueCourse;
+		if (course === null) return;
+		const snapshot = makeSnapshot(course, this.queue.rows, this.#plan, Date.now());
+		void (snapshot === undefined ? dropSnapshot(course) : saveSnapshot(snapshot));
 	}
 
 	/** The outline's history is over: at „Vytvořit vybrané“. */
@@ -397,10 +444,13 @@ class AiPanel {
 		// card to get them all, for the model to name the sources of the cards with none.
 		const sections = materials.sections;
 		const unsourced = sourcesWanted(sections) ? cardsWithoutSources(store.doc, added) : [];
+		this.#queueCourse = store.doc.course_id;
+		this.#plan = null;
 		this.queue.start(
 			added,
 			added.map((c) => c.blockId)
 		);
+		this.#save();
 		void this.#prepare(store, added, unsourced, sections);
 	}
 
@@ -452,6 +502,7 @@ class AiPanel {
 		if (answer === undefined || 'problem' in answer || store.doc.course_id !== course) return;
 		store.amend((doc) => applyPlan(doc, answer.plan, built.targets));
 		this.#plan = { course, request: built.request, turn: answer.turn, targets: built.targets };
+		this.#save();
 	}
 
 	/**
@@ -484,12 +535,14 @@ class AiPanel {
 	/** „Dopsat zbytek“. */
 	resume(store: DocStore) {
 		this.#store = store;
+		this.#queueCourse = store.doc.course_id;
 		this.queue.resume();
 	}
 
 	/** The queue's rows are done with: the panel is empty again. */
 	finish() {
 		this.queue.clear();
+		this.#save();
 	}
 }
 

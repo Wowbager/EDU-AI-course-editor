@@ -3198,7 +3198,7 @@ did not see each other.
   rejected: the original is never sent. SheetJS cannot show a date written `d.m.yyyy`, so
   that format is retried with its dots escaped (`sheets.ts`).
 
-## Round 35 — more kinds of picture in the materials
+## Round 35 — more kinds of material, the request first, a whole course at once
 
 - **GIF, BMP and AVIF** are read as pictures: the browser decodes them and `shrink` draws
   anything that is not PNG, JPEG or WebP into a JPEG, so `/ai/read` gets a type it takes
@@ -3234,6 +3234,20 @@ did not see each other.
   the browser. Enforcement is the backstop; the prompt is what makes it rarely fire.
   `npm run eval:ai` runs about 20 Czech prompts against the real model (not in
   `npm test`), 16/23 on the old prompt, 23/23 on both runs of the new one.
+- **Every lesson at once over HTTP/2 or HTTP/3** (`domain/write-concurrency.ts`): the
+  queue's cap comes from the page's `nextHopProtocol`; HTTP/1.1 (local container, dev
+  server) or unknown keeps 4, since the browser has 6 connections per host and a lesson
+  holds one for minutes. The server's default limit rose from 40 to 300 requests a minute
+  per workspace (a runaway loop only; the daily token budget guards the spending).
+  *Rejected:* a fixed higher number (it would starve the editor's own requests on
+  HTTP/1.1), and pinning an OpenRouter provider.
+- **The plan and the unfinished cards survive a reload** (`domain/write-snapshot.ts`,
+  IndexedDB `edu-editor-ai-queue`, one record per course): saved on „Vytvořit vybrané“,
+  when the plan is made and at every card's result; removed when every card is done or
+  gone, and ignored after 7 days. On load the rows come back failed, so „Dopsat zbytek“
+  offers them and `#write` uses the restored plan like the in-memory one. *Rejected:*
+  resuming by itself on load (a reload would spend tokens nobody asked for), and
+  localStorage (the plan request carries the materials and can be large).
 
 ## Still open
 
