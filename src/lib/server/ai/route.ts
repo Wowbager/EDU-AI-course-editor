@@ -36,7 +36,10 @@ export async function readAiRequest<T extends z.ZodTypeAny>(
 	}
 	const parsed = schema.safeParse(body);
 	if (!parsed.success) {
-		const tooLong = parsed.error.issues.some((i) => i.code === 'too_big');
+		// Too long a text (a dossier, the materials, the plan's turn); too many cards is a shape.
+		const tooLong = parsed.error.issues.some(
+			(i) => (i.code === 'too_big' && i.origin === 'string') || i.message === 'too long'
+		);
 		error(
 			tooLong ? 413 : 400,
 			tooLong ? 'Požadavek je příliš velký.' : 'Požadavek nemá očekávaný tvar.'

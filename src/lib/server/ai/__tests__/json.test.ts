@@ -16,6 +16,16 @@ describe('parseJson', () => {
 		});
 	});
 
+	it('puts back \\right, \\tfrac and \\top too', () => {
+		const raw = String.raw`{"a":"$\left(\tfrac{1}{2}\right)$ $\top$"}`;
+		expect(parseJson(raw)).toEqual({ a: String.raw`$\left(\tfrac{1}{2}\right)$ $\top$` });
+	});
+
+	it('reads LaTeX whose backslash starts no JSON escape, instead of giving up on the answer', () => {
+		const raw = String.raw`{"a":"$\sqrt{2} \cdot \underline{x}$"}`;
+		expect(parseJson(raw)).toEqual({ a: String.raw`$\sqrt{2} \cdot \underline{x}$` });
+	});
+
 	it('leaves a new line before a word, and correctly escaped LaTeX, as they are', () => {
 		expect(parseJson('{"a":"Řádek\\nnový $\\\\frac{1}{2}$"}')).toEqual({
 			a: 'Řádek\nnový $\\frac{1}{2}$'

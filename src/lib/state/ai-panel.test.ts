@@ -300,6 +300,24 @@ describe('planning before writing, and a lesson per request', () => {
 		expect(aiPanel.queue.rows.every((r) => r.state === 'done')).toBe(true);
 	});
 
+	it('a stop while the plan is made keeps the plan out of the course, and resume writes the cards', async () => {
+		const { store, lessonId } = setup();
+		const seen = server({ plan: 'hold' });
+		await accept(store, lessonId);
+		await new Promise((r) => setTimeout(r, 5));
+		aiPanel.stop();
+		seen.release();
+		// The queue is stopped at once; the plan's answer still arrives, and is dropped.
+		await vi.waitFor(() => expect(aiPanel.planning).toBe(false));
+		expect(only(seen, '/ai/lesson')).toHaveLength(0);
+		const briefs = (store.source.blocks as Record<string, unknown>[]).map((b) => b[BRIEF_KEY]);
+		expect(briefs.every((b) => b === undefined)).toBe(true);
+		aiPanel.resume(store);
+		await done();
+		expect(aiPanel.queue.rows.every((r) => r.state === 'done')).toBe(true);
+		expect(only(seen, '/ai/lesson').every((s) => s.body.plan === undefined)).toBe(true);
+	});
+
 	it('puts the plan in the document only where nothing is written, and keeps what the teacher typed', async () => {
 		const { store, lessonId } = setup();
 		const seen = server({ plan: 'hold' });

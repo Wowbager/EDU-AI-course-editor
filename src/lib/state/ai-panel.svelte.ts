@@ -90,6 +90,8 @@ class AiPanel {
 	#store: DocStore | null = null;
 
 	queue = new WriteQueue((rows, context) => this.#write(rows, context));
+	/** Ends the plan's request when the teacher stops before it is made. */
+	#planAbort: AbortController | null = null;
 	/** The plan is being made: the cards wait for it. */
 	planning = $state(false);
 	/**
@@ -439,7 +441,12 @@ class AiPanel {
 			renderMaterials(sections, { for: 'outline' })
 		);
 		if (built === undefined) return;
-		const answer = await askPlan(built.request).catch(() => undefined);
+		const abort = new AbortController();
+		this.#planAbort = abort;
+		const answer = await askPlan(built.request, abort.signal).catch(() => undefined);
+		if (this.#planAbort === abort) this.#planAbort = null;
+		// Stopped meanwhile: the teacher asked for nothing more to be written, the plan too.
+		if (abort.signal.aborted || !this.queue.running) return;
 		if (answer === undefined || 'problem' in answer || store.doc.course_id !== course) return;
 		store.amend((doc) => applyPlan(doc, answer.plan, built.targets));
 		this.#plan = { course, request: built.request, turn: answer.turn, targets: built.targets };
@@ -469,6 +476,7 @@ class AiPanel {
 
 	stop() {
 		this.queue.stop();
+		this.#planAbort?.abort();
 	}
 
 	/** „Dopsat zbytek“. */
