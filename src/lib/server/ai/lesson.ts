@@ -73,8 +73,9 @@ Hard rules for the structure:
 
 How many steps (the card's "kind"):
 - "display" (explanation): 1 to 6 text steps, no question steps. Split the explanation over screens, for example idea, then example, then summary.
-- "exercise" (practice): 2 to 8 question steps, from easier to harder, each with its own short task text, hint, help and solution. A short text step may introduce the set.
-- "question" (quiz question): 1 to 4 question steps in a straight line, no branching. A short text step may come before a question.
+- "exercise" (practice): 2 to 8 question steps, from easier to harder, each with its own short task text, hint, help and solution.
+- "question" (quiz question): 1 to 4 question steps in a straight line, no branching.
+- The teacher's wishes come first: the card's kind, title and brief, then the dossier and the materials, then these defaults. Write what the card is for and nothing extra. A practice or quiz card is questions from the first step: no step that explains or revises the topic before or between them, unless the title or brief asks for one or a task cannot be understood without a few words of context (then that is part of the task text). An explanation card has no question steps.
 - Choose the number that suits the topic and the brief. If the teacher states a number in the brief or title ("5 příkladů", "tři otázky"), write exactly that number; it wins over the ranges above. Existing steps count towards the number.
 
 A question is one of
