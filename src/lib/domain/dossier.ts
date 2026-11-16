@@ -8,6 +8,7 @@
  * which the provider's prefix cache relies on.
  */
 import { AUDIENCE_KEY, BRIEF_KEY, REQUEST_KEY } from './authoring';
+import { plural } from '$lib/ui/plural';
 import type { BlockStep, BlockV2, CourseV2, LessonV2, QuestionConfig } from './schema';
 
 export const DOSSIER_BUDGET_TOKENS = 150_000;
@@ -68,6 +69,8 @@ function titleOf(block: BlockV2): string {
 	}
 	return '';
 }
+
+const EMPTY_NOTE = '(zatím prázdná)';
 
 const kindOf = (block: BlockV2): string => KIND_LABEL[block.type] ?? 'Karta';
 
@@ -155,7 +158,11 @@ function cardInFull(block: BlockV2, current: boolean): string {
 	}
 	if (text(block.hint) !== '') lines.push(`Nápověda ke kartě: ${clean(block.hint)}`);
 	if (text(block.help) !== '') lines.push(`Pomoc ke kartě: ${clean(block.help)}`);
-	if (current && lines.length === 1) lines.push('(zatím prázdná)');
+	// The marked card says it on a line of its own; any other empty card on its heading.
+	if (lines.length === 1) {
+		if (current) lines.push(EMPTY_NOTE);
+		else lines[0] += ` ${EMPTY_NOTE}`;
+	}
 	const body = lines.join('\n');
 	return current ? `${MARKER_OPEN}\n${body}\n${MARKER_CLOSE}` : body;
 }
@@ -187,18 +194,23 @@ function renderLesson(
 	const cards = cardsOf(doc, lesson);
 	if (level === 'full') {
 		for (const card of cards) {
-			const current = card.block_id === currentId;
-			if (!current && isEmptyCard(card)) continue;
-			lines.push('', cardInFull(card, current));
+			lines.push('', cardInFull(card, card.block_id === currentId));
 		}
 	} else {
+		// A slot is not a card to read: later lessons only say how many are still empty.
+		let empty = 0;
 		for (const card of cards) {
-			if (isEmptyCard(card)) continue;
+			if (isEmptyCard(card)) {
+				empty++;
+				continue;
+			}
 			const first = level === 'lines' ? firstText(card) : '';
 			lines.push(
 				`- ${kindOf(card)}: ${titleOf(card)}${first === '' || first === titleOf(card) ? '' : ` — ${first}`}`
 			);
 		}
+		if (empty > 0)
+			lines.push(`+${empty} ${plural(empty, 'prázdná karta', 'prázdné karty', 'prázdných karet')}`);
 	}
 	return lines.join('\n');
 }
@@ -209,8 +221,8 @@ function renderOutline(doc: CourseV2, upTo: number): string {
 		out.push('', ...lessonHead(lesson, i));
 		for (const card of cardsOf(doc, lesson)) {
 			const title = titleOf(card);
-			if (title === '') continue;
-			out.push(`- ${kindOf(card)}: ${title}`);
+			if (title !== '') out.push(`- ${kindOf(card)}: ${title}`);
+			else if (isEmptyCard(card)) out.push(`- ${kindOf(card)} ${EMPTY_NOTE}`);
 		}
 	});
 	if (upTo < doc.lessons.length) out.push('', TRUNCATED_NOTE);

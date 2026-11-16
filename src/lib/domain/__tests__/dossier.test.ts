@@ -235,10 +235,35 @@ describe('buildDossier', () => {
 		expect(out).toContain('Viz [odkaz] a [odkaz].');
 	});
 
-	it('skips empty cards in the outline, but shows the current empty card', () => {
+	it('shows an empty card in the outline and the lesson, and marks the current one', () => {
 		const out = buildDossier(small(), 'B_EMPTY');
-		expect(out.split('## Outline')[1].split('# Earlier')[0]).not.toContain('Výklad:\n');
+		const outline = out.split('## Outline')[1].split('# Earlier')[0];
+		expect(outline).toContain('- Výklad (zatím prázdná)');
 		expect(out).toContain(`${MARKER_OPEN}\n### Výklad\n(zatím prázdná)\n${MARKER_CLOSE}`);
+		// Marked once; the heading form is for the cards that are not the current one.
+		expect(out.split('### Výklad (zatím prázdná)').length).toBe(1);
+	});
+
+	it('shows an empty card that is not the current one on its heading', () => {
+		const out = buildDossier(small(), 'B_T1');
+		const current = out.slice(out.indexOf('# Current lesson'), out.indexOf('# Later lessons'));
+		expect(current).toContain('### Výklad (zatím prázdná)');
+		expect(current).not.toContain(`${MARKER_OPEN}\n### Výklad (zatím prázdná)`);
+		expect(current).toContain(MARKER_OPEN);
+		expect(lessonSnapshot(small(), 'LES_TWO')).toContain('### Výklad (zatím prázdná)');
+	});
+
+	it('counts the empty cards of a later lesson instead of listing them', () => {
+		const doc = small();
+		doc.lessons[2].blocks.push({ block_id: 'B_E1' }, { block_id: 'B_E2' });
+		doc.blocks.push(block('B_E1', 'display', []), block('B_E2', 'exercise', []));
+		const out = buildDossier(doc, 'B_T1');
+		const later = out.slice(out.indexOf('# Later lessons'));
+		expect(later).toContain('+2 prázdné karty');
+		expect(later).not.toContain('zatím prázdná');
+		doc.blocks.pop();
+		doc.lessons[2].blocks.pop();
+		expect(buildDossier(doc, 'B_T1')).toContain('+1 prázdná karta');
 	});
 
 	it('uses the first text line as the name of an unnamed card, cut to 70 characters', () => {
