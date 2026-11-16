@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DocStore } from './doc-store.svelte';
 import { aiPanel, FROM_MATERIALS } from './ai-panel.svelte';
 import { materials } from './materials.svelte';
-import { addBlock, addLesson } from '$lib/domain/commands';
+import { addBlock, addLesson, setField } from '$lib/domain/commands';
 import { emptyCourse } from '$lib/domain/document';
 import {
 	addDraftCard,
@@ -110,7 +110,11 @@ function server(options: { plan?: 'fail' | 'hold'; lesson?: 'fail' | 'hold' } = 
 }
 
 const routes = (seen: Seen[]) => seen.map((s) => s.route);
-const only = (seen: Seen[], route: string) => seen.filter((s) => s.route === route);
+/** The requests to `route`; of a lesson, only its first: the later ones are its cards' turns. */
+const only = (seen: Seen[], route: string) =>
+	seen.filter((s) => s.route === route && (route !== '/ai/lesson' || !s.body.resume?.next));
+/** Every request of the lessons, a card each. */
+const turns = (seen: Seen[]) => seen.filter((s) => s.route === '/ai/lesson');
 
 const done = async () => {
 	while (aiPanel.queue.writing) await new Promise((r) => setTimeout(r, 2));
@@ -977,11 +981,11 @@ describe('cards made by hand get sources when the materials do not all fit', () 
 		return { seen, answer };
 	}
 
-	async function handMade(store: DocStore) {
+	async function handMade(store: DocStore, names = ['Úvod', 'Příklady']) {
 		aiPanel.start('lessons');
 		const lessonKey = aiPanel.typing!.key;
 		aiPanel.amend(renameDraftLesson(aiPanel.draft!, lessonKey, 'Moje lekce'));
-		for (const name of ['Úvod', 'Příklady']) {
+		for (const name of names) {
 			const key = aiPanel.key();
 			aiPanel.change(addDraftCard(aiPanel.draft!, lessonKey, key));
 			aiPanel.amend(renameDraftCard(aiPanel.draft!, key, name));
@@ -1295,5 +1299,65 @@ describe('the unfinished batch survives a reload', () => {
 			expect(a.store.doc.blocks.find((blk) => blk.block_id === id)!.steps.length).toBeGreaterThan(
 				1
 			);
+	});
+});
+
+describe('what the teacher changes while a lesson is written', () => {
+	async function handMade(store: DocStore, names: string[]) {
+		aiPanel.start('lessons');
+		const lessonKey = aiPanel.typing!.key;
+		aiPanel.amend(renameDraftLesson(aiPanel.draft!, lessonKey, 'Moje lekce'));
+		for (const name of names) {
+			const key = aiPanel.key();
+			aiPanel.change(addDraftCard(aiPanel.draft!, lessonKey, key));
+			aiPanel.amend(renameDraftCard(aiPanel.draft!, key, name));
+		}
+		aiPanel.create(store);
+	}
+
+	/** Runs `edit` while the lesson's `turn`th request (from 0) is being answered. */
+	function teacherAt(turn: number, edit: () => void) {
+		const base = server();
+		const inner = globalThis.fetch;
+		let n = 0;
+		vi.stubGlobal('fetch', async (route: string, init?: RequestInit) => {
+			if (route === '/ai/lesson' && n++ === turn) edit();
+			return inner(route, init);
+		});
+		return base;
+	}
+
+	const changedOf = (seen: Seen[]) =>
+		seen
+			.filter((s) => s.route === '/ai/lesson')
+			.map((s) => s.body.resume.changed as string | undefined);
+
+	it('sends the card that follows what the teacher edited meanwhile, once', async () => {
+		const { store } = setup();
+		let second = '';
+		const seen = teacherAt(0, () => {
+			second = aiPanel.queue.rows[1].blockId;
+			store.apply((d) => setField(d, { blockId: second, field: 'name' }, 'Moje vlastní jméno'));
+		});
+		await handMade(store, ['Úvod', 'Příklady', 'Shrnutí']);
+		await done();
+		const changed = changedOf(seen);
+		expect(changed).toHaveLength(3);
+		expect(changed[0]).toBeUndefined();
+		expect(changed[1]).toContain('Upraveno učitelem:');
+		expect(changed[1]).toContain('Moje vlastní jméno');
+		expect(changed[1]).not.toContain(second);
+		expect(changed[1]).not.toContain('Úvod');
+		// Not repeated for the card after it, and the model's own cards are not reported.
+		expect(changed[2]).toBeUndefined();
+	});
+
+	it('sends nothing when the teacher changed nothing', async () => {
+		const { store } = setup();
+		const seen = server();
+		await handMade(store, ['Úvod', 'Příklady', 'Shrnutí']);
+		await done();
+		expect(changedOf(seen)).toEqual([undefined, undefined, undefined]);
+		expect(seen.some((s) => JSON.stringify(s.body).includes('changed_since_start'))).toBe(false);
 	});
 });

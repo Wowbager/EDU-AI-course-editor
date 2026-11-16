@@ -25,7 +25,8 @@ import {
 	cardRequestOf,
 	type LessonEvent,
 	type LessonRequest,
-	type PlanEvent
+	type PlanEvent,
+	type TurnMessage
 } from '$lib/domain/lesson-writing';
 import { planProblem, planSchema, type Plan, type PlanRequest } from '$lib/domain/plan';
 import { formatRules } from '$lib/ui/ai-format';
@@ -59,6 +60,8 @@ A. PLAN (a JSON message with "task":"plan"). The teacher accepted new cards, lis
 - "cards": for every card of the request, {"card": <number>, "brief": "…"}: one to four sentences: what it teaches or practises, what it assumes the pupil already knows (from which earlier card or from prior knowledge), which example it uses, and for a practice or quiz card which mistake its questions are aimed at. A card whose "brief" the teacher already gave keeps that purpose; you may make it concrete. No two cards teach the same thing; later cards build on earlier ones.
 
 B. LESSON (a JSON message with "task":"lesson"): the cards of one lesson are written one after another, one card a turn. Each turn is a JSON message with "write" (the card's number in this lesson, from 1) and "card"; answer it by calling write_card with the whole card. The cards of this lesson you wrote in earlier turns are what the pupil has seen just before: build on them, keep their terms, notation and examples, and do not repeat them. When a plan was made earlier in this conversation, "plan_card" is the card's number there: follow the plan's conventions and that card's brief. The result of write_card is "ok", or the reason the card was refused; then call write_card again with the whole card, corrected.
+
+Sometimes a turn also has "changed_since_start": the teacher edited, added or removed cards of this lesson since it began (cards you wrote yourself appear only when the teacher edited them afterwards). The text there is the current one and replaces what you saw before in the lesson, in the dossier and in your own cards: follow it, and build on it, not on the older text. It appears once for each change.
 
 A card in a turn has its kind, title, an optional brief ("what the card is for"), and its existing steps. Each existing step has an "id", a "kind" (text, question or media), what the teacher already wrote, and "missing": the parts of that step that are still empty. "draws_on", when present, names the sections of the materials this card is written from.
 
@@ -260,10 +263,11 @@ export function lessonMessage(request: LessonRequest): string {
 }
 
 /** One card's turn. */
-export function cardMessage(request: LessonRequest, index: number): string {
+export function cardMessage(request: LessonRequest, index: number, changed?: string): string {
 	const { plan_card, draws_on, ...card } = request.cards[index];
 	return JSON.stringify({
 		write: index + 1,
+		...(changed !== undefined && changed !== '' ? { changed_since_start: changed } : {}),
 		...(plan_card !== undefined ? { plan_card } : {}),
 		card,
 		...(draws_on !== undefined && draws_on.length > 0 ? { draws_on } : {})
@@ -304,9 +308,17 @@ export async function* lessonEvents(
 	options: { gate?: Gate; spent?: (tokens: number) => void; signal?: AbortSignal } = {}
 ): AsyncGenerator<LessonEvent> {
 	const messages = lessonOpening(request);
-	for (let index = 0; index < request.cards.length; index++) {
+	// With `resume` the request is one turn: the earlier ones come back as they were, and
+	// what this one adds goes back to the browser.
+	const resume = request.resume;
+	if (resume !== undefined) messages.push(...(resume.messages as ChatMessage[]));
+	const added = messages.length;
+	for (let index = resume?.next ?? 0; index < request.cards.length; index++) {
 		yield { type: 'writing', card: index };
-		messages.push({ role: 'user', content: cardMessage(request, index) });
+		messages.push({
+			role: 'user',
+			content: cardMessage(request, index, index === resume?.next ? resume.changed : undefined)
+		});
 		let reason = '';
 		let written: GeneratedCard | undefined;
 		// A call that did not get through (the host hung, the connection broke) is made once
@@ -342,6 +354,10 @@ export async function* lessonEvents(
 		}
 		if (written !== undefined) {
 			yield { type: 'card', card: index, answer: written };
+			if (resume !== undefined) {
+				yield { type: 'turn', messages: messages.slice(added) as TurnMessage[] };
+				break;
+			}
 			continue;
 		}
 		// What the operator needs to see why; never the course's text.
@@ -354,6 +370,10 @@ export async function* lessonEvents(
 			planned: request.plan !== undefined
 		});
 		yield { type: 'card-failed', card: index };
+		if (resume !== undefined) {
+			yield { type: 'turn', messages: messages.slice(added) as TurnMessage[] };
+			break;
+		}
 	}
 	yield { type: 'done' };
 }

@@ -659,3 +659,66 @@ describe('parseJson', () => {
 		expect(parseJson('nothing here')).toBeUndefined();
 	});
 });
+
+describe('lessonEvents: a card a request (resume)', () => {
+	const two = () => request({ context: 'KURZ: Zlomky', cards: [card(), card({ title: 'Druhá' })] });
+
+	it('writes the one card, sends back what the turn added, and ends', async () => {
+		const model = scripted(says(GOOD));
+		const events = await collect(
+			lessonEvents({ ...two(), resume: { next: 0, messages: [] } }, model)
+		);
+		expect(events.map((e) => e.type)).toEqual(['writing', 'card', 'turn', 'done']);
+		const added = (events[2] as Extract<LessonEvent, { type: 'turn' }>).messages;
+		expect(added.map((m) => m.role)).toEqual(['user', 'assistant', 'tool']);
+		expect(JSON.parse(textOf(added[0] as ChatMessage)).write).toBe(1);
+		expect(model.calls).toBe(1);
+	});
+
+	it('goes on from the messages it gave, which stay byte for byte, with the change on the card', async () => {
+		const first = scripted(says(GOOD));
+		const one = await collect(lessonEvents({ ...two(), resume: { next: 0, messages: [] } }, first));
+		const messages = (one[2] as Extract<LessonEvent, { type: 'turn' }>).messages;
+		const second = scripted(says(GOOD));
+		const changed = 'Upraveno učitelem:\n\n### Cvičení\nKrok 1:\nNový text';
+		await collect(lessonEvents({ ...two(), resume: { next: 1, messages, changed } }, second));
+		const seen = second.seen[0];
+		// What the first request sent, and what it added, is the start of the second's.
+		const opening = first.seen[0].slice(0, -1);
+		expect(JSON.stringify(seen.slice(0, opening.length + messages.length))).toBe(
+			JSON.stringify([...opening, ...messages])
+		);
+		const last = JSON.parse(textOf(lastOf(seen)));
+		expect(last).toMatchObject({ write: 2, changed_since_start: changed });
+		expect(last.card.title).toBe('Druhá');
+	});
+
+	it('has no changed_since_start field when nothing changed', async () => {
+		const model = scripted(says(GOOD));
+		await collect(
+			lessonEvents({ ...two(), resume: { next: 1, messages: [], changed: undefined } }, model)
+		);
+		expect(textOf(lastOf(model.seen[0]))).not.toContain('changed_since_start');
+		const plain = scripted(says(GOOD));
+		await collect(lessonEvents(two(), plain));
+		expect(
+			plain.seen
+				.flat()
+				.some((m) => m.role !== 'system' && textOf(m).includes('changed_since_start'))
+		).toBe(false);
+	});
+
+	it('explains the field in the system prompt', () => {
+		expect(AUTHOR_SYSTEM_PROMPT).toContain('changed_since_start');
+	});
+
+	it("hands back a failed card's attempts too, so the conversation goes on from them", async () => {
+		const model = scripted(says('nonsense'));
+		const events = await collect(
+			lessonEvents({ ...two(), resume: { next: 0, messages: [] } }, model)
+		);
+		expect(events.map((e) => e.type)).toEqual(['writing', 'card-failed', 'turn', 'done']);
+		const added = (events[2] as Extract<LessonEvent, { type: 'turn' }>).messages;
+		expect(added.length).toBe(1 + 2 * 3);
+	});
+});

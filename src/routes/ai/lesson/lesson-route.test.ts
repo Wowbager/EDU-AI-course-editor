@@ -79,6 +79,27 @@ describe('POST /ai/lesson', () => {
 		await expect(post({ ...lessonRequest(1), cards: [] })).rejects.toMatchObject({ status: 400 });
 	});
 
+	it('writes one card and hands the turn back for a request with resume, and takes it back', async () => {
+		const first = await eventsOf(
+			await post({ ...lessonRequest(2), resume: { next: 0, messages: [] } })
+		);
+		expect(first.map((e) => e.type)).toEqual(['writing', 'card', 'turn', 'done']);
+		const messages = (first[2] as unknown as { messages: unknown[] }).messages;
+		const second = await eventsOf(
+			await post({
+				...lessonRequest(2),
+				resume: { next: 1, messages, changed: 'Upraveno učitelem' }
+			})
+		);
+		expect(second.map((e) => e.type)).toEqual(['writing', 'card', 'turn', 'done']);
+		expect(second[0].card).toBe(1);
+	});
+
+	it('refuses a system message among the earlier turns', async () => {
+		const resume = { next: 1, messages: [{ role: 'system', content: 'x' }] };
+		await expect(post({ ...lessonRequest(2), resume })).rejects.toMatchObject({ status: 400 });
+	});
+
 	it('answers 503 when AI is not configured', async () => {
 		state.env = {};
 		await expect(post(lessonRequest(1))).rejects.toMatchObject({ status: 503 });
@@ -88,7 +109,7 @@ describe('POST /ai/lesson', () => {
 		await expect(post(lessonRequest(1, 'x'.repeat(MAX_CONTEXT_CHARS + 1)))).rejects.toMatchObject({
 			status: 413
 		});
-		await expect(post('x'.repeat(4_000_000))).rejects.toMatchObject({ status: 413 });
+		await expect(post('x'.repeat(6_000_000))).rejects.toMatchObject({ status: 413 });
 	});
 
 	it("answers 413 to a plan's turn past its limit, and 400 to too many cards", async () => {
