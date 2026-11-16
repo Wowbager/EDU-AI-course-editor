@@ -1,4 +1,13 @@
-import { expect, openEditor, openSection, test, type Locator, type Page } from './fixtures';
+import {
+	expect,
+	openEditor,
+	openSection,
+	OPEN_COURSE_KEY,
+	DRAFT_PREFIX,
+	test,
+	type Locator,
+	type Page
+} from './fixtures';
 
 /**
  * Every number field behaves like "Správný výsledek" (`numeric-answer.spec.ts`,
@@ -18,12 +27,20 @@ interface Question {
 }
 
 const question = (page: Page) =>
-	page.evaluate((): Question | undefined => {
-		const doc = JSON.parse(localStorage.getItem('edu-editor:draft:v1') ?? 'null')?.doc;
-		for (const block of doc?.blocks ?? [])
-			for (const step of block.steps) if (step.question) return step.question;
-		return undefined;
-	});
+	page.evaluate(
+		([open, prefix]): Question | undefined => {
+			const id = localStorage.getItem(open);
+			const key =
+				id !== null && localStorage.getItem(prefix + id) !== null
+					? prefix + id
+					: Object.keys(localStorage).find((k) => k.startsWith(prefix));
+			const doc = key === undefined ? null : JSON.parse(localStorage.getItem(key) ?? 'null')?.doc;
+			for (const block of doc?.blocks ?? [])
+				for (const step of block.steps) if (step.question) return step.question;
+			return undefined;
+		},
+		[OPEN_COURSE_KEY, DRAFT_PREFIX]
+	);
 
 async function enter(field: Locator, text: string) {
 	await field.click();

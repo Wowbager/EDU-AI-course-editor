@@ -1,4 +1,4 @@
-import { expect, openEditor, test, type Page } from './fixtures';
+import { expect, openEditor, OPEN_COURSE_KEY, DRAFT_PREFIX, test, type Page } from './fixtures';
 
 /**
  * A numeric question's "Správný výsledek" and "Tolerance". The field keeps what the
@@ -18,12 +18,20 @@ interface Question {
 }
 
 const question = (page: Page) =>
-	page.evaluate((): Question | undefined => {
-		const doc = JSON.parse(localStorage.getItem('edu-editor:draft:v1') ?? 'null')?.doc;
-		for (const block of doc?.blocks ?? [])
-			for (const step of block.steps) if (step.question?.type === 'numeric') return step.question;
-		return undefined;
-	});
+	page.evaluate(
+		([open, prefix]): Question | undefined => {
+			const id = localStorage.getItem(open);
+			const key =
+				id !== null && localStorage.getItem(prefix + id) !== null
+					? prefix + id
+					: Object.keys(localStorage).find((k) => k.startsWith(prefix));
+			const doc = key === undefined ? null : JSON.parse(localStorage.getItem(key) ?? 'null')?.doc;
+			for (const block of doc?.blocks ?? [])
+				for (const step of block.steps) if (step.question?.type === 'numeric') return step.question;
+			return undefined;
+		},
+		[OPEN_COURSE_KEY, DRAFT_PREFIX]
+	);
 
 const answer = (page: Page) => page.getByRole('textbox', { name: 'Správný výsledek', exact: true });
 const tolerance = (page: Page) => page.getByRole('textbox', { name: 'Tolerance', exact: true });

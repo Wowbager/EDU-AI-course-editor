@@ -18,6 +18,7 @@ import { join } from 'node:path';
 import { courseSchema, type CourseV2 } from '$lib/domain/schema';
 import {
 	contentHash,
+	type CourseSummary,
 	type CourseVersion,
 	type Publication,
 	type VersionIndex,
@@ -31,12 +32,18 @@ export const MAX_VERSIONS_PER_COURSE = 500;
 export const MAX_VERSIONS_PER_OWNER = 5000;
 export const MAX_BODY_BYTES = 8 * 1024 * 1024;
 
-/** A course's directory for one owner; nothing from a request reaches a path unchecked. */
+const OWNER_ID = /^ws_[0-9a-f]{64}$|^user_[A-Za-z0-9_-]{1,64}$/;
+
+/** An owner's directory; nothing from a request reaches a path unchecked. */
+export function ownerDirOf(root: string, owner: string): string {
+	if (!OWNER_ID.test(owner)) throw new VersionError(400, 'Neplatný vlastník.');
+	return join(root, 'owners', owner);
+}
+
+/** A course's directory for one owner. */
 export function courseDirOf(root: string, owner: string, courseId: string): string {
-	if (!/^ws_[0-9a-f]{64}$|^user_[A-Za-z0-9_-]{1,64}$/.test(owner))
-		throw new VersionError(400, 'Neplatný vlastník.');
 	if (!COURSE_ID.test(courseId)) throw new VersionError(400, 'Neplatný identifikátor kurzu.');
-	return join(root, 'owners', owner, 'courses', courseId);
+	return join(ownerDirOf(root, owner), 'courses', courseId);
 }
 
 export class VersionError extends Error {
@@ -72,6 +79,35 @@ export class VersionFiles {
 			})
 			.catch(() => {});
 		return next;
+	}
+
+	/**
+	 * The owner's courses, each named by its newest version — what „Moje kurzy“
+	 * lists without loading every history. Only the newest file per course is read.
+	 */
+	async list(owner: string): Promise<CourseSummary[]> {
+		const courses = join(ownerDirOf(this.#root, owner), 'courses');
+		const summaries: CourseSummary[] = [];
+		for (const courseId of await readdir(courses).catch(() => [] as string[])) {
+			if (!COURSE_ID.test(courseId)) continue;
+			const dir = join(courses, courseId);
+			const names = await readdir(dir).catch(() => [] as string[]);
+			let newest = 0;
+			for (const name of names) {
+				const match = /^v(\d+)\.json$/.exec(name);
+				if (match !== null) newest = Math.max(newest, Number(match[1]));
+			}
+			if (newest === 0) continue;
+			const stored = await readJson<CourseVersion>(join(dir, `v${newest}.json`));
+			if (stored === null) continue;
+			summaries.push({
+				courseId,
+				name: stored.doc.name ?? '',
+				savedAt: stored.savedAt,
+				version: stored.version
+			});
+		}
+		return summaries;
 	}
 
 	async index(owner: string, courseId: string): Promise<VersionIndex> {

@@ -6,7 +6,7 @@
  * treats a failure as "not kept here" and says so; nothing in the editor may break
  * because the history could not be written.
  */
-import type { CourseVersion, Publication, VersionIndex } from '$lib/domain/versions';
+import type { CourseSummary, CourseVersion, Publication, VersionIndex } from '$lib/domain/versions';
 import { VersionConflict, type VersionBackend } from './backend';
 
 const DB = 'edu-editor-versions';
@@ -48,6 +48,38 @@ export class BrowserBackend implements VersionBackend {
 			throw error;
 		});
 		return this.#db;
+	}
+
+	/**
+	 * The newest version of every course, without reading the rest: a key cursor
+	 * over `[courseId, version]` finds the newest numbers, and only those documents
+	 * are loaded (for their names).
+	 */
+	async list(): Promise<CourseSummary[]> {
+		const db = await this.#open();
+		const keys = await new Promise<[string, number][]>((resolve, reject) => {
+			const found: [string, number][] = [];
+			const request = db.transaction(VERSIONS, 'readonly').objectStore(VERSIONS).openKeyCursor();
+			request.onsuccess = () => {
+				const cursor = request.result;
+				if (cursor === null) return resolve(found);
+				found.push(cursor.key as [string, number]);
+				cursor.continue();
+			};
+			request.onerror = () => reject(request.error);
+		});
+		const newest = new Map<string, number>();
+		for (const [courseId, version] of keys) {
+			if (version > (newest.get(courseId) ?? 0)) newest.set(courseId, version);
+		}
+		const summaries: CourseSummary[] = [];
+		for (const [courseId, version] of newest) {
+			const full = await this.get(courseId, version);
+			if (full !== null) {
+				summaries.push({ courseId, name: full.doc.name ?? '', savedAt: full.savedAt, version });
+			}
+		}
+		return summaries;
 	}
 
 	async index(courseId: string): Promise<VersionIndex> {

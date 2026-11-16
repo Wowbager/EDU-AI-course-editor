@@ -14,7 +14,18 @@
 	 */
 	import { onMount, untrack } from 'svelte';
 	import { DraftSession } from '$lib/state/draft-session.svelte';
-	import { DRAFT_KEY } from '$lib/state/draft';
+	import { readDraft } from '$lib/state/draft';
+	import {
+		draftKeyFor,
+		listLocalCourses,
+		mergeCourses,
+		readMeta,
+		readOpenCourse,
+		type CourseEntry,
+		type CourseMeta
+	} from '$lib/state/courses';
+	import { listArchivedDrafts, readArchivedDraft } from '$lib/state/draft-archive';
+	import type { CourseSummary } from '$lib/domain/versions';
 	import { readLayout, writeLayout } from '$lib/state/layout-prefs';
 	import { DocStore } from '$lib/state/doc-store.svelte';
 	import { ai } from '$lib/state/ai.svelte';
@@ -36,7 +47,7 @@
 	import LessonSettings from '$lib/editor/LessonSettings.svelte';
 	import CardSettings from '$lib/editor/CardSettings.svelte';
 	import FocusField from '$lib/ui/FocusField.svelte';
-	import { pasteBlock, pasteStep, setField } from '$lib/domain/commands';
+	import { importOver, pasteBlock, pasteStep, setField } from '$lib/domain/commands';
 	import { withStarter } from '$lib/domain/starter';
 	import { fromClipboard, toClipboard } from '$lib/domain/clipboard';
 	import { notices } from '$lib/state/notice.svelte';
@@ -128,6 +139,25 @@
 	let repairTarget = $state<{ blockId: string; stepId?: string } | null>(null);
 	let importNotes = $state<ImportNote[]>([]);
 	let reviewOpen = $state(false);
+
+	/**
+	 * „Moje kurzy“: the local drafts are known at once; the server's histories and
+	 * the durable copies arrive async and merge in while the box may already be
+	 * open. A place that cannot be reached contributes nothing, never an error.
+	 */
+	let courseEntries = $state<CourseEntry[]>([]);
+	let serverCourses = $state<CourseSummary[]>([]);
+	function refreshCourses() {
+		courseEntries = mergeCourses(listLocalCourses(localStorage), serverCourses);
+	}
+	function refreshRemoteCourses() {
+		void Promise.all([versions.listAll(), listArchivedDrafts().catch(() => [] as CourseMeta[])])
+			.then(([histories, archived]) => {
+				serverCourses = histories;
+				courseEntries = mergeCourses([...listLocalCourses(localStorage), ...archived], histories);
+			})
+			.catch(() => {});
+	}
 
 	/**
 	 * Set when a file was imported. Nothing in it has been "touched", so its
@@ -233,27 +263,44 @@
 			}
 
 			const { doc: imported, report } = importCourseJson(text);
-			if (
-				store.dirty &&
-				!window.confirm(
-					'Nahradit rozepsaný kurz načteným souborem? Nejprve si případně stáhni jeho zálohu.'
-				)
-			)
-				return;
-			store.load(imported);
+			const id = imported.course_id;
+			// A file never replaces work behind a confirm: it adds a course, opens
+			// one this browser already knows, or updates the open one as a single
+			// undoable edit. Nothing is lost, so nothing asks.
+			const known =
+				id === store.doc.course_id ||
+				readMeta(localStorage, id) !== null ||
+				localStorage.getItem(draftKeyFor(id)) !== null ||
+				serverCourses.some((c) => c.courseId === id) ||
+				(await readArchivedDraft(id).catch(() => null)) !== null;
+			if (id !== store.doc.course_id) {
+				if (known) {
+					await openCourse(id);
+				} else {
+					recovery?.flush();
+					store.load(imported);
+					recovery?.use(id);
+				}
+			}
+			if (known) store.applySource((d) => importOver(d, imported));
 			inherited = true;
 			// Every question gets its own card in the app; the teacher's cards stay
 			// as they were written (`domain/groups.ts`).
 			const { split, keptTogether } = store.splitQuestions();
-			// A file brings its number with it: recorded as a version, so the next
-			// save cannot reuse the number it was already published under. Recorded
-			// after the split, as the editor holds the course: before it, the split
-			// itself made the new version read "upraveno" before any edit was made.
-			void versions.recordImport($state.snapshot(store.source));
-			store.selection =
-				imported.lessons[0] !== undefined ? { lessonId: imported.lessons[0].lesson_id } : null;
+			if (!known) {
+				// A file brings its number with it: recorded as a version, so the next
+				// save cannot reuse the number it was already published under. Recorded
+				// after the split, as the editor holds the course: before it, the split
+				// itself made the new version read "upraveno" before any edit was made.
+				void versions.recordImport($state.snapshot(store.source));
+				store.selection =
+					imported.lessons[0] !== undefined ? { lessonId: imported.lessons[0].lesson_id } : null;
+			}
 			importNotes = [...report.notes, ...splitNotes(split, keptTogether)];
+			recovery?.flush();
+			notices.show({ text: known ? 'Kurz aktualizován ze souboru.' : 'Kurz načten ze souboru.' });
 			void loadConfig();
+			refreshCourses();
 		} catch (error) {
 			importError = error instanceof Error ? error.message : String(error);
 			if (error instanceof ParseError) {
@@ -285,6 +332,78 @@
 					]
 				: [])
 		];
+	}
+
+	/**
+	 * Open another course. The current one is flushed first, so switching never
+	 * loses a keystroke; the target opens from its draft, its durable copy, or its
+	 * newest saved version — in that order. Undo belongs to a course: `store.load`
+	 * starts it empty, so Zpět never walks into another course's work.
+	 */
+	async function openCourse(id: string) {
+		if (id === store.doc.course_id) return;
+		recovery?.flush();
+		const local = localStorage.getItem(draftKeyFor(id));
+		const archived = local === null ? await readArchivedDraft(id).catch(() => null) : null;
+		const text = local ?? archived?.text ?? null;
+		let draft: ReturnType<typeof readDraft> | null = null;
+		if (text !== null) {
+			try {
+				draft = readDraft(text);
+			} catch {
+				draft = null;
+			}
+		}
+		if (draft !== null) {
+			store.load(draft.doc);
+			store.restoreReservations(draft.reserved);
+			store.mode = draft.mode;
+			store.showFeedback = draft.feedbackVisible ?? true;
+			store.selection = draft.selection;
+			store.dirty = true;
+			store.splitQuestions();
+		} else {
+			await versions.load(id);
+			const newest = versions.latest;
+			const saved = newest === undefined ? null : await versions.get(newest.version);
+			if (saved === null) {
+				notices.show({ text: 'Kurz se nepodařilo otevřít.' });
+				return;
+			}
+			store.load(saved.doc);
+			store.splitQuestions();
+			store.selection =
+				saved.doc.lessons[0] !== undefined ? { lessonId: saved.doc.lessons[0].lesson_id } : null;
+		}
+		recovery?.use(id);
+		if (archived !== null) recovery?.markArchived(id);
+		recovery?.flush();
+		inherited = false;
+		importNotes = [];
+		importError = null;
+		importDetails = [];
+		void loadConfig();
+		refreshCourses();
+	}
+
+	/** A fresh course beside the current one; the title is focused so naming happens now. */
+	function newCourse() {
+		recovery?.flush();
+		const id = newCourseId();
+		store.load(emptyCourse(id, 'Nový kurz'));
+		store.apply((d, r) => withStarter(d, r));
+		store.dirty = false;
+		recovery?.use(id);
+		recovery?.flush();
+		inherited = false;
+		importNotes = [];
+		importError = null;
+		importDetails = [];
+		void loadConfig();
+		refreshCourses();
+		void tick().then(() => {
+			document.querySelector<HTMLInputElement>('.topbar input[aria-label="Název kurzu"]')?.focus();
+		});
 	}
 
 	async function loadConfig() {
@@ -331,18 +450,6 @@
 		void ai.detect();
 		const session = new DraftSession(store);
 		recovery = session;
-		// Typing that landed before hydration finished already made the document
-		// dirty; seeding or restoring now would silently discard it.
-		const restored = !store.dirty && session.restore();
-		if (restored) {
-			store.splitQuestions();
-		}
-		if (!store.dirty && !restored) {
-			store.load(emptyCourse(newCourseId(), 'Nový kurz'));
-			store.apply((d, r) => withStarter(d, r));
-			store.dirty = false;
-		}
-		void loadConfig();
 		const layout = readLayout(localStorage);
 		sidebarCollapsed = layout.sidebarCollapsed;
 		previewCollapsed = layout.previewCollapsed;
@@ -361,21 +468,64 @@
 			}
 		};
 		const changed = (event: StorageEvent) => {
-			// Only DRAFT_KEY (and a cleared storage) count as another tab's edit; the
-			// layout lives under its own key, so folding a panel there is not a conflict.
-			if (event.key === DRAFT_KEY || event.key === null) session.conflict();
+			// Only the open course's draft key (and a cleared storage) count as another
+			// tab's edit; another course's key and the layout are not conflicts.
+			if (event.key === session.key || event.key === null) session.conflict();
 		};
 		window.addEventListener('beforeunload', unload);
 		window.addEventListener('pagehide', flush);
 		window.addEventListener('storage', changed);
 		document.addEventListener('visibilitychange', hidden);
-		// Deterministic signal for tests (and the trace viewer) that hydration,
-		// including draft restore and the initial seed, has finished. Set last,
-		// so that it cannot be observed before the thing it claims to announce:
-		// a test that types as soon as it appears must not have its first
-		// keystrokes discarded by the seed that follows.
-		document.documentElement.dataset.hydrated = 'true';
-		const frame = requestAnimationFrame(() => requestAnimationFrame(() => (settled = true)));
+		let frame = 0;
+		// Restore, or seed, before hydration is announced: a test (or a teacher)
+		// typing at first sight must land in the course that will be saved. The only
+		// async step is the durable copy's read, reached when the pointer's
+		// localStorage key is gone (quota eviction); everything else is synchronous.
+		void (async () => {
+			// Typing that landed before hydration finished already made the document
+			// dirty; seeding or restoring now would silently discard it.
+			const restored = !store.dirty && session.restore();
+			if (restored) {
+				store.splitQuestions();
+			}
+			if (!store.dirty && !restored) {
+				const open = readOpenCourse(localStorage);
+				const archived = open !== null ? await readArchivedDraft(open).catch(() => null) : null;
+				if (!store.dirty && archived !== null) {
+					try {
+						const draft = readDraft(archived.text);
+						store.load(draft.doc);
+						store.restoreReservations(draft.reserved);
+						store.mode = draft.mode;
+						store.showFeedback = draft.feedbackVisible ?? true;
+						store.selection = draft.selection;
+						store.dirty = true;
+						store.splitQuestions();
+						session.use(open!);
+						session.markArchived(open!);
+						session.flush();
+						session.message = 'Obnoven koncept uložený v tomto prohlížeči.';
+					} catch {
+						// A corrupt copy falls through to the seed, like a corrupt key.
+					}
+				}
+			}
+			if (!store.dirty && !restored) {
+				store.load(emptyCourse(newCourseId(), 'Nový kurz'));
+				store.apply((d, r) => withStarter(d, r));
+				store.dirty = false;
+				session.use(store.doc.course_id);
+				session.flush();
+			}
+			void loadConfig();
+			refreshCourses();
+			refreshRemoteCourses();
+			// Deterministic signal for tests (and the trace viewer) that hydration,
+			// including draft restore and the initial seed, has finished. Set last,
+			// so that it cannot be observed before the thing it claims to announce.
+			document.documentElement.dataset.hydrated = 'true';
+			frame = requestAnimationFrame(() => requestAnimationFrame(() => (settled = true)));
+		})();
 		return () => {
 			cancelAnimationFrame(frame);
 			flush();
@@ -531,6 +681,13 @@
 		onvalidation={() => (showValidation = !showValidation)}
 		{onimport}
 		bind:reviewOpen
+		courses={courseEntries}
+		onopencourse={(id) => void openCourse(id)}
+		onnewcourse={newCourse}
+		onrefreshcourses={() => {
+			refreshCourses();
+			refreshRemoteCourses();
+		}}
 	/>
 	{#if recovery?.message}
 		<div class="recovery" class:stuck={recoveryStuck} role="status">

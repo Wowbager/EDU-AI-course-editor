@@ -104,6 +104,15 @@ export interface Publication {
 	at: string;
 }
 
+/** One course in an owner's history: enough to list it without loading every version. */
+export interface CourseSummary {
+	courseId: string;
+	name: string;
+	/** ISO timestamp of the newest saved version. */
+	savedAt: string;
+	version: number;
+}
+
 export interface VersionIndex {
 	courseId: string;
 	versions: VersionMeta[];

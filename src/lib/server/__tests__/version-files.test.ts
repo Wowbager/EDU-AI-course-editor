@@ -90,6 +90,37 @@ describe('versions on the server', () => {
 	});
 });
 
+describe('the owner’s course list', () => {
+	const versionOf = (id: string, n: number, name: string) =>
+		snapshot({ ...emptyCourse(id, name), lessons: [] }, n, now);
+
+	it('names each course by its newest version', async () => {
+		await files.put(OWNER, 'KURZ_X', versionOf('KURZ_X', 1, 'Starý název'));
+		await files.put(OWNER, 'KURZ_X', versionOf('KURZ_X', 2, 'Nový název'));
+		await files.put(OWNER, 'KURZ_Y', versionOf('KURZ_Y', 1, 'Jiný kurz'));
+		const list = await files.list(OWNER);
+		expect(list).toHaveLength(2);
+		expect(list.find((c) => c.courseId === 'KURZ_X')).toMatchObject({
+			name: 'Nový název',
+			version: 2,
+			savedAt: now.toISOString()
+		});
+		expect(list.find((c) => c.courseId === 'KURZ_Y')?.name).toBe('Jiný kurz');
+	});
+
+	it('keeps owners apart, and is empty for an owner with nothing', async () => {
+		await files.put(OWNER, 'KURZ_X', versionOf('KURZ_X', 1, 'Kurz'));
+		const other = `ws_${'b'.repeat(64)}`;
+		expect(await files.list(other)).toEqual([]);
+	});
+
+	it('lets nothing from the request reach a path unchecked', async () => {
+		for (const owner of ['../x', 'ws_short', 'user_../x', '']) {
+			expect(await status(files.list(owner))).toBe(400);
+		}
+	});
+});
+
 describe('who a request belongs to', () => {
 	const request = (key?: string) =>
 		new Request('http://localhost/versions/X', { headers: key ? { [WORKSPACE_HEADER]: key } : {} });

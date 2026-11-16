@@ -329,7 +329,6 @@ Reproduced in the browser unless said otherwise.
 - „Barva karty“ and „Pozadí karty“ (V této lekci) are free text with no picker, and
   „Zařadit do cvičení“ appears both in Základní and in V této lekci (the second is the
   legacy binding flag).
-- Zpět is enabled right after an import and goes back to the empty „Nový kurz“.
 - „Kdo kurz uvidí: Veřejný“ in course settings reads as text rather than a way to the
   version dialog.
 - Playwright sees a `pageerror` with an empty message on every page load; the editor works.

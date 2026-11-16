@@ -1,4 +1,4 @@
-import { test, expect, openEditor, type Page } from './fixtures';
+import { test, expect, openEditor, OPEN_COURSE_KEY, DRAFT_PREFIX, type Page } from './fixtures';
 
 /**
  * The outline in the AI tab, shaped by hand: started without the AI, typed row by row,
@@ -473,7 +473,17 @@ test('the outline is back after a reload, with its hand-made rows, ticks and pro
 	await expect(panel(page).locator('.queue-row.done')).toHaveCount(5);
 	await expect
 		.poll(async () => {
-			const saved = await page.evaluate(() => localStorage.getItem('edu-editor:draft:v1'));
+			const saved = await page.evaluate(
+				([open, prefix]) => {
+					const id = localStorage.getItem(open);
+					const key =
+						id !== null && localStorage.getItem(prefix + id) !== null
+							? prefix + id
+							: Object.keys(localStorage).find((k) => k.startsWith(prefix));
+					return key === undefined ? null : localStorage.getItem(key);
+				},
+				[OPEN_COURSE_KEY, DRAFT_PREFIX]
+			);
 			return saved === null ? undefined : JSON.parse(saved).doc.authoring_request;
 		})
 		.toBe('Kurz o zlomcích');

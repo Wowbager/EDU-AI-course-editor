@@ -122,6 +122,38 @@ async function scrollSettled(page: Page) {
 	);
 }
 
+// ─────────────────────────────── the open course's draft ───────────────────────────────
+
+/** The pointer to the course the page has open, and the draft keys' prefix (`state/courses.ts`). */
+export const OPEN_COURSE_KEY = 'edu-editor:open-course:v1';
+export const DRAFT_PREFIX = 'edu-editor:draft:v1:';
+
+/**
+ * The open course's draft text, read inside the page. Pass to `page.evaluate`
+ * with `[OPEN_COURSE_KEY, DRAFT_PREFIX]`: the pointer's key when it exists, else
+ * the first draft key (a page with one course, as most tests have).
+ */
+export function readActiveDraftText([open, prefix]: [string, string]): string | null {
+	const id = localStorage.getItem(open);
+	const key =
+		id !== null && localStorage.getItem(prefix + id) !== null
+			? prefix + id
+			: Object.keys(localStorage).find((k) => k.startsWith(prefix));
+	return key === undefined ? null : localStorage.getItem(key);
+}
+
+/** The key `readActiveDraftText` would read — for writing a draft in a test. */
+export function activeDraftKey(page: Page): Promise<string | null> {
+	return page.evaluate(
+		([open, prefix]) => {
+			const id = localStorage.getItem(open);
+			if (id !== null && localStorage.getItem(prefix + id) !== null) return prefix + id;
+			return Object.keys(localStorage).find((k) => k.startsWith(prefix)) ?? null;
+		},
+		[OPEN_COURSE_KEY, DRAFT_PREFIX]
+	);
+}
+
 /** Open a menu and click one of its items. */
 export async function chooseFromMenu(page: Page, trigger: Locator, item: Locator) {
 	if (!(await item.isVisible())) {
