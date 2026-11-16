@@ -123,9 +123,12 @@
 	/** What the box is for now, in the words it shows. */
 	const placeholder = $derived(draft !== null ? 'Co změnit?' : 'Co mám vytvořit?');
 
+	/** With files read and nothing proposed, an empty box asks for a proposal from them. */
+	const canSend = $derived(!aiPanel.asking && (text.trim() !== '' || aiPanel.fromMaterials));
+
 	async function send() {
 		const asked = text.trim();
-		if (asked === '' || aiPanel.asking) return;
+		if (!canSend) return;
 		text = '';
 		await aiPanel.send(store, asked);
 		// A request that failed gives the words back, to be tried again.
@@ -465,8 +468,10 @@
 				type="submit"
 				class="send"
 				aria-label="Odeslat"
-				title="Odeslat (Enter)"
-				disabled={text.trim() === '' || aiPanel.asking}
+				title={text.trim() === '' && aiPanel.fromMaterials
+					? 'Navrhnout kurz z podkladů (Enter)'
+					: 'Odeslat (Enter)'}
+				disabled={!canSend}
 			>
 				<ArrowUp size={16} aria-hidden="true" />
 			</button>

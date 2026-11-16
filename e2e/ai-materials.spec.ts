@@ -180,3 +180,28 @@ test('a file dropped on the panel is attached', async ({ page }) => {
 	await expect(panel(page).getByRole('status')).toContainText('poznamky.zip');
 	await expect(panel(page).locator('.box.dragging')).toHaveCount(0);
 });
+
+test('with files attached and nothing proposed, the send button asks for a course from them', async ({
+	page
+}) => {
+	const send = page.getByRole('button', { name: 'Odeslat', exact: true });
+	// Without files an empty box sends nothing.
+	await expect(send).toBeDisabled();
+	await expect(send).toHaveAttribute('title', 'Odeslat (Enter)');
+	const asked: { prompt: string; materials?: string }[] = [];
+	await page.route('**/ai/outline', async (route) => {
+		asked.push(route.request().postDataJSON());
+		await route.continue();
+	});
+	await picker(page).setInputFiles([docx]);
+	await expect(chips(page).getByRole('listitem')).toHaveCount(1);
+	await expect(send).toBeEnabled();
+	await expect(send).toHaveAttribute('title', 'Navrhnout kurz z podkladů (Enter)');
+	await send.click();
+	await expect(create(page)).toBeEnabled();
+	expect(asked).toHaveLength(1);
+	expect(asked[0].prompt).toBe('Navrhni kurz z přiložených podkladů.');
+	expect(asked[0].materials).toContain('x + 5 = 12');
+	// With a proposal on screen the box is for changes, and empty it sends nothing.
+	await expect(send).toBeDisabled();
+});

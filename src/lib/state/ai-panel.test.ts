@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DocStore } from './doc-store.svelte';
-import { aiPanel } from './ai-panel.svelte';
+import { aiPanel, FROM_MATERIALS } from './ai-panel.svelte';
+import { materials } from './materials.svelte';
 import { addBlock, addLesson } from '$lib/domain/commands';
 import { emptyCourse } from '$lib/domain/document';
 import {
@@ -557,6 +558,43 @@ describe('the outline belongs to its course and is kept in the browser', () => {
 		expect(seen.at(-1)!.body.original).toBe('Kurz o zlomcích');
 		aiPanel.create(store);
 		expect((store.source as Record<string, unknown>)[REQUEST_KEY]).toBe('Kurz o zlomcích');
+		await done();
+	});
+});
+
+describe('sending with files only', () => {
+	const file = {
+		hash: 'abcdef01',
+		name: 'Učebnice.docx',
+		pages: 1,
+		unread: [],
+		sections: [
+			{ key: 'abcdef01.0', file: 'Učebnice.docx', title: 'Zlomky', text: 'Polovina je 1/2.' }
+		]
+	};
+	afterEach(() => {
+		materials.files = [];
+	});
+
+	it('asks for a course from the materials with an empty box, and keeps that request on the course', async () => {
+		const { store } = setup();
+		const seen = server();
+		expect(aiPanel.fromMaterials).toBe(false);
+		await aiPanel.send(store, '  ');
+		expect(seen).toHaveLength(0);
+
+		materials.files = [file];
+		expect(aiPanel.fromMaterials).toBe(true);
+		await aiPanel.send(store, '');
+		expect(seen).toHaveLength(1);
+		expect(seen[0].body.prompt).toBe(FROM_MATERIALS);
+		expect(seen[0].body.materials).toContain('Polovina je 1/2.');
+		// With an outline on screen an empty box is nothing to send.
+		expect(aiPanel.fromMaterials).toBe(false);
+		await aiPanel.send(store, '');
+		expect(seen).toHaveLength(1);
+		aiPanel.create(store);
+		expect((store.source as Record<string, unknown>)[REQUEST_KEY]).toBe(FROM_MATERIALS);
 		await done();
 	});
 });

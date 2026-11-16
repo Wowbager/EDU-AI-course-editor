@@ -44,6 +44,12 @@ const PROPOSAL_TEXT = {
 const storage = (): Storage | undefined =>
 	typeof localStorage === 'undefined' ? undefined : localStorage;
 
+/**
+ * What is asked for when the teacher sends with only files attached; it is also the
+ * request a course structure made from it keeps on the course.
+ */
+export const FROM_MATERIALS = 'Navrhni kurz z přiložených podkladů.';
+
 class AiPanel {
 	#draft = $state<Draft | null>(null);
 	/** The course the outline belongs to; none until the panel says (`follow`). */
@@ -197,7 +203,7 @@ class AiPanel {
 	 * the proposal as it was.
 	 */
 	async send(store: DocStore, text: string): Promise<void> {
-		const prompt = text.trim();
+		const prompt = text.trim() || (this.fromMaterials ? FROM_MATERIALS : '');
 		if (prompt === '' || this.asking) return;
 		const previous = this.draft;
 		const current = previous === null ? undefined : toOutline(previous, 'all');
@@ -252,6 +258,14 @@ class AiPanel {
 
 	#say(problem: Problem): string {
 		return PROPOSAL_TEXT[ai.available ? problem : 'failed'];
+	}
+
+	/**
+	 * Sending with an empty box asks for a proposal from the materials: when there is no
+	 * outline on screen and at least one file has been read.
+	 */
+	get fromMaterials(): boolean {
+		return this.draft === null && materials.files.length > 0;
 	}
 
 	/** „Zahodit návrh“: the proposal and its request go; nothing in the course changes. */
