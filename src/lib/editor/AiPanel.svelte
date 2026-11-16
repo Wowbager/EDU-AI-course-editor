@@ -37,7 +37,7 @@
 	$effect(() => {
 		const id = courseId;
 		untrack(() => {
-			aiPanel.follow(id);
+			aiPanel.follow(id, store);
 			void materials.load(id);
 		});
 	});

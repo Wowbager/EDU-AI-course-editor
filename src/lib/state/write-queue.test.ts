@@ -84,6 +84,27 @@ describe('the write queue', () => {
 		expect(q.running).toBe(false);
 	});
 
+	it('starts every lesson at once with no cap', async () => {
+		const m = manual();
+		const q = new WriteQueue(m.run, { concurrency: Infinity });
+		q.start(cards(12));
+		expect(m.started).toHaveLength(12);
+		await m.finish('B0');
+		expect(m.started).toHaveLength(12);
+	});
+
+	it('restores cards as failed, offers them for „Dopsat zbytek“, and starts nothing', async () => {
+		const m = manual();
+		const q = new WriteQueue(m.run);
+		q.restore(cards(2));
+		expect(q.rest.map((r) => r.state)).toEqual(['failed', 'failed']);
+		expect(q.running).toBe(false);
+		expect(q.pending.size).toBe(0);
+		expect(m.started).toEqual([]);
+		q.resume();
+		expect(m.firsts()).toEqual(['B0', 'B1']);
+	});
+
 	it('takes the cards of a lesson together even when other lessons lie between them', async () => {
 		const m = manual();
 		const q = new WriteQueue(m.run, { concurrency: 1 });

@@ -44,7 +44,7 @@ const PROVIDERS: readonly string[] = ['openrouter', 'deepseek', 'fake'];
 const EFFORTS: readonly string[] = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 
 export const DEFAULT_DAILY_TOKEN_BUDGET = 20_000_000;
-export const DEFAULT_MAX_REQUESTS_PER_MINUTE = 40;
+export const DEFAULT_MAX_REQUESTS_PER_MINUTE = 300;
 
 function positiveInt(value: string | undefined, fallback: number): number {
 	if (value === undefined || value.trim() === '') return fallback;
