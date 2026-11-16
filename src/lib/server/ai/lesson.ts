@@ -33,6 +33,7 @@ import type { LimitVerdict } from './limits';
 import { parseJson } from './json';
 import {
 	PLAN_TIMEOUT_MS,
+	ProviderError,
 	type AssistantTurn,
 	type Chat,
 	type ChatMessage,
@@ -107,6 +108,12 @@ export const LESSON_MATERIALS_LABEL = `The teacher's materials (source of facts,
 
 /** Calls for one card: the first, and two after a refusal. */
 const ATTEMPTS = 3;
+/**
+ * The longest one card's call may take. A card is written in seconds (under ten in the
+ * runs measured, with short materials and little thinking); a host that has not answered
+ * by now is taken not to, and the call is made once more (`lessonEvents`).
+ */
+export const CARD_TIMEOUT_MS = 90_000;
 
 const materialsMessage = (materials: string | undefined): ChatMessage[] =>
 	materials !== undefined && materials.trim() !== ''
@@ -301,13 +308,31 @@ export async function* lessonEvents(
 		messages.push({ role: 'user', content: cardMessage(request, index) });
 		let reason = '';
 		let written: GeneratedCard | undefined;
+		// A call that did not get through (the host hung, the connection broke) is made once
+		// more for the card, with the conversation as it was; it is not one of the attempts.
+		let again = true;
 		for (let attempt = 0; attempt < ATTEMPTS && written === undefined; attempt++) {
 			const verdict = (options.gate ?? open)();
 			if (!verdict.ok) {
 				yield { type: 'stopped', reason: verdict.reason, retryAfter: verdict.retryAfterSeconds };
 				return;
 			}
-			const { turn, tokens } = await chat(messages, { tool: 'write_card', signal: options.signal });
+			let answered: Awaited<ReturnType<Chat>>;
+			try {
+				answered = await chat(messages, {
+					tool: 'write_card',
+					timeoutMs: CARD_TIMEOUT_MS,
+					signal: options.signal
+				});
+			} catch (e) {
+				const lost = e instanceof ProviderError && e.kind === 'network';
+				if (!lost || !again || options.signal?.aborted === true) throw e;
+				again = false;
+				console.error('[ai] card call lost, calling once more:', e.message);
+				attempt--;
+				continue;
+			}
+			const { turn, tokens } = answered;
 			options.spent?.(tokens);
 			const result = cardVerdict(request, index, turn);
 			messages.push(turn, ...reply(turn, 'write_card', 'use' in result ? 'ok' : result.say));

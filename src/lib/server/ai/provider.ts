@@ -245,11 +245,19 @@ export function chatter(config: AiConfig, fetcher: typeof fetch = fetch): Chat {
 		}
 		if (!response.ok) {
 			const detail = `${response.status} ${(await response.text().catch(() => '')).slice(0, 300)}`;
+			// An error whose body the time limit cut is a call that did not get through, too.
+			if (timeout.aborted) throw new ProviderError('network', `${detail}(timed out)`);
 			if ([401, 402, 403].includes(response.status)) throw new ProviderError('auth', detail);
 			if ([429, 503, 529].includes(response.status)) throw new ProviderError('busy', detail);
 			throw new ProviderError('failed', detail);
 		}
-		const data = (await response.json().catch(() => null)) as {
+		// A host can send the headers at once and the answer never: the time limit then ends
+		// the reading of the body, which is a call that did not get through, not a bad answer.
+		const data = (await response.json().catch(() => {
+			if (timeout.aborted || options.signal?.aborted === true)
+				throw new ProviderError('network', 'the answer did not arrive in time');
+			return null;
+		})) as {
 			choices?: { message?: HostMessage }[];
 			usage?: Usage;
 			error?: unknown;

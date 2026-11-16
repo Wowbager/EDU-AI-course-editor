@@ -4,6 +4,7 @@ import type { PlanRequest } from '$lib/domain/plan';
 import { FAKE_REASONING, fakeChat } from '../fake';
 import {
 	AUTHOR_SYSTEM_PROMPT,
+	CARD_TIMEOUT_MS,
 	lessonEvents,
 	LESSON_MATERIALS_LABEL,
 	LESSON_SPEC_VERSION,
@@ -315,6 +316,46 @@ describe('lessonEvents: giving up and going on', () => {
 			collect(lessonEvents(request(), model, { spent: (n) => (used += n) }))
 		).rejects.toBeInstanceOf(ProviderError);
 		expect(used).toBe(10);
+	});
+
+	it('makes a call that did not get through once more, with the same conversation and a short time limit', async () => {
+		const model = scripted(says(GOOD), new ProviderError('network', 'timeout'), says(GOOD));
+		const events = await collect(lessonEvents(request({ cards: [card(), card()] }), model));
+		expect(events.map((e) => e.type)).toEqual(['writing', 'card', 'writing', 'card', 'done']);
+		expect(model.calls).toBe(3);
+		expect(model.seen[2]).toEqual(model.seen[1]);
+		expect(model.options[1].timeoutMs).toBe(CARD_TIMEOUT_MS);
+	});
+
+	it("a lost call is not one of the card's three attempts", async () => {
+		const model = scripted(
+			says('x'),
+			new ProviderError('network', 'timeout'),
+			says('x'),
+			says(GOOD)
+		);
+		const events = await collect(lessonEvents(request(), model));
+		expect(events.map((e) => e.type)).toEqual(['writing', 'card', 'done']);
+		expect(model.calls).toBe(4);
+	});
+
+	it('gives up on the second lost call for a card, and on any other failure at once', async () => {
+		const lost = scripted(new ProviderError('network', 'timeout'));
+		await expect(collect(lessonEvents(request(), lost))).rejects.toMatchObject({ kind: 'network' });
+		expect(lost.calls).toBe(2);
+		const busy = scripted(new ProviderError('busy', '429'));
+		await expect(collect(lessonEvents(request(), busy))).rejects.toMatchObject({ kind: 'busy' });
+		expect(busy.calls).toBe(1);
+	});
+
+	it('does not call again once the teacher has left', async () => {
+		const gone = new AbortController();
+		gone.abort();
+		const model = scripted(new ProviderError('network', 'aborted'));
+		await expect(
+			collect(lessonEvents(request(), model, { signal: gone.signal }))
+		).rejects.toMatchObject({ kind: 'network' });
+		expect(model.calls).toBe(1);
 	});
 
 	it('keeps the cards written before a provider failure', async () => {

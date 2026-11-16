@@ -181,6 +181,41 @@ describe('chatter', () => {
 		});
 	});
 
+	it('an answer whose body never arrives is a call that did not get through', async () => {
+		const chat = chatter(readAiConfig({ AI_API_KEY: 'k' }), (async (
+			_url: string,
+			init: RequestInit
+		) => {
+			// Headers at once; the body ends only when the time limit aborts it.
+			const body = new ReadableStream<Uint8Array>({
+				start(controller) {
+					init.signal!.addEventListener('abort', () => controller.error(init.signal!.reason));
+				}
+			});
+			return new Response(body, { status: 200 });
+		}) as unknown as typeof fetch);
+		await expect(chat(messages, { tool: 'write_card', timeoutMs: 20 })).rejects.toMatchObject({
+			kind: 'network'
+		});
+	});
+
+	it('so is an error whose body never arrives', async () => {
+		const chat = chatter(readAiConfig({ AI_API_KEY: 'k' }), (async (
+			_url: string,
+			init: RequestInit
+		) => {
+			const body = new ReadableStream<Uint8Array>({
+				start(controller) {
+					init.signal!.addEventListener('abort', () => controller.error(init.signal!.reason));
+				}
+			});
+			return new Response(body, { status: 502 });
+		}) as unknown as typeof fetch);
+		await expect(chat(messages, { tool: 'write_card', timeoutMs: 20 })).rejects.toMatchObject({
+			kind: 'network'
+		});
+	});
+
 	it('fails when the host answers without a message', async () => {
 		const chat = chatter(readAiConfig({ AI_API_KEY: 'k' }), (async () =>
 			Response.json({ choices: [] })) as unknown as typeof fetch);
