@@ -1167,7 +1167,6 @@ describe('the unfinished batch survives a reload', () => {
 		const ids = kept.get(id)!.rows.map((r) => r.blockId);
 		expect(ids.length).toBeGreaterThan(1);
 		expect(kept.get(id)?.plan).not.toBe(null);
-		aiPanel.queue.clear();
 		const second = server();
 		aiPanel.follow('ELSE');
 		aiPanel.follow(id, store);
@@ -1188,14 +1187,14 @@ describe('the unfinished batch survives a reload', () => {
 
 	it('drops an entry that is old, or whose cards are gone, and restores nothing', async () => {
 		const { store, id } = await failedThenReloaded();
+		aiPanel.follow('ELSE');
+		await flush();
 		kept.set(id, {
 			courseId: id,
 			savedAt: Date.now() - 8 * 24 * 3600 * 1000,
 			rows: [{ blockId: store.doc.blocks[0].block_id, lessonId: store.doc.lessons[0].lesson_id }],
 			plan: null
 		});
-		aiPanel.queue.clear();
-		aiPanel.follow('ELSE');
 		aiPanel.follow(id, store);
 		await flush();
 		await flush();
@@ -1240,76 +1239,61 @@ describe('the unfinished batch survives a reload', () => {
 		await done();
 	});
 
-	it('keeps each course\u2019s cards in its own record when another course creates meanwhile', async () => {
+	/** Writing in course A is under way (a lesson held) when the teacher goes to course B. */
+	async function leaveWhileWriting() {
 		useSnapshotBackend(backend);
-		const a = await failedThenReloaded();
-		const rowsA = kept.get(a.id)!.rows;
-		expect(kept.get(a.id)?.plan).not.toBe(null);
-		// The queue still holds A's failed cards when the teacher creates in B.
-		const b = setup();
-		const idB = b.store.doc.course_id;
-		aiPanel.follow(idB);
-		const seen = server();
-		b.store.selection = { lessonId: b.lessonId };
-		await aiPanel.send(b.store, 'Kurz o zlomcích');
-		aiPanel.create(b.store);
-		await done();
-		await flush();
-		expect(kept.get(a.id)?.rows).toEqual(rowsA);
-		expect(kept.get(a.id)?.plan?.course).toBe(a.id);
-		expect(kept.has(idB)).toBe(false);
-		expect(only(seen, '/ai/plan').length).toBe(1);
-	});
-
-	it('writes each course\u2019s cards into its own document when two courses run at once', async () => {
 		const a = setup();
 		const idA = a.store.doc.course_id;
-		const seen = server({ plan: 'hold' });
+		const seen = server({ lesson: 'hold' });
 		a.store.selection = { lessonId: a.lessonId };
 		await aiPanel.send(a.store, 'Kurz o zlomcích');
 		aiPanel.create(a.store);
-		await vi.waitFor(() => expect(only(seen, '/ai/plan').length).toBe(1));
-		await flush();
+		await vi.waitFor(() => expect(only(seen, '/ai/lesson').length).toBeGreaterThan(0));
+		const rowsA = aiPanel.queue.rows.map((r) => r.blockId);
+		const docA = a.store.doc;
+		// The one store now shows course B.
 		const b = setup();
-		aiPanel.follow(b.store.doc.course_id, b.store);
-		b.store.selection = { lessonId: b.lessonId };
-		await aiPanel.send(b.store, 'Kurz o zlomcích');
-		aiPanel.create(b.store);
-		await vi.waitFor(() => expect(only(seen, '/ai/plan').length).toBe(2));
+		a.store.load(b.store.doc);
+		aiPanel.follow(b.store.doc.course_id, a.store);
+		return { a, b, idA, rowsA, docA, seen };
+	}
+
+	it('leaving a course saves its unfinished cards, stops its lessons and empties the queue', async () => {
+		const { idA, rowsA, seen } = await leaveWhileWriting();
+		expect(aiPanel.queue.rows).toEqual([]);
+		expect(aiPanel.queue.running).toBe(false);
 		await flush();
+		expect(kept.get(idA)?.rows.map((r) => r.blockId)).toEqual(rowsA);
+		expect(kept.get(idA)?.plan).not.toBe(null);
 		seen.release();
-		await done();
-		expect(idA).not.toBe(b.store.doc.course_id);
-		for (const { store } of [a, b])
-			for (const row of aiPanel.queue.rows.filter((r) => r.course === store.doc.course_id))
-				expect(row.state).toBe('done');
-		for (const { store } of [a, b])
-			expect(
-				store.doc.blocks.every(
-					(blk) => blk.steps.length > 1 || blk.block_id === a.blockId || blk.block_id === b.blockId
-				)
-			).toBe(true);
-		// Every card the queue wrote is in its own course's document.
-		for (const row of aiPanel.queue.rows) {
-			const own = row.course === idA ? a.store : b.store;
-			expect(
-				own.doc.blocks.find((blk) => blk.block_id === row.blockId)!.steps.length
-			).toBeGreaterThan(1);
-		}
+		await flush();
+		await flush();
+		// Late reports of the ended lessons neither change the record nor write into course B.
+		expect(kept.get(idA)?.rows.map((r) => r.blockId)).toEqual(rowsA);
 	});
 
-	it('offers and resumes only the current course\u2019s cards', async () => {
-		const first = await failedThenReloaded();
-		const rows = aiPanel.queue.rows.map((r) => r.state);
-		expect(rows.every((r) => r === 'failed')).toBe(true);
-		const b = setup();
-		aiPanel.follow(b.store.doc.course_id, b.store);
-		expect(aiPanel.restOf(b.store.doc.course_id)).toEqual([]);
-		expect(aiPanel.restOf(first.id).length).toBe(rows.length);
-		const seen = server();
-		aiPanel.resume(b.store);
+	it('restores course B\u2019s own batch although course A had rows, and A\u2019s on return', async () => {
+		const { a, b, idA, rowsA, docA, seen } = await leaveWhileWriting();
+		const idB = b.store.doc.course_id;
+		const sent = only(seen, '/ai/lesson').length;
+		const rowsB = [{ blockId: b.blockId, lessonId: b.lessonId }];
+		kept.set(idB, { courseId: idB, savedAt: Date.now(), rows: rowsB, plan: null });
+		aiPanel.follow('ELSE');
+		aiPanel.follow(idB, a.store);
+		await vi.waitFor(() => expect(aiPanel.queue.rest.map((r) => r.blockId)).toEqual([b.blockId]));
+		seen.release();
+		await flush();
+		expect(aiPanel.queue.running).toBe(false);
+		// Back to A: its rest is offered from its record, and written into A's document only.
+		a.store.load(docA);
+		aiPanel.follow(idA, a.store);
+		await vi.waitFor(() => expect(aiPanel.queue.rest.map((r) => r.blockId)).toEqual(rowsA));
+		expect(only(seen, '/ai/lesson')).toHaveLength(sent);
+		aiPanel.resume(a.store);
 		await done();
-		expect(only(seen, '/ai/lesson')).toEqual([]);
-		expect(aiPanel.queue.rows.every((r) => r.state === 'failed')).toBe(true);
+		for (const id of rowsA)
+			expect(a.store.doc.blocks.find((blk) => blk.block_id === id)!.steps.length).toBeGreaterThan(
+				1
+			);
 	});
 });

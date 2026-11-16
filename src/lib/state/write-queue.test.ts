@@ -105,22 +105,6 @@ describe('the write queue', () => {
 		expect(m.firsts()).toEqual(['B0', 'B1']);
 	});
 
-	it('keys held cards, release and resume by course as well as card id', async () => {
-		const m = manual();
-		const q = new WriteQueue(m.run);
-		const card = (course: string) => ({ blockId: 'X', lessonId: 'L', course });
-		q.start([card('A'), card('B')], ['X']);
-		expect(m.started).toEqual([]);
-		q.release(['X'], 'A');
-		expect(m.batches.get('X')!.map((r) => r.course)).toEqual(['A']);
-		expect(q.pendingFor('B').size).toBe(1);
-		await m.finish('X', { problem: 'other' });
-		expect(q.rows.map((r) => r.state)).toEqual(['failed', 'waiting']);
-		expect(q.restFor('A')).toHaveLength(1);
-		q.resume('B');
-		expect(q.rows[0].state).toBe('failed');
-	});
-
 	it('takes the cards of a lesson together even when other lessons lie between them', async () => {
 		const m = manual();
 		const q = new WriteQueue(m.run, { concurrency: 1 });

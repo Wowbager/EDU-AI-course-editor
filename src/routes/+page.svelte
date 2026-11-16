@@ -440,10 +440,10 @@
 
 	// The cards the AI queue has yet to write show no complaints (`issue-visibility.ts`), and
 	// the one the teacher opens is written next.
-	store.awaiting = () => aiPanel.queue.pendingFor(store.doc.course_id);
+	store.awaiting = () => aiPanel.queue.pending;
 	$effect(() => {
 		const opened = store.selection?.blockId;
-		if (opened !== undefined) untrack(() => aiPanel.queue.prioritise(opened, store.doc.course_id));
+		if (opened !== undefined) untrack(() => aiPanel.queue.prioritise(opened));
 	});
 
 	onMount(() => {

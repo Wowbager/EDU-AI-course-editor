@@ -24,8 +24,6 @@ export type RowState = 'waiting' | 'writing' | 'done' | 'failed';
 export interface Row {
 	blockId: string;
 	lessonId: string;
-	/** The course the card is in; card ids repeat from course to course. */
-	course?: string;
 	state: RowState;
 }
 
@@ -42,9 +40,6 @@ export const CONCURRENCY = 4;
 /** Without a `Retry-After`, and at most, in seconds. */
 const DEFAULT_WAIT = 15;
 const MAX_WAIT = 70;
-
-/** A card by course and id: card ids repeat from course to course. */
-const keyOf = (c: { blockId: string; course?: string }) => `${c.course}\0${c.blockId}`;
 
 export class WriteQueue {
 	rows = $state<Row[]>([]);
@@ -77,35 +72,17 @@ export class WriteQueue {
 	 * (`issue-visibility.ts`); a card leaves it when it is written or has failed.
 	 */
 	get pending(): ReadonlySet<string> {
-		return this.pendingFor(undefined);
-	}
-
-	/** `pending` for the cards of one course (all of them when none is named). */
-	pendingFor(course: string | undefined): ReadonlySet<string> {
 		return new Set(
-			this.rows
-				.filter(
-					(r) =>
-						(r.state === 'waiting' || r.state === 'writing') &&
-						(course === undefined || r.course === course)
-				)
-				.map((r) => r.blockId)
+			this.rows.filter((r) => r.state === 'waiting' || r.state === 'writing').map((r) => r.blockId)
 		);
-	}
-
-	/** `rest` for the cards of one course: what „Dopsat zbytek“ offers there. */
-	restFor(course: string): Row[] {
-		return this.rest.filter((r) => r.course === course);
 	}
 
 	/**
 	 * A card the teacher opens is written soon: its lesson's waiting cards go ahead of the
 	 * other cards still waiting, in their order, since a lesson is written front to back.
 	 */
-	prioritise(blockId: string, course?: string) {
-		const row = this.rows.find(
-			(r) => r.blockId === blockId && r.course === course && this.#free(r)
-		);
+	prioritise(blockId: string) {
+		const row = this.rows.find((r) => r.blockId === blockId && this.#free(r));
 		const first = this.rows.findIndex((r) => this.#free(r));
 		if (row === undefined || first < 0) return;
 		const ahead = this.rows.filter((r) => this.#free(r) && r.lessonId === row.lessonId);
@@ -123,16 +100,18 @@ export class WriteQueue {
 	 * written, waiting or failed stay (and stay covered by `resume`), ahead of the new ones.
 	 */
 	start(
-		cards: readonly { blockId: string; lessonId: string; course?: string }[],
+		cards: readonly { blockId: string; lessonId: string }[],
 		/** Cards that wait until `release`. */
 		held: readonly string[] = []
 	) {
-		for (const c of cards) if (held.includes(c.blockId)) this.#held.add(keyOf(c));
+		for (const id of held) this.#held.add(id);
 		const kept = this.rows.filter((r) => r.state !== 'done');
-		const known = new Set(kept.map(keyOf));
+		const known = new Set(kept.map((r) => r.blockId));
 		this.rows = [
 			...kept,
-			...cards.filter((c) => !known.has(keyOf(c))).map((c) => ({ ...c, state: 'waiting' as const }))
+			...cards
+				.filter((c) => !known.has(c.blockId))
+				.map((c) => ({ ...c, state: 'waiting' as const }))
 		];
 		this.stoppedBy = null;
 		this.running = true;
@@ -144,16 +123,14 @@ export class WriteQueue {
 	}
 
 	/** Held cards may be started now. */
-	release(blockIds: readonly string[], course?: string) {
-		for (const blockId of blockIds) this.#held.delete(keyOf({ blockId, course }));
+	release(blockIds: readonly string[]) {
+		for (const id of blockIds) this.#held.delete(id);
 		this.#pump();
 	}
 
-	/** Start again with what is not done, failed cards included; only a course's when named. */
-	resume(course?: string) {
-		for (const row of this.rows)
-			if (row.state === 'failed' && (course === undefined || row.course === course))
-				row.state = 'waiting';
+	/** Start again with what is not done, failed cards included. */
+	resume() {
+		for (const row of this.rows) if (row.state === 'failed') row.state = 'waiting';
 		this.stoppedBy = null;
 		this.running = true;
 		this.#pump();
@@ -163,8 +140,8 @@ export class WriteQueue {
 	 * Cards left over from before a reload: failed, since nothing is being written, so
 	 * „Dopsat zbytek“ offers them. Nothing starts. Ignored when the queue has rows.
 	 */
-	restore(cards: readonly { blockId: string; lessonId: string; course?: string }[]) {
-		if (this.rows.length > 0 || this.writing) return;
+	restore(cards: readonly { blockId: string; lessonId: string }[]) {
+		if (this.rows.length > 0) return;
 		this.rows = cards.map((c) => ({ ...c, state: 'failed' as const }));
 	}
 
@@ -178,7 +155,7 @@ export class WriteQueue {
 
 	/** Waiting, not held and not taken by a lesson being written. */
 	#free(row: Row): boolean {
-		return row.state === 'waiting' && !this.#held.has(keyOf(row)) && !this.#claimed.has(row);
+		return row.state === 'waiting' && !this.#held.has(row.blockId) && !this.#claimed.has(row);
 	}
 
 	#pump() {
