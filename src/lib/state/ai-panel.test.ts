@@ -82,7 +82,7 @@ async function answerLesson(body: any): Promise<any[]> {
  * The fake provider behind `fetch`, with the requests it saw. `plan`: `'fail'` answers
  * /ai/plan with a 500; `'hold'` keeps it pending until `release()`.
  */
-function server(options: { plan?: 'fail' | 'hold'; lesson?: 'fail' } = {}) {
+function server(options: { plan?: 'fail' | 'hold'; lesson?: 'fail' | 'hold' } = {}) {
 	const seen: Seen[] & { release: () => void } = Object.assign([] as Seen[], {
 		release: () => {}
 	});
@@ -100,6 +100,7 @@ function server(options: { plan?: 'fail' | 'hold'; lesson?: 'fail' } = {}) {
 			if (options.plan === 'fail') return new Response('x', { status: 500 });
 			if (options.plan === 'hold') await held;
 		}
+		if (route === '/ai/lesson' && options.lesson === 'hold') await held;
 		if (route === '/ai/lesson' && options.lesson === 'fail')
 			return new Response('x', { status: 500 });
 		return (await answerAi(route, body)) ?? Response.json({ status: 'ok', cards: [] });
@@ -1258,5 +1259,57 @@ describe('the unfinished batch survives a reload', () => {
 		expect(kept.get(a.id)?.plan?.course).toBe(a.id);
 		expect(kept.has(idB)).toBe(false);
 		expect(only(seen, '/ai/plan').length).toBe(1);
+	});
+
+	it('writes each course\u2019s cards into its own document when two courses run at once', async () => {
+		const a = setup();
+		const idA = a.store.doc.course_id;
+		const seen = server({ plan: 'hold' });
+		a.store.selection = { lessonId: a.lessonId };
+		await aiPanel.send(a.store, 'Kurz o zlomcích');
+		aiPanel.create(a.store);
+		await vi.waitFor(() => expect(only(seen, '/ai/plan').length).toBe(1));
+		await flush();
+		const b = setup();
+		aiPanel.follow(b.store.doc.course_id, b.store);
+		b.store.selection = { lessonId: b.lessonId };
+		await aiPanel.send(b.store, 'Kurz o zlomcích');
+		aiPanel.create(b.store);
+		await vi.waitFor(() => expect(only(seen, '/ai/plan').length).toBe(2));
+		await flush();
+		seen.release();
+		await done();
+		expect(idA).not.toBe(b.store.doc.course_id);
+		for (const { store } of [a, b])
+			for (const row of aiPanel.queue.rows.filter((r) => r.course === store.doc.course_id))
+				expect(row.state).toBe('done');
+		for (const { store } of [a, b])
+			expect(
+				store.doc.blocks.every(
+					(blk) => blk.steps.length > 1 || blk.block_id === a.blockId || blk.block_id === b.blockId
+				)
+			).toBe(true);
+		// Every card the queue wrote is in its own course's document.
+		for (const row of aiPanel.queue.rows) {
+			const own = row.course === idA ? a.store : b.store;
+			expect(
+				own.doc.blocks.find((blk) => blk.block_id === row.blockId)!.steps.length
+			).toBeGreaterThan(1);
+		}
+	});
+
+	it('offers and resumes only the current course\u2019s cards', async () => {
+		const first = await failedThenReloaded();
+		const rows = aiPanel.queue.rows.map((r) => r.state);
+		expect(rows.every((r) => r === 'failed')).toBe(true);
+		const b = setup();
+		aiPanel.follow(b.store.doc.course_id, b.store);
+		expect(aiPanel.restOf(b.store.doc.course_id)).toEqual([]);
+		expect(aiPanel.restOf(first.id).length).toBe(rows.length);
+		const seen = server();
+		aiPanel.resume(b.store);
+		await done();
+		expect(only(seen, '/ai/lesson')).toEqual([]);
+		expect(aiPanel.queue.rows.every((r) => r.state === 'failed')).toBe(true);
 	});
 });

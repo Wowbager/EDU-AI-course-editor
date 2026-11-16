@@ -335,7 +335,7 @@
 				<div class="actions">
 					<button type="button" class="text-button" onclick={() => aiPanel.stop()}>Zastavit</button>
 				</div>
-			{:else if queue.rest.length > 0}
+			{:else if aiPanel.restOf(courseId).length > 0}
 				<div class="actions">
 					<Button variant="primary" onclick={() => aiPanel.resume(store)}>Dopsat zbytek</Button>
 				</div>

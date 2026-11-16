@@ -100,7 +100,8 @@ class AiPanel {
 	/** Bumped to make a request that was sent before „Zahodit návrh“ ignore its answer. */
 	#generation = 0;
 	#key: KeyMaker = keyMaker();
-	#store: DocStore | null = null;
+	/** The store each course's cards are written into: lessons of two courses may run at once. */
+	#stores = new Map<string, DocStore>();
 
 	queue = new WriteQueue((rows, context) => this.#write(rows, context), {
 		concurrency: concurrencyFor(pageProtocol())
@@ -128,8 +129,10 @@ class AiPanel {
 			context.report(row, state);
 			this.#save();
 		};
-		const store = this.#store;
-		if (store === null || rows.length === 0) return { problem: 'other' };
+		const course = rows[0]?.course;
+		const store = course === undefined ? undefined : this.#stores.get(course);
+		// The course's store now shows another course: its cards stay unwritten.
+		if (store === undefined || store.doc.course_id !== course) return { problem: 'other' };
 		const lessonId = rows[0].lessonId;
 		await materials.ready(store.doc.course_id);
 		const doc = store.doc;
@@ -168,6 +171,11 @@ class AiPanel {
 			(event) => {
 				const row = byTurn[event.card];
 				if (row === undefined) return;
+				// The store shows another course now: nothing more goes into it.
+				if (store.doc.course_id !== course) {
+					report(row, 'failed');
+					return abort.abort();
+				}
 				if (event.type === 'writing') return report(row, 'writing');
 				if (event.type === 'card') {
 					const result = ai.apply(store, row.blockId, row.lessonId, event.answer, { quiet: true });
@@ -254,6 +262,7 @@ class AiPanel {
 	 * of its own; a request still running for the one before is forgotten.
 	 */
 	follow(courseId: string, store?: DocStore): void {
+		if (store !== undefined) this.#stores.set(courseId, store);
 		if (courseId === this.#course) return;
 		this.#generation++;
 		this.asking = false;
@@ -277,7 +286,7 @@ class AiPanel {
 		if (this.#course !== courseId || store.doc.course_id !== courseId) return;
 		if (this.queue.rows.length > 0 || this.queue.writing) return;
 		if (back === undefined) return void dropSnapshot(courseId);
-		this.#store = store;
+		this.#stores.set(courseId, store);
 		this.#kept.add(courseId);
 		if (back.plan !== null) this.#plans.set(courseId, back.plan);
 		this.queue.restore(back.rows.map((r) => ({ ...r, course: courseId })));
@@ -442,7 +451,7 @@ class AiPanel {
 			this.problem = 'Návrh se do kurzu nepodařilo vložit. Zkus to znovu.';
 			return;
 		}
-		this.#store = store;
+		this.#stores.set(store.doc.course_id, store);
 		this.draft = null;
 		this.forget();
 		this.problem = '';
@@ -475,7 +484,10 @@ class AiPanel {
 			await this.#makePlan(store, added, sections);
 		} finally {
 			if (this.#course === course || this.#course === null) this.planning = false;
-			this.queue.release(added.map((c) => c.blockId));
+			this.queue.release(
+				added.map((c) => c.blockId),
+				course
+			);
 		}
 	}
 
@@ -543,10 +555,15 @@ class AiPanel {
 		this.#planAbort?.abort();
 	}
 
+	/** The cards „Dopsat zbytek“ offers in `course`. */
+	restOf(course: string): Row[] {
+		return this.queue.restFor(course);
+	}
+
 	/** „Dopsat zbytek“. */
 	resume(store: DocStore) {
-		this.#store = store;
-		this.queue.resume();
+		this.#stores.set(store.doc.course_id, store);
+		this.queue.resume(store.doc.course_id);
 	}
 
 	/** The queue's rows are done with: the panel is empty again. */
