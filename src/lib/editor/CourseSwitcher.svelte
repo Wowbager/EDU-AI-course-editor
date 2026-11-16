@@ -35,8 +35,8 @@
 		panel.showPopover();
 		place(anchor);
 		anchorRef = anchor;
-		const current = panel.querySelector<HTMLElement>('.course.current');
-		(current ?? panel.querySelector<HTMLElement>('.course'))?.focus();
+		const current = panel.querySelector<HTMLElement>('.course-row.current');
+		(current ?? panel.querySelector<HTMLElement>('.course-row'))?.focus();
 	}
 
 	function place(anchor: HTMLElement) {
@@ -88,7 +88,7 @@
 	});
 
 	function onkeydown(event: KeyboardEvent) {
-		const rows = [...(panel?.querySelectorAll<HTMLElement>('.course') ?? [])];
+		const rows = [...(panel?.querySelectorAll<HTMLElement>('.course-row') ?? [])];
 		const at = rows.indexOf(document.activeElement as HTMLElement);
 		if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
 			event.preventDefault();
@@ -139,7 +139,7 @@
 		{#each entries as entry (entry.courseId)}
 			<button
 				type="button"
-				class="course"
+				class="course-row"
 				class:current={entry.courseId === openId}
 				aria-current={entry.courseId === openId ? 'true' : undefined}
 				onclick={() => choose(entry.courseId)}
@@ -227,7 +227,9 @@
 		min-height: 0;
 	}
 
-	.course {
+	/* Not `.course`: the sidebar's course-settings button owns that name, and a
+	   popover's rows stay in the DOM while it is closed. */
+	.course-row {
 		display: flex;
 		flex-direction: column;
 		gap: 1px;
@@ -242,8 +244,8 @@
 		cursor: pointer;
 	}
 
-	.course:hover,
-	.course:focus-visible {
+	.course-row:hover,
+	.course-row:focus-visible {
 		background: var(--e-field-hover);
 	}
 

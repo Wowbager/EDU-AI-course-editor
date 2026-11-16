@@ -762,9 +762,11 @@
 		transition: width 0.3s ease-in-out;
 	}
 
-	/* No transition: animating the width would make the player lay itself out on every frame. */
+	/* No transition: animating the width would make the player lay itself out on every frame.
+	   Opening still slides out from the rail. */
 	.preview.collapsed {
 		width: var(--e-preview-rail);
+		transition: none;
 	}
 
 	/* Always the column's full size, whatever the window around it is. */
