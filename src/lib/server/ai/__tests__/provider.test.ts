@@ -216,6 +216,20 @@ describe('chatter', () => {
 		});
 	});
 
+	it('a refusal for credit or for speed stays one when its body never arrives', async () => {
+		const stalled = (status: number) =>
+			chatter(readAiConfig({ AI_API_KEY: 'k' }), (async (_url: string, init: RequestInit) => {
+				const body = new ReadableStream<Uint8Array>({
+					start(controller) {
+						init.signal!.addEventListener('abort', () => controller.error(init.signal!.reason));
+					}
+				});
+				return new Response(body, { status });
+			}) as unknown as typeof fetch)(messages, { tool: 'write_card', timeoutMs: 20 });
+		await expect(stalled(402)).rejects.toMatchObject({ kind: 'auth' });
+		await expect(stalled(429)).rejects.toMatchObject({ kind: 'busy' });
+	});
+
 	it('fails when the host answers without a message', async () => {
 		const chat = chatter(readAiConfig({ AI_API_KEY: 'k' }), (async () =>
 			Response.json({ choices: [] })) as unknown as typeof fetch);

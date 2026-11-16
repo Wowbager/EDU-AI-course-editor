@@ -245,10 +245,10 @@ export function chatter(config: AiConfig, fetcher: typeof fetch = fetch): Chat {
 		}
 		if (!response.ok) {
 			const detail = `${response.status} ${(await response.text().catch(() => '')).slice(0, 300)}`;
-			// An error whose body the time limit cut is a call that did not get through, too.
-			if (timeout.aborted) throw new ProviderError('network', `${detail}(timed out)`);
 			if ([401, 402, 403].includes(response.status)) throw new ProviderError('auth', detail);
 			if ([429, 503, 529].includes(response.status)) throw new ProviderError('busy', detail);
+			// Any other error whose body the time limit cut is a call that did not get through.
+			if (timeout.aborted) throw new ProviderError('network', `${detail} (timed out)`);
 			throw new ProviderError('failed', detail);
 		}
 		// A host can send the headers at once and the answer never: the time limit then ends
