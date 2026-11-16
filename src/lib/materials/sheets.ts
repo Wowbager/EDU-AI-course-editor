@@ -57,9 +57,11 @@ function rowsOf(XLSX: SheetJS, sheet: XLSXType.WorkSheet): Sparse[] {
  * `MAX_COLUMNS`); the first row is its header. Rows are made one at a time, and the table
  * is cut when the text is too long.
  */
-function table(rows: Sparse[]): { text: string; kept: number; columnsCut: boolean } {
-	const used = [...new Set(rows.flatMap((r) => [...r.cells.keys()]))].sort((a, b) => a - b);
+function table(all: Sparse[]): { text: string; kept: number; total: number; columnsCut: boolean } {
+	const used = [...new Set(all.flatMap((r) => [...r.cells.keys()]))].sort((a, b) => a - b);
 	const columns = used.slice(0, MAX_COLUMNS);
+	// Rows with nothing in the kept columns hold nothing.
+	const rows = all.filter((r) => columns.some((c) => r.cells.has(c)));
 	const line = (r: Sparse) => `| ${columns.map((c) => r.cells.get(c) ?? '').join(' | ')} |`;
 	const lines = [line(rows[0]), `| ${columns.map(() => '---').join(' | ')} |`];
 	let length = lines[0].length + lines[1].length + 2;
@@ -71,8 +73,16 @@ function table(rows: Sparse[]): { text: string; kept: number; columnsCut: boolea
 		length += l.length + 1;
 		kept++;
 	}
-	return { text: lines.join('\n'), kept, columnsCut: used.length > columns.length };
+	return {
+		text: lines.join('\n'),
+		kept,
+		total: rows.length,
+		columnsCut: used.length > columns.length
+	};
 }
+
+/** A title short enough for a notice to fit in the 120 characters the file allows. */
+const brief = (title: string): string => (title.length > 60 ? `${title.slice(0, 59)}…` : title);
 
 export function readSheets(data: ArrayBuffer, name: string, room: Room, XLSX: SheetJS): ReadOut {
 	const textual = /\.(csv|tsv)$/i.test(name);
@@ -89,13 +99,11 @@ export function readSheets(data: ArrayBuffer, name: string, room: Room, XLSX: Sh
 	for (const sheetName of book.SheetNames) {
 		const rows = rowsOf(XLSX, book.Sheets[sheetName]);
 		if (rows.length === 0) continue;
-		const { text, kept, columnsCut } = table(rows);
+		const { text, kept, total, columnsCut } = table(rows);
 		const title = textual ? (name.replace(/\.[^.]+$/, '') || name).slice(0, 200) : sheetName;
 		pieces.push({ title, text });
-		if (columnsCut)
-			unread.push(`List ${title}: zkráceno na prvních ${MAX_COLUMNS} sloupců`.slice(0, 120));
-		if (kept < rows.length)
-			unread.push(`List ${title}: zkráceno na prvních ${kept} řádků`.slice(0, 120));
+		if (columnsCut) unread.push(`List ${brief(title)}: zkráceno na prvních ${MAX_COLUMNS} sloupců`);
+		if (kept < total) unread.push(`List ${brief(title)}: zkráceno na prvních ${kept} řádků`);
 	}
 	if (pieces.length > Math.min(room.pages, MAX_PAGES)) throw new Refused(TOO_MANY_PAGES(MAX_PAGES));
 	return { pieces, pages: pieces.length, unread };

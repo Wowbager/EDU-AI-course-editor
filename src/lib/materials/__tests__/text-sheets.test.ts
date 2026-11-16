@@ -236,4 +236,34 @@ describe('robustness', () => {
 		expect(out.sections[0].text.split('\n')[0].split('|').length).toBe(52);
 		expect(out.unread).toEqual(['List W: zkráceno na prvních 50 sloupců']);
 	});
+
+	it('picks the header from the kept columns and skips rows empty in them', async () => {
+		const wb = book({ H: [[], ['k', 'l'], ['m', 'n']] });
+		// 60 columns hold data in the last row only; the first rows have only cells that stay.
+		const far = XLSX.utils.encode_cell({ r: 3, c: 0 });
+		wb.Sheets.H[far] = { t: 's', v: 'z' };
+		for (let c = 1; c < 60; c++)
+			wb.Sheets.H[XLSX.utils.encode_cell({ r: 3, c })] = { t: 's', v: `f${c}` };
+		wb.Sheets.H['BZ1'] = { t: 's', v: 'cut-only' };
+		wb.Sheets.H['!ref'] = 'A1:BZ4';
+		const out = await read(file(bytes(wb, 'xlsx'), 'h.xlsx'));
+		const lines = out.sections[0].text.split('\n');
+		// BZ1 (column 78) is cut, so the first row is empty in the kept columns and is skipped.
+		expect(lines[0].startsWith('| k | l |')).toBe(true);
+		expect(lines.every((l) => l.replace(/[| ]/g, '') !== '' || /^[|\s-]+$/.test(l))).toBe(true);
+		expect(out.unread).toContain('List H: zkráceno na prvních 50 sloupců');
+		expect(out.unread.some((u) => u.includes('řádků'))).toBe(false);
+	});
+
+	it('keeps a notice whole when the title is long', async () => {
+		const name = 'b'.repeat(200);
+		const rows = [['Č'], ...Array.from({ length: 6000 }, () => ['y'.repeat(60)])];
+		const out = await read(file(bytes(book({ [name.slice(0, 31)]: rows }), 'xlsx'), 'l.xlsx'));
+		expect(out.unread[0]).toMatch(/zkráceno na prvních \d+ řádků$/);
+		const csv = await read(
+			file(`a\n${'y'.repeat(60)}\n`.repeat(1) + ('y'.repeat(60) + '\n').repeat(3000), `${name}.csv`)
+		);
+		expect(csv.unread[0]).toMatch(/zkráceno na prvních \d+ řádků$/);
+		expect(csv.unread[0].length).toBeLessThanOrEqual(120);
+	});
 });
