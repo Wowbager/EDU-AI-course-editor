@@ -142,16 +142,22 @@ export const browserIO: ReadIO = {
 		// putImageData replaces pixels, so the pixels go on a scratch canvas and are drawn,
 		// scaled down, over white: transparent ones then come out white, not black.
 		const source = document.createElement('canvas');
-		source.width = width;
-		source.height = height;
-		source
-			.getContext('2d')!
-			.putImageData(new ImageData(new Uint8ClampedArray(rgba), width, height), 0, 0);
-		const size = fitSide(width, height, SIDE);
-		const { canvas, context } = white(size.width, size.height);
-		context.drawImage(source, 0, 0, size.width, size.height);
-		source.width = source.height = 0;
-		return encode(canvas);
+		try {
+			source.width = width;
+			source.height = height;
+			source
+				.getContext('2d')!
+				.putImageData(new ImageData(new Uint8ClampedArray(rgba), width, height), 0, 0);
+			const size = fitSide(width, height, SIDE);
+			const { canvas, context } = white(size.width, size.height);
+			// A scan shrinks several times over: thin strokes stay readable for the reader.
+			context.imageSmoothingQuality = 'high';
+			context.drawImage(source, 0, 0, size.width, size.height);
+			return await encode(canvas);
+		} finally {
+			// A full-size page is large; let it go whether or not the page was read.
+			source.width = source.height = 0;
+		}
 	},
 
 	async renderPage(page) {
