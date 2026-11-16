@@ -171,6 +171,23 @@ describe('an e-book', () => {
 		await expect(readMaterial(long, io(), { pages: 6 }, libraries)).rejects.toBeInstanceOf(Refused);
 	});
 
+	it('finds a picture whose address has a query or a fragment', async () => {
+		const book = await zipped('c.epub', {
+			'META-INF/container.xml':
+				'<container><rootfiles><rootfile full-path="OEBPS/c.opf"/></rootfiles></container>',
+			'OEBPS/c.opf':
+				'<package><manifest><item id="a" href="a.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="a"/></spine></package>',
+			'OEBPS/a.xhtml':
+				'<html><body><img src="img/p1.png?v=1"><img src="img/p2.png#x"></body></html>',
+			'OEBPS/img/p1.png': new Uint8Array([1, 2, 3]),
+			'OEBPS/img/p2.png': new Uint8Array([4, 5, 6])
+		});
+		const reader = io();
+		const read = await readMaterial(book, reader, room, libraries);
+		expect(reader.read).toBe(2);
+		expect(read.unread).toEqual([]);
+	});
+
 	it('refuses a file with no chapters', async () => {
 		await expect(
 			readMaterial(await zipped('a.epub', { 'x.txt': 'x' }), io(), room, libraries)
@@ -198,6 +215,24 @@ describe('an OpenDocument text', () => {
 			'Object 1/content.xml':
 				'<math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi>x</mi><mn>2</mn></msup><mo>=</mo><mn>4</mn></mrow></semantics></math>'
 		});
+
+	it('says which pictures of a long scan were not read', async () => {
+		const frames = [...Array(25).keys()]
+			.map(
+				(i) =>
+					`<text:p><draw:frame><draw:image xlink:href="Pictures/p${i}.png"/></draw:frame></text:p>`
+			)
+			.join('');
+		const scan = await zipped('scan.odt', {
+			'content.xml': content(`<office:text>${frames}</office:text>`),
+			...Object.fromEntries(
+				[...Array(25).keys()].map((i) => [`Pictures/p${i}.png`, new Uint8Array([i + 1])])
+			)
+		});
+		const read = await readMaterial(scan, io(), room, libraries);
+		expect(read.sections).toHaveLength(20);
+		expect(read.unread).toEqual(['Obrázky 21–25 nebyly přečteny: čte se nejvýše 20 obrázků']);
+	});
 
 	it('keeps headings, bold, lists, tables and formulas as Markdown', async () => {
 		const read = await readMaterial(await odt(), io(), room, libraries);

@@ -207,8 +207,10 @@ export async function readEpub(
 			const reads = await readPictures(
 				images.slice(0, 2),
 				io,
-				async (src) => {
-					const ext = src.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
+				async (address) => {
+					// "p1.png?v=1" or "p1.png#x" is the file p1.png in the book.
+					const src = address.split(/[?#]/)[0];
+					const ext = src.split('.').pop()?.toLowerCase() ?? '';
 					const file =
 						MEDIA[ext] === undefined
 							? null

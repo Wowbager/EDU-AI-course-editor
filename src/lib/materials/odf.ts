@@ -343,6 +343,11 @@ export async function readOdf(
 				if (r.read !== null) pieces.push({ title: `Obrázek ${i + 1}`, text: r.read });
 				else unread.push(`Obrázek ${i + 1} se nepodařilo přečíst`);
 			}
+			const skipped = ctx.pictures.length - pictures.length;
+			if (skipped > 0)
+				unread.push(
+					`Obrázky ${MAX_PICTURES + 1}–${ctx.pictures.length} nebyly přečteny: čte se nejvýše ${MAX_PICTURES} obrázků`
+				);
 		}
 		const pages = Math.max(
 			estimatePages(text),
