@@ -73,7 +73,8 @@ test('an outline is started without the AI and typed lesson by lesson, card by c
 	await expect.poll(lessonNames(page)).toEqual(['Sčítání zlomků', 'Opakování']);
 
 	await create(page).click();
-	await expect(lessonsInCourse(page)).toHaveCount(3);
+	// In place of the new course's empty first lesson.
+	await expect(lessonsInCourse(page)).toHaveCount(2);
 	await expect(lessonsInCourse(page).filter({ hasText: 'Opakování' })).toHaveCount(1);
 	await expect(panel(page).locator('.queue-row')).toHaveCount(2);
 });
@@ -89,7 +90,9 @@ test('cards for the selected lesson are started by hand too', async ({ page }) =
 	// No lessons in a proposal of cards.
 	await expect(page.getByRole('checkbox', { name: /^Vytvořit lekci/ })).toHaveCount(0);
 	await create(page).click();
-	await expect(page.locator('.tree-card')).toHaveCount(2);
+	// In place of the empty card the new course started with.
+	await expect(page.locator('.tree-card')).toHaveCount(1);
+	await expect(page.locator('.tree-card')).toContainText('Moje karta');
 	await expect(lessonsInCourse(page)).toHaveCount(1);
 });
 
@@ -301,7 +304,8 @@ test("Ctrl+Z in the panel undoes the outline's changes, not the course's, and Ct
 	await ask(page, 'Dej mi karty');
 	await create(page).click();
 	await expect(panel(page).locator('.queue-row.done')).toHaveCount(3);
-	await expect(page.locator('.tree-card')).toHaveCount(4);
+	// In place of the empty card the new course started with.
+	await expect(page.locator('.tree-card')).toHaveCount(3);
 
 	await ask(page, 'Kurz o zlomcích');
 	await page.getByRole('button', { name: 'Odebrat z návrhu: Procvičení' }).click({ force: true });
@@ -311,7 +315,7 @@ test("Ctrl+Z in the panel undoes the outline's changes, not the course's, and Ct
 	await expect(page.getByRole('checkbox', { name: 'Vytvořit: Co to je' })).toBeChecked();
 	await page.keyboard.press('Control+z');
 	await expect.poll(names(page, 0)).toEqual(['Co to je', 'Procvičení', 'Ověření']);
-	await expect(page.locator('.tree-card')).toHaveCount(4);
+	await expect(page.locator('.tree-card')).toHaveCount(3);
 	await page.keyboard.press('Control+Shift+z');
 	await expect.poll(names(page, 0)).toEqual(['Co to je', 'Ověření']);
 	await page.keyboard.press('Control+y');
@@ -339,7 +343,7 @@ test("Ctrl+Z in the panel undoes the outline's changes, not the course's, and Ct
 	// Back past the proposal itself, then the course's undo takes over.
 	for (let i = 0; i < 3; i++) await page.keyboard.press('Control+z');
 	await expect(create(page)).toHaveCount(0);
-	await expect(page.locator('.tree-card')).toHaveCount(4);
+	await expect(page.locator('.tree-card')).toHaveCount(3);
 	// Three cards written and their insert: four steps of the course.
 	for (let i = 0; i < 4; i++) await page.keyboard.press('Control+z');
 	await expect(page.locator('.tree-card')).toHaveCount(1);
@@ -387,4 +391,58 @@ test('„Co změnit?“ works on an outline made by hand', async ({ page }) => {
 	await expect(page.getByRole('checkbox', { name: 'Vytvořit: Úvod: Moje lekce' })).toBeChecked();
 	await expect(page.getByRole('checkbox', { name: 'Vytvořit: Změna: doplň karty' })).toBeChecked();
 	await expect(panel(page).getByRole('status')).toHaveCount(0);
+});
+
+test("a new course's empty first lesson and card give way to the outline, and come back with one undo", async ({
+	page
+}) => {
+	await ask(page, 'Kurz o zlomcích');
+	await create(page).click();
+	await expect(panel(page).locator('.queue-row.done')).toHaveCount(5);
+	// Only the outline's lessons and cards: no empty lesson or card is left over.
+	await expect
+		.poll(() => lessonsInCourse(page).locator('.name').allTextContents())
+		.toEqual(['První lekce', 'Druhá lekce']);
+	// The tree shows the open lesson's cards: the selection was on the card that went, and
+	// is on the first new one.
+	await expect(page.locator('.tree-card')).toHaveCount(3);
+	await expect(page.locator('.tree-card.selected')).toContainText('Co to je');
+
+	// Five cards written, then the insert: the starter lesson and its card are back, selected.
+	const undo = page.getByRole('button', { name: 'Vrátit', exact: true });
+	for (let i = 0; i < 6; i++) await undo.click();
+	await expect(lessonsInCourse(page)).toHaveCount(1);
+	await expect(page.locator('.tree-card')).toHaveCount(1);
+	await expect(page.locator('.tree-card.selected')).toHaveCount(1);
+	await expect(page.locator('.rich-content').first()).toBeVisible();
+});
+
+test('a starter the teacher has typed into is kept', async ({ page }) => {
+	await page.locator('.rich-content').first().click();
+	await page.keyboard.type('Zlomek je část celku.');
+	await ask(page, 'Kurz o zlomcích');
+	await create(page).click();
+	await expect(lessonsInCourse(page)).toHaveCount(3);
+	// Still open, with its card.
+	await expect(page.locator('.tree-card')).toHaveCount(1);
+	await expect(page.locator('.tree-card').first()).toContainText('Zlomek je část celku.');
+});
+
+test('a „Nová lekce“ just added and selected gives way to the lessons of the outline', async ({
+	page
+}) => {
+	// The starter is the teacher's now: they wrote in it.
+	await page.locator('.rich-content').first().click();
+	await page.keyboard.type('Úvod');
+	// The tree's own button, not the panel's „+ lekce“.
+	await page.locator('div.add').getByRole('button', { name: 'Nová lekce' }).click();
+	const settings = page.getByRole('dialog', { name: 'Nastavení lekce' });
+	await settings.getByRole('button', { name: 'Hotovo' }).click();
+	await expect(settings).toHaveCount(0);
+	await expect(lessonsInCourse(page)).toHaveCount(2);
+	await ask(page, 'Kurz o zlomcích');
+	await create(page).click();
+	await expect
+		.poll(() => lessonsInCourse(page).locator('.name').allTextContents())
+		.toEqual(['První lekce', 'První lekce', 'Druhá lekce']);
 });

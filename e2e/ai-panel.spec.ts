@@ -185,7 +185,6 @@ test('a card still waiting for AI shows no errors, however often it is opened', 
 	// Nor does it offer its own write: the queue is writing it.
 	await expect(page.getByRole('button', { name: 'Dopsat kartu' })).toHaveCount(0);
 	await expect(page.getByRole('textbox', { name: 'O čem karta je' })).toHaveCount(0);
-	// (The empty first card the teacher left is theirs, and does show its own.)
 	await expect(waiting.locator('.chip.error')).toHaveCount(0);
 	await expect(panel(page).locator('.queue-row.done')).toHaveCount(0);
 
@@ -238,10 +237,10 @@ test('a proposal is shaped, created as cards that are then written, and undone',
 
 	await create(page).click();
 
-	// The lessons and the ticked cards are in the left tree at once...
-	await expect(lessons(page)).toHaveCount(3);
-	// (The course's own first lesson has the same name as the proposed one.)
-	await expect(lessons(page).filter({ hasText: 'První lekce' })).toHaveCount(2);
+	// The lessons and the ticked cards are in the left tree at once, in place of the new
+	// course's empty first lesson (which has the same name as the proposed one)...
+	await expect(lessons(page)).toHaveCount(2);
+	await expect(lessons(page).filter({ hasText: 'První lekce' })).toHaveCount(1);
 	await expect(lessons(page).filter({ hasText: 'Druhá lekce' })).toHaveCount(1);
 	// ...and written one after another: the panel lists every card, each done in the end.
 	const rows = panel(page).locator('.queue-row');
@@ -259,13 +258,18 @@ test('a proposal is shaped, created as cards that are then written, and undone',
 	// Four cards written (four undo steps), then the insert: one more takes the lessons away.
 	const undo = page.getByRole('button', { name: 'Vrátit', exact: true });
 	for (let i = 0; i < 4; i++) await undo.click();
-	await expect(lessons(page)).toHaveCount(3);
+	await expect(lessons(page)).toHaveCount(2);
 	await undo.click();
+	// The empty first lesson and its card are back.
 	await expect(lessons(page)).toHaveCount(1);
+	await expect(page.locator('.tree-card')).toHaveCount(1);
 });
 
 test('cards for the selected lesson go after the selected card', async ({ page }) => {
+	// A card the teacher has written in stays; the new ones go after it.
 	await page.locator('.tree-card').first().click();
+	await page.locator('.rich-content').first().click();
+	await page.keyboard.type('Úvod');
 	await ask(page, 'Dej mi karty na procvičení');
 	await expect(page.getByRole('checkbox', { name: 'Vytvořit: Kvíz na závěr' })).toBeVisible();
 	// No lessons in a cards proposal.

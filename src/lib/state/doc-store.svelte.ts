@@ -46,6 +46,8 @@ export interface UndoEntry {
 	before: CourseV2;
 	after: CourseV2;
 	ref?: Ref;
+	/** Where an undo puts the selection, when not `ref` (`CommandResult.undoRef`). */
+	undoRef?: Ref;
 }
 
 /** The editing modes live with the field table that defines them. */
@@ -408,7 +410,8 @@ export class DocStore {
 					description: result.description,
 					before,
 					after: this.source,
-					ref: result.ref
+					ref: result.ref,
+					...(result.undoRef !== undefined ? { undoRef: result.undoRef } : {})
 				}
 			].slice(-MAX_UNDO);
 			if (this.#edit) this.#edit.entry = this.#undo.at(-1);
@@ -444,7 +447,8 @@ export class DocStore {
 		this.source = entry.before;
 		this.#pruneDismissal();
 		this.dirty = true;
-		if (entry.ref !== undefined) this.selection = this.#inSameLesson(entry.ref);
+		const back = entry.undoRef ?? entry.ref;
+		if (back !== undefined) this.selection = this.#inSameLesson(back);
 	}
 
 	redo() {

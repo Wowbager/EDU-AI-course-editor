@@ -252,11 +252,13 @@ class AiPanel {
 		let added: { blockId: string; lessonId: string }[] = [];
 		try {
 			store.endEdit();
-			// Where the teacher is stays where they are: the new cards are in the tree, not forced on them.
+			// Where the teacher is stays where they are: the new cards are in the tree, not forced
+			// on them. Only when they stand in for the placeholder that was selected does the
+			// selection move, to the first of them (`insertOutline`).
 			store.apply((d, r) => {
 				const result = insertOutline(d, outline, at, r, request);
 				added = result.added;
-				return { ...result, ref: undefined };
+				return result;
 			});
 		} catch (e) {
 			if (!(e instanceof CommandError)) throw e;

@@ -36,7 +36,8 @@
 	import LessonSettings from '$lib/editor/LessonSettings.svelte';
 	import CardSettings from '$lib/editor/CardSettings.svelte';
 	import FocusField from '$lib/ui/FocusField.svelte';
-	import { addBlock, pasteBlock, pasteStep, setField } from '$lib/domain/commands';
+	import { pasteBlock, pasteStep, setField } from '$lib/domain/commands';
+	import { withStarter } from '$lib/domain/starter';
 	import { fromClipboard, toClipboard } from '$lib/domain/clipboard';
 	import { notices } from '$lib/state/notice.svelte';
 	import { firstField, focusSelectedCard } from '$lib/ui/focus-after';
@@ -338,21 +339,7 @@
 		}
 		if (!store.dirty && !restored) {
 			store.load(emptyCourse(newCourseId(), 'Nový kurz'));
-			store.apply((d, r) => {
-				const withLesson = {
-					...d,
-					lessons: [
-						{
-							lesson_id: 'L1',
-							version: 1,
-							name: 'První lekce',
-							order: 1,
-							blocks: []
-						}
-					]
-				};
-				return addBlock(withLesson, 'L1', 'display', undefined, r);
-			});
+			store.apply((d, r) => withStarter(d, r));
 			store.dirty = false;
 		}
 		void loadConfig();

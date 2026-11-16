@@ -48,6 +48,11 @@ export interface CommandResult {
 	doc: CourseV2;
 	/** Where the editor should put the selection after the change. */
 	ref?: Ref;
+	/**
+	 * Where the selection goes when the change is undone, when not `ref`: a change that
+	 * removed the thing that was selected puts it back there.
+	 */
+	undoRef?: Ref;
 	/** Shown in the undo log, in Czech. */
 	description: string;
 	/** Set by the command that writes the AI's text (`authoring.ts`), and by no other. */
