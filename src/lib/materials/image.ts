@@ -33,3 +33,12 @@ export async function readImage(
 	const title = file.name.replace(/\.[A-Za-z0-9]{1,5}$/, '') || 'Obrázek';
 	return { pieces: text === '' ? [] : [{ title, text }], pages: 1, unread: [] };
 }
+
+/** The size a picture is drawn at: its longest side at most `side`, never enlarged. */
+export function fitSide(width: number, height: number, side: number) {
+	const scale = Math.min(1, side / Math.max(width, height));
+	return {
+		width: Math.max(1, Math.round(width * scale)),
+		height: Math.max(1, Math.round(height * scale))
+	};
+}

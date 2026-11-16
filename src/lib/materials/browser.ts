@@ -4,6 +4,7 @@
  */
 import { workspaceKey } from '$lib/state/versions/server';
 import type { Libraries } from './read';
+import { fitSide } from './image';
 import type { ReadIO } from './types';
 
 /** The longest side of a picture sent for reading, in pixels. */
@@ -138,8 +139,18 @@ export const browserIO: ReadIO = {
 	},
 
 	async fromPixels(rgba, width, height) {
-		const { canvas, context } = white(width, height);
-		context.putImageData(new ImageData(new Uint8ClampedArray(rgba), width, height), 0, 0);
+		// putImageData replaces pixels, so the pixels go on a scratch canvas and are drawn,
+		// scaled down, over white: transparent ones then come out white, not black.
+		const source = document.createElement('canvas');
+		source.width = width;
+		source.height = height;
+		source
+			.getContext('2d')!
+			.putImageData(new ImageData(new Uint8ClampedArray(rgba), width, height), 0, 0);
+		const size = fitSide(width, height, SIDE);
+		const { canvas, context } = white(size.width, size.height);
+		context.drawImage(source, 0, 0, size.width, size.height);
+		source.width = source.height = 0;
 		return encode(canvas);
 	},
 

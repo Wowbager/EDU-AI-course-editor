@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import JSZip from 'jszip';
 import { MAX_PAGES } from '$lib/domain/materials';
+import { fitSide } from '../image';
 import { readMaterial, hashOf, kindOf, unsupported, type Libraries } from '../read';
 import { readDocx } from '../docx';
 import { readPdf } from '../pdf';
@@ -311,8 +312,30 @@ describe('a TIFF', () => {
 		expect(file.unread[0]).toMatch(/^Stranu \d se nepodařilo přečíst$/);
 	});
 
+	it('lets go of each decoded page once it is read', async () => {
+		const seen: object[] = [];
+		const spy = {
+			...(UTIF as object),
+			decode: (b: ArrayBuffer) => {
+				const out = UTIF.decode(b);
+				seen.push(...out);
+				return out;
+			}
+		} as unknown as Awaited<ReturnType<Libraries['utif']>>;
+		await readMaterial(tiff(3), io(), room, { ...libraries, utif: async () => spy });
+		expect(seen).toHaveLength(3);
+		expect(seen.every((p) => (p as { data?: unknown }).data === undefined)).toBe(true);
+	});
+
 	it('respects the pages left in the budget', async () => {
 		await expect(readMaterial(tiff(3), io(), { pages: 2 }, libraries)).rejects.toThrow(/nejvýše/);
+	});
+});
+
+describe('fitSide', () => {
+	it('shrinks a 600 dpi scan to the longest side and never enlarges', () => {
+		expect(fitSide(5000, 7000, 1600)).toEqual({ width: 1143, height: 1600 });
+		expect(fitSide(800, 600, 1600)).toEqual({ width: 800, height: 600 });
 	});
 });
 

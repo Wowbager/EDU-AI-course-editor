@@ -36,15 +36,16 @@ export async function readTiff(
 	const pieces: (Piece | null)[] = new Array(pages).fill(null);
 	const unread: number[] = [];
 	let next = 0;
-	// Each page is decoded only when its turn comes, so a long scan holds few bitmaps.
+	// Each page is decoded only when its turn comes, so a long scan holds few decoded pages.
 	await Promise.all(
 		Array.from({ length: Math.min(AT_ONCE, pages) }, async () => {
 			while (next < pages) {
 				const n = next++;
+				const ifd = ifds[n] as { width: number; height: number; data?: unknown };
 				try {
-					const ifd = ifds[n] as { width: number; height: number };
 					utif.decodeImage(data, ifd);
 					const picture = await io.fromPixels(utif.toRGBA8(ifd), ifd.width, ifd.height);
+
 					const text = (await io.ocr(picture)).trim();
 					if (text !== '')
 						pieces[n] =
@@ -53,6 +54,9 @@ export async function readTiff(
 								: { title: `Strana ${n + 1}`, text, unit: 'page', from: n + 1 };
 				} catch {
 					unread.push(n + 1);
+				} finally {
+					// utif2 hangs the decoded pixels on the page: let go of them now.
+					delete ifd.data;
 				}
 			}
 		})
