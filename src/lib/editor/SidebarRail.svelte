@@ -26,7 +26,7 @@
 	import { CARD_TYPES, cardTypeIcon, cardTypeLabel } from '$lib/ui/card-types';
 	import { useStore } from '$lib/ui/context';
 	import { uniqueKeys } from '$lib/ui/keys';
-	import { cardsCount, errorsCount } from '$lib/ui/plural';
+	import { cardsCount, errorsCount } from '$lib/domain/plural';
 	import Menu from '$lib/ui/Menu.svelte';
 	import MenuItem from '$lib/ui/MenuItem.svelte';
 	import CardActions from './CardActions.svelte';

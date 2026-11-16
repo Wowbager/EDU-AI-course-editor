@@ -11,6 +11,7 @@ import {
 	buildDossier,
 	estimateTokens,
 	CHANGES_MAX_CHARS,
+	CHANGES_MAX_REMOVED,
 	lessonBaseline,
 	lessonChanges,
 	lessonSnapshot,
@@ -543,5 +544,35 @@ describe('lessonChanges: what the teacher changed since the conversation knew th
 		const second = lessonChanges(first.baseline, now, LESSON);
 		expect(second.text).toContain('druhá');
 		expect(second.text).not.toContain('aaaa');
+	});
+
+	it('cuts a card longer than the cap, so that the report always fits', () => {
+		const baseline = lessonBaseline(small(), LESSON);
+		const now = edited((d) => {
+			cardOf(d, 'B_T1').steps[0].content = 'a'.repeat(60_000);
+		});
+		const first = lessonChanges(baseline, now, LESSON);
+		expect(first.text!.length).toBeLessThanOrEqual(CHANGES_MAX_CHARS + 200);
+		expect(first.text).toContain(TRUNCATED_NOTE);
+		// Reported as far as it goes: not again.
+		expect(lessonChanges(first.baseline, now, LESSON).text).toBeUndefined();
+	});
+
+	it('names a limited number of removed cards, the rest in the next report', () => {
+		const many = edited((d) => {
+			for (let i = 0; i < 50; i++) {
+				d.blocks.push(block(`X${i}`, 'display', [text(`x${i}`, `Karta ${i}`)]));
+				d.lessons[1].blocks.push({ block_id: `X${i}` });
+			}
+		});
+		const baseline = lessonBaseline(many, LESSON);
+		const first = lessonChanges(baseline, small(), LESSON);
+		expect(first.text!.split('\n').filter((l) => l.startsWith('- ')).length).toBe(
+			CHANGES_MAX_REMOVED
+		);
+		expect(first.text).toContain('(+20 dalších)');
+		const second = lessonChanges(first.baseline, small(), LESSON);
+		expect(second.text).toContain('Karta 49');
+		expect(second.text).not.toContain('dalších');
 	});
 });

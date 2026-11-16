@@ -34,7 +34,7 @@
 	} from '$lib/domain/versions';
 	import { courseFileName } from '$lib/domain/filename';
 	import { downloadCourse } from '$lib/ui/download';
-	import { counted, errorsCount, warningsCount } from '$lib/ui/plural';
+	import { counted, errorsCount, warningsCount } from '$lib/domain/plural';
 	import { Download, History, RotateCcw, Send } from '@lucide/svelte';
 	import type { ListedVersion } from '$lib/state/versions/version-store.svelte';
 

@@ -30,7 +30,7 @@
 		reorderLessons
 	} from '$lib/domain/commands';
 	import { blockPreview, lessonTotals } from '$lib/domain/derive';
-	import { cardsCount, stepsCount } from '$lib/ui/plural';
+	import { cardsCount, stepsCount } from '$lib/domain/plural';
 	import { uniqueKeys } from '$lib/ui/keys';
 	import { groupOf, groupsOf } from '$lib/domain/groups';
 	import { lessonLabel } from '$lib/domain/naming';

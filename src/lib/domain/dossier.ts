@@ -8,7 +8,7 @@
  * which the provider's prefix cache relies on.
  */
 import { AUDIENCE_KEY, BRIEF_KEY, REQUEST_KEY } from './authoring';
-import { plural } from '$lib/ui/plural';
+import { plural } from './plural';
 import type { BlockStep, BlockV2, CourseV2, LessonV2, QuestionConfig } from './schema';
 
 export const DOSSIER_BUDGET_TOKENS = 150_000;
@@ -346,6 +346,9 @@ export function lessonSnapshot(doc: CourseV2, lessonId: string): string {
 
 /** The most card text one report carries; the rest waits for the next turn. */
 export const CHANGES_MAX_CHARS = 12_000;
+/** Removed cards one report names; the rest are named in the next one. */
+export const CHANGES_MAX_REMOVED = 30;
+const MIN_CARD_ROOM = 300;
 
 /**
  * What a lesson's conversation last knew of each card: the card as the dossier renders it
@@ -403,18 +406,31 @@ export function lessonChanges(
 		const was = baseline.get(card.block_id);
 		const is = known(card);
 		if (was?.text === is.text) continue;
-		if (edited.length + added.length > 0 && size + is.text.length > CHANGES_MAX_CHARS) continue;
-		size += is.text.length;
-		(was === undefined ? added : edited).push(is.text);
+		// The report as a whole stays under the cap: a card too long for what is left is cut
+		// (and counts as reported), one that has no room at all waits for the next report.
+		const room = CHANGES_MAX_CHARS - size;
+		if (room < MIN_CARD_ROOM && edited.length + added.length > 0) continue;
+		const shown =
+			is.text.length <= room
+				? is.text
+				: `${is.text.slice(0, Math.max(0, room - TRUNCATED_NOTE.length - 1)).trimEnd()}\n${TRUNCATED_NOTE}`;
+		size += shown.length;
+		(was === undefined ? added : edited).push(shown);
 		next.set(card.block_id, is);
 	}
 	const present = new Set(now.map((c) => c.block_id));
 	const removed: string[] = [];
+	let more = 0;
 	for (const [id, was] of baseline) {
 		if (present.has(id)) continue;
+		if (removed.length >= CHANGES_MAX_REMOVED) {
+			more++;
+			continue;
+		}
 		removed.push(was.label);
 		next.delete(id);
 	}
+	if (more > 0) removed.push(`(+${more} dalších)`);
 	const parts = [
 		...(edited.length > 0 ? ['Upraveno učitelem:', edited.join('\n\n')] : []),
 		...(added.length > 0 ? ['Přidáno učitelem:', added.join('\n\n')] : []),

@@ -13,7 +13,7 @@
 	import { CircleX, X } from '@lucide/svelte';
 	import Crumbs from '$lib/ui/Crumbs.svelte';
 	import { overlayOpen } from '$lib/ui/overlay';
-	import { plural } from '$lib/ui/plural';
+	import { plural } from '$lib/domain/plural';
 
 	interface Props {
 		onclose: () => void;

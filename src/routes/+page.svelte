@@ -62,7 +62,7 @@
 	import { loadSkillConfig } from '$lib/api/client';
 	import type { ImportNote } from '$lib/domain/legacy';
 	import { X } from '@lucide/svelte';
-	import { cardsCount, counted } from '$lib/ui/plural';
+	import { cardsCount, counted } from '$lib/domain/plural';
 
 	const store = new DocStore();
 	setStore(store);

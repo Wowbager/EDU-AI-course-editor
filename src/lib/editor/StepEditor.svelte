@@ -31,7 +31,7 @@
 	import { questionSettingApplies } from '$lib/domain/question-settings';
 	import Button from '$lib/ui/Button.svelte';
 	import { allows, fieldSpec, fieldsFor } from '$lib/ui/fields';
-	import { answersCount } from '$lib/ui/plural';
+	import { answersCount } from '$lib/domain/plural';
 	import {
 		CommandError,
 		deleteStep,

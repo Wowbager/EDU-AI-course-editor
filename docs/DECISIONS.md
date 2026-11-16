@@ -738,7 +738,7 @@ followed by a table was called "Části zlomku | Pozice | Název | Co říká | 
 takes the first non-empty line, which is what its own doc comment always claimed.
 
 **Counted nouns were not Czech.** The chips printed „1 chyb“ and the tree „1 kroků“.
-Czech takes three forms after a number — 1, 2–4, and 0 or 5+ — and `ui/plural.ts` is
+Czech takes three forms after a number — 1, 2–4, and 0 or 5+ — and `domain/plural.ts` is
 now the one place that knows them, shared by the chips, the tree, the lesson settings
 and the question-type dialog.
 
