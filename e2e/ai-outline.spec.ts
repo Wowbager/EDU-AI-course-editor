@@ -446,3 +446,54 @@ test('a „Nová lekce“ just added and selected gives way to the lessons of th
 		.poll(() => lessonsInCourse(page).locator('.name').allTextContents())
 		.toEqual(['První lekce', 'První lekce', 'Druhá lekce']);
 });
+
+test('the outline is back after a reload, with its hand-made rows, ticks and prompt', async ({
+	page
+}) => {
+	await ask(page, 'Kurz o zlomcích');
+	await page.getByRole('checkbox', { name: 'Vytvořit: Procvičení' }).uncheck();
+	await panel(page).getByRole('button', { name: 'Nová lekce' }).click();
+	await page.keyboard.type('Moje lekce');
+	await page.keyboard.press('Enter');
+	await page.keyboard.type('Moje karta');
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('Escape');
+	await expect.poll(lessonNames(page)).toEqual(['První lekce', 'Druhá lekce', 'Moje lekce']);
+
+	await page.reload();
+	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
+	await expect.poll(lessonNames(page)).toEqual(['První lekce', 'Druhá lekce', 'Moje lekce']);
+	await expect.poll(names(page, 2)).toEqual(['Moje karta']);
+	await expect(page.getByRole('checkbox', { name: 'Vytvořit: Procvičení' })).not.toBeChecked();
+	await expect(page.getByRole('checkbox', { name: 'Vytvořit: Moje karta' })).toBeChecked();
+	await expect(box(page)).toHaveAttribute('placeholder', 'Co změnit?');
+
+	// Its first prompt came back with it: it is saved on the course at „Vytvořit vybrané“.
+	await create(page).click();
+	await expect(panel(page).locator('.queue-row.done')).toHaveCount(5);
+	await expect
+		.poll(async () => {
+			const saved = await page.evaluate(() => localStorage.getItem('edu-editor:draft:v1'));
+			return saved === null ? undefined : JSON.parse(saved).doc.authoring_request;
+		})
+		.toBe('Kurz o zlomcích');
+	// And once created it is not there after another reload.
+	await page.reload();
+	await expect(page.locator('html')).toHaveAttribute('data-hydrated', 'true');
+	await expect(panel(page).getByText('Napiš, co chceš vytvořit.')).toBeVisible();
+});
+
+test("another course does not show this course's outline", async ({ page }) => {
+	await ask(page, 'Kurz o zlomcích');
+	await page.setInputFiles(
+		'input[type=file][accept*="json"]',
+		'src/lib/domain/__tests__/fixtures/corpus/zlomky-5-trida.json'
+	);
+	await expect(page.getByText('každá otázka se teď žákovi hodnotí zvlášť')).toBeVisible();
+	await expect(panel(page).getByText('Napiš, co chceš vytvořit.')).toBeVisible();
+	await expect(create(page)).toHaveCount(0);
+	// Its history is not this course's either.
+	await panel(page).focus();
+	await page.keyboard.press('Control+z');
+	await expect(create(page)).toHaveCount(0);
+});

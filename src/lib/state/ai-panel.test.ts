@@ -456,3 +456,107 @@ describe('what is counted for a card waiting in the queue', () => {
 		aiPanel.queue.clear();
 	});
 });
+
+describe('the outline belongs to its course and is kept in the browser', () => {
+	/** A `localStorage` of our own, shared by the "reloads" of one test. */
+	function storage() {
+		const items = new Map<string, string>();
+		const fake = {
+			getItem: (k: string) => items.get(k) ?? null,
+			setItem: (k: string, v: string) => void items.set(k, v),
+			removeItem: (k: string) => void items.delete(k)
+		};
+		vi.stubGlobal('localStorage', fake);
+		return items;
+	}
+	let n = 0;
+	/** A course id no other test has used, as a fresh singleton would see it. */
+	const course = () => `KURZ-${++n}-${Math.random()}`;
+
+	it('is back after a reload with its ticks, hand-made rows and first prompt, but no history', async () => {
+		const { store } = setup();
+		server();
+		const items = storage();
+		const id = course();
+		aiPanel.follow(id);
+		await aiPanel.send(store, 'Kurz o zlomcích');
+		const lesson = aiPanel.draft!.lessons[0];
+		aiPanel.change(setCardTick(aiPanel.draft!, lesson.cards[1].key, false));
+		aiPanel.change(addDraftCard(aiPanel.draft!, lesson.key, 'mine'));
+		aiPanel.amend(renameDraftCard(aiPanel.draft!, 'mine', 'Moje karta'));
+		const before = toOutline(aiPanel.draft!, 'all');
+		const ticked = toOutline(aiPanel.draft!, 'ticked');
+		expect(items.size).toBe(1);
+
+		// A reload: another course, then this one again, from storage alone.
+		aiPanel.follow(course());
+		expect(aiPanel.draft).toBeNull();
+		aiPanel.follow(id);
+		expect(toOutline(aiPanel.draft!, 'all')).toEqual(before);
+		expect(toOutline(aiPanel.draft!, 'ticked')).toEqual(ticked);
+		expect(aiPanel.draft!.original).toBe('Kurz o zlomcích');
+		expect(aiPanel.canUndo).toBe(false);
+		// Created, it is gone from storage, and its prompt is on the course.
+		aiPanel.create(store);
+		expect((store.source as Record<string, unknown>)[REQUEST_KEY]).toBe('Kurz o zlomcích');
+		expect(items.size).toBe(0);
+		await done();
+	});
+
+	it('is not shown on another course, nor its history; „Zahodit návrh“ forgets it', async () => {
+		const { store } = setup();
+		server();
+		const items = storage();
+		const first = course();
+		aiPanel.follow(first);
+		aiPanel.start('lessons');
+		aiPanel.amend(renameDraftLesson(aiPanel.draft!, aiPanel.typing!.key, 'Moje lekce'));
+		const other = course();
+		aiPanel.follow(other);
+		expect(aiPanel.draft).toBeNull();
+		expect(aiPanel.canUndo).toBe(false);
+		await aiPanel.send(store, 'Kurz o zlomcích');
+		expect(items.size).toBe(2);
+		aiPanel.follow(first);
+		expect(aiPanel.draft!.lessons.map((l) => l.name)).toEqual(['Moje lekce']);
+		expect(aiPanel.draft!.original).toBeUndefined();
+		aiPanel.discard();
+		expect(items.size).toBe(1);
+		aiPanel.follow(other);
+		expect(aiPanel.draft!.lessons.map((l) => l.name)).toEqual(['První lekce', 'Druhá lekce']);
+	});
+
+	it('a request still running when the course changes is forgotten', async () => {
+		const { store } = setup();
+		server();
+		storage();
+		aiPanel.follow(course());
+		const pending = aiPanel.send(store, 'Kurz o zlomcích');
+		aiPanel.follow(course());
+		await pending;
+		expect(aiPanel.draft).toBeNull();
+		expect(aiPanel.asking).toBe(false);
+	});
+
+	it('one stored that no longer parses is dropped, quietly', () => {
+		const items = storage();
+		const id = course();
+		items.set(`edu-editor:outline:v1:${id}`, '{"format":1,"draft":{"scope":"nope"}}');
+		aiPanel.follow(id);
+		expect(aiPanel.draft).toBeNull();
+		expect(items.size).toBe(0);
+	});
+
+	it('undoing „Zahodit návrh“ brings back its first prompt too', async () => {
+		const { store } = setup();
+		const seen = server();
+		await aiPanel.send(store, 'Kurz o zlomcích');
+		aiPanel.discard();
+		aiPanel.undo();
+		await aiPanel.send(store, 'přidej kvíz');
+		expect(seen.at(-1)!.body.original).toBe('Kurz o zlomcích');
+		aiPanel.create(store);
+		expect((store.source as Record<string, unknown>)[REQUEST_KEY]).toBe('Kurz o zlomcích');
+		await done();
+	});
+});

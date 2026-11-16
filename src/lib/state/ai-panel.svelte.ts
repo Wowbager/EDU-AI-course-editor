@@ -10,6 +10,10 @@
  * „Zahodit návrh“ and the AI replacing it is a step, until „Vytvořit vybrané“ ends it.
  * A proposal the AI is still writing is not stepped through lesson by lesson: it is one
  * step once it is there.
+ *
+ * The outline belongs to its course (`follow`): another course has its own, or none, and
+ * the history starts again. It is kept in the browser per course (`outline-store.ts`), so
+ * it is back after a reload, without its history.
  */
 import {
 	addDraftCard,
@@ -29,6 +33,7 @@ import { insertOutline } from '$lib/domain/outline-insert';
 import { ai, askOutline, TEXT, type Problem } from './ai.svelte';
 import { materials } from './materials.svelte';
 import { WriteQueue, type RunResult, type Row } from './write-queue.svelte';
+import { readOutline, writeOutline } from './outline-store';
 import type { DocStore } from './doc-store.svelte';
 
 const PROPOSAL_TEXT = {
@@ -36,16 +41,27 @@ const PROPOSAL_TEXT = {
 	failed: 'Návrh se nepodařilo vytvořit. Zkus to znovu, třeba jinak napsané.'
 } as const;
 
+const storage = (): Storage | undefined =>
+	typeof localStorage === 'undefined' ? undefined : localStorage;
+
 class AiPanel {
-	/** The proposal being shaped, or none. */
-	draft = $state<Draft | null>(null);
+	#draft = $state<Draft | null>(null);
+	/** The course the outline belongs to; none until the panel says (`follow`). */
+	#course: string | null = null;
+
+	/** The proposal being shaped, or none. Every change is kept for the course. */
+	get draft(): Draft | null {
+		return this.#draft;
+	}
+	set draft(next: Draft | null) {
+		this.#draft = next;
+		if (this.#course !== null) writeOutline(storage(), this.#course, next);
+	}
 	#history = $state<History<Draft | null>>(emptyHistory());
 	/** Counts every step, so a step can be taken back only while it is still the last one. */
 	#steps = 0;
 	/** A row just added for the teacher to name: the outline's tree opens it as a field. */
 	typing = $state<{ key: string; step: number } | null>(null);
-	/** The prompt the proposal started from; a change is sent with it. */
-	#original = '';
 	asking = $state(false);
 	/** The proposal on screen is still being written, lesson by lesson. */
 	incoming = $state(false);
@@ -131,6 +147,22 @@ class AiPanel {
 		return true;
 	}
 
+	/**
+	 * The course on screen. Another course brings its own outline (or none) and a history
+	 * of its own; a request still running for the one before is forgotten.
+	 */
+	follow(courseId: string): void {
+		if (courseId === this.#course) return;
+		this.#generation++;
+		this.asking = false;
+		this.incoming = false;
+		this.problem = '';
+		this.#course = courseId;
+		this.#step(emptyHistory());
+		this.typing = null;
+		this.#draft = readOutline(storage(), courseId, this.#key);
+	}
+
 	/** The outline's history is over: at „Vytvořit vybrané“. */
 	forget(): void {
 		this.#step(emptyHistory());
@@ -173,7 +205,7 @@ class AiPanel {
 			store.doc,
 			store.selection,
 			prompt,
-			current === undefined ? undefined : { current, original: this.#original },
+			current === undefined ? undefined : { current, original: previous?.original ?? '' },
 			materials.sections
 		);
 		// A finished batch is over once the teacher asks for something else.
@@ -191,6 +223,9 @@ class AiPanel {
 			if (generation !== this.#generation) return;
 			if (event.type === 'scope') {
 				building = emptyDraft(event.scope, this.#key);
+				// A fresh proposal remembers what it was made from; a change keeps the first prompt.
+				const original = fresh ? prompt : previous?.original;
+				if (original !== undefined && original !== '') building = { ...building, original };
 				if (fresh) this.draft = building;
 				return;
 			}
@@ -210,7 +245,6 @@ class AiPanel {
 			if (!(fresh && some)) return;
 		}
 		if (fresh) {
-			this.#original = prompt;
 			// The whole proposal is one step from the empty panel.
 			this.#step(record(this.#history, null));
 		} else if (got !== null) this.change(got);
@@ -227,7 +261,6 @@ class AiPanel {
 		this.incoming = false;
 		this.change(null);
 		this.problem = '';
-		this.#original = '';
 	}
 
 	/**
@@ -238,7 +271,7 @@ class AiPanel {
 		const outline = this.draft === null ? undefined : toOutline(this.draft, 'ticked');
 		if (outline === undefined || this.asking) return;
 		// The request that made a course structure is kept on the course for the cards' dossier.
-		const request = outline.scope === 'lessons' ? this.#original : undefined;
+		const request = outline.scope === 'lessons' ? this.draft?.original : undefined;
 		// The selection may have gone (a lesson deleted meanwhile): then the end of the course.
 		const { selection, doc } = store;
 		const at = {
@@ -269,7 +302,6 @@ class AiPanel {
 		this.draft = null;
 		this.forget();
 		this.problem = '';
-		this.#original = '';
 		this.queue.start(added);
 	}
 

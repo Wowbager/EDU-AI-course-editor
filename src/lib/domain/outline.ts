@@ -282,6 +282,11 @@ export interface DraftLesson {
 export interface Draft {
 	scope: Outline['scope'];
 	lessons: DraftLesson[];
+	/**
+	 * The prompt the proposal was made from; „Co změnit?“ sends it with a change, and
+	 * „Vytvořit vybrané“ keeps it on the course. None for an outline made by hand.
+	 */
+	original?: string;
 }
 
 export type KeyMaker = () => string;

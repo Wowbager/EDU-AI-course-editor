@@ -32,11 +32,14 @@
 	let text = $state('');
 	let field = $state<HTMLTextAreaElement>();
 
-	// The course's materials follow the course, not every edit of it.
+	// The course's materials and outline follow the course, not every edit of it.
 	const courseId = $derived(store.doc.course_id);
 	$effect(() => {
 		const id = courseId;
-		untrack(() => void materials.load(id));
+		untrack(() => {
+			aiPanel.follow(id);
+			void materials.load(id);
+		});
 	});
 
 	let picker = $state<HTMLInputElement>();
