@@ -3198,6 +3198,17 @@ did not see each other.
   rejected: the original is never sent. SheetJS cannot show a date written `d.m.yyyy`, so
   that format is retried with its dots escaped (`sheets.ts`).
 
+## Round 35 — more kinds of picture in the materials
+
+- **GIF, BMP and AVIF** are read as pictures: the browser decodes them and `shrink` draws
+  anything that is not PNG, JPEG or WebP into a JPEG, so `/ai/read` gets a type it takes
+  (an animated GIF is its first frame).
+- **TIFF** (`materials/tiff.ts`, `utif2` on demand): every page is drawn and read, counts
+  as a page against `MAX_PAGES`, and a page that fails is an `unread` line, as in a PDF.
+- **HEIC/HEIF** is tried in the browser first; only when that cannot decode it is it
+  converted to JPEG with `heic2any`, loaded then (its own 1.3 MB chunk). *Rejected:*
+  `heic-to` (LGPL libheif build, not something to ship in the editor's bundle).
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

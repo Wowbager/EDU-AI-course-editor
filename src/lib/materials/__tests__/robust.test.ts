@@ -12,6 +12,7 @@ const room = { pages: MAX_PAGES };
 const io = (over: Partial<ReadIO> = {}): ReadIO => ({
 	ocr: async () => 'Přepis',
 	shrink: async (b) => b,
+	fromPixels: async () => new Blob(['x']),
 	renderPage: async () => new Blob(['x']),
 	...over
 });

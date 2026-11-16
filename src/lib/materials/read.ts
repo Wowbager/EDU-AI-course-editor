@@ -12,9 +12,21 @@ import {
 } from '$lib/domain/materials';
 import { Refused, type ReadIO, type ReadOut, type Room } from './types';
 
-export type Kind = 'docx' | 'pptx' | 'pdf' | 'image' | 'text' | 'sheet';
+export type Kind = 'docx' | 'pptx' | 'pdf' | 'image' | 'tiff' | 'text' | 'sheet';
 
-export const IMAGE_TYPES = ['.png', '.jpg', '.jpeg', '.webp', '.heic'];
+export const IMAGE_TYPES = [
+	'.png',
+	'.jpg',
+	'.jpeg',
+	'.webp',
+	'.gif',
+	'.bmp',
+	'.avif',
+	'.heic',
+	'.heif'
+];
+/** A scanner's pictures: one file can hold several pages. */
+export const TIFF_TYPES = ['.tif', '.tiff'];
 export const TEXT_TYPES = ['.txt', '.md'];
 export const SHEET_TYPES = ['.xlsx', '.xls', '.ods', '.csv', '.tsv', '.numbers'];
 /** For the file picker. */
@@ -23,6 +35,7 @@ export const ACCEPT = [
 	'.pptx',
 	'.pdf',
 	...IMAGE_TYPES,
+	...TIFF_TYPES,
 	...TEXT_TYPES,
 	...SHEET_TYPES
 ].join(',');
@@ -32,6 +45,7 @@ export function kindOf(name: string): Kind | undefined {
 	if (ext === '.docx') return 'docx';
 	if (ext === '.pptx') return 'pptx';
 	if (ext === '.pdf') return 'pdf';
+	if (TIFF_TYPES.includes(ext)) return 'tiff';
 	if (TEXT_TYPES.includes(ext)) return 'text';
 	if (SHEET_TYPES.includes(ext)) return 'sheet';
 	return IMAGE_TYPES.includes(ext) ? 'image' : undefined;
@@ -67,6 +81,9 @@ export interface Libraries {
 	jszip(): Promise<Parameters<typeof import('./pptx').readPptx>[3]>;
 	pdfjs(): Promise<Parameters<typeof import('./pdf').readPdf>[3]>;
 	xlsx(): Promise<Parameters<typeof import('./sheets').readSheets>[3]>;
+	utif(): Promise<Parameters<typeof import('./tiff').readTiff>[3]>;
+	/** Converts a HEIC photo the browser cannot decode; large, so loaded only then. */
+	heic(): Promise<import('./image').HeicConverter>;
 }
 
 export async function readMaterial(
@@ -89,10 +106,17 @@ export async function readMaterial(
 		out = await (await import('./pptx')).readPptx(data, io, room, await libraries.jszip());
 	else if (kind === 'pdf')
 		out = await (await import('./pdf')).readPdf(data, io, room, await libraries.pdfjs());
+	else if (kind === 'tiff')
+		out = await (
+			await import('./tiff')
+		).readTiff(data, io, room, await libraries.utif(), file.name);
 	else if (kind === 'text') out = (await import('./text')).readText(data, file.name, room);
 	else if (kind === 'sheet')
 		out = (await import('./sheets')).readSheets(data, file.name, room, await libraries.xlsx());
-	else out = await (await import('./image')).readImage(file as Blob & { name: string }, io);
+	else
+		out = await (
+			await import('./image')
+		).readImage(file as Blob & { name: string }, io, libraries.heic);
 
 	if (out.pieces.length === 0)
 		throw new Refused(
