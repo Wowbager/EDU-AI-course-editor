@@ -3192,6 +3192,24 @@ did not see each other.
 - **One line while the plan is made**: „Promýšlím karty…“ above the rows, which otherwise
   all say „Čeká na řadu“ for the plan's minute.
 
+- **The teacher's request outranks the prompt's defaults** (`OUTLINE_SYSTEM_PROMPT`). „Jen
+  test o zlomcích“ got an explanation card because "explain, practise, check" was an
+  unconditional rule, and with no lesson selected the model had to propose a whole
+  lesson to put it in. Now the order is request, then materials, then defaults; the
+  default lesson shape and "cover every file" apply only to a request for a course or
+  lesson in general, and a „lessons“ proposal may be one lesson with only the asked-for
+  cards. The same wording is in the card prompt (`AUTHOR_SYSTEM_PROMPT`): a practice or
+  quiz card opens with a question, not an explanation. *Rejected:* few-shot examples in
+  the prompt (owner): the behaviour is described so the model adapts to the situation,
+  not to the examples' wording.
+- **The scope line states the request's limits**: `{"scope":"cards","only":[…],"count":N}`,
+  present only when the prompt sets them. The server enforces them (`limitProblem`): a
+  card of another kind goes back through the per-line retry; cards beyond `count` are
+  dropped, a lesson too long for what is left is asked for again. They are never sent to
+  the browser. Enforcement is the backstop; the prompt is what makes it rarely fire.
+  `npm run eval:ai` runs about 20 Czech prompts against the real model (not in
+  `npm test`), 16/23 on the old prompt, 23/23 on both runs of the new one.
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

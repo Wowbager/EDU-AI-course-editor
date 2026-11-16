@@ -172,6 +172,107 @@ describe('outlineEvents', () => {
 		log.mockRestore();
 	});
 
+	describe('the limits of the request', () => {
+		const C = (kind: string, name: string) => JSON.stringify({ kind, name });
+		const scope = (extra = '') => `{"scope":"cards"${extra}}`;
+		const inLesson = (over: Partial<OutlineRequest> = {}) =>
+			request({ prompt: 'jen test', target: { lesson: 'L', lessons: 1 }, ...over });
+		const names = (events: OutlineEvent[]) =>
+			events.flatMap((e) => (e.type === 'card' ? [e.card.name] : []));
+
+		it('asks again for a card of a kind the request does not allow, and puts it back in place', async () => {
+			const model = scripted(
+				40,
+				[
+					scope(',"only":["question","exercise"]'),
+					C('question', 'A'),
+					C('display', 'Úvod'),
+					C('exercise', 'B')
+				].join('\n'),
+				C('exercise', 'Úvod místo')
+			);
+			const events = await run(inLesson(), model);
+			expect(names(events)).toEqual(['A', 'B', 'Úvod místo']);
+			expect(events.find((e) => e.type === 'card' && e.card.name === 'Úvod místo')).toMatchObject({
+				at: 1
+			});
+			expect(model.seen[1].at(-1)!.content).toMatch(/"display".*only "question" and "exercise"/);
+			expect(events.at(-1)).toEqual({ type: 'done' });
+		});
+
+		it('refuses a retried card that still breaks the limit', async () => {
+			const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+			const model = scripted(
+				40,
+				[scope(',"only":["exercise"]'), C('exercise', 'A'), C('display', 'B')].join('\n'),
+				C('display', 'B2')
+			);
+			const events = await run(inLesson(), model);
+			expect(names(events)).toEqual(['A']);
+			expect(model.calls()).toBe(3);
+			expect(events.at(-1)).toEqual({ type: 'done' });
+			log.mockRestore();
+		});
+
+		it('leaves out cards beyond the count, without asking again', async () => {
+			const model = scripted(
+				40,
+				[scope(',"count":2'), C('display', 'A'), C('display', 'B'), C('display', 'C')].join('\n')
+			);
+			const events = await run(inLesson(), model);
+			expect(names(events)).toEqual(['A', 'B']);
+			expect(model.calls()).toBe(1);
+		});
+
+		it('asks for a lesson again when it is too long for the count', async () => {
+			const model = scripted(
+				40,
+				[
+					'{"scope":"lessons","count":3}',
+					L('Dlouhá', ['question', 'A'], ['question', 'B'], ['question', 'C'], ['question', 'D'])
+				].join('\n'),
+				L('Dlouhá', ['question', 'A'], ['question', 'B'], ['question', 'C'])
+			);
+			const events = await run(request({ prompt: 'test, 3 otázky' }), model);
+			const lessons = events.filter((e) => e.type === 'lesson');
+			expect(lessons).toHaveLength(1);
+			expect(lessons[0].type === 'lesson' && lessons[0].lesson.cards).toHaveLength(3);
+			expect(model.seen[1].at(-1)!.content).toMatch(/3 cards in all/);
+		});
+
+		it('never sends the limits to the browser', async () => {
+			const events = await run(
+				inLesson(),
+				scripted(40, [scope(',"only":["exercise"],"count":1'), C('exercise', 'A')].join('\n'))
+			);
+			expect(events[0]).toEqual({ type: 'scope', scope: 'cards' });
+		});
+
+		it('keeps every card when the scope line sets no limits', async () => {
+			const model = scripted(
+				40,
+				[scope(), C('display', 'A'), C('question', 'B'), C('exercise', 'C')].join('\n')
+			);
+			expect(names(await run(inLesson(), model))).toEqual(['A', 'B', 'C']);
+			expect(model.calls()).toBe(1);
+		});
+
+		it('applies them to a reworked proposal as well', async () => {
+			const current: Outline = { scope: 'cards', cards: [{ kind: 'question', name: 'Stará' }] };
+			const model = scripted(
+				40,
+				[
+					scope(',"only":["question","exercise"],"count":2'),
+					C('question', 'Stará'),
+					C('display', 'Úvod')
+				].join('\n'),
+				C('exercise', 'Nová')
+			);
+			const events = await run(inLesson({ current, original: 'test' }), model);
+			expect(names(events)).toEqual(['Stará', 'Nová']);
+		});
+	});
+
 	it('puts the system prompt first, the dossier second and the request last', async () => {
 		const model = scripted(50, GOOD);
 		await run(request(), model);

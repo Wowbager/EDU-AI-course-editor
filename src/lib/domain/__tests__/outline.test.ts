@@ -17,8 +17,11 @@ import {
 	type Draft,
 	addToDraft,
 	applyEvent,
+	limitProblem,
 	lineSplitter,
 	readLine,
+	type OutlineEvent,
+	type OutlineKind,
 	cardCount,
 	draftOf,
 	keyMaker,
@@ -389,6 +392,48 @@ describe('the stream of lines', () => {
 		expect(readLine(card('**Tučně**'))).toMatchObject({
 			problem: expect.stringMatching(/plain text/)
 		});
+	});
+
+	it('reads the limits of the scope line, and leaves out what is unusable', () => {
+		expect(readLine({ scope: 'cards', only: ['question', 'exercise'], count: 10 })).toEqual({
+			event: { type: 'scope', scope: 'cards', only: ['question', 'exercise'], count: 10 }
+		});
+		// Unknown kinds, an empty list, zero and fractions are dropped; the line stays good.
+		expect(readLine({ scope: 'cards', only: ['quiz'], count: 0 })).toEqual({
+			event: { type: 'scope', scope: 'cards' }
+		});
+		expect(
+			readLine({ scope: 'lessons', only: ['display', 'quiz', 'display'], count: 2.5 })
+		).toEqual({
+			event: { type: 'scope', scope: 'lessons', only: ['display'] }
+		});
+		expect(readLine({ scope: 'lessons', only: 'display', count: '3' })).toEqual({
+			event: { type: 'scope', scope: 'lessons' }
+		});
+	});
+
+	it('says what breaks the limits, and whether asking again could help', () => {
+		const lesson = (...kinds: OutlineKind[]): OutlineEvent => ({
+			type: 'lesson',
+			lesson: { name: 'L', cards: kinds.map((kind, i) => ({ kind, name: `C${i}` })) }
+		});
+		const one = (kind: OutlineKind): OutlineEvent => ({ type: 'card', card: { kind, name: 'X' } });
+		expect(limitProblem({}, 50, lesson('display', 'exercise'))).toBeUndefined();
+		const only = { only: ['question' as const, 'exercise' as const] };
+		expect(limitProblem(only, 0, one('exercise'))).toBeUndefined();
+		expect(limitProblem(only, 0, one('display'))).toMatchObject({
+			problem: expect.stringMatching(/"display".*"question" and "exercise"/),
+			drop: false
+		});
+		expect(limitProblem(only, 0, lesson('question', 'display'))).toMatchObject({ drop: false });
+		expect(limitProblem({ count: 3 }, 2, one('display'))).toBeUndefined();
+		expect(limitProblem({ count: 3 }, 3, one('display'))).toMatchObject({ drop: true });
+		// A lesson that is too long for what is left can be asked for shorter; a full proposal cannot.
+		expect(limitProblem({ count: 3 }, 1, lesson('display', 'display', 'display'))).toMatchObject({
+			problem: expect.stringMatching(/2 more fit/),
+			drop: false
+		});
+		expect(limitProblem({ count: 3 }, 3, lesson('display'))).toMatchObject({ drop: true });
 	});
 
 	it('builds the proposal and the draft event by event', () => {
