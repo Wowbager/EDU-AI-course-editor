@@ -58,7 +58,7 @@ test('a proposal made from materials shows where each card comes from, and the c
 	type Sent = {
 		materials?: string;
 		cards: { title: string; draws_on?: string[] }[];
-		resume?: unknown;
+		resume?: { next: number };
 	};
 	const sent: Sent[] = [];
 	const planned: { materials?: string }[] = [];
@@ -103,8 +103,8 @@ test('a proposal made from materials shows where each card comes from, and the c
 	expect(planned[0].materials).toContain('Ukázkový přepis obrázku');
 	for (const request of sent) expect(request.materials ?? '').toBe('');
 	// A card names the sections it draws on; one without sources names none. A lesson's
-	// first request lists its cards; the next ones carry the conversation on (`resume`).
-	const cards = sent.filter((r) => r.resume === undefined).flatMap((r) => r.cards);
+	// request for its first card (`resume.next` 0) lists them all; the later ones repeat them.
+	const cards = sent.filter((r) => r.resume?.next === 0).flatMap((r) => r.cards);
 	expect(cards).toHaveLength(5);
 	expect(cards.find((c) => c.title === 'Co to je')!.draws_on).toEqual([
 		expect.stringMatching(/^[0-9a-f]{8}\.0$/)
