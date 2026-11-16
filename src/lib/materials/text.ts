@@ -11,14 +11,18 @@ export const PAGE_CHARS = 3000;
 /** A plain text piece is cut at a line or blank line once it passes this. */
 const CHUNK_CHARS = 6000;
 
-/** The text of the bytes: UTF-8 without a BOM, or windows-1250 when they are not UTF-8. */
+/** The text of the bytes: UTF-16 with a BOM, UTF-8 (BOM dropped), or windows-1250 when the bytes are not UTF-8. */
 export function decodeText(data: ArrayBuffer): string {
+	const head = new Uint8Array(data, 0, Math.min(2, data.byteLength));
+	const bom = (text: string) => text.replace(/^\uFEFF/, '');
+	if (head.length === 2 && head[0] === 0xff && head[1] === 0xfe)
+		return bom(new TextDecoder('utf-16le').decode(data));
+	if (head.length === 2 && head[0] === 0xfe && head[1] === 0xff)
+		return bom(new TextDecoder('utf-16be').decode(data));
 	try {
-		return new TextDecoder('utf-8', { fatal: true, ignoreBOM: false })
-			.decode(data)
-			.replace(/^﻿/, '');
+		return bom(new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(data));
 	} catch {
-		return new TextDecoder('windows-1250').decode(data).replace(/^﻿/, '');
+		return bom(new TextDecoder('windows-1250').decode(data));
 	}
 }
 
@@ -62,7 +66,7 @@ export function readText(data: ArrayBuffer, name: string, room: Room): ReadOut {
 	let pieces: Piece[];
 	if (/\.md$/i.test(name)) pieces = splitMarkdown(text);
 	else {
-		const title = name.replace(/\.[^.]+$/, '') || name;
+		const title = (name.replace(/\.[^.]+$/, '') || name).slice(0, 190);
 		const parts = chunks(text);
 		pieces = parts.map((t, i) => ({
 			title: parts.length === 1 ? title : `${title} (${i + 1})`,

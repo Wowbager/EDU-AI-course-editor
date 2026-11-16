@@ -183,3 +183,56 @@ describe('kinds of file', () => {
 		);
 	});
 });
+
+describe('robustness', () => {
+	const utf16 = (text: string, le: boolean) => {
+		const out = new Uint8Array(2 + text.length * 2);
+		out.set(le ? [0xff, 0xfe] : [0xfe, 0xff]);
+		[...text].forEach((c, i) => {
+			const code = c.charCodeAt(0);
+			out.set(le ? [code & 255, code >> 8] : [code >> 8, code & 255], 2 + i * 2);
+		});
+		return out;
+	};
+
+	it('reads UTF-16 text and CSV with a BOM, either byte order', async () => {
+		for (const le of [true, false]) {
+			const t = await read(file(utf16('Řeka žlutá', le), 'u.txt'));
+			expect(t.sections[0].text).toBe('Řeka žlutá');
+			const c = await read(file(utf16('Město\tPočet\nPraha\t3\n', le), 'u.csv'));
+			expect(c.sections[0].text).toContain('| Praha | 3 |');
+		}
+	});
+
+	it('says there is no text in an empty text file', async () => {
+		await expect(read(file('  \n\n ', 'prazdny.txt'))).rejects.toThrow(
+			'V souboru prazdny.txt jsem nenašel žádný text, který by šel přečíst.'
+		);
+	});
+
+	it('keeps titles within 200 characters', async () => {
+		const long = 'a'.repeat(250);
+		const t = await read(file('text', `${long}.txt`));
+		expect(t.sections[0].title.length).toBeLessThanOrEqual(200);
+		const c = await read(file('a,b\n1,2\n', `${long}.csv`));
+		expect(c.sections[0].title.length).toBeLessThanOrEqual(200);
+	});
+
+	it('does not pad rows to a far-away column and ignores columns empty everywhere', async () => {
+		const wb = book({ S: [['A', 'B'], ...Array.from({ length: 40 }, (_, i) => [i, 'x'])] });
+		wb.Sheets.S['XFD2'] = { t: 's', v: 'far' };
+		wb.Sheets.S['!ref'] = 'A1:XFD41';
+		const out = await read(file(bytes(wb, 'xlsx'), 'w.xlsx'));
+		const lines = out.sections[0].text.split('\n');
+		expect(lines[0]).toBe('| A | B |  |');
+		expect(out.unread).toEqual([]);
+		expect(lines.length).toBe(42);
+	});
+
+	it('cuts a sheet with very many columns and says so', async () => {
+		const row = Array.from({ length: 80 }, (_, i) => `c${i}`);
+		const out = await read(file(bytes(book({ W: [row, row] }), 'xlsx'), 'w.xlsx'));
+		expect(out.sections[0].text.split('\n')[0].split('|').length).toBe(52);
+		expect(out.unread).toEqual(['List W: zkráceno na prvních 50 sloupců']);
+	});
+});

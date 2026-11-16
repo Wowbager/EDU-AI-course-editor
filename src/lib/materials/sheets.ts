@@ -33,28 +33,35 @@ function shown(XLSX: SheetJS, c: XLSXType.CellObject): string {
 	return XLSX.utils.format_cell({ ...c, w: undefined, z: c.z.replace(/(?<!\\)\.(?!0)/g, '\\.') });
 }
 
-/** The rows of a sheet that hold anything, each as its cells (empty trailing columns cut). */
-function rowsOf(XLSX: SheetJS, sheet: XLSXType.WorkSheet): string[][] {
+/** Columns kept in a table; a sheet with more is cut and says so. */
+const MAX_COLUMNS = 50;
+
+type Sparse = { cells: Map<number, string>; row: number };
+
+/** The rows of a sheet that hold anything, as the cells they have (nothing is padded). */
+function rowsOf(XLSX: SheetJS, sheet: XLSXType.WorkSheet): Sparse[] {
 	const byRow = new Map<number, Map<number, string>>();
 	for (const address of Object.keys(sheet)) {
 		if (address[0] === '!') continue;
-		const c = sheet[address] as XLSXType.CellObject;
-		const text = cell(shown(XLSX, c));
+		const text = cell(shown(XLSX, sheet[address] as XLSXType.CellObject));
 		if (text === '') continue;
-		const { r, c: col } = XLSX.utils.decode_cell(address);
+		const { r, c } = XLSX.utils.decode_cell(address);
 		if (!byRow.has(r)) byRow.set(r, new Map());
-		byRow.get(r)!.set(col, text);
+		byRow.get(r)!.set(c, text);
 	}
-	const width = Math.max(0, ...[...byRow.values()].flatMap((m) => [...m.keys()].map((k) => k + 1)));
-	return [...byRow.keys()]
-		.sort((a, b) => a - b)
-		.map((r) => Array.from({ length: width }, (_, i) => byRow.get(r)!.get(i) ?? ''));
+	return [...byRow].sort((a, b) => a[0] - b[0]).map(([row, cells]) => ({ row, cells }));
 }
 
-/** The rows as a Markdown table; the first row is its header. Cut when the text is too long. */
-function table(rows: string[][]): { text: string; kept: number } {
-	const line = (r: string[]) => `| ${r.join(' | ')} |`;
-	const lines = [line(rows[0]), `| ${rows[0].map(() => '---').join(' | ')} |`];
+/**
+ * The rows as a Markdown table over the columns that hold anything anywhere (the first
+ * `MAX_COLUMNS`); the first row is its header. Rows are made one at a time, and the table
+ * is cut when the text is too long.
+ */
+function table(rows: Sparse[]): { text: string; kept: number; columnsCut: boolean } {
+	const used = [...new Set(rows.flatMap((r) => [...r.cells.keys()]))].sort((a, b) => a - b);
+	const columns = used.slice(0, MAX_COLUMNS);
+	const line = (r: Sparse) => `| ${columns.map((c) => r.cells.get(c) ?? '').join(' | ')} |`;
+	const lines = [line(rows[0]), `| ${columns.map(() => '---').join(' | ')} |`];
 	let length = lines[0].length + lines[1].length + 2;
 	let kept = 1;
 	for (const row of rows.slice(1)) {
@@ -64,7 +71,7 @@ function table(rows: string[][]): { text: string; kept: number } {
 		length += l.length + 1;
 		kept++;
 	}
-	return { text: lines.join('\n'), kept };
+	return { text: lines.join('\n'), kept, columnsCut: used.length > columns.length };
 }
 
 export function readSheets(data: ArrayBuffer, name: string, room: Room, XLSX: SheetJS): ReadOut {
@@ -81,10 +88,12 @@ export function readSheets(data: ArrayBuffer, name: string, room: Room, XLSX: Sh
 	const unread: string[] = [];
 	for (const sheetName of book.SheetNames) {
 		const rows = rowsOf(XLSX, book.Sheets[sheetName]);
-		if (rows.length === 0 || rows[0].length === 0) continue;
-		const { text, kept } = table(rows);
-		const title = textual ? name.replace(/\.[^.]+$/, '') || name : sheetName;
+		if (rows.length === 0) continue;
+		const { text, kept, columnsCut } = table(rows);
+		const title = textual ? (name.replace(/\.[^.]+$/, '') || name).slice(0, 200) : sheetName;
 		pieces.push({ title, text });
+		if (columnsCut)
+			unread.push(`List ${title}: zkráceno na prvních ${MAX_COLUMNS} sloupců`.slice(0, 120));
 		if (kept < rows.length)
 			unread.push(`List ${title}: zkráceno na prvních ${kept} řádků`.slice(0, 120));
 	}
