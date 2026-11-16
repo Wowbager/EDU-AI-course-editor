@@ -851,8 +851,8 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 32px;
-		height: 32px;
+		width: 36px;
+		height: 36px;
 		padding: 0;
 		border: none;
 		border-radius: var(--radius-xs);

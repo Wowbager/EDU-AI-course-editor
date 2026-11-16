@@ -462,6 +462,7 @@
 						id={`ai-name-${card.key}`}
 						class="name-field"
 						aria-label="Název karty"
+						placeholder="Název karty"
 						bind:value={editing.value}
 						onblur={() => commit(card.key, false)}
 						onkeydown={(e) => onNameKey(e, card.key, false)}
@@ -564,6 +565,7 @@
 									id={`ai-name-${lesson.key}`}
 									class="name-field lesson-name"
 									aria-label="Název lekce"
+									placeholder="Název lekce"
 									bind:value={editing.value}
 									onblur={() => commit(lesson.key, true)}
 									onkeydown={(e) => onNameKey(e, lesson.key, true)}
@@ -842,7 +844,8 @@
 	.add {
 		display: block;
 		height: 20px;
-		margin: 2px 0 0 26px;
+		/* Under the lessons' tick boxes, as „+ karta“ is under the cards'. */
+		margin: 2px 0 0 49px;
 		padding: 0 4px;
 		border: none;
 		border-radius: var(--radius-xs);
