@@ -9,7 +9,7 @@ import { MIN_TEXT, Refused, TOO_MANY_PAGES, type ReadIO, type ReadOut, type Room
 import { MAX_PAGES } from '$lib/domain/materials';
 
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
-const unescapeXml = (s: string): string =>
+export const unescapeXml = (s: string): string =>
 	s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e: string) => {
 		if (e[0] === '#') {
 			const code = e[1].toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
@@ -40,7 +40,7 @@ function paragraphs(xml: string): string[] {
 const shapes = (xml: string): string[] => xml.match(/<p:sp[ >][\s\S]*?<\/p:sp>/g) ?? [];
 const isTitle = (shape: string): boolean => /<p:ph[^>]*type="(?:title|ctrTitle)"/.test(shape);
 
-const MEDIA: Record<string, string> = {
+export const MEDIA: Record<string, string> = {
 	png: 'image/png',
 	jpg: 'image/jpeg',
 	jpeg: 'image/jpeg',
@@ -57,7 +57,7 @@ function relations(xml: string | null): { id: string; type: string; target: stri
 }
 
 /** `target` as a path in the archive, from the folder of the part that names it. */
-function resolve(from: string, target: string): string {
+export function resolve(from: string, target: string): string {
 	if (target.startsWith('/')) return target.slice(1);
 	const parts = from.split('/').slice(0, -1);
 	for (const part of target.split('/')) {
