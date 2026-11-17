@@ -213,7 +213,7 @@
 		window.addEventListener('blur', release);
 	}
 	/**
-	 * A press on a lesson folds the list once the pointer moves: before the library's
+	 * A press on a lesson folds the list once the pointer moves 2 px: before the library's
 	 * own threshold (3 px), so it still measures the folded list, but not on a plain
 	 * click, which would fold and unfold the tree under the teacher's click.
 	 */
@@ -227,7 +227,10 @@
 		const { pointerId, clientX, clientY } = event;
 		const move = (e: PointerEvent) => {
 			if (e.pointerId !== pointerId) return;
-			if (Math.abs(e.clientX - clientX) < 1 && Math.abs(e.clientY - clientY) < 1) return;
+			// Released where the window did not see it (another window): no drag after all.
+			if (e.buttons === 0) return stop();
+			// The jitter of a click is no drag; the library's own threshold is 3 px.
+			if (Math.abs(e.clientX - clientX) < 2 && Math.abs(e.clientY - clientY) < 2) return;
 			stop();
 			void grab(lesson);
 		};

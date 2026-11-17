@@ -73,6 +73,8 @@ test('a press on a lesson that never moves folds nothing, so a click does not fl
 	const head = (await names(page).nth(1).boundingBox())!;
 	await page.mouse.move(head.x + 20, head.y + head.height / 2);
 	await page.mouse.down();
+	// A click's jitter is no drag either.
+	await page.mouse.move(head.x + 21, head.y + head.height / 2 + 1);
 	await expect(cards(page).first()).toBeVisible();
 	await expect(page.getByText('Přidat kartu:')).toBeVisible();
 	await page.mouse.up();
