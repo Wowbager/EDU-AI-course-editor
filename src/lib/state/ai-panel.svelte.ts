@@ -174,9 +174,13 @@ class AiPanel {
 					plan !== null && fitsFully(sections)
 						? ''
 						: renderMaterials(sections, { for: 'lesson', refs }),
-				// The plan's conversation has shown every picture already.
+				// The plan's conversation has shown every picture already; without it a card may
+				// show only the pictures sent with it, the ones its lesson draws on.
 				pictures: plan !== null ? [] : picturesFor(sections, { for: 'lesson', refs }),
-				pictureKeys: pictureKeys(sections),
+				pictureKeys:
+					plan !== null
+						? pictureKeys(sections)
+						: picturesFor(sections, { for: 'lesson', refs }).map((p) => p.key),
 				...(plan !== null ? { plan } : {})
 			}
 		);

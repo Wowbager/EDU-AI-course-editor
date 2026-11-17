@@ -27,7 +27,7 @@ import {
 import type { PlanRequest } from '$lib/domain/plan';
 import { outlineEventSchema, type OutlineEvent, type OutlineRequest } from '$lib/domain/outline';
 import { workspaceKey } from '$lib/state/versions/server';
-import { pictureKeys, picturesFor, renderMaterials } from '$lib/domain/materials';
+import { picturesFor, renderMaterials } from '$lib/domain/materials';
 import { imageAddress } from '$lib/api/images';
 import { usableSources, type Assigned, type SourcesRequest } from '$lib/domain/source-assign';
 import { materials } from './materials.svelte';
@@ -336,7 +336,11 @@ class Ai {
 							for: 'lesson',
 							refs: sourceRefsOf(target)
 						}),
-						pictureKeys: pictureKeys(materials.sections)
+						// Only the pictures the model is shown with this card.
+						pictureKeys: picturesFor(materials.sections, {
+							for: 'lesson',
+							refs: sourceRefsOf(target)
+						}).map((p) => p.key)
 					});
 		if (built === undefined) return { status: 'nothing' };
 		let card: GeneratedCard | undefined;

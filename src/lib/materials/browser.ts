@@ -157,14 +157,20 @@ export const browserIO: ReadIO = {
 			throw new Error('cannot decode');
 		}
 		try {
-			const size = fitSide(bitmap.width, bitmap.height, PICTURE_SIDE);
+			let side = PICTURE_SIDE;
+			const first = fitSide(bitmap.width, bitmap.height, side);
 			const kept = /^image\/(png|jpeg|webp)$/.test(picture.type);
-			if (size.width === bitmap.width && kept && picture.size <= PICTURE_BYTES) return picture;
-			const { canvas, context } = white(size.width, size.height);
-			context.imageSmoothingQuality = 'high';
-			context.drawImage(bitmap, 0, 0, size.width, size.height);
-			const jpeg = await toBlob(canvas, 'image/jpeg', 0.85);
-			return jpeg.size <= PICTURE_BYTES ? jpeg : toBlob(canvas, 'image/jpeg', 0.6);
+			if (first.width === bitmap.width && kept && picture.size <= PICTURE_BYTES) return picture;
+			// A JPEG at good quality; a very detailed photo is made smaller until it fits.
+			for (;;) {
+				const size = fitSide(bitmap.width, bitmap.height, side);
+				const { canvas, context } = white(size.width, size.height);
+				context.imageSmoothingQuality = 'high';
+				context.drawImage(bitmap, 0, 0, size.width, size.height);
+				const jpeg = await toBlob(canvas, 'image/jpeg', 0.85);
+				if (jpeg.size <= PICTURE_BYTES || side <= 400) return jpeg;
+				side = Math.round(side * 0.75);
+			}
 		} finally {
 			bitmap.close();
 		}

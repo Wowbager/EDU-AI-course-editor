@@ -408,6 +408,51 @@ describe('planning before writing, and a lesson per request', () => {
 		expect(aiPanel.problem).toBe('');
 	});
 
+	it('lets a card show only the pictures the model was shown: with a plan all, without one those its lesson draws on', async () => {
+		const id = (n: number) => `0123abcd-0000-4000-8000-00000000000${n}-obrazek.jpg`;
+		const picture = (n: number) => ({
+			key: `abcdef02.${n}`,
+			file: 'obrazky.jpg',
+			title: `Obrázek ${n}`,
+			text: '',
+			picture: id(n)
+		});
+		const files = [
+			{
+				hash: 'abcdef02',
+				name: 'obrazky.jpg',
+				pages: 2,
+				unread: [],
+				sections: [picture(0), picture(1)]
+			}
+		];
+		try {
+			// The fake gives the first card the first section as its source.
+			const withPlan = setup();
+			const planned = server();
+			await materials.ready(withPlan.store.doc.course_id);
+			materials.files = files;
+			await accept(withPlan.store, withPlan.lessonId);
+			await done();
+			expect(only(planned, '/ai/plan')[0].body.pictures).toHaveLength(2);
+			const lesson = only(planned, '/ai/lesson')[0].body;
+			expect(lesson.pictures).toBeUndefined();
+			expect(lesson.picture_keys).toEqual(['abcdef02.0', 'abcdef02.1']);
+
+			const without = setup();
+			const unplanned = server({ plan: 'fail' });
+			await materials.ready(without.store.doc.course_id);
+			materials.files = files;
+			await accept(without.store, without.lessonId);
+			await done();
+			const alone = only(unplanned, '/ai/lesson')[0].body;
+			expect(alone.pictures).toEqual([{ key: 'abcdef02.0', id: id(0) }]);
+			expect(alone.picture_keys).toEqual(['abcdef02.0']);
+		} finally {
+			materials.files = [];
+		}
+	});
+
 	it('a plan that is a refusal from the limits does not stop the cards either', async () => {
 		const { store, lessonId } = setup();
 		const seen = server();
