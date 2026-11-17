@@ -20,9 +20,12 @@ import {
 	genRequestSchema,
 	MAX_CONTEXT_CHARS,
 	MAX_MATERIALS_CHARS,
+	pictureKeysSchema,
+	picturesSchema,
 	sourceRefsOf,
 	type GeneratedCard,
-	type GenRequest
+	type GenRequest,
+	type PictureRef
 } from './authoring';
 import { planRequestSchema, planSchema, type PlanRequest, type PlanTargets } from './plan';
 import { MAX_CARDS, MAX_SOURCES } from './outline';
@@ -81,6 +84,10 @@ export const lessonRequestSchema = z.object({
 	/** The dossier: of the course, or with a plan only the lesson as it is now. */
 	context: z.string().max(MAX_CONTEXT_CHARS),
 	materials: z.string().max(MAX_MATERIALS_CHARS).optional(),
+	/** The pictures these cards draw on, when the plan did not already show them all. */
+	pictures: picturesSchema.optional(),
+	/** The keys of every picture of the materials: what a card may show. */
+	picture_keys: pictureKeysSchema.optional(),
 	/**
 	 * The conversation goes on one card a turn, a request each, so that the browser can say
 	 * what the teacher changed in between: card `next` is written after `messages` (what the
@@ -126,7 +133,8 @@ export function cardRequestOf(request: LessonRequest, index: number): GenRequest
 		course: request.course,
 		lesson: request.lesson,
 		card,
-		context: ''
+		context: '',
+		...(request.picture_keys !== undefined ? { picture_keys: request.picture_keys } : {})
 	};
 }
 
@@ -142,6 +150,9 @@ export function buildLessonRequest(
 	options: {
 		context: string;
 		materials?: string;
+		/** The pictures to send, and the keys of all of them (`picturesFor`, `pictureKeys`). */
+		pictures?: readonly PictureRef[];
+		pictureKeys?: readonly string[];
 		plan?: { request: PlanRequest; turn: AssistantTurnData; targets: PlanTargets };
 	}
 ): { request: LessonRequest; ids: string[] } | undefined {
@@ -174,6 +185,12 @@ export function buildLessonRequest(
 			cards,
 			context: options.context,
 			...(sourced ? { materials: options.materials } : {}),
+			...(options.pictures !== undefined && options.pictures.length > 0
+				? { pictures: [...options.pictures] }
+				: {}),
+			...(options.pictureKeys !== undefined && options.pictureKeys.length > 0
+				? { picture_keys: [...options.pictureKeys] }
+				: {}),
 			...(options.plan !== undefined
 				? { plan: { request: options.plan.request, turn: options.plan.turn } }
 				: {})

@@ -46,7 +46,7 @@ import {
 	withWritten
 } from '$lib/domain/dossier';
 import { buildLessonRequest, type AssistantTurnData } from '$lib/domain/lesson-writing';
-import { fitsFully, renderMaterials } from '$lib/domain/materials';
+import { fitsFully, pictureKeys, picturesFor, renderMaterials } from '$lib/domain/materials';
 import { applyPlan, buildPlanRequest, type PlanRequest, type PlanTargets } from '$lib/domain/plan';
 import { materials } from './materials.svelte';
 import { WriteQueue, type RunContext, type RunResult, type Row } from './write-queue.svelte';
@@ -174,6 +174,9 @@ class AiPanel {
 					plan !== null && fitsFully(sections)
 						? ''
 						: renderMaterials(sections, { for: 'lesson', refs }),
+				// The plan's conversation has shown every picture already.
+				pictures: plan !== null ? [] : picturesFor(sections, { for: 'lesson', refs }),
+				pictureKeys: pictureKeys(sections),
 				...(plan !== null ? { plan } : {})
 			}
 		);
@@ -540,7 +543,8 @@ class AiPanel {
 			store.doc,
 			added,
 			buildDossier(store.doc, undefined, added[0]?.lessonId),
-			renderMaterials(sections, { for: 'outline' })
+			renderMaterials(sections, { for: 'outline' }),
+			picturesFor(sections, { for: 'outline' })
 		);
 		if (built === undefined) return;
 		// Stopped while the sources were named: no plan is asked for.

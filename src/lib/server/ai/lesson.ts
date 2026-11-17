@@ -35,6 +35,7 @@ import { parseJson } from './json';
 import {
 	PLAN_TIMEOUT_MS,
 	ProviderError,
+	withPictures,
 	type AssistantTurn,
 	type Chat,
 	type ChatMessage,
@@ -49,7 +50,7 @@ export const AUTHOR_SYSTEM_PROMPT = `You write learning cards ("karty") for a mo
 The work comes in turns, and you answer every turn by calling the tool it asks for.
 
 What you get first, as user messages, in this order:
-1. When the teacher attached materials (Word, PowerPoint, PDF, scans): their text, or an index of them. Sections have keys in square brackets. They are the teacher's own source: take the facts, definitions, examples, notation and wording from them, at the level of the pupils, and follow them where they differ from what you would write. Do not copy whole passages: shorten and rephrase them into short screens. Never say "the materials", "the text" or a file name to the pupil, and never put a key in a card. What the materials do not contain you may add only from common school knowledge.
+1. When the teacher attached materials (Word, PowerPoint, PDF, scans): their text, or an index of them. Sections have keys in square brackets. They are the teacher's own source: take the facts, definitions, examples, notation and wording from them, at the level of the pupils, and follow them where they differ from what you would write. Do not copy whole passages: shorten and rephrase them into short screens. Never say "the materials", "the text" or a file name to the pupil, and never put a key in a card. What the materials do not contain you may add only from common school knowledge. A picture the teacher attached comes as the picture itself, after a line "Picture [key]:"; it is part of the materials: look at it.
 2. The course dossier: plain text, read-only background: the course, its audience, its lessons and the cards it has. "Poznámka pro AI" is a note for you (the teacher's, or a plan made earlier) and "Záměr karty" is what a card is for: follow both. When a card is shown between the lines "${MARKER_OPEN}" and "${MARKER_CLOSE}", it is only the place the teacher is working at. Never write about the dossier itself.
 
 Then one of two tasks.
@@ -69,6 +70,7 @@ write_card takes {"steps":[ … ]}. "steps" lists every step of the finished car
 - {"keep":"<id of an existing step>","fill":{…}} for every existing step, with "fill" holding exactly the parts listed in that step's "missing" (leave "fill" out when "missing" is empty). Keys of "fill", each only when that part is in "missing": "content_md" (content), "question" (question), "option_feedback" (feedback), "hint_md", "help_md", "solution_md".
 - {"kind":"text","content_md":"…"} a new text step.
 - {"kind":"question","content_md":"the task the pupil reads","question":{…},"hint_md":"…","help_md":"…","solution_md":"…"} a new question step; all six keys are required.
+- {"kind":"picture","picture":"<key>","alt":"…"} one of the teacher's pictures, shown as a step of its own, by its key: only a picture you were shown in this conversation, and only where seeing it helps the pupil (the figure an explanation or a task is about), at most once in a card. "alt" says in one short sentence what it shows, for a pupil who cannot see it. The step next to it may refer to it ("Na obrázku vidíš …"). A picture step counts neither as a text step nor as a question step.
 
 Hard rules for the structure:
 - Every existing step appears exactly once, as "keep", in its original order. New steps go before, between or after them. Never rewrite, shorten, reorder or repeat what the teacher wrote, and never put a part into "fill" that is not in "missing".
@@ -105,7 +107,7 @@ Rules for what you write:
 - Text is Markdown only where the app draws it as Markdown. Field by field:
 ${formatRules({ names: false })}
 - Keep the short parts short: a hint is one sentence; help is at most two sentences; a solution is at most three; the feedback on a wrong option is one sentence, on the correct one a few words of praise.
-- Do not invent facts beyond common school knowledge of the topic and the teacher's materials, and never mention files, images or links.`;
+- Do not invent facts beyond common school knowledge of the topic and the teacher's materials. Never mention files or links, and mention a picture only next to the picture step that shows it.`;
 
 /** The label on the materials message. */
 export const LESSON_MATERIALS_LABEL = `The teacher's materials (source of facts, examples and wording; never mention them to the pupil):`;
@@ -119,9 +121,17 @@ const ATTEMPTS = 3;
  */
 export const CARD_TIMEOUT_MS = 90_000;
 
-const materialsMessage = (materials: string | undefined): ChatMessage[] =>
+const materialsMessage = (
+	materials: string | undefined,
+	pictures?: readonly { key: string; id: string }[]
+): ChatMessage[] =>
 	materials !== undefined && materials.trim() !== ''
-		? [{ role: 'user', content: `${LESSON_MATERIALS_LABEL}\n\n${materials}` }]
+		? [
+				{
+					role: 'user',
+					content: withPictures(`${LESSON_MATERIALS_LABEL}\n\n${materials}`, pictures)
+				}
+			]
 		: [];
 
 const dossierMessage = (context: string): ChatMessage[] =>
@@ -131,7 +141,13 @@ const dossierMessage = (context: string): ChatMessage[] =>
 
 /** The plan's request as the model's last message: everything but the dossier and the materials. */
 export function planMessage(request: PlanRequest): string {
-	const { context: _context, materials: _materials, schema: _schema, ...rest } = request;
+	const {
+		context: _context,
+		materials: _materials,
+		pictures: _pictures,
+		schema: _schema,
+		...rest
+	} = request;
 	return JSON.stringify({ task: 'plan', ...rest });
 }
 
@@ -139,7 +155,7 @@ export function planMessage(request: PlanRequest): string {
 export function planMessages(request: PlanRequest): ChatMessage[] {
 	return [
 		{ role: 'system', content: AUTHOR_SYSTEM_PROMPT },
-		...materialsMessage(request.materials),
+		...materialsMessage(request.materials, request.pictures),
 		...dossierMessage(request.context),
 		{ role: 'user', content: planMessage(request) }
 	];
@@ -284,13 +300,13 @@ export function lessonOpening(request: LessonRequest): ChatMessage[] {
 	if (request.plan !== undefined) {
 		const turn = request.plan.turn as AssistantTurn;
 		out.push(...planMessages(request.plan.request), turn, ...reply(turn, 'save_plan', 'ok'));
-		out.push(...materialsMessage(request.materials));
+		out.push(...materialsMessage(request.materials, request.pictures));
 		if (request.context.trim() !== '')
 			out.push({ role: 'user', content: `The lesson as it is now:\n\n${request.context}` });
 	} else {
 		out.push(
 			{ role: 'system', content: AUTHOR_SYSTEM_PROMPT },
-			...materialsMessage(request.materials),
+			...materialsMessage(request.materials, request.pictures),
 			...dossierMessage(request.context)
 		);
 	}

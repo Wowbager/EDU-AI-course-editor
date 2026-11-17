@@ -39,6 +39,8 @@ function io(): ReadIO & { read: number } {
 			return 'Přepis obrázku';
 		},
 		shrink: async (picture: Blob) => picture,
+		fitPicture: async (picture: Blob) => picture,
+		keep: async () => 'x',
 		renderPage: async () => new Blob(['page'], { type: 'image/png' }),
 		fromPixels: async () => new Blob(['page'], { type: 'image/png' })
 	};

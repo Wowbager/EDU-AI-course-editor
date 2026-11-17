@@ -27,7 +27,8 @@ import {
 import type { PlanRequest } from '$lib/domain/plan';
 import { outlineEventSchema, type OutlineEvent, type OutlineRequest } from '$lib/domain/outline';
 import { workspaceKey } from '$lib/state/versions/server';
-import { renderMaterials } from '$lib/domain/materials';
+import { pictureKeys, picturesFor, renderMaterials } from '$lib/domain/materials';
+import { imageAddress } from '$lib/api/images';
 import { usableSources, type Assigned, type SourcesRequest } from '$lib/domain/source-assign';
 import { materials } from './materials.svelte';
 import { notices } from './notice.svelte';
@@ -330,7 +331,12 @@ class Ai {
 						materials: renderMaterials(materials.sections, {
 							for: 'lesson',
 							refs: sourceRefsOf(target)
-						})
+						}),
+						pictures: picturesFor(materials.sections, {
+							for: 'lesson',
+							refs: sourceRefsOf(target)
+						}),
+						pictureKeys: pictureKeys(materials.sections)
 					});
 		if (built === undefined) return { status: 'nothing' };
 		let card: GeneratedCard | undefined;
@@ -379,8 +385,16 @@ class Ai {
 		store.endEdit();
 		const before = store.undoStack.at(-1);
 		// Where the teacher is now stays where they are: no selection change.
+		// The teacher's pictures, at the address the course keeps for an uploaded one.
+		const pictures = Object.fromEntries(
+			materials.sections.flatMap((s) =>
+				s.picture === undefined
+					? []
+					: [[s.key, imageAddress({ url: `/images/file/${encodeURIComponent(s.picture)}` })]]
+			)
+		);
 		store.apply((d, reserved) => {
-			const result = fillCard(d, blockId, card, reserved);
+			const result = fillCard(d, blockId, card, reserved, pictures);
 			written = result.written;
 			return { ...result, ref: undefined };
 		});

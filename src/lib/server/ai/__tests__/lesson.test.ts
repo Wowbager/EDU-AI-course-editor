@@ -722,3 +722,39 @@ describe('lessonEvents: a card a request (resume)', () => {
 		expect(added.length).toBe(1 + 2 * 3);
 	});
 });
+
+describe('pictures in a lesson', () => {
+	const ID = '0123abcd-0000-4000-8000-000000000001-pizza.jpg';
+	const pictures = [{ key: 'bbbbbbbb.0', id: ID }];
+
+	it('go with the materials, after their text, without a plan', async () => {
+		const model = scripted(says(GOOD));
+		await collect(lessonEvents(request({ materials: 'Materiály', pictures }), model));
+		expect(model.seen[0][1].content).toEqual([
+			{ type: 'text', text: `${LESSON_MATERIALS_LABEL}\n\nMateriály` },
+			{ type: 'picture', key: 'bbbbbbbb.0', id: ID }
+		]);
+	});
+
+	it('go with the plan, and its request to the model does not carry them as data', async () => {
+		const model = scripted(turn([call('save_plan', PLAN, 'p1')]));
+		await makePlan({ ...planRequest(), materials: 'Materiály', pictures }, model);
+		const [system, materials, , last] = model.seen[0];
+		expect(system.role).toBe('system');
+		expect(materials.content).toContainEqual({ type: 'picture', key: 'bbbbbbbb.0', id: ID });
+		expect(textOf(last)).not.toContain(ID);
+	});
+
+	it('a card may show one the course has, and is refused one it has not', async () => {
+		const picture = { kind: 'picture', picture: 'bbbbbbbb.9', alt: 'Pizza.' };
+		const model = scripted(
+			says({ steps: [...GOOD.steps, picture] }),
+			says({ steps: [...GOOD.steps, { ...picture, picture: 'bbbbbbbb.0' }] })
+		);
+		const events = await collect(lessonEvents(request({ picture_keys: ['bbbbbbbb.0'] }), model));
+		expect(textOf(lastOf(model.seen[1]))).toContain('not one of the teacher');
+		expect(events.find((e) => e.type === 'card')).toMatchObject({
+			answer: { steps: [GOOD.steps[0], { kind: 'picture', picture: 'bbbbbbbb.0' }] }
+		});
+	});
+});

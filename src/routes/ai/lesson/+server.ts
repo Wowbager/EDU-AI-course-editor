@@ -16,6 +16,7 @@ import { lessonRequestSchema, MAX_RESUME_CHARS, MAX_TURN_CHARS } from '$lib/doma
 import { lessonEvents } from '$lib/server/ai/lesson';
 import { chatter } from '$lib/server/ai/provider';
 import { eventStream, limitsFor, readAiRequest } from '$lib/server/ai/route';
+import { loadPicture } from '$lib/server/images/instance';
 import { ownerOf } from '$lib/server/versions/http';
 import type { RequestHandler } from './$types';
 
@@ -30,7 +31,10 @@ export const POST: RequestHandler = async ({ request }) => {
 	const limits = limitsFor(config, owner);
 	if (limits instanceof Response) return limits;
 	return eventStream(async (send, signal) => {
-		for await (const event of lessonEvents(body, chatter(config), { ...limits, signal }))
+		for await (const event of lessonEvents(body, chatter(config, fetch, loadPicture), {
+			...limits,
+			signal
+		}))
 			send(event);
 	});
 };

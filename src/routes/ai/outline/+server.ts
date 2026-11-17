@@ -14,6 +14,7 @@ import { isConfigured, readAiConfig } from '$lib/server/ai/config';
 import { sharedLimits } from '$lib/server/ai/limits';
 import { outlineEvents } from '$lib/server/ai/outline';
 import { ProviderError, streamer } from '$lib/server/ai/provider';
+import { loadPicture } from '$lib/server/images/instance';
 import { ownerOf } from '$lib/server/versions/http';
 import type { RequestHandler } from './$types';
 
@@ -72,7 +73,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			try {
 				for await (const event of outlineEvents(
 					parsed.data,
-					streamer(config),
+					streamer(config, fetch, loadPicture),
 					(tokens) => limits.record(owner, tokens),
 					abort.signal
 				))

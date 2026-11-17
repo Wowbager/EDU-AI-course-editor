@@ -7,7 +7,10 @@ import {
 	buildChatBody,
 	chatter,
 	completer,
+	hostMessages,
 	ProviderError,
+	textOf,
+	withPictures,
 	TOOLS,
 	turnOf,
 	type ChatMessage
@@ -326,5 +329,46 @@ describe('turnOf', () => {
 	it('leaves out tool_calls when none is usable', () => {
 		expect(turnOf({ content: 'x', tool_calls: [] })).not.toHaveProperty('tool_calls');
 		expect(turnOf({ content: 'x', tool_calls: [{}] })).not.toHaveProperty('tool_calls');
+	});
+});
+
+describe('pictures in a conversation', () => {
+	const ID = '0123abcd-0000-4000-8000-000000000001-pizza.jpg';
+	const asked: ChatMessage[] = [
+		{ role: 'system', content: 'pravidla' },
+		{ role: 'user', content: withPictures('Materiály', [{ key: 'bbbbbbbb.0', id: ID }]) }
+	];
+
+	it('are only their keys until the call, where each is read and sent inline after its key', async () => {
+		expect(textOf(asked[1].content as string)).toBe('Materiály');
+		let sent: { messages: { content: unknown }[] } | undefined;
+		const fetcher = (async (_url: string, init: RequestInit) => {
+			sent = JSON.parse(String(init.body));
+			return Response.json({
+				choices: [{ message: { content: '', tool_calls: [] } }],
+				usage: { prompt_tokens: 1, completion_tokens: 1 }
+			});
+		}) as unknown as typeof fetch;
+		const loads: string[] = [];
+		const chat = chatter(openrouter, fetcher, async (id) => {
+			loads.push(id);
+			return { mime: 'image/jpeg', base64: 'QUJD' };
+		});
+		await chat(asked, { tool: 'write_card' });
+		expect(loads).toEqual([ID]);
+		expect(sent?.messages[0].content).toBe('pravidla');
+		expect(sent?.messages[1].content).toEqual([
+			{ type: 'text', text: 'Materiály' },
+			{ type: 'text', text: '\n\nPicture [bbbbbbbb.0]:' },
+			{ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,QUJD' } }
+		]);
+	});
+
+	it('says a picture that is gone is gone, and the call goes on', async () => {
+		const out = await hostMessages(asked, async () => undefined);
+		expect(out[1].content).toEqual([
+			{ type: 'text', text: 'Materiály' },
+			{ type: 'text', text: '\n\nPicture [bbbbbbbb.0]: no longer available.' }
+		]);
 	});
 });

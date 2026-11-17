@@ -20,6 +20,7 @@ import {
 	ProviderError,
 	sseReader,
 	streamer,
+	textOf,
 	type Message,
 	type Stream
 } from '../provider';
@@ -279,8 +280,8 @@ describe('outlineEvents', () => {
 		const [system, dossier, last] = model.seen[0];
 		expect(system.content).toBe(OUTLINE_SYSTEM_PROMPT);
 		expect(dossier.content).toContain('Kurz: Zlomky');
-		expect(JSON.parse(last.content)).not.toHaveProperty('context');
-		expect(JSON.parse(last.content).prompt).toContain('zlomcích');
+		expect(JSON.parse(textOf(last.content))).not.toHaveProperty('context');
+		expect(JSON.parse(textOf(last.content)).prompt).toContain('zlomcích');
 	});
 
 	it('asks for names only and for plain-text names', () => {
@@ -558,10 +559,10 @@ describe('materials in a proposal', () => {
 		await run(withMaterials(), model);
 		const messages = model.seen[0];
 		expect(messages.map((m) => m.role)).toEqual(['system', 'user', 'user', 'user']);
-		expect(messages[1].content.startsWith(MATERIALS_LABEL)).toBe(true);
+		expect(textOf(messages[1].content).startsWith(MATERIALS_LABEL)).toBe(true);
 		expect(messages[1].content).toContain('[aaaaaaaa.0]');
 		expect(messages[2].content).toContain('Course dossier');
-		expect(messages[3].content.startsWith('{')).toBe(true);
+		expect(textOf(messages[3].content).startsWith('{')).toBe(true);
 		expect(messages[3].content).not.toContain('Index of the materials');
 		expect(messages[3].content).not.toContain('material_keys');
 		expect(outlineMessage(withMaterials())).not.toContain('aaaaaaaa');

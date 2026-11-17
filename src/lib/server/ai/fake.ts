@@ -12,7 +12,15 @@ import type {
 	GeneratedCard,
 	GeneratedStep
 } from '$lib/domain/authoring';
-import type { AssistantTurn, Chat, Complete, Message, Stream, Vision } from './provider';
+import {
+	textOf,
+	type AssistantTurn,
+	type Chat,
+	type Complete,
+	type Message,
+	type Stream,
+	type Vision
+} from './provider';
 import type { Plan, PlanRequest } from '$lib/domain/plan';
 import type { SourcesRequest } from '$lib/domain/source-assign';
 import type { Outline, OutlineCard, OutlineRequest } from '$lib/domain/outline';
@@ -45,7 +53,11 @@ function question(type: GenQuestionType): GenQuestion {
 	}
 }
 
-export function fakeCard(request: GenRequest): GeneratedCard {
+export function fakeCard(
+	request: GenRequest & { draws_on?: string[] },
+	/** The keys of the pictures the conversation was shown. */
+	shown: readonly string[] = []
+): GeneratedCard {
 	const about = request.card.title || request.card.brief || 'karta';
 	const steps: GeneratedStep[] = request.card.steps.map((step) => {
 		const missing = new Set(step.missing);
@@ -76,6 +88,10 @@ export function fakeCard(request: GenRequest): GeneratedCard {
 			solution_md: 'Ukázkové vysvětlení řešení.'
 		});
 	}
+	// A picture the card draws on and the model was shown opens it.
+	const picture = (request.draws_on ?? []).find((key) => shown.includes(key));
+	if (picture !== undefined)
+		steps.unshift({ kind: 'picture', picture, alt: `Ukázkový obrázek: ${about}.` });
 	return { steps };
 }
 
@@ -144,7 +160,9 @@ export function fakeOutline(
 /** The section keys the model sees, in the order of the materials. */
 const keysIn = (messages: readonly Message[]): string[] => [
 	...new Set(
-		messages.flatMap((m) => [...m.content.matchAll(/\[([0-9a-f]{8}\.\d{1,4})\]/g)].map((k) => k[1]))
+		messages.flatMap((m) =>
+			[...textOf(m.content).matchAll(/\[([0-9a-f]{8}\.\d{1,4})\]/g)].map((k) => k[1])
+		)
 	)
 ];
 
@@ -166,8 +184,9 @@ export function fakeSources(
 
 /** The last user message that is JSON is the request (`generate.ts`, `outline.ts`, `sources.ts`). */
 export const fakeComplete: Complete = async (messages) => {
-	const last = messages.findLast((m) => m.role === 'user' && m.content.startsWith('{'));
-	const request = JSON.parse(last?.content ?? '{}') as GenRequest | OutlineRequest | SourcesRequest;
+	const last = messages.findLast((m) => m.role === 'user' && textOf(m.content).startsWith('{'));
+	const request = JSON.parse(last === undefined ? '{}' : textOf(last.content)) as
+		GenRequest | OutlineRequest | SourcesRequest;
 	if ('schema' in request && request.schema === 'eduai.outline-request/1')
 		return { text: JSON.stringify(fakeOutline(request)), tokens: 0 };
 	if ('schema' in request && request.schema === 'eduai.sources-request/1')
@@ -202,11 +221,18 @@ export const fakeChat: Chat = async (messages, { tool }) => {
 	const last = (prefix: string) =>
 		messages.findLast(
 			(m) => m.role === 'user' && typeof m.content === 'string' && m.content.startsWith(prefix)
-		)?.content;
+		)?.content as string | undefined;
 	const args =
 		tool === 'save_plan'
 			? fakePlan(JSON.parse(last('{"task":"plan"') ?? '{"lessons":[]}') as PlanRequest)
-			: fakeCard(JSON.parse(last('{"write"') ?? '{}') as GenRequest);
+			: fakeCard(
+					JSON.parse(last('{"write"') ?? '{}') as GenRequest,
+					messages.flatMap((m) =>
+						Array.isArray(m.content)
+							? m.content.flatMap((p) => (p.type === 'picture' ? [p.key] : []))
+							: []
+					)
+				);
 	const turn: AssistantTurn = {
 		role: 'assistant',
 		content: '',
@@ -229,8 +255,8 @@ export const FAKE_LESSON_DELAY_MS = 400;
 
 /** The proposal as the stream carries it: the scope line, then a lesson or card per line. */
 export const fakeStream: Stream = async (messages, onText) => {
-	const last = messages.findLast((m) => m.role === 'user' && m.content.startsWith('{'));
-	const request = JSON.parse(last?.content ?? '{}') as OutlineRequest;
+	const last = messages.findLast((m) => m.role === 'user' && textOf(m.content).startsWith('{'));
+	const request = JSON.parse(last === undefined ? '{}' : textOf(last.content)) as OutlineRequest;
 	// The model sees the sections' keys in the materials message, not in the request.
 	const keys = keysIn(messages);
 	const outline = fakeOutline(request, keys);

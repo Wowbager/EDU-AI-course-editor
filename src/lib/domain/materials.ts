@@ -14,12 +14,25 @@
  *    card gets in full only the sections it names.
  * `renderMaterials` is the one function that makes that text, for a proposal and for a
  * card alike.
+ *
+ * A picture the teacher attached (a photo, a drawing) is not read into text: it is kept as
+ * it is, in the image store, and is a section whose `picture` is its id there. The model
+ * sees the picture itself (`picturesFor` says which go with a request) and may put it in a
+ * card as a picture step. At most `MAX_PICTURES` of them, since every proposal carries all.
  */
 import { z } from 'zod';
-import { MAX_MATERIALS_CHARS } from './authoring';
+import {
+	MAX_MATERIALS_CHARS,
+	MAX_PICTURES,
+	PICTURE_ID,
+	pictureRefSchema,
+	picturesSchema,
+	type PictureRef
+} from './authoring';
 import { estimateTokens } from './dossier';
 
-export { MAX_MATERIALS_CHARS };
+export { MAX_MATERIALS_CHARS, MAX_PICTURES, PICTURE_ID, pictureRefSchema, picturesSchema };
+export type { PictureRef };
 
 export const MAX_FILE_BYTES = 50 * 1024 * 1024;
 /** Pages of a PDF, slides of a deck, and a Word file counted as 500 words a page. */
@@ -28,6 +41,9 @@ export const MAX_FILES = 30;
 /** What may be sent whole: all the sections together, estimated as `estimateTokens` does. */
 export const FULL_TEXT_TOKENS = 60_000;
 export const MAX_SECTION_CHARS = 120_000;
+/** A kept picture's longest side, in pixels, and its size at most: what the model needs to see it well. */
+export const PICTURE_SIDE = 1568;
+export const PICTURE_BYTES = 1024 * 1024;
 
 const KEY = /^[0-9a-f]{8}\.\d{1,4}$/;
 export const HASH = /^[0-9a-f]{8,64}$/;
@@ -40,7 +56,9 @@ export const sectionSchema = z.object({
 	unit: z.enum(['page', 'slide']).optional(),
 	from: z.number().int().min(1).max(100_000).optional(),
 	to: z.number().int().min(1).max(100_000).optional(),
-	text: z.string().max(MAX_SECTION_CHARS)
+	text: z.string().max(MAX_SECTION_CHARS),
+	/** A picture kept as it is: its id in the image store. Its `text` is empty. */
+	picture: z.string().regex(PICTURE_ID).optional()
 });
 export type Section = z.infer<typeof sectionSchema>;
 
@@ -146,7 +164,7 @@ export function materialsIndex(sections: readonly Section[]): IndexEntry[] {
 		file: s.file,
 		title: s.title,
 		location: locationOf([s]),
-		start: oneLine(s.text, 200),
+		start: s.picture !== undefined ? '(a picture)' : oneLine(s.text, 200),
 		tokens: tokensOf(s)
 	}));
 }
@@ -170,8 +188,14 @@ const indexText = (sections: readonly Section[]): string =>
 const titlesText = (sections: readonly Section[]): string =>
 	sections.map((s) => `- [${s.key}] ${where(s)} — ${s.title}`).join('\n');
 
+/** What stands for a picture in the text: the picture itself goes with the request. */
+const pictureNote = (s: Section): string =>
+	`(a picture; when it is attached to this request it follows as picture [${s.key}])`;
+
 const fullText = (sections: readonly Section[]): string =>
-	sections.map((s) => `### ${heading(s)}\n\n${s.text.trim()}`).join('\n\n');
+	sections
+		.map((s) => `### ${heading(s)}\n\n${s.picture !== undefined ? pictureNote(s) : s.text.trim()}`)
+		.join('\n\n');
 
 export type MaterialsFor = 'outline' | 'card' | 'lesson';
 
@@ -223,6 +247,26 @@ export function renderMaterials(
 	return `The sections ${lesson ? 'these cards draw' : 'this card draws'} on, in full:\n\n${fullText(whole)}\n\nThe other sections, by title only:\n${titlesText(others)}`;
 }
 
+const refOf = (s: Section): PictureRef[] =>
+	s.picture === undefined ? [] : [{ key: s.key, id: s.picture }];
+
+/** The keys of every picture, which a card may show. */
+export const pictureKeys = (sections: readonly Section[]): string[] =>
+	sections.filter((s) => s.picture !== undefined).map((s) => s.key);
+
+/**
+ * The pictures that go with a request: every one with a proposal or a plan, which decide
+ * where each is used; with cards only those the cards draw on (`refs`).
+ */
+export function picturesFor(
+	sections: readonly Section[],
+	use: { for: MaterialsFor; refs?: readonly string[] }
+): PictureRef[] {
+	if (use.for === 'outline') return sections.flatMap(refOf);
+	const refs = new Set(use.refs ?? []);
+	return sections.filter((s) => refs.has(s.key)).flatMap(refOf);
+}
+
 // ───────────────────────────────── a Word file into sections ─────────────────────────────────
 
 /** A section is cut when it passes this, so one huge unbroken file is still a list. */
@@ -235,6 +279,8 @@ export interface Piece {
 	unit?: 'page' | 'slide';
 	from?: number;
 	to?: number;
+	/** A picture kept as it is (`Section.picture`). */
+	picture?: string;
 }
 
 /**
@@ -295,7 +341,8 @@ export function sectionsOf(hash: string, file: string, pieces: readonly Piece[])
 		...(p.unit !== undefined && p.from !== undefined
 			? { unit: p.unit, from: p.from, ...(p.to !== undefined ? { to: p.to } : {}) }
 			: {}),
-		text: p.text
+		text: p.text,
+		...(p.picture !== undefined ? { picture: p.picture } : {})
 	}));
 }
 
@@ -303,14 +350,22 @@ export function sectionsOf(hash: string, file: string, pieces: readonly Piece[])
 export const pagesIn = (files: readonly Pick<MaterialFile, 'pages'>[]): number =>
 	files.reduce((sum, f) => sum + f.pages, 0);
 
+/** The pictures among the files' sections, against `MAX_PICTURES`. */
+export const picturesIn = (files: readonly Pick<MaterialFile, 'sections'>[]): number =>
+	files.reduce((sum, f) => sum + f.sections.filter((s) => s.picture !== undefined).length, 0);
+
 /** Why a file cannot be taken, in one Czech line, or `undefined`. */
 export function refusal(
 	file: { name: string; size: number },
-	have: { files: number; pages: number },
-	pages?: number
+	have: { files: number; pages: number; pictures?: number },
+	pages?: number,
+	/** The file is a picture, kept as one. */
+	picture = false
 ): string | undefined {
 	if (file.size > MAX_FILE_BYTES) return `Soubor ${file.name} je větší než 50 MB.`;
 	if (have.files >= MAX_FILES) return `Podkladů je příliš mnoho. Některé odeber.`;
+	if (picture && (have.pictures ?? 0) >= MAX_PICTURES)
+		return `Obrázků může být v podkladech nejvýše ${MAX_PICTURES}. Některý odeber.`;
 	if (pages !== undefined && have.pages + pages > MAX_PAGES)
 		return `Podklady mohou mít nejvýše ${MAX_PAGES} stran nebo snímků.`;
 	return undefined;

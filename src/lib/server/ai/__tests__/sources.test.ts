@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { assignSources, sourcesMessage } from '../sources';
 import { fakeComplete } from '../fake';
+import { textOf } from '../provider';
 import type { SourcesRequest } from '$lib/domain/source-assign';
 
 const request: SourcesRequest = {
@@ -21,7 +22,7 @@ describe('assignSources', () => {
 		const result = await assignSources(
 			request,
 			async (messages) => {
-				seen.push(messages.map((m) => m.content));
+				seen.push(messages.map((m) => textOf(m.content)));
 				return fakeComplete(messages);
 			},
 			spent
