@@ -13,6 +13,8 @@
 import type { CourseV2 } from './schema';
 import { isUntouchedLesson } from './starter';
 import type { InsertAt } from './outline-insert';
+import { blockPreview } from './derive';
+import { lessonLabel } from './naming';
 
 export type Place =
 	| { kind: 'new'; after?: string }
@@ -61,12 +63,16 @@ const short = (name: string): string =>
 	name.length > MAX_NAME ? `${name.slice(0, MAX_NAME - 1).trimEnd()}…` : name;
 const quoted = (name: string) => `„${short(name)}“`;
 
-/** The name the teacher sees for a lesson or card; `fallback` when it has none. */
+/** The names the teacher sees in the tree: the lesson's (`lessonLabel`), the card's preview. */
 function lessonName(doc: CourseV2, lessonId: string): string {
-	return doc.lessons.find((l) => l.lesson_id === lessonId)?.name?.trim() || 'Lekce bez názvu';
+	const lesson = doc.lessons.find((l) => l.lesson_id === lessonId);
+	return lesson === undefined ? '' : lessonLabel(doc, lesson);
 }
-function cardName(doc: CourseV2, blockId: string, fallback: string): string {
-	return doc.blocks.find((b) => b.block_id === blockId)?.name?.trim() || fallback;
+function cardName(doc: CourseV2, lessonId: string, blockId: string): string {
+	const lesson = doc.lessons.find((l) => l.lesson_id === lessonId);
+	const position = lesson?.blocks.findIndex((b) => b.block_id === blockId) ?? -1;
+	const block = doc.blocks.find((b) => b.block_id === blockId);
+	return block === undefined ? '' : blockPreview(block, 60, position + 1);
 }
 
 /** The place in the words of the „Kam“ line. */
@@ -81,7 +87,7 @@ export function placeLabel(doc: CourseV2, place: Place): string {
 	const at = valid.at;
 	if (at === 'start') return `Na začátek lekce ${lesson}`;
 	if (at === 'end') return `Na konec lekce ${lesson}`;
-	return `Do lekce ${lesson} za ${quoted(cardName(doc, at.after, 'vybranou kartu'))}`;
+	return `Do lekce ${lesson} za ${quoted(cardName(doc, valid.lessonId, at.after))}`;
 }
 
 /** One place the „Kam“ menu offers, with its words. */
@@ -133,16 +139,11 @@ export interface PlaceForModel {
 	cards_after?: string[];
 }
 
-const named = (doc: CourseV2, ids: readonly string[]): string[] =>
-	ids.map((id, i) => cardName(doc, id, `karta ${i + 1}`));
-
 export function placeForModel(doc: CourseV2, place: Place): PlaceForModel {
 	const valid = validPlace(doc, place);
 	const scope = scopeOf(doc, valid);
-	const nameAt = (i: number) => {
-		const name = i < 0 ? undefined : doc.lessons[i]?.name?.trim();
-		return name === undefined || name === '' ? undefined : name;
-	};
+	const nameAt = (i: number) =>
+		i < 0 || i >= doc.lessons.length ? undefined : lessonName(doc, doc.lessons[i].lesson_id);
 	if (scope === 'lessons') {
 		// The lesson they go after (the last, at the end); an empty one gives way to them.
 		const anchor =
@@ -164,7 +165,7 @@ export function placeForModel(doc: CourseV2, place: Place): PlaceForModel {
 	const ids = lesson.blocks.map((b) => b.block_id);
 	const cut =
 		into.at === 'start' ? 0 : into.at === 'end' ? ids.length : ids.indexOf(into.at.after) + 1;
-	const names = named(doc, ids);
+	const names = ids.map((id) => cardName(doc, into.lessonId, id));
 	return {
 		scope,
 		lesson: lessonName(doc, into.lessonId),

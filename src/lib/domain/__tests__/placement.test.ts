@@ -70,6 +70,23 @@ describe('the place of a proposal', () => {
 		);
 	});
 
+	it('calls a card with no name by its text, as the tree does', () => {
+		const { doc, a } = course();
+		const r = addBlock(doc, a, 'display', 0);
+		const card = r.ref!.blockId!;
+		const named: CourseV2 = {
+			...r.doc,
+			blocks: r.doc.blocks.map((b) =>
+				b.block_id === card
+					? { ...b, steps: [{ id: 's1', type: 'text', content: 'Polovina je 1/2.' }] }
+					: b
+			)
+		};
+		expect(placeLabel(named, { kind: 'into', lessonId: a, at: { after: card } })).toBe(
+			'Do lekce „Co je zlomek“ za „Polovina je 1/2.“'
+		);
+	});
+
 	it('falls back when what it names is gone', () => {
 		const { doc, a, cards } = course();
 		const place: Place = { kind: 'into', lessonId: a, at: { after: cards[1] } };

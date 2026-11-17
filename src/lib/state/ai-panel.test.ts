@@ -822,7 +822,7 @@ describe('buildOutlineRequest', () => {
 		expect(request.place).toEqual({
 			scope: 'cards',
 			lesson: 'Polovina',
-			cards_before: ['karta 1'],
+			cards_before: ['Karta 1'],
 			cards_after: []
 		});
 		expect(request.context).toContain('Zlomky');
