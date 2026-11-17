@@ -9,13 +9,17 @@ import { statfs as nodeStatfs } from 'node:fs/promises';
 export type Need = 'upload' | 'version';
 
 const DEFAULT_MIN_FREE_MB = 1024;
-/** Asked again at most this often: an upload burst does not stat the disk each time. */
-const FRESH_MS = 5_000;
+/**
+ * Asked again at most this often: an upload burst does not stat the disk each time, and
+ * what a second of uploads can write past the floor is bounded by the per-address limits.
+ */
+const FRESH_MS = 1_000;
 
 type Statfs = (path: string) => Promise<{ bavail: number | bigint; bsize: number | bigint }>;
 
 export function minFreeBytes(env: Readonly<Record<string, string | undefined>>): number {
-	const mb = Number(env.DATA_MIN_FREE_MB);
+	const raw = (env.DATA_MIN_FREE_MB ?? '').trim();
+	const mb = raw === '' ? NaN : Number(raw);
 	return (Number.isFinite(mb) && mb >= 0 ? mb : DEFAULT_MIN_FREE_MB) * 1024 * 1024;
 }
 

@@ -53,11 +53,21 @@ export function clientKey(address: string): string {
 		.join(':')}::/64`;
 }
 
-/** The request's client, by `clientKey`; `unknown` where the platform cannot say. */
+let warned = false;
+
+/**
+ * The request's client, by `clientKey`; `unknown` where the platform cannot say, which
+ * puts every such request in one bucket of the limits. Behind nginx that means a request
+ * reached the editor without `X-Editor-Client` (`ADDRESS_HEADER`): said once in the log.
+ */
 export function clientOf(event: { getClientAddress(): string }): string {
 	try {
 		return clientKey(event.getClientAddress());
-	} catch {
+	} catch (e) {
+		if (!warned) {
+			warned = true;
+			console.warn('[limits] no client address; such requests share one limit:', String(e));
+		}
 		return 'unknown';
 	}
 }

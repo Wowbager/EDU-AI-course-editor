@@ -26,12 +26,12 @@ describe('Disk', () => {
 		expect(await diskWith(100).disk.roomFor('/d', 'version')).toBe(false);
 	});
 
-	it('asks the disk again only after a few seconds', async () => {
+	it('asks the disk again only after a second', async () => {
 		const { disk, state } = diskWith(2000);
 		await disk.roomFor('/d', 'upload');
 		state.free = 10;
 		expect(await disk.roomFor('/d', 'upload')).toBe(true);
-		state.t += 6_000;
+		state.t += 1_500;
 		expect(await disk.roomFor('/d', 'upload')).toBe(false);
 		expect(state.calls).toBe(2);
 	});
@@ -47,6 +47,9 @@ describe('Disk', () => {
 		expect(minFreeBytes({})).toBe(1024 * MB);
 		expect(minFreeBytes({ DATA_MIN_FREE_MB: '50' })).toBe(50 * MB);
 		expect(minFreeBytes({ DATA_MIN_FREE_MB: 'x' })).toBe(1024 * MB);
+		// Left empty in a compose file: the default, not no floor at all.
+		expect(minFreeBytes({ DATA_MIN_FREE_MB: '' })).toBe(1024 * MB);
+		expect(minFreeBytes({ DATA_MIN_FREE_MB: '0' })).toBe(0);
 	});
 });
 

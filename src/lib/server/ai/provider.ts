@@ -108,11 +108,9 @@ const TIMEOUT_MS = 150_000;
 /** What a request costs at most, $ per million tokens: rules out the one host priced 10 times higher. */
 export const MAX_PRICE = { prompt: 0.5, completion: 2 } as const;
 
-/**
- * The most a text call may write, thinking included: well past a plan of a whole course,
- * and a bound on what one call can cost.
- */
-export const MAX_OUTPUT_TOKENS = 64_000;
+/** `max_tokens` when the operator set one (`AI_MAX_OUTPUT_TOKENS`); else the host's own. */
+const outputCap = (config: AiConfig) =>
+	config.maxOutputTokens !== null ? { max_tokens: config.maxOutputTokens } : {};
 
 export function buildBody(
 	config: AiConfig,
@@ -122,7 +120,7 @@ export function buildBody(
 	const body: Record<string, unknown> = {
 		model: config.model,
 		messages,
-		max_tokens: MAX_OUTPUT_TOKENS
+		...outputCap(config)
 	};
 	// One JSON object. A stream is lines of them, which the mode would refuse.
 	if (options.stream !== true) body.response_format = { type: 'json_object' };
@@ -251,7 +249,7 @@ export function buildChatBody(
 		model: config.model,
 		messages,
 		tools: TOOLS,
-		max_tokens: MAX_OUTPUT_TOKENS
+		...outputCap(config)
 	};
 	if (config.provider === 'deepseek') {
 		// Whether DeepSeek's own API takes a forced tool while thinking is not known; the
