@@ -70,6 +70,25 @@ describe('ImageFiles', () => {
 			).rejects.toMatchObject({ status: 415 });
 		});
 
+		it('keeps a picture as what its bytes are, and refuses what is no picture', async () => {
+			const asJpeg = await store.upload(FAKE_OWNER, PNG_1PX, 'photo.jpg', 'image/jpeg');
+			expect(asJpeg.mimeType).toBe('image/png');
+			expect(asJpeg.id).toMatch(/\.png$/);
+			const page = new TextEncoder().encode('<html><script>alert(1)</script></html>');
+			await expect(store.upload(FAKE_OWNER, page, 'x.png', 'image/png')).rejects.toMatchObject({
+				status: 415
+			});
+			const svg = new TextEncoder().encode(
+				'<svg xmlns="http://www.w3.org/2000/svg"><script/></svg>'
+			);
+			await expect(store.upload(FAKE_OWNER, svg, 'x.svg', 'image/svg+xml')).rejects.toMatchObject({
+				status: 415
+			});
+			await expect(store.upload(FAKE_OWNER, svg, 'x.png', 'image/png')).rejects.toMatchObject({
+				status: 415
+			});
+		});
+
 		it('rejects a file that exceeds the size cap with a 413 error', async () => {
 			const tooBig = new Uint8Array(MAX_IMAGE_BYTES + 1);
 			await expect(store.upload(FAKE_OWNER, tooBig, 'big.png', 'image/png')).rejects.toMatchObject({

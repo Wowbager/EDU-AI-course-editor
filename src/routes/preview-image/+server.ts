@@ -34,6 +34,7 @@
  */
 import { env } from '$env/dynamic/private';
 import { fetchImageSafely } from '$lib/server/image-fetch-guard';
+import { UNTRUSTED_FILE_HEADERS } from '$lib/server/untrusted';
 import type { RequestHandler } from './$types';
 
 // Matches the fallback already baked into `vite.config.ts`'s dev proxy and into the
@@ -65,7 +66,8 @@ export const GET: RequestHandler = async ({ url }) => {
 				status: 200,
 				headers: {
 					'content-type': served.contentType,
-					'cache-control': CACHE_CONTROL
+					'cache-control': CACHE_CONTROL,
+					...UNTRUSTED_FILE_HEADERS
 				}
 			});
 		}
@@ -100,7 +102,8 @@ function relay(upstream: Response): Response {
 		status: 200,
 		headers: {
 			'content-type': upstream.headers.get('content-type') ?? 'application/octet-stream',
-			'cache-control': CACHE_CONTROL
+			'cache-control': CACHE_CONTROL,
+			...UNTRUSTED_FILE_HEADERS
 		}
 	});
 }
