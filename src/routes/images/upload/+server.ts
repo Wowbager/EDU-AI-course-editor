@@ -8,15 +8,28 @@ import { error, json } from '@sveltejs/kit';
 import { ownerOf } from '$lib/server/versions/http';
 import { imageFiles } from '$lib/server/images/instance';
 import { ImageError, MAX_IMAGE_BYTES } from '$lib/server/images/files';
+import { clientOf } from '$lib/server/ip';
+import { pictureUploads } from '$lib/server/upload-limits';
 import type { RequestHandler } from './$types';
 
-export const POST: RequestHandler = async ({ request, url }) => {
+export const POST: RequestHandler = async (event) => {
+	const { request, url } = event;
 	const owner = ownerOf(request);
 
 	const contentLength = Number(request.headers.get('content-length') ?? '');
 	if (Number.isFinite(contentLength) && contentLength > MAX_IMAGE_BYTES + 2048) {
 		error(413, 'Soubor je příliš velký.');
 	}
+	// Per address: a workspace key costs nothing to make up.
+	const verdict = pictureUploads.admit(
+		clientOf(event),
+		Number.isFinite(contentLength) && contentLength > 0 ? contentLength : MAX_IMAGE_BYTES
+	);
+	if (!verdict.ok)
+		return new Response('busy', {
+			status: 503,
+			headers: { 'retry-after': String(verdict.retryAfterSeconds) }
+		});
 
 	let formData: FormData;
 	try {

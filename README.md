@@ -249,3 +249,8 @@ In development `DATA_DIR` defaults to `.data/` in the checkout (gitignored). The
 login yet: each browser makes a random key, the server stores only its hash, and a
 browser that loses its site data loses its way to its server history too. When sign-in
 exists, `lib/server/versions/owner.ts` is the one place that changes.
+
+Since a key costs nothing to make, the server also bounds each client address: pictures
+60 a minute and 1000 MB a day, materials 120 and 1000 MB (`lib/server/upload-limits.ts`).
+Uploads stop while less than `DATA_MIN_FREE_MB` (default 1024) is free in `DATA_DIR`,
+saving a version only below a quarter of it.

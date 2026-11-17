@@ -20,6 +20,7 @@ import { join, extname, basename } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { IMAGE_TYPES, MAX_IMAGE_BYTES } from '../../images/limits';
 import { sniffImage } from './sniff';
+import { disk, DISK_FULL } from '../disk';
 
 export { MAX_IMAGE_BYTES };
 export const MAX_IMAGES_PER_OWNER = 500;
@@ -142,6 +143,7 @@ export class ImageFiles {
 
 		const ownerDir = this.#ownerDir(owner);
 		const publicDir = this.#publicDir();
+		if (!(await disk().roomFor(this.#root, 'upload'))) throw new ImageError(507, DISK_FULL);
 
 		return this.#serial(owner, async () => {
 			const index = await readIndex(ownerDir);

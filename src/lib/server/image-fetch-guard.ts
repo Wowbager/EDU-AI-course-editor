@@ -34,6 +34,7 @@
  */
 import { lookup as dnsLookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import { embeddedIPv4, ipv6Groups } from './ip';
 
 export const MAX_BODY_BYTES = 20 * 1024 * 1024; // 20 MB
 export const FETCH_TIMEOUT_MS = 10_000; // wall clock, connect through last byte
@@ -68,6 +69,9 @@ export function isReservedIPv4(address: string): boolean {
 	if (a === 192 && b === 168) return true; // RFC1918
 	if (a === 169 && b === 254) return true; // link-local (incl. cloud metadata, 169.254.169.254)
 	if (a === 0) return true; // "this network"
+	if (a === 100 && b >= 64 && b <= 127) return true; // carrier-grade NAT, 100.64/10
+	if (a === 192 && b === 0 && parts[2] === 0) return true; // IETF protocol assignments
+	if (a === 198 && (b === 18 || b === 19)) return true; // benchmarking, 198.18/15
 	if (a >= 224) return true; // multicast + reserved (224-255)
 	return false;
 }
@@ -77,20 +81,18 @@ export function isReservedIPv4(address: string): boolean {
  * address whose embedded IPv4 is itself reserved.
  */
 export function isReservedIPv6(address: string): boolean {
-	const normalised = address.toLowerCase();
-	if (normalised === '::1') return true; // loopback
-	if (normalised === '::') return true; // unspecified
-	// IPv4-mapped (::ffff:a.b.c.d) and IPv4-compatible — unwrap and re-check as IPv4.
-	const mapped = normalised.match(/^::(?:ffff:)?(\d+\.\d+\.\d+\.\d+)$/);
-	if (mapped) return isReservedIPv4(mapped[1]);
-	if (
-		normalised.startsWith('fe80:') ||
-		normalised.startsWith('fe8') ||
-		normalised.startsWith('fe9')
-	)
-		return true; // link-local fe80::/10
-	if (normalised.startsWith('fea') || normalised.startsWith('feb')) return true;
-	if (normalised.startsWith('fc') || normalised.startsWith('fd')) return true; // unique local fc00::/7
+	// Read as its eight groups, so that every spelling of one address is judged alike:
+	// `::ffff:7f00:1` is `::ffff:127.0.0.1`, which is loopback.
+	const groups = ipv6Groups(address);
+	if (groups === null) return true; // not something this function can evaluate
+	if (groups.slice(0, 7).every((g) => g === 0) && groups[7] <= 1) return true; // :: and ::1
+	const v4 = embeddedIPv4(groups);
+	if (v4 !== null) return isReservedIPv4(v4); // IPv4-mapped, -compatible, NAT64
+	const first = groups[0];
+	if ((first & 0xffc0) === 0xfe80) return true; // link-local fe80::/10
+	if ((first & 0xffc0) === 0xfec0) return true; // site-local fec0::/10 (deprecated)
+	if ((first & 0xfe00) === 0xfc00) return true; // unique local fc00::/7
+	if ((first & 0xff00) === 0xff00) return true; // multicast ff00::/8
 	return false;
 }
 

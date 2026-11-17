@@ -35,6 +35,8 @@
 import { env } from '$env/dynamic/private';
 import { fetchImageSafely } from '$lib/server/image-fetch-guard';
 import { UNTRUSTED_FILE_HEADERS } from '$lib/server/untrusted';
+import { clientOf } from '$lib/server/ip';
+import { previewFetches } from '$lib/server/upload-limits';
 import type { RequestHandler } from './$types';
 
 // Matches the fallback already baked into `vite.config.ts`'s dev proxy and into the
@@ -44,7 +46,8 @@ const DEFAULT_API_URL = 'https://app-api.edu-ai.eu';
 
 const CACHE_CONTROL = 'public, max-age=3600';
 
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async (event) => {
+	const { url } = event;
 	const target = url.searchParams.get('url');
 	if (!target) {
 		return new Response('missing required ?url= query parameter', {
@@ -72,6 +75,14 @@ export const GET: RequestHandler = async ({ url }) => {
 			});
 		}
 	}
+
+	// The server fetches for anyone who asks: per address, so it is no open proxy to lean on.
+	const verdict = previewFetches.admit(clientOf(event), 0);
+	if (!verdict.ok)
+		return new Response('too many images at once', {
+			status: 429,
+			headers: { 'retry-after': String(verdict.retryAfterSeconds) }
+		});
 
 	const attempts: string[] = [];
 
