@@ -90,6 +90,21 @@ describe('versions on the server', () => {
 	});
 });
 
+describe('which pictures saved versions show', () => {
+	it('finds a picture by its id in any of the owner’s saved versions, and only theirs', async () => {
+		const id = '0123abcd-0000-4000-8000-000000000000-graf.jpg';
+		const course = {
+			...emptyCourse('KURZ_X', 'Kurz'),
+			lessons: [],
+			header_image: { url: `https://editor.example/images/file/${id}` }
+		};
+		await files.put(OWNER, 'KURZ_X', snapshot(course, 1, now));
+		expect(await files.mentions(OWNER, id)).toBe(true);
+		expect(await files.mentions(OWNER, 'ffffffff-0000-4000-8000-000000000000.png')).toBe(false);
+		expect(await files.mentions(`ws_${'b'.repeat(64)}`, id)).toBe(false);
+	});
+});
+
 describe('the owner’s course list', () => {
 	const versionOf = (id: string, n: number, name: string) =>
 		snapshot({ ...emptyCourse(id, name), lessons: [] }, n, now);

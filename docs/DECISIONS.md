@@ -3305,6 +3305,25 @@ did not see each other.
 - *Not built:* editing a picture (crop, annotate); pictures inside a Word or PDF file.
   A kept picture is in the teacher's image gallery too.
 
+## Round 38 — the server's storage has a budget
+
+**A picture is kept at most 1 MB.** The browser shrinks it before sending
+(`images/shrink.ts`: 2048 px, a JPEG stays a JPEG, anything that may be transparent
+becomes a WebP), so a teacher may still pick a 25 MB photo. A GIF is never redrawn, since
+it would lose its animation; one over 1 MB is refused. This replaces the one 8 MB constant
+of round 28. Server-side recompression was rejected for now: it needs a native image
+library in the image, and the browser already had the code (material pictures).
+
+**One budget for everything, not a per-kind quota** (`DATA_MAX_MB`, default 900). Uploads
+stop at 85 %, versions at 100 %, as with the free-disk floor. Counted as blocks on disk:
+the files are small, and a 1-byte file still takes 4 KB.
+
+**Nothing is deleted on its own.** Removing abandoned workspaces was proposed and
+rejected until a course can be published: an exported course points at pictures on the
+editor's server (OPEN-PROBLEMS #63). Removing a material removes its pictures from the
+gallery, unless the open course or a saved version shows them; an unsaved draft of
+another course can still lose one, as with deleting from the gallery.
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

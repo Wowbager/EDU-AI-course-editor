@@ -88,11 +88,13 @@ export class MaterialFiles {
 			if (others.length >= MAX_FILES) throw new VersionError(429, 'Podkladů je příliš mnoho.');
 			if (pagesIn(others) + file.pages > MAX_PAGES)
 				throw new VersionError(429, `Podklady mohou mít nejvýše ${MAX_PAGES} stran nebo snímků.`);
-			if (!(await disk().roomFor(this.#root, 'upload'))) throw new VersionError(507, DISK_FULL);
-			await mkdir(dir, { recursive: true });
 			const previous = (await this.#all(dir)).find((f) => f.hash === file.hash);
 			const stored: Stored = { ...file, addedAt: previous?.addedAt || new Date().toISOString() };
-			await atomicWrite(join(dir, `${file.hash}.json`), JSON.stringify(stored));
+			const text = JSON.stringify(stored);
+			if (!(await disk().roomFor(this.#root, 'upload', Buffer.byteLength(text))))
+				throw new VersionError(507, DISK_FULL);
+			await mkdir(dir, { recursive: true });
+			await atomicWrite(join(dir, `${file.hash}.json`), text);
 			return file;
 		});
 	}

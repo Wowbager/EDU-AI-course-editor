@@ -23,7 +23,8 @@ import { sniffImage } from './sniff';
 import { disk, DISK_FULL } from '../disk';
 
 export { MAX_IMAGE_BYTES };
-export const MAX_IMAGES_PER_OWNER = 500;
+/** Per workspace: with pictures of at most 1 MB, about 100 MB at most. */
+export const MAX_IMAGES_PER_OWNER = 100;
 
 export const ALLOWED_MIME = new Set<string>(IMAGE_TYPES.map((type) => type.mime));
 
@@ -133,7 +134,8 @@ export class ImageFiles {
 			throw new ImageError(415, `Nepodporovaný typ souboru: ${declaredType}`);
 		}
 		if (bytes.byteLength > MAX_IMAGE_BYTES) {
-			throw new ImageError(413, `Soubor je větší než ${MAX_IMAGE_BYTES / 1024 / 1024} MB.`);
+			// The editor shrinks a picture before it is sent (`images/shrink.ts`).
+			throw new ImageError(413, `Obrázek je větší než ${MAX_IMAGE_BYTES / 1024 / 1024} MB.`);
 		}
 		// Kept as what the bytes are: a page or a script named `.png` is not a picture.
 		const mimeType = sniffImage(bytes);
@@ -143,7 +145,8 @@ export class ImageFiles {
 
 		const ownerDir = this.#ownerDir(owner);
 		const publicDir = this.#publicDir();
-		if (!(await disk().roomFor(this.#root, 'upload'))) throw new ImageError(507, DISK_FULL);
+		if (!(await disk().roomFor(this.#root, 'upload', bytes.byteLength)))
+			throw new ImageError(507, DISK_FULL);
 
 		return this.#serial(owner, async () => {
 			const index = await readIndex(ownerDir);

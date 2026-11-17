@@ -28,6 +28,7 @@
 	import { materials } from '$lib/state/materials.svelte';
 	import { ACCEPT } from '$lib/materials/read';
 	import { displayName } from '$lib/domain/materials';
+	import { imageInUse } from '$lib/domain/commands';
 	import { anyTicked } from '$lib/domain/outline';
 	import { blockPreview } from '$lib/domain/derive';
 	import { hasNoContent } from '$lib/domain/starter';
@@ -421,7 +422,8 @@
 								class="chip-x"
 								aria-label={`Odebrat podklad: ${item.name}`}
 								title="Odebrat"
-								onclick={() => void materials.remove(courseId, item.hash!)}
+								onclick={() =>
+									void materials.remove(courseId, item.hash!, (id) => imageInUse(store.doc, id))}
 							>
 								<X size={12} aria-hidden="true" />
 							</button>

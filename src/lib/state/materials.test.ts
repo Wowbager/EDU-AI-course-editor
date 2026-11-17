@@ -68,6 +68,24 @@ describe('the course’s materials in the browser', () => {
 		expect(calls.at(-1)![1]?.method).toBe('DELETE');
 	});
 
+	it('takes a removed file’s pictures out of the gallery, unless the course shows them', async () => {
+		const used = '11111111-0000-4000-8000-000000000000.jpg';
+		const unused = '22222222-0000-4000-8000-000000000000.jpg';
+		const photos = stored('cccccccc00000000', 'fotky.zip');
+		photos.sections = [
+			{ ...photos.sections[0], key: 'cccccccc.0', text: '', picture: used },
+			{ ...photos.sections[0], key: 'cccccccc.1', text: '', picture: unused }
+		];
+		server([photos]);
+		await materials.load('kurz');
+		await materials.remove('kurz', 'cccccccc00000000', (id) => id === used);
+		const deleted = calls.filter(([, init]) => init?.method === 'DELETE').map(([url]) => url);
+		expect(deleted).toEqual([
+			'/materials/kurz/cccccccc00000000',
+			`/images/gallery/${unused}?unless=saved`
+		]);
+	});
+
 	it('brings the file back when the server could not forget it', async () => {
 		server([stored('abcdef0123456789', 'a.docx')]);
 		await materials.load('kurz');

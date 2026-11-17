@@ -156,7 +156,16 @@ class Materials {
 		}
 	}
 
-	async remove(courseId: string, hash: string): Promise<void> {
+	/**
+	 * Take a file out of the course's materials. Its pictures go from the gallery with it,
+	 * unless `inUse` says the open course shows one; the server keeps one a saved version
+	 * shows.
+	 */
+	async remove(
+		courseId: string,
+		hash: string,
+		inUse: (pictureId: string) => boolean = () => true
+	): Promise<void> {
 		const headers = this.#headers();
 		const index = this.files.findIndex((f) => f.hash === hash);
 		const removed = this.files[index];
@@ -175,10 +184,22 @@ class Materials {
 				`/materials/${encodeURIComponent(courseId)}/${encodeURIComponent(hash)}`,
 				{ method: 'DELETE', headers }
 			);
-			if (!response.ok) restore();
+			if (!response.ok) return restore();
 		} catch {
-			restore();
+			return restore();
 		}
+		const pictures = (removed?.sections ?? []).flatMap((s) =>
+			s.picture !== undefined && !inUse(s.picture) ? [s.picture] : []
+		);
+		// The picture stays in the gallery when this fails: nothing for the teacher to do.
+		await Promise.all(
+			pictures.map((id) =>
+				fetch(`/images/gallery/${encodeURIComponent(id)}?unless=saved`, {
+					method: 'DELETE',
+					headers
+				}).catch(() => undefined)
+			)
+		);
 	}
 
 	get full(): boolean {
