@@ -6,8 +6,9 @@ import { test, expect, openEditor, type Page } from './fixtures';
  * Materials in AI pomocník: files are attached, read in the browser, kept with the course,
  * and the proposal and the cards written from it carry them.
  *
- * Runs against the `fake` provider: a picture is "read" as a fixed line, and a proposal
- * made with materials gives its first card the first section as its source.
+ * Runs against the `fake` provider: a proposal made with materials gives its first card the
+ * first section as its source, and a card that draws on a picture it was shown opens with
+ * it. A picture is kept as it is, not read: a scanned page still is („Ukázkový přepis“).
  */
 
 const fixtures = join(import.meta.dirname, '..', 'src/lib/materials/__tests__/fixtures');
@@ -30,10 +31,15 @@ test.beforeEach(async ({ page }) => {
 test('a file is attached with the paperclip, shown as a chip while it is read, and kept', async ({
 	page
 }) => {
-	// The picture is read by the server; hold it to see the chip say so.
+	// The picture is kept in the image store; hold it to see the chip say so.
 	let release!: () => void;
 	const gate = new Promise<void>((resolve) => (release = resolve));
+	let read = 0;
 	await page.route('**/ai/read', async (route) => {
+		read++;
+		await route.continue();
+	});
+	await page.route('**/images/upload', async (route) => {
 		await gate;
 		await route.continue();
 	});
@@ -50,6 +56,8 @@ test('a file is attached with the paperclip, shown as a chip while it is read, a
 	await expect(reading).toHaveAttribute('title', 'page.png');
 	await expect(reading.getByRole('button', { name: 'Odebrat podklad: page.png' })).toBeAttached();
 	await expect(page.getByRole('textbox', { name: 'Co mám vytvořit?' })).toBeVisible();
+	// Not read into text: the model sees the picture itself.
+	expect(read).toBe(0);
 });
 
 test('a proposal made from materials shows where each card comes from, and the cards are written from them', async ({
@@ -57,11 +65,13 @@ test('a proposal made from materials shows where each card comes from, and the c
 }) => {
 	type Sent = {
 		materials?: string;
+		pictures?: unknown[];
+		picture_keys?: string[];
 		cards: { title: string; draws_on?: string[] }[];
 		resume?: { next: number };
 	};
 	const sent: Sent[] = [];
-	const planned: { materials?: string }[] = [];
+	const planned: { materials?: string; pictures?: { key: string; id: string }[] }[] = [];
 	await page.route('**/ai/lesson', async (route) => {
 		sent.push(route.request().postDataJSON());
 		await route.continue();
@@ -100,8 +110,16 @@ test('a proposal made from materials shows where each card comes from, and the c
 	// The plan was made from the materials in full; the lessons' requests do not repeat them.
 	expect(planned).toHaveLength(1);
 	expect(planned[0].materials).toContain('x + 5 = 12');
-	expect(planned[0].materials).toContain('Ukázkový přepis obrázku');
-	for (const request of sent) expect(request.materials ?? '').toBe('');
+	// The picture goes with the plan as itself; the lessons' requests do not repeat it.
+	expect(planned[0].pictures).toEqual([
+		{ key: expect.stringMatching(/^[0-9a-f]{8}\.0$/), id: expect.stringMatching(/^[0-9a-f-]{36}/) }
+	]);
+	const pictureKey = planned[0].pictures![0].key;
+	for (const request of sent) {
+		expect(request.materials ?? '').toBe('');
+		expect(request.pictures ?? []).toEqual([]);
+		expect(request.picture_keys).toEqual([pictureKey]);
+	}
 	// A card names the sections it draws on; one without sources names none. A lesson's
 	// request for its first card (`resume.next` 0) lists them all; the later ones repeat them.
 	const cards = sent.filter((r) => r.resume?.next === 0).flatMap((r) => r.cards);
@@ -110,6 +128,12 @@ test('a proposal made from materials shows where each card comes from, and the c
 		expect.stringMatching(/^[0-9a-f]{8}\.0$/)
 	]);
 	expect(cards.find((c) => c.title === 'Procvičení')!.draws_on ?? []).toEqual([]);
+
+	// The card drawn from the picture shows it, as a picture step of its own.
+	await panel(page).locator('.queue-row').filter({ hasText: 'Jak se to používá' }).click();
+	const picture = page.getByRole('img', { name: 'Ukázkový obrázek: Jak se to používá.' });
+	await expect(picture).toBeVisible();
+	await expect(picture).toHaveAttribute('src', /\/images\/file\/[0-9a-f-]{36}/);
 });
 
 test('the materials belong to the course: they are there after a reload, and × takes one out for good', async ({

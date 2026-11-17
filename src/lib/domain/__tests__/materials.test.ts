@@ -9,6 +9,10 @@ import {
 	MAX_FILES,
 	MAX_FILE_BYTES,
 	MAX_PAGES,
+	MAX_PICTURES,
+	pictureKeys,
+	picturesFor,
+	picturesIn,
 	refusal,
 	renderMaterials,
 	sectionKey,
@@ -210,6 +214,56 @@ describe('which files are taken', () => {
 			`Podklady mohou mít nejvýše ${MAX_PAGES} stran nebo snímků.`
 		);
 		expect(refusal(ok, { files: 1, pages: 90 }, 10)).toBeUndefined();
+	});
+});
+
+describe('pictures among the materials', () => {
+	const ID = '0123abcd-0000-4000-8000-000000000001-pizza.jpg';
+	const pic = (n: number) =>
+		section({
+			key: `bbbbbbbb.${n}`,
+			file: `obrazek${n}.jpg`,
+			title: `obrazek${n}`,
+			unit: undefined,
+			from: undefined,
+			to: undefined,
+			text: '',
+			picture: ID
+		});
+	const sections = [section(), pic(0), pic(1)];
+
+	it('is said in the text by its key, the picture itself going with the request', () => {
+		const text = renderMaterials(sections, { for: 'outline' });
+		expect(text).toContain('[bbbbbbbb.0] obrazek0.jpg — obrazek0 (~0 tokens): (a picture)');
+		expect(text).toContain('follows as picture [bbbbbbbb.1]');
+	});
+
+	it('all go with a proposal or a plan, only the ones they draw on with cards', () => {
+		expect(picturesFor(sections, { for: 'outline' })).toEqual([
+			{ key: 'bbbbbbbb.0', id: ID },
+			{ key: 'bbbbbbbb.1', id: ID }
+		]);
+		expect(picturesFor(sections, { for: 'lesson', refs: ['bbbbbbbb.1', 'aaaaaaaa.0'] })).toEqual([
+			{ key: 'bbbbbbbb.1', id: ID }
+		]);
+		expect(picturesFor(sections, { for: 'card' })).toEqual([]);
+		expect(pictureKeys(sections)).toEqual(['bbbbbbbb.0', 'bbbbbbbb.1']);
+	});
+
+	it('are kept with their file and counted against their own limit', () => {
+		const file = materialFileSchema.parse({
+			hash: 'bbbbbbbb00',
+			name: 'obrazek0.jpg',
+			pages: 1,
+			sections: [{ ...pic(0), file: 'obrazek0.jpg' }]
+		});
+		expect(file.sections[0].picture).toBe(ID);
+		expect(picturesIn([file, file])).toBe(2);
+		const photo = { name: 'c.jpg', size: 1000 };
+		const have = { files: 3, pages: 3, pictures: MAX_PICTURES };
+		expect(refusal(photo, have, undefined, true)).toContain(`nejvýše ${MAX_PICTURES}`);
+		// A document is not a picture: the limit is not its.
+		expect(refusal(photo, have)).toBeUndefined();
 	});
 });
 

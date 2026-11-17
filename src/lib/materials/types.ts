@@ -1,7 +1,8 @@
 /**
  * What the readers of a teacher's files (Word, PowerPoint, PDF, pictures) need from the
- * browser, so they can be tested without one: turning a picture into text goes through the
- * server's `/ai/read`, and drawing a PDF page or shrinking a photo needs a canvas.
+ * browser, so they can be tested without one: turning a scanned page into text goes through
+ * the server's `/ai/read`, keeping a picture goes to the image store, and drawing a PDF page
+ * or shrinking a photo needs a canvas.
  */
 import type { Piece } from '$lib/domain/materials';
 
@@ -10,6 +11,13 @@ export interface ReadIO {
 	ocr(picture: Blob): Promise<string>;
 	/** A picture small enough to send: the same one, or shrunk. Rejects for a format the browser cannot decode. */
 	shrink(picture: Blob): Promise<Blob>;
+	/**
+	 * A picture as it is kept and shown to the model: its longest side at most
+	 * `PICTURE_SIDE`, under `PICTURE_BYTES`. Rejects for a format the browser cannot decode.
+	 */
+	fitPicture(picture: Blob): Promise<Blob>;
+	/** The picture kept in the image store; its id there. Rejects when it cannot be kept. */
+	keep(picture: Blob, name: string): Promise<string>;
 	/** Decoded RGBA pixels (a TIFF page) drawn as a picture. */
 	fromPixels(rgba: Uint8Array, width: number, height: number): Promise<Blob>;
 	/** A PDF page drawn as a picture. */

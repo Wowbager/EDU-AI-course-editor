@@ -82,6 +82,23 @@ export const MAX_CONTEXT_CHARS = 600_000;
 /** Longest text of the teacher's materials one request carries (`materials.ts`). */
 export const MAX_MATERIALS_CHARS = 700_000;
 
+/** Pictures the teacher attached (`materials.ts`): each goes with every proposal and plan. */
+export const MAX_PICTURES = 10;
+/** An id in the image store (`server/images/files.ts`, `IMAGE_ID_RE`). */
+export const PICTURE_ID = /^[0-9a-f-]{36}(?:-[A-Za-z0-9_-]{1,60})?\.[a-z0-9]{2,5}$/i;
+/** A section's key in the materials (`materials.ts`). */
+const SECTION_KEY = /^[0-9a-f]{8}\.\d{1,4}$/;
+/** A picture that goes with a request: its section's key and its id in the image store. */
+export const pictureRefSchema = z.object({
+	key: z.string().regex(SECTION_KEY),
+	id: z.string().regex(PICTURE_ID)
+});
+export type PictureRef = z.infer<typeof pictureRefSchema>;
+/** The pictures sent with a request; the server puts each in front of the model. */
+export const picturesSchema = z.array(pictureRefSchema).max(MAX_PICTURES);
+/** The keys of the pictures a card may show (`write_card`'s picture steps). */
+export const pictureKeysSchema = z.array(z.string().regex(SECTION_KEY)).max(MAX_PICTURES);
+
 const text = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 const filled = (value: unknown): boolean => text(value) !== '';
 
@@ -237,9 +254,16 @@ const newQuestionSchema = z.object({
 	solution_md: z.string().trim().min(1)
 });
 
+/** One of the teacher's pictures, as a picture step of its own (`picture` is its key). */
+const newPictureSchema = z.object({
+	kind: z.literal('picture'),
+	picture: z.string(),
+	alt: z.string().trim().min(1)
+});
+
 /** `eduai.gen-card/2`: the card, step by step. */
 export const generatedCardSchema = z.object({
-	steps: z.array(z.union([keepSchema, newTextSchema, newQuestionSchema])).min(1)
+	steps: z.array(z.union([keepSchema, newTextSchema, newQuestionSchema, newPictureSchema])).min(1)
 });
 export type GeneratedCard = z.infer<typeof generatedCardSchema>;
 export type GeneratedStep = GeneratedCard['steps'][number];
@@ -284,7 +308,9 @@ export const genRequestSchema = z.object({
 	/** The course dossier (`dossier.ts`). The server sends it as a message of its own. */
 	context: z.string().max(MAX_CONTEXT_CHARS),
 	/** The teacher's materials as `renderMaterials` makes them; a message of its own, after the dossier. */
-	materials: z.string().max(MAX_MATERIALS_CHARS).optional()
+	materials: z.string().max(MAX_MATERIALS_CHARS).optional(),
+	/** The pictures among them the card may show. */
+	picture_keys: pictureKeysSchema.optional()
 });
 export type GenRequest = z.infer<typeof genRequestSchema>;
 
@@ -499,6 +525,12 @@ export function cardProblem(request: GenRequest, answer: GeneratedCard): string 
 			if (!questionIsSound(item.question)) return unsound('A new question step');
 			const plain = plainAnswer(item.question, 'A new question step');
 			if (plain !== undefined) return plain;
+		} else if (item.kind === 'picture') {
+			const keys = request.picture_keys ?? [];
+			if (!keys.includes(item.picture))
+				return keys.length === 0
+					? 'The teacher attached no pictures: a picture step can only show one of them. Leave it out.'
+					: `"${clip(item.picture)}" is not one of the teacher's pictures (${keys.join(', ')}). A picture step shows one of them, by its key.`;
 		}
 	}
 
@@ -666,9 +698,14 @@ function applyFill(
 function newStep(
 	item: Exclude<GeneratedStep, { keep: string }>,
 	id: string,
-	random: Random
+	random: Random,
+	pictures: Readonly<Record<string, string>>
 ): BlockStep | undefined {
 	if (item.kind === 'text') return { id, type: 'text', content: item.content_md };
+	if (item.kind === 'picture') {
+		const url = pictures[item.picture];
+		return url === undefined ? undefined : { id, type: 'image', image: { url, alt: item.alt } };
+	}
 	if (!questionIsSound(item.question)) return undefined;
 	return {
 		id,
@@ -692,14 +729,16 @@ export interface WrittenCount {
  * are skipped, so this can never overwrite the teacher; a `keep` for a step that has
  * been deleted since is dropped; a new step goes next to the nearest step it was kept
  * beside (after the one before it, else before the one after it). One command, one undo
- * step.
+ * step. A picture step shows the teacher's picture at its address in `pictures` (by key);
+ * one whose picture is not there is left out.
  */
 export function fillCard(
 	doc: CourseV2,
 	blockId: string,
 	answer: GeneratedCard,
 	reserved?: Reservations,
-	random: Random = Math.random
+	random: Random = Math.random,
+	pictures: Readonly<Record<string, string>> = {}
 ): CommandResult & { written: WrittenCount } {
 	const block = doc.blocks.find((b) => b.block_id === blockId);
 	if (block === undefined) throw new CommandError(`Karta „${blockId}“ v kurzu není.`, { blockId });
@@ -737,11 +776,13 @@ export function fillCard(
 			return;
 		}
 		const id = ids[nextId++];
-		const step = newStep(item, id, random);
+		const step = newStep(item, id, random, pictures);
 		if (step === undefined) return;
 		for (const key of item.kind === 'text'
 			? ['content_md']
-			: ['content_md', 'question', 'hint_md', 'help_md', 'solution_md'])
+			: item.kind === 'picture'
+				? []
+				: ['content_md', 'question', 'hint_md', 'help_md', 'solution_md'])
 			origins[originKey(id, key)] = 'ai';
 		count.steps++;
 		if (step.type === 'question') count.questions++;

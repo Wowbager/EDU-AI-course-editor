@@ -13,6 +13,7 @@ import { planRequestSchema } from '$lib/domain/plan';
 import { makePlan } from '$lib/server/ai/lesson';
 import { chatter } from '$lib/server/ai/provider';
 import { eventStream, limitsFor, readAiRequest } from '$lib/server/ai/route';
+import { loadPicture } from '$lib/server/images/instance';
 import { ownerOf } from '$lib/server/versions/http';
 import type { RequestHandler } from './$types';
 
@@ -24,6 +25,6 @@ export const POST: RequestHandler = async ({ request }) => {
 	const limits = limitsFor(config, owner);
 	if (limits instanceof Response) return limits;
 	return eventStream(async (send, signal) => {
-		send(await makePlan(body, chatter(config), { ...limits, signal }));
+		send(await makePlan(body, chatter(config, fetch, loadPicture), { ...limits, signal }));
 	});
 };

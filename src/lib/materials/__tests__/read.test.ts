@@ -18,14 +18,20 @@ const fixture = async (name: string) => {
 };
 
 /** What the browser would do, with pictures "read" as a line that says they were read. */
-function io(overrides: Partial<ReadIO> = {}): ReadIO & { read: number } {
-	const state = {
+function io(overrides: Partial<ReadIO> = {}): ReadIO & { read: number; kept: string[] } {
+	const state: ReadIO & { read: number; kept: string[] } = {
 		read: 0,
 		ocr: async (picture: Blob) => {
 			state.read++;
 			return `Přepis obrázku ($${picture.size > 0 ? 'x' : '?'}$)`;
 		},
 		shrink: async (picture: Blob) => picture,
+		kept: [] as string[],
+		fitPicture: async (picture: Blob) => picture,
+		keep: async (_picture: Blob, name: string): Promise<string> => {
+			state.kept.push(name);
+			return `0123abcd-0000-4000-8000-00000000000${state.kept.length}-x.png`;
+		},
 		fromPixels: async () => new Blob(['p'], { type: 'image/png' }),
 		renderPage: async () => new Blob(['page'], { type: 'image/png' }),
 		...overrides
@@ -176,32 +182,36 @@ describe('a PDF', () => {
 });
 
 describe('a picture', () => {
-	it('is one section named for the file, read once', async () => {
+	it('is kept as it is, not read: one section named for the file, with its id in the store', async () => {
 		const reader = io();
 		const file = await readMaterial(await fixture('page.png'), reader, room, libraries);
 		expect(file.sections).toHaveLength(1);
-		expect(file.sections[0].title).toBe('page');
-		expect(file.sections[0].text).toContain('Přepis obrázku');
+		expect(file.sections[0]).toMatchObject({
+			title: 'page',
+			text: '',
+			picture: '0123abcd-0000-4000-8000-000000000001-x.png'
+		});
 		expect(file.pages).toBe(1);
-		expect(reader.read).toBe(1);
+		expect(reader.read).toBe(0);
+		expect(reader.kept).toEqual(['page.png']);
 	});
 
 	it('says plainly that a HEIC photo cannot be opened when the browser cannot decode it', async () => {
 		const heic = Object.assign(new Blob(['x']), { name: 'foto.heic' });
 		const reader = io({
-			shrink: async () => {
+			fitPicture: async () => {
 				throw new Error('cannot decode');
 			}
 		});
 		await expect(readMaterial(heic, reader, room, libraries)).rejects.toThrow(/HEIC/);
 	});
 
-	it('converts a HEIC photo the browser cannot decode, and reads the converted JPEG', async () => {
+	it('converts a HEIC photo the browser cannot decode, and keeps the converted JPEG', async () => {
 		const heic = Object.assign(new Blob(['x']), { name: 'foto.HEIF' });
-		const shrunk: string[] = [];
+		const fitted: string[] = [];
 		const reader = io({
-			shrink: async (b) => {
-				shrunk.push(b.type);
+			fitPicture: async (b) => {
+				fitted.push(b.type);
 				if (b === heic) throw new Error('cannot decode');
 				return b;
 			}
@@ -215,15 +225,15 @@ describe('a picture', () => {
 			}
 		});
 		expect(asked?.toType).toBe('image/jpeg');
-		expect(shrunk).toEqual(['', 'image/jpeg']);
+		expect(fitted).toEqual(['', 'image/jpeg']);
 		expect(file.pages).toBe(1);
-		expect(reader.read).toBe(1);
+		expect(file.sections[0].picture).toBeDefined();
 	});
 
 	it('does not try the converter for other formats, and says so when both fail', async () => {
 		let called = 0;
 		const failing = io({
-			shrink: async () => {
+			fitPicture: async () => {
 				throw new Error('cannot decode');
 			}
 		});
@@ -249,10 +259,14 @@ describe('a picture', () => {
 		expect(called).toBe(1);
 	});
 
-	it('is refused when the reading finds nothing', async () => {
-		const reader = io({ ocr: async () => '' });
+	it('says so when the picture cannot be kept', async () => {
+		const reader = io({
+			keep: async () => {
+				throw new Error('full');
+			}
+		});
 		await expect(readMaterial(await fixture('page.png'), reader, room, libraries)).rejects.toThrow(
-			/nenašel žádný text/
+			/se nepodařilo uložit/
 		);
 	});
 });

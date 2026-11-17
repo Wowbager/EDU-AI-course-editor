@@ -7,6 +7,8 @@ import { Refused, type ReadIO } from '../types';
 const io: ReadIO = {
 	ocr: async () => '',
 	shrink: async (b) => b,
+	fitPicture: async (b) => b,
+	keep: async () => 'x',
 	renderPage: async () => new Blob(),
 	fromPixels: async () => new Blob()
 };

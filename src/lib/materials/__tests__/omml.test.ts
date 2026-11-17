@@ -174,6 +174,8 @@ describe('a Word file with equations', () => {
 	const io = {
 		ocr: async () => '',
 		shrink: async (b: Blob) => b,
+		fitPicture: async (b: Blob) => b,
+		keep: async () => 'x',
 		fromPixels: async () => new Blob(),
 		renderPage: async () => new Blob()
 	};

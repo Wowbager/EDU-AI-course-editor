@@ -11,6 +11,7 @@ import {
 	MAX_FILES,
 	MAX_PAGES,
 	pagesIn,
+	picturesIn,
 	refusal,
 	type MaterialFile,
 	type Section
@@ -96,7 +97,16 @@ class Materials {
 				this.message = unsupported(file.name);
 				continue;
 			}
-			const why = refusal(file, { files: this.files.length, pages: pagesIn(this.files) });
+			const why = refusal(
+				file,
+				{
+					files: this.files.length,
+					pages: pagesIn(this.files),
+					pictures: picturesIn(this.files)
+				},
+				undefined,
+				kindOf(file.name) === 'image'
+			);
 			if (why !== undefined) {
 				this.message = why;
 				continue;

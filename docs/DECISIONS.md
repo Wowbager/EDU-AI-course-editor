@@ -3287,6 +3287,24 @@ did not see each other.
   finished cards, and an empty send proposes a course from the files only while the course
   has nothing of the teacher's (`hasNoContent`).
 
+## Round 37 — the teacher's pictures go to the model as pictures
+
+- **An attached picture is kept, not read into text.** Owner: "Remove the OCR of the
+  images, that model supports images and understands them well, just make sure to limit
+  the size of images." It is made at most 1568 px on its longest side and about 1 MB
+  (`PICTURE_SIDE`, `PICTURE_BYTES`), kept in the image store, and is a section whose
+  `picture` is its id there. At most `MAX_PICTURES` (10) per course. Scanned pages of a
+  PDF, Word, PowerPoint or TIFF are still read into text: they are documents.
+- **The model sees the picture itself.** A request names its pictures by key and id; the
+  provider reads them from the store and sends them inline only at the call
+  (`hostMessages`), so nothing else handles the bytes. A proposal and a plan get every
+  picture; cards only the ones they draw on, and none after a plan, which showed them all.
+- **A card may show one, as a picture step** (`write_card` `{"kind":"picture"}`), with an
+  alt text the model writes. *Rejected:* a picture on a text or question step: the editor
+  shows a step's picture only on a picture step, so the teacher would not see it.
+- *Not built:* editing a picture (crop, annotate); pictures inside a Word or PDF file.
+  A kept picture is in the teacher's image gallery too.
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

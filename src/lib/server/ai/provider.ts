@@ -7,7 +7,76 @@ import type { AiConfig, ReasoningEffort } from './config';
 import { fakeChat, fakeComplete, fakeRead, fakeStream } from './fake';
 import { weightedTokens, type Usage } from './limits';
 
-export type Message = { role: 'system' | 'user' | 'assistant'; content: string };
+/**
+ * A part of a message: text, or a picture the teacher attached, by its section's key and
+ * its id in the image store. Only here, at the call, is a picture read and sent inline
+ * (`hostMessages`): what builds a conversation never handles the bytes.
+ */
+export type Part = { type: 'text'; text: string } | { type: 'picture'; key: string; id: string };
+export type Message = { role: 'system' | 'user' | 'assistant'; content: string | Part[] };
+
+/** A message's text, its pictures left out. */
+export const textOf = (content: string | readonly Part[]): string =>
+	typeof content === 'string'
+		? content
+		: content.map((p) => (p.type === 'text' ? p.text : '')).join('');
+
+/** A text, followed by the pictures that go with it, each said by its key. */
+export function withPictures(
+	text: string,
+	pictures: readonly { key: string; id: string }[] = []
+): string | Part[] {
+	if (pictures.length === 0) return text;
+	return [
+		{ type: 'text', text },
+		...pictures.map((p): Part => ({ type: 'picture', key: p.key, id: p.id }))
+	];
+}
+
+/** A kept picture's bytes, by its id in the image store; `undefined` when it is gone. */
+export type PictureLoader = (id: string) => Promise<Picture | undefined>;
+const noPictures: PictureLoader = async () => undefined;
+
+/**
+ * The messages as the host takes them: a picture is read from the store and sent inline,
+ * after a line with its key, so the model can tell which section it is. One that is gone
+ * is said to be gone.
+ */
+export async function hostMessages<M extends { content?: unknown }>(
+	messages: readonly M[],
+	load: PictureLoader
+): Promise<M[]> {
+	const loaded = new Map<string, Promise<Picture | undefined>>();
+	const read = (id: string) => {
+		if (!loaded.has(id))
+			loaded.set(
+				id,
+				load(id).catch(() => undefined)
+			);
+		return loaded.get(id)!;
+	};
+	return Promise.all(
+		messages.map(async (m) => {
+			if (!Array.isArray(m.content)) return m;
+			const parts = await Promise.all(
+				(m.content as Part[]).map(async (part) => {
+					if (part.type === 'text') return [part];
+					const picture = await read(part.id);
+					return picture === undefined
+						? [{ type: 'text', text: `\n\nPicture [${part.key}]: no longer available.` }]
+						: [
+								{ type: 'text', text: `\n\nPicture [${part.key}]:` },
+								{
+									type: 'image_url',
+									image_url: { url: `data:${picture.mime};base64,${picture.base64}` }
+								}
+							];
+				})
+			);
+			return { ...m, content: parts.flat() };
+		})
+	);
+}
 export type Completion = { text: string; tokens: number };
 export type Complete = (messages: readonly Message[]) => Promise<Completion>;
 /**
@@ -222,9 +291,14 @@ export function turnOf(message: HostMessage): AssistantTurn {
 	return turn;
 }
 
-export function chatter(config: AiConfig, fetcher: typeof fetch = fetch): Chat {
+export function chatter(
+	config: AiConfig,
+	fetcher: typeof fetch = fetch,
+	pictures: PictureLoader = noPictures
+): Chat {
 	if (config.provider === 'fake') return fakeChat;
-	return async (messages, options) => {
+	return async (asked, options) => {
+		const messages = await hostMessages(asked, pictures);
 		const timeout = AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS);
 		let response: Response;
 		try {
@@ -360,9 +434,14 @@ export function sseReader(onText: (piece: string) => void): {
 	};
 }
 
-export function streamer(config: AiConfig, fetcher: typeof fetch = fetch): Stream {
+export function streamer(
+	config: AiConfig,
+	fetcher: typeof fetch = fetch,
+	pictures: PictureLoader = noPictures
+): Stream {
 	if (config.provider === 'fake') return fakeStream;
-	return async (messages, onText, signal) => {
+	return async (asked, onText, signal) => {
+		const messages = await hostMessages(asked, pictures);
 		let response: Response;
 		try {
 			response = await fetcher(`${config.baseURL}/chat/completions`, {

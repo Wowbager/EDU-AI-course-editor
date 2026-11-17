@@ -11,3 +11,6 @@ export function imageFiles(): ImageFiles {
 	files ??= new ImageFiles(resolve(env.DATA_DIR || '.data'));
 	return files;
 }
+
+/** A kept picture for the model (`provider.ts`, `PictureLoader`). */
+export const loadPicture = async (id: string) => (await imageFiles().picture(id)) ?? undefined;

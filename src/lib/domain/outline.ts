@@ -27,7 +27,7 @@ import {
 
 export { REQUEST_KEY };
 import { buildDossier } from './dossier';
-import { renderMaterials, type Section } from './materials';
+import { picturesFor, picturesSchema, renderMaterials, type Section } from './materials';
 import type { CourseV2 } from './schema';
 import { placeForModel, validPlace, type Place } from './placement';
 import { DEFAULT_LESSON_NAME } from './commands';
@@ -111,7 +111,9 @@ export const outlineRequestSchema = z.object({
 	/** The teacher's materials as `renderMaterials` makes them (index, and the text when it fits). */
 	materials: z.string().max(MAX_MATERIALS_CHARS).optional(),
 	/** The keys of those sections: what a card's `sources` may name. */
-	material_keys: z.array(z.string().max(40)).max(400).optional()
+	material_keys: z.array(z.string().max(40)).max(400).optional(),
+	/** Every picture among them, which the server puts in front of the model. */
+	pictures: picturesSchema.optional()
 });
 export type OutlineRequest = z.infer<typeof outlineRequestSchema>;
 
@@ -696,6 +698,9 @@ export function buildOutlineRequest(
 					materials: renderMaterials(materials, { for: 'outline' }),
 					material_keys: materials.map((s) => s.key)
 				}
+			: {}),
+		...(picturesFor(materials, { for: 'outline' }).length > 0
+			? { pictures: picturesFor(materials, { for: 'outline' }) }
 			: {})
 	};
 }

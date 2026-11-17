@@ -199,6 +199,23 @@ export class ImageFiles {
 	}
 
 	/**
+	 * One uploaded image as the model is sent it: its type and its bytes in base64. `null`
+	 * for a missing or invalid id.
+	 */
+	async picture(id: string): Promise<{ mime: string; base64: string } | null> {
+		if (!IMAGE_ID_RE.test(id)) return null;
+		try {
+			const bytes = await readFile(join(this.#publicDir(), id));
+			const mime = EXT_TO_MIME[extname(id).toLowerCase()];
+			// Only the raster types a model takes; an SVG is text, not a picture to it.
+			if (mime === undefined || !/^image\/(png|jpeg|webp|gif)$/.test(mime)) return null;
+			return { mime, base64: bytes.toString('base64') };
+		} catch {
+			return null;
+		}
+	}
+
+	/**
 	 * Serve the raw bytes of one uploaded image publicly by its ID.
 	 * Returns `null` for a missing or invalid id.
 	 */

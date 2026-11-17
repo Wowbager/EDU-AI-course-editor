@@ -20,7 +20,9 @@ import {
 	BRIEF_KEY,
 	MAX_CONTEXT_CHARS,
 	MAX_MATERIALS_CHARS,
-	sourceRefsOf
+	picturesSchema,
+	sourceRefsOf,
+	type PictureRef
 } from './authoring';
 
 const text = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
@@ -51,7 +53,9 @@ export const planRequestSchema = z.object({
 		.min(1),
 	/** The course dossier (`dossier.ts`); a message of its own. */
 	context: z.string().max(MAX_CONTEXT_CHARS),
-	materials: z.string().max(MAX_MATERIALS_CHARS).optional()
+	materials: z.string().max(MAX_MATERIALS_CHARS).optional(),
+	/** Every picture of the materials: the plan decides where each is shown. */
+	pictures: picturesSchema.optional()
 });
 export type PlanRequest = z.infer<typeof planRequestSchema>;
 
@@ -79,7 +83,8 @@ export function buildPlanRequest(
 	doc: CourseV2,
 	cards: readonly { blockId: string; lessonId: string }[],
 	context: string,
-	materials = ''
+	materials = '',
+	pictures: readonly PictureRef[] = []
 ): { request: PlanRequest; targets: PlanTargets } | undefined {
 	const wanted = new Set(cards.map((c) => c.blockId));
 	const byId = new Map(doc.blocks.map((b) => [b.block_id, b]));
@@ -125,7 +130,8 @@ export function buildPlanRequest(
 			},
 			lessons,
 			context,
-			...(materials !== '' ? { materials } : {})
+			...(materials !== '' ? { materials } : {}),
+			...(pictures.length > 0 ? { pictures: [...pictures] } : {})
 		},
 		targets
 	};

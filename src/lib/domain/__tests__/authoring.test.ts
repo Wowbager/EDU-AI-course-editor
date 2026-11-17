@@ -915,3 +915,56 @@ describe('in the document', () => {
 		});
 	});
 });
+
+describe('a picture step', () => {
+	const KEY = 'abcdef01.0';
+	const URL = 'https://editor.example/images/file/0123abcd-0000-4000-8000-000000000001-x.png';
+	const picture = { kind: 'picture', picture: KEY, alt: 'Pizza rozkrojená na čtvrtiny.' } as const;
+
+	it('may show one of the teacher’s pictures, by its key, and no other', () => {
+		const { doc, exercise } = fresh();
+		const r = { ...request(doc, exercise), picture_keys: [KEY] };
+		const answer = card(doc, exercise, picture, newQuestion());
+		expect(cardProblem(r, generatedCardSchema.parse(answer))).toBeUndefined();
+		const other = card(doc, exercise, { ...picture, picture: 'abcdef01.9' }, newQuestion());
+		expect(cardProblem(r, other)).toContain('not one of the teacher');
+		const none = request(doc, exercise);
+		expect(cardProblem(none, answer)).toContain('attached no pictures');
+	});
+
+	it('counts neither as a text nor as a question step', () => {
+		const { doc, display } = fresh();
+		const r = { ...request(doc, display), picture_keys: [KEY] };
+		const answer = {
+			steps: [{ keep: stepOf(doc, display).id, fill: { content_md: 'Úvod' } }, picture]
+		};
+		expect(cardProblem(r, generatedCardSchema.parse(answer))).toBeUndefined();
+	});
+
+	it('is a picture step with the picture’s address and its description', () => {
+		const { doc, display } = fresh();
+		const first = stepOf(doc, display).id;
+		const answer: GeneratedCard = {
+			steps: [{ keep: first, fill: { content_md: 'Na obrázku vidíš čtvrtiny.' } }, picture]
+		};
+		const steps = blockOf(
+			fillCard(doc, display, answer, RESERVED, Math.random, { [KEY]: URL }).doc,
+			display
+		).steps;
+		expect(steps).toHaveLength(2);
+		expect(steps[1]).toMatchObject({
+			type: 'image',
+			image: { url: URL, alt: 'Pizza rozkrojená na čtvrtiny.' }
+		});
+	});
+
+	it('is left out when its picture is not among the course’s', () => {
+		const { doc, display } = fresh();
+		const first = stepOf(doc, display).id;
+		const answer: GeneratedCard = {
+			steps: [{ keep: first, fill: { content_md: 'Text.' } }, picture]
+		};
+		const steps = blockOf(fillCard(doc, display, answer, RESERVED).doc, display).steps;
+		expect(steps.map((s) => s.type)).toEqual(['text']);
+	});
+});

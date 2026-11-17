@@ -6,6 +6,8 @@ import { workspaceKey } from '$lib/state/versions/server';
 import type { Libraries } from './read';
 import { fitSide } from './image';
 import type { ReadIO } from './types';
+import { PICTURE_BYTES, PICTURE_SIDE } from '$lib/domain/materials';
+import { uploadImage } from '$lib/api/images';
 
 /** The longest side of a picture sent for reading, in pixels. */
 const SIDE = 1600;
@@ -145,6 +147,41 @@ export const browserIO: ReadIO = {
 		} finally {
 			bitmap.close();
 		}
+	},
+
+	async fitPicture(picture) {
+		let bitmap: ImageBitmap;
+		try {
+			bitmap = await createImageBitmap(picture);
+		} catch {
+			throw new Error('cannot decode');
+		}
+		try {
+			let side = PICTURE_SIDE;
+			const first = fitSide(bitmap.width, bitmap.height, side);
+			const kept = /^image\/(png|jpeg|webp)$/.test(picture.type);
+			if (first.width === bitmap.width && kept && picture.size <= PICTURE_BYTES) return picture;
+			// A JPEG at good quality; a very detailed photo is made smaller until it fits.
+			for (;;) {
+				const size = fitSide(bitmap.width, bitmap.height, side);
+				const { canvas, context } = white(size.width, size.height);
+				context.imageSmoothingQuality = 'high';
+				context.drawImage(bitmap, 0, 0, size.width, size.height);
+				const jpeg = await toBlob(canvas, 'image/jpeg', 0.85);
+				if (jpeg.size <= PICTURE_BYTES || side <= 400) return jpeg;
+				side = Math.round(side * 0.75);
+			}
+		} finally {
+			bitmap.close();
+		}
+	},
+
+	async keep(picture, name) {
+		const type = picture.type || 'image/jpeg';
+		// The store names the file by its type: a photo made into a JPEG is a .jpg.
+		const base = name.replace(/\.[A-Za-z0-9]{1,5}$/, '');
+		const meta = await uploadImage(new File([picture], base, { type }));
+		return meta.id;
 	},
 
 	async fromPixels(rgba, width, height) {
