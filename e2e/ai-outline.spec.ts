@@ -69,16 +69,47 @@ test('an outline is started without the AI and typed lesson by lesson, card by c
 		page.getByRole('checkbox', { name: 'Vytvořit lekci: Sčítání zlomků' })
 	).toBeChecked();
 
+	// A row Enter started and left alone goes when the teacher clicks away.
+	await panel(page).getByRole('button', { name: 'Různé jmenovatele', exact: true }).click();
+	await page.keyboard.press('Enter');
+	await expect(cardField(page)).toBeFocused();
+	await cardField(page).blur();
+	await expect.poll(names(page, 0)).toEqual(['Stejný jmenovatel', 'Různé jmenovatele']);
+	// One whose kind is changed is kept, unnamed.
+	await panel(page).getByRole('button', { name: 'Různé jmenovatele', exact: true }).click();
+	await page.keyboard.press('Enter');
+	await expect(cardField(page)).toBeFocused();
+	await page
+		.locator('.lessons > li')
+		.first()
+		.locator('.cards > li')
+		.last()
+		.getByRole('button', { name: /^Typ karty/ })
+		.click();
+	await page.getByRole('menuitemradio', { name: 'Cvičení' }).click();
+	await expect
+		.poll(names(page, 0))
+		.toEqual(['Stejný jmenovatel', 'Různé jmenovatele', 'bez názvu']);
+	await page.getByRole('button', { name: 'Odebrat z návrhu: bez názvu' }).click();
+	await expect.poll(names(page, 0)).toEqual(['Stejný jmenovatel', 'Různé jmenovatele']);
+
 	// A second lesson, left empty and named: it is created without cards.
 	await panel(page).getByRole('button', { name: 'Nová lekce' }).click();
 	await page.keyboard.type('Opakování');
 	await lessonField(page).blur();
 	await expect.poll(lessonNames(page)).toEqual(['Sčítání zlomků', 'Opakování']);
-	// A third one left without a name is not kept.
+	// A third one clicked away from without a name stays, „bez názvu“.
 	await panel(page).getByRole('button', { name: 'Nová lekce' }).click();
 	await expect(lessonField(page)).toBeFocused();
 	await lessonField(page).blur();
-	await expect.poll(lessonNames(page)).toEqual(['Sčítání zlomků', 'Opakování']);
+	await expect.poll(lessonNames(page)).toEqual(['Sčítání zlomků', 'Opakování', 'bez názvu']);
+	// Nothing is created while it has no name; the panel says so, and stops once it is unticked.
+	await create(page).click();
+	const hint = panel(page).getByText('Řádky bez názvu pojmenuj, nebo je odškrtni.');
+	await expect(hint).toBeVisible();
+	await expect(lessonsInCourse(page)).toHaveCount(1);
+	await page.getByRole('checkbox', { name: 'Vytvořit lekci: bez názvu' }).uncheck();
+	await expect(hint).toHaveCount(0);
 
 	await create(page).click();
 	// In place of the new course's empty first lesson.
@@ -106,7 +137,7 @@ test('cards for a lesson are started by hand too, where „Kam“ says', async (
 	await expect(lessonsInCourse(page)).toHaveCount(1);
 });
 
-test('„+ karta“ and „+ lekce“ show on hover, and a new row left empty goes while an emptied one keeps its name', async ({
+test('„+ karta“ and „+ lekce“ show on hover, and a new row left empty stays unnamed while an emptied one keeps its name', async ({
 	page
 }) => {
 	await ask(page, 'Kurz o zlomcích');
@@ -127,8 +158,26 @@ test('„+ karta“ and „+ lekce“ show on hover, and a new row left empty go
 			.last()
 			.getByRole('button', { name: /^Typ karty/ })
 	).toHaveAccessibleName('Typ karty: Otázka');
+	// Its kind is changed before it has a name: the row stays.
+	await first
+		.locator('.cards > li')
+		.last()
+		.getByRole('button', { name: /^Typ karty/ })
+		.click();
+	await page.getByRole('menuitemradio', { name: 'Výklad' }).click();
+	await expect.poll(names(page, 0)).toEqual(['Co to je', 'Procvičení', 'Ověření', 'bez názvu']);
+	await expect(
+		first
+			.locator('.cards > li')
+			.last()
+			.getByRole('button', { name: /^Typ karty/ })
+	).toHaveAccessibleName('Typ karty: Výklad');
+	// Named later, by clicking it.
+	await page.getByRole('button', { name: 'bez názvu', exact: true }).click();
+	await page.keyboard.type('Shrnutí lekce');
 	await cardField(page).blur();
-	await expect.poll(names(page, 0)).toEqual(['Co to je', 'Procvičení', 'Ověření']);
+	await expect.poll(names(page, 0)).toEqual(['Co to je', 'Procvičení', 'Ověření', 'Shrnutí lekce']);
+	await page.getByRole('button', { name: 'Odebrat z návrhu: Shrnutí lekce' }).click();
 
 	// An existing name emptied is the old one.
 	await page.getByRole('button', { name: 'Procvičení', exact: true }).click();

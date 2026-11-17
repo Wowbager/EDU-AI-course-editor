@@ -486,6 +486,18 @@ export function toOutline(draft: Draft, only: 'ticked' | 'all' = 'all'): Outline
 	return lessons.length === 0 ? undefined : { scope: 'lessons', lessons };
 }
 
+/**
+ * Whether a ticked row has no name: a card, or a lesson that would be created. Such a row
+ * is left out by `toOutline`, so „Vytvořit vybrané“ asks for its name first.
+ */
+export const unnamedTicked = (draft: Draft): boolean =>
+	draft.lessons.some((l) => {
+		const ticked = l.cards.filter((c) => c.on);
+		if (ticked.some((c) => c.name.trim() === '')) return true;
+		if (draft.scope === 'cards' || l.name.trim() !== '') return false;
+		return ticked.length > 0 || (l.cards.length === 0 && l.on !== false);
+	});
+
 /** Whether anything is ticked, which is when „Vytvořit vybrané“ has something to do. */
 export const anyTicked = (draft: Draft): boolean => toOutline(draft, 'ticked') !== undefined;
 

@@ -24,6 +24,7 @@ import {
 	keyMaker,
 	untickedOf,
 	toOutline,
+	unnamedTicked,
 	withScope,
 	type Draft,
 	type KeyMaker
@@ -125,6 +126,8 @@ class AiPanel {
 	incoming = $state(false);
 	/** A sentence for the teacher, or empty. */
 	problem = $state('');
+	/** „Vytvořit vybrané“ was clicked with a ticked row still unnamed (`unnamedTicked`). */
+	namesWanted = $state(false);
 	/** Bumped to make a request that was sent before „Zahodit návrh“ ignore its answer. */
 	#generation = 0;
 	#key: KeyMaker = keyMaker();
@@ -300,6 +303,7 @@ class AiPanel {
 	 */
 	change(next: Draft | null): number {
 		if (next === this.draft) return -1;
+		if (next === null) this.namesWanted = false;
 		const stepped = !this.incoming;
 		if (stepped) this.#step(record(this.#history, this.draft));
 		this.draft = next;
@@ -355,6 +359,7 @@ class AiPanel {
 		this.incoming = false;
 		this.problem = '';
 		this.#course = courseId;
+		this.namesWanted = false;
 		this.#place = DEFAULT_PLACE;
 		this.landed = null;
 		this.planning = false;
@@ -484,7 +489,10 @@ class AiPanel {
 		if (outcome !== 'done') {
 			this.problem = this.#say(outcome.problem);
 			// What a fresh proposal had written before the failure stays; an empty one goes.
-			if (fresh && !some) this.draft = null;
+			if (fresh && !some) {
+				this.draft = null;
+				this.namesWanted = false;
+			}
 			if (!(fresh && some)) return;
 		}
 		if (fresh) {
@@ -520,8 +528,14 @@ class AiPanel {
 	 * proposal is done with, and the queue starts writing them.
 	 */
 	create(store: DocStore): void {
-		const ticked = this.draft === null ? undefined : toOutline(this.draft, 'ticked');
-		if (ticked === undefined || this.asking) return;
+		if (this.draft === null || this.asking) return;
+		// Nothing goes in without its name: the teacher names those rows, or unticks them.
+		if (unnamedTicked(this.draft)) {
+			this.namesWanted = true;
+			return;
+		}
+		const ticked = toOutline(this.draft, 'ticked');
+		if (ticked === undefined) return;
 		const outline = fitToPlace(store.doc, ticked, this.place);
 		// The request that made a course structure is kept on the course for the cards' dossier.
 		const request = outline.scope === 'lessons' ? this.draft?.original : undefined;
@@ -546,6 +560,7 @@ class AiPanel {
 		}
 		this.#store = store;
 		this.draft = null;
+		this.namesWanted = false;
 		this.forget();
 		this.problem = '';
 		// The next proposal goes to the default place again, not to this one's.
