@@ -324,7 +324,7 @@
 					{armed ? 'Opravdu zahodit? Klikni znovu' : 'Zahodit návrh'}
 				</button>
 			</div>
-			{#if aiPanel.namesWanted && unnamedTicked(draft)}
+			{#if aiPanel.namesWanted > 0 && unnamedTicked(draft)}
 				<p class="quiet" role="status">Řádky bez názvu pojmenuj, nebo je odškrtni.</p>
 			{/if}
 		{:else if showRows}

@@ -23,6 +23,7 @@
 		addDraftLesson,
 		canAddCard,
 		canAddLesson,
+		firstUnnamedTicked,
 		lessonStartsOpen,
 		settleOpen,
 		lessonTick,
@@ -135,8 +136,20 @@
 	}
 	function begin(key: string, step: number, chained = false) {
 		editing = { key, value: '', fresh: true, step, chained };
+		pressedKind = null;
 		void focusName(key, false);
 	}
+
+	// „Vytvořit vybrané“ found a ticked row without a name: the cursor goes to it.
+	$effect(() => {
+		if (aiPanel.namesWanted === 0) return;
+		untrack(() => {
+			const row = firstUnnamedTicked(now());
+			if (row === undefined) return;
+			opened[row.lesson] = true;
+			rename(row.key, '', false);
+		});
+	});
 
 	// A row the empty panel started is named here.
 	$effect(() => {
@@ -809,6 +822,7 @@
 
 	.name.unnamed {
 		font-style: italic;
+		font-weight: normal;
 		color: var(--e-text-faint);
 	}
 

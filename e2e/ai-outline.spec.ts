@@ -108,8 +108,17 @@ test('an outline is started without the AI and typed lesson by lesson, card by c
 	const hint = panel(page).getByText('Řádky bez názvu pojmenuj, nebo je odškrtni.');
 	await expect(hint).toBeVisible();
 	await expect(lessonsInCourse(page)).toHaveCount(1);
+	// The cursor is in the row that needs the name.
+	await expect(lessonField(page)).toBeFocused();
+	await page.keyboard.press('Escape');
 	await page.getByRole('checkbox', { name: 'Vytvořit lekci: bez názvu' }).uncheck();
 	await expect(hint).toHaveCount(0);
+	// It asks again only at the next click, not for every new row.
+	await panel(page).getByRole('button', { name: 'Nová lekce' }).click();
+	await lessonField(page).blur();
+	await expect(page.getByRole('checkbox', { name: 'Vytvořit lekci: bez názvu' })).toHaveCount(2);
+	await expect(hint).toHaveCount(0);
+	await page.getByRole('button', { name: 'Odebrat z návrhu lekci: bez názvu' }).last().click();
 
 	await create(page).click();
 	// In place of the new course's empty first lesson.

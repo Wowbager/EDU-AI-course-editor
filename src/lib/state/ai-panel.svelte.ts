@@ -126,8 +126,11 @@ class AiPanel {
 	incoming = $state(false);
 	/** A sentence for the teacher, or empty. */
 	problem = $state('');
-	/** „Vytvořit vybrané“ was clicked with a ticked row still unnamed (`unnamedTicked`). */
-	namesWanted = $state(false);
+	/**
+	 * „Vytvořit vybrané“ was clicked with a ticked row still unnamed (`unnamedTicked`): 0 when
+	 * not, else bumped on each such click, for the tree to put the cursor in that row.
+	 */
+	namesWanted = $state(0);
 	/** Bumped to make a request that was sent before „Zahodit návrh“ ignore its answer. */
 	#generation = 0;
 	#key: KeyMaker = keyMaker();
@@ -303,15 +306,21 @@ class AiPanel {
 	 */
 	change(next: Draft | null): number {
 		if (next === this.draft) return -1;
-		if (next === null) this.namesWanted = false;
+		this.#namesGiven(next);
 		const stepped = !this.incoming;
 		if (stepped) this.#step(record(this.#history, this.draft));
 		this.draft = next;
 		return stepped ? this.#steps : -1;
 	}
 
+	/** Once no ticked row lacks a name, the next one asks again only at the next click. */
+	#namesGiven(next: Draft | null): void {
+		if (next === null || !unnamedTicked(next)) this.namesWanted = 0;
+	}
+
 	/** A change that belongs to the last step, like the name of a row it added. */
 	amend(next: Draft): void {
+		this.#namesGiven(next);
 		this.draft = next;
 	}
 
@@ -359,7 +368,7 @@ class AiPanel {
 		this.incoming = false;
 		this.problem = '';
 		this.#course = courseId;
-		this.namesWanted = false;
+		this.namesWanted = 0;
 		this.#place = DEFAULT_PLACE;
 		this.landed = null;
 		this.planning = false;
@@ -491,7 +500,7 @@ class AiPanel {
 			// What a fresh proposal had written before the failure stays; an empty one goes.
 			if (fresh && !some) {
 				this.draft = null;
-				this.namesWanted = false;
+				this.namesWanted = 0;
 			}
 			if (!(fresh && some)) return;
 		}
@@ -531,7 +540,7 @@ class AiPanel {
 		if (this.draft === null || this.asking) return;
 		// Nothing goes in without its name: the teacher names those rows, or unticks them.
 		if (unnamedTicked(this.draft)) {
-			this.namesWanted = true;
+			this.namesWanted++;
 			return;
 		}
 		const ticked = toOutline(this.draft, 'ticked');
@@ -560,7 +569,7 @@ class AiPanel {
 		}
 		this.#store = store;
 		this.draft = null;
-		this.namesWanted = false;
+		this.namesWanted = 0;
 		this.forget();
 		this.problem = '';
 		// The next proposal goes to the default place again, not to this one's.

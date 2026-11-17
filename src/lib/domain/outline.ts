@@ -487,16 +487,22 @@ export function toOutline(draft: Draft, only: 'ticked' | 'all' = 'all'): Outline
 }
 
 /**
- * Whether a ticked row has no name: a card, or a lesson that would be created. Such a row
- * is left out by `toOutline`, so „Vytvořit vybrané“ asks for its name first.
+ * The first ticked row without a name, top to bottom: a card, or a lesson that would be
+ * created. Such a row is left out by `toOutline`, so „Vytvořit vybrané“ asks for its name
+ * first. `lesson` is the key of the lesson it is in, or is.
  */
-export const unnamedTicked = (draft: Draft): boolean =>
-	draft.lessons.some((l) => {
+export function firstUnnamedTicked(draft: Draft): { key: string; lesson: string } | undefined {
+	for (const l of draft.lessons) {
 		const ticked = l.cards.filter((c) => c.on);
-		if (ticked.some((c) => c.name.trim() === '')) return true;
-		if (draft.scope === 'cards' || l.name.trim() !== '') return false;
-		return ticked.length > 0 || (l.cards.length === 0 && l.on !== false);
-	});
+		const named = draft.scope === 'cards' || l.name.trim() !== '';
+		if (!named && (ticked.length > 0 || (l.cards.length === 0 && l.on !== false)))
+			return { key: l.key, lesson: l.key };
+		const card = ticked.find((c) => c.name.trim() === '');
+		if (card !== undefined) return { key: card.key, lesson: l.key };
+	}
+	return undefined;
+}
+export const unnamedTicked = (draft: Draft): boolean => firstUnnamedTicked(draft) !== undefined;
 
 /** Whether anything is ticked, which is when „Vytvořit vybrané“ has something to do. */
 export const anyTicked = (draft: Draft): boolean => toOutline(draft, 'ticked') !== undefined;

@@ -4,6 +4,7 @@ import { DEFAULT_PLACE } from '../placement';
 import {
 	anyTicked,
 	unnamedTicked,
+	firstUnnamedTicked,
 	buildOutlineRequest,
 	addDraftCard,
 	addDraftLesson,
@@ -236,6 +237,10 @@ describe('an outline made by hand', () => {
 		expect(unnamedTicked(draft)).toBe(false);
 		draft = addDraftCard(draft, draft.lessons[0].key, 'n1');
 		expect(unnamedTicked(draft)).toBe(true);
+		// The first one from the top, with the lesson it is in.
+		draft = addDraftCard(draft, draft.lessons[1].key, 'n0');
+		expect(firstUnnamedTicked(draft)).toEqual({ key: 'n1', lesson: draft.lessons[0].key });
+		draft = removeCard(draft, 'n0');
 		draft = setCardTick(draft, 'n1', false);
 		expect(unnamedTicked(draft)).toBe(false);
 		// A lesson without a name counts once it would be created: ticked, or with ticked cards.
