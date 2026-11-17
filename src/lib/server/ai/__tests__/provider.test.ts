@@ -6,6 +6,7 @@ import {
 	buildBody,
 	buildChatBody,
 	chatter,
+	MAX_OUTPUT_TOKENS,
 	completer,
 	hostMessages,
 	ProviderError,
@@ -65,6 +66,14 @@ describe('buildBody', () => {
 		expect(body.model).toBe('deepseek/deepseek-v4.1-flash:nitro');
 		expect(body.response_format).toEqual({ type: 'json_object' });
 		expect(buildBody(deepseek, []).provider).toBe(undefined);
+	});
+
+	it('bounds what one text call may write, on every host', () => {
+		for (const config of [openrouter, deepseek]) {
+			expect(buildBody(config, []).max_tokens).toBe(MAX_OUTPUT_TOKENS);
+			expect(buildBody(config, [], { stream: true }).max_tokens).toBe(MAX_OUTPUT_TOKENS);
+			expect(buildChatBody(config, [], { tool: 'write_card' }).max_tokens).toBe(MAX_OUTPUT_TOKENS);
+		}
 	});
 });
 

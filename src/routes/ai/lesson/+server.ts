@@ -11,10 +11,12 @@
  * to the model counts.
  */
 import { env } from '$env/dynamic/private';
+import { error } from '@sveltejs/kit';
 import { MAX_CONTEXT_CHARS, MAX_MATERIALS_CHARS } from '$lib/domain/authoring';
 import { lessonRequestSchema, MAX_RESUME_CHARS, MAX_TURN_CHARS } from '$lib/domain/lesson-writing';
 import { lessonEvents } from '$lib/server/ai/lesson';
 import { chatter } from '$lib/server/ai/provider';
+import { lessonRequestSealed, sealKey, sealLessonEvent } from '$lib/server/ai/seal';
 import { eventStream, limitsFor, readAiRequest, whoOf } from '$lib/server/ai/route';
 import { loadPicture } from '$lib/server/images/instance';
 import type { RequestHandler } from './$types';
@@ -28,6 +30,9 @@ export const POST: RequestHandler = async (event) => {
 	const { request } = event;
 	const who = whoOf(event);
 	const { config, body } = await readAiRequest(request, env, lessonRequestSchema, MAX_BODY);
+	// Only what the model said comes back as the model's.
+	const key = sealKey(config);
+	if (!lessonRequestSealed(key, body)) error(400, 'Požadavek nemá očekávaný tvar.');
 	const limits = limitsFor(config, who);
 	if (limits instanceof Response) return limits;
 	return eventStream(async (send, signal) => {
@@ -35,6 +40,6 @@ export const POST: RequestHandler = async (event) => {
 			...limits,
 			signal
 		}))
-			send(event);
+			send(sealLessonEvent(key, body, event));
 	});
 };

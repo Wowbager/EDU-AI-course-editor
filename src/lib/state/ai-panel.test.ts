@@ -1,3 +1,4 @@
+import { lessonRequestSealed, sealKey, sealLessonEvent, sealPlanEvent } from '$lib/server/ai/seal';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DocStore } from './doc-store.svelte';
 import { aiPanel, FROM_MATERIALS } from './ai-panel.svelte';
@@ -63,20 +64,22 @@ const ndjson = (events: unknown[]) =>
 async function answerAi(route: string, body: any): Promise<Response | undefined> {
 	if (route === '/ai/outline') return stream(fakeOutline(body));
 	if (route === '/ai/lesson') {
-		const events: unknown[] = [];
-		for await (const e of lessonEvents(body, fakeChat)) events.push(e);
-		return ndjson(events);
+		if (!lessonRequestSealed(SEAL, body)) return new Response('unsealed', { status: 400 });
+		return ndjson(await answerLesson(body));
 	}
-	if (route === '/ai/plan') return ndjson([await makePlan(body, fakeChat)]);
+	if (route === '/ai/plan') return ndjson([sealPlanEvent(SEAL, await makePlan(body, fakeChat))]);
 	return undefined;
 }
 
 type Seen = { route: string; body: any };
 
+/** The routes seal what they hand back (`server/ai/seal.ts`); so does this fake of them. */
+const SEAL = sealKey({ apiKey: '', provider: 'fake' });
+
 /** The events the real lesson route would send for `body`. */
 async function answerLesson(body: any): Promise<any[]> {
 	const events: any[] = [];
-	for await (const e of lessonEvents(body, fakeChat)) events.push(e);
+	for await (const e of lessonEvents(body, fakeChat)) events.push(sealLessonEvent(SEAL, body, e));
 	return events;
 }
 

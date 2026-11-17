@@ -12,6 +12,7 @@ import { MAX_CONTEXT_CHARS, MAX_MATERIALS_CHARS } from '$lib/domain/authoring';
 import { planRequestSchema } from '$lib/domain/plan';
 import { makePlan } from '$lib/server/ai/lesson';
 import { chatter } from '$lib/server/ai/provider';
+import { sealKey, sealPlanEvent } from '$lib/server/ai/seal';
 import { eventStream, limitsFor, readAiRequest, whoOf } from '$lib/server/ai/route';
 import { loadPicture } from '$lib/server/images/instance';
 import type { RequestHandler } from './$types';
@@ -25,6 +26,7 @@ export const POST: RequestHandler = async (event) => {
 	const limits = limitsFor(config, who);
 	if (limits instanceof Response) return limits;
 	return eventStream(async (send, signal) => {
-		send(await makePlan(body, chatter(config, fetch, loadPicture), { ...limits, signal }));
+		const plan = await makePlan(body, chatter(config, fetch, loadPicture), { ...limits, signal });
+		send(sealPlanEvent(sealKey(config), plan));
 	});
 };
