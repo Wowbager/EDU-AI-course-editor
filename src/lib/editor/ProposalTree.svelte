@@ -136,7 +136,7 @@
 	}
 	function begin(key: string, step: number, chained = false) {
 		editing = { key, value: '', fresh: true, step, chained };
-		pressedKind = null;
+		pressedRow = null;
 		void focusName(key, false);
 	}
 
@@ -173,11 +173,12 @@
 	/**
 	 * The name typed is kept. A row left empty stays as it was: one the teacher added stays
 	 * without a name (Backspace, Escape or its × take it away), an existing one keeps its old
-	 * name. Only a row Enter started and nothing was done with goes; its kind icon, `to`,
-	 * counts as something. Returns whether a name was typed.
+	 * name. Only a row Enter started and nothing was done with goes; a press on the row
+	 * itself (its kind icon, its ×), or focus moving into it (`to`), counts as something.
+	 * Returns whether a name was typed.
 	 */
-	/** The card whose kind icon is being pressed, while its name field loses focus to it. */
-	let pressedKind: string | null = null;
+	/** The card being pressed, from pointerdown to pointerup, while its name field loses focus. */
+	let pressedRow: string | null = null;
 	function commit(key: string, lesson: boolean, to?: EventTarget | null): boolean {
 		if (editing?.key !== key) return false;
 		const { value, fresh, step, chained } = editing;
@@ -187,9 +188,9 @@
 		if (name === '') {
 			// A pressed button is not focused everywhere (Safari), so the press counts too.
 			const own =
-				pressedKind === key ||
+				pressedRow === key ||
 				(to instanceof Element && to.closest('[data-row]')?.getAttribute('data-row') === key);
-			pressedKind = null;
+			pressedRow = null;
 			if (chained && !own) aiPanel.takeBack(step, without(d, key, lesson));
 			return false;
 		}
@@ -300,7 +301,7 @@
 	}
 
 	function openKinds(event: MouseEvent, key: string) {
-		pressedKind = null;
+		pressedRow = null;
 		// The press that closed the menu (light dismiss) does not open it again.
 		if (kindOpenAtPress) {
 			kindOpenAtPress = false;
@@ -461,12 +462,18 @@
 	}
 </script>
 
+<svelte:window
+	onpointerup={() => (pressedRow = null)}
+	onpointercancel={() => (pressedRow = null)}
+/>
+
 {#snippet cardRow(card: Draft['lessons'][number]['cards'][number])}
 	{@const Icon = cardTypeIcon(card.kind)}
 	<li
 		class="row card"
 		data-flat
 		data-row={card.key}
+		onpointerdown={() => (pressedRow = card.key)}
 		class:dragged={drag?.list === 'cards' &&
 			drag.state.moved &&
 			drag.state.from === flatIndex.get(card.key)}
@@ -498,10 +505,7 @@
 					title={`${cardTypeLabel(card.kind)} (změnit typ)`}
 					aria-haspopup="menu"
 					aria-expanded={kindFor?.key === card.key}
-					onpointerdown={() => {
-						kindOpenAtPress = kindShowing();
-						pressedKind = card.key;
-					}}
+					onpointerdown={() => (kindOpenAtPress = kindShowing())}
 					onclick={(e) => openKinds(e, card.key)}
 				>
 					<Icon size={13} aria-hidden="true" />
