@@ -192,14 +192,12 @@ class Materials {
 			s.picture !== undefined && !inUse(s.picture) ? [s.picture] : []
 		);
 		// The picture stays in the gallery when this fails: nothing for the teacher to do.
-		await Promise.all(
-			pictures.map((id) =>
-				fetch(`/images/gallery/${encodeURIComponent(id)}?unless=saved`, {
-					method: 'DELETE',
-					headers
-				}).catch(() => undefined)
-			)
-		);
+		// One at a time: each has the server read the saved versions.
+		for (const id of pictures)
+			await fetch(`/images/gallery/${encodeURIComponent(id)}?unless=saved`, {
+				method: 'DELETE',
+				headers
+			}).catch(() => undefined);
 	}
 
 	get full(): boolean {

@@ -260,6 +260,6 @@ What the editor keeps in all is bounded by `DATA_MAX_MB` (default 900, `0` for n
 bound), counted as the files take on disk: uploads stop at 85 % of it, saving a version
 at all of it (`lib/server/disk.ts`). The browser shrinks a picture to at most 1 MB and
 2048 px before it is sent, and the server refuses a bigger one; a workspace keeps at
-most 100 pictures, 100 versions a course and 1000 in all. Nothing is deleted on its own;
+most 100 pictures. Nothing is deleted on its own;
 removing a material also removes its pictures from the gallery, unless the open course
 or a saved version shows them.

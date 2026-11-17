@@ -145,14 +145,14 @@ export class ImageFiles {
 
 		const ownerDir = this.#ownerDir(owner);
 		const publicDir = this.#publicDir();
-		if (!(await disk().roomFor(this.#root, 'upload', bytes.byteLength)))
-			throw new ImageError(507, DISK_FULL);
-
 		return this.#serial(owner, async () => {
 			const index = await readIndex(ownerDir);
 			if (index.items.length >= MAX_IMAGES_PER_OWNER) {
 				throw new ImageError(429, `Galerie je plná (maximum ${MAX_IMAGES_PER_OWNER} obrázků).`);
 			}
+			// Last, so that only a picture that is then written is counted as using room.
+			if (!(await disk().roomFor(this.#root, 'upload', bytes.byteLength)))
+				throw new ImageError(507, DISK_FULL);
 
 			const ext = MIME_TO_EXT[mimeType];
 			const safeSlug = sanitiseName(originalName)

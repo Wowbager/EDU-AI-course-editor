@@ -33,21 +33,29 @@ export function fitWithin(width: number, height: number, side: number) {
 }
 
 const QUALITY = 0.85;
-/** Below this a picture is no longer worth making smaller; its JPEG is kept whatever it weighs. */
+/** Below this side a picture is not made smaller, only its quality lower. */
 const SMALLEST_SIDE = 400;
+const LOWEST_QUALITY = 0.5;
 
 const toBlob = (canvas: HTMLCanvasElement, type: string, quality?: number) =>
 	new Promise<Blob>((resolve, reject) =>
 		canvas.toBlob((b) => (b === null ? reject(new Error('no picture')) : resolve(b)), type, quality)
 	);
 
-/** The file to upload in place of `file`. Rejects for a picture the browser cannot open. */
+/**
+ * The file to upload in place of `file`. Rejects for a picture the browser cannot open.
+ * A small picture is still opened, to keep one with a huge side from going as it is.
+ * An animated WebP or PNG that has to be redrawn keeps only its first frame.
+ */
 export async function shrinkForUpload(file: File): Promise<File> {
-	if (shrinkPlan(file) === 'as-is') return file;
+	if (file.type === 'image/gif') return file;
 	const bitmap = await createImageBitmap(file);
 	try {
+		const longest = Math.max(bitmap.width, bitmap.height);
+		if (shrinkPlan(file) === 'as-is' && longest <= MAX_IMAGE_SIDE) return file;
 		const wanted = redrawType(file.type);
 		let side = MAX_IMAGE_SIDE;
+		let quality = QUALITY;
 		for (;;) {
 			const size = fitWithin(bitmap.width, bitmap.height, side);
 			const canvas = document.createElement('canvas');
@@ -55,13 +63,21 @@ export async function shrinkForUpload(file: File): Promise<File> {
 			canvas.height = size.height;
 			const context = canvas.getContext('2d')!;
 			context.imageSmoothingQuality = 'high';
+			let blob = await toBlob(
+				drawOnto(canvas, context, bitmap, wanted === 'image/jpeg'),
+				wanted,
+				quality
+			);
 			// A browser that cannot write WebP hands back a PNG, which may be too big;
-			// then a JPEG over white, as the last resort below.
-			let blob = await toBlob(drawOnto(canvas, context, bitmap, false), wanted, QUALITY);
-			if (blob.size > MAX_IMAGE_BYTES || (blob.type !== wanted && blob.type !== 'image/png'))
-				blob = await toBlob(drawOnto(canvas, context, bitmap, true), 'image/jpeg', QUALITY);
-			if (blob.size <= MAX_IMAGE_BYTES || side <= SMALLEST_SIDE) return named(file, blob);
-			side = Math.round(side * 0.75);
+			// then a JPEG over white.
+			const usable = blob.type === wanted || blob.type === 'image/png';
+			if (wanted !== 'image/jpeg' && (blob.size > MAX_IMAGE_BYTES || !usable))
+				blob = await toBlob(drawOnto(canvas, context, bitmap, true), 'image/jpeg', quality);
+			if (blob.size <= MAX_IMAGE_BYTES) return named(file, blob);
+			// Smaller first; at the smallest side, lower quality; past that, the server says no.
+			if (side > SMALLEST_SIDE) side = Math.max(SMALLEST_SIDE, Math.round(side * 0.75));
+			else if (quality > LOWEST_QUALITY) quality = LOWEST_QUALITY;
+			else return named(file, blob);
 		}
 	} finally {
 		bitmap.close();

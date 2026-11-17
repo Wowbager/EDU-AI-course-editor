@@ -93,7 +93,7 @@ export interface DiskOptions {
 export class Disk {
 	#seen = new Map<string, { at: number; free: number | null }>();
 	#usage = new Map<string, Usage>();
-	#counting = new Map<string, Promise<Usage>>();
+	#counting = new Map<string, Promise<Usage | null>>();
 	/** The needs refused for the budget, so the log says it once, not per request. */
 	#full = new Set<Need>();
 	private readonly statfs: Statfs;
@@ -126,19 +126,22 @@ export class Disk {
 		return free;
 	}
 
-	/** The last count, made again when it is old; one count at a time per root. */
-	async #used(root: string): Promise<Usage> {
+	/**
+	 * The last count, made again when it is old; one count at a time per root. A count
+	 * that fails keeps the last one, or, with none, is `null` and asked again next time.
+	 */
+	async #used(root: string): Promise<Usage | null> {
 		const usage = this.#usage.get(root);
 		if (usage !== undefined && this.now() - usage.at < MEASURE_MS) return usage;
 		let counting = this.#counting.get(root);
 		if (counting === undefined) {
 			counting = this.measure(root)
-				.catch(() => 0)
 				.then((used) => {
 					const fresh = { at: this.now(), used, pending: 0 };
 					this.#usage.set(root, fresh);
 					return fresh;
 				})
+				.catch(() => usage ?? null)
 				.finally(() => this.#counting.delete(root));
 			this.#counting.set(root, counting);
 		}
@@ -155,6 +158,8 @@ export class Disk {
 			return false;
 		if (this.maxUsed <= 0) return true;
 		const usage = await this.#used(root);
+		// Nothing to go by, as with a disk that cannot say: not refused.
+		if (usage === null) return true;
 		const cost = blocksOf(bytes);
 		const limit = need === 'version' ? this.maxUsed : this.maxUsed * UPLOAD_SHARE;
 		const room = usage.used + usage.pending + cost <= limit;

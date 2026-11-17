@@ -94,6 +94,23 @@ describe('the storage budget', () => {
 		expect(state.counts).toBe(2);
 	});
 
+	it('does not take a failed count for an empty disk, and counts again next time', async () => {
+		const state = { fail: true, counts: 0 };
+		const disk = new Disk(0, {
+			statfs: plenty,
+			maxUsed: 100 * MB,
+			measure: async () => {
+				state.counts++;
+				if (state.fail) throw new Error('EIO');
+				return 99 * MB;
+			}
+		});
+		expect(await disk.roomFor('/d', 'upload')).toBe(true);
+		state.fail = false;
+		expect(await disk.roomFor('/d', 'upload')).toBe(false);
+		expect(state.counts).toBe(2);
+	});
+
 	it('has no budget when DATA_MAX_MB is 0', async () => {
 		const disk = new Disk(0, { statfs: plenty, maxUsed: 0, measure: async () => 1e15 });
 		expect(await disk.roomFor('/d', 'upload', MB)).toBe(true);

@@ -29,13 +29,13 @@ import {
 export const COURSE_ID = /^[A-Za-z0-9_-]{1,80}$/;
 export const MAX_VERSION = 1_000_000;
 /**
- * Per course, and per owner across all courses. Generous for a teacher, who saves by
- * hand; they stop a script. What the server keeps in all is bounded by `server/disk.ts`.
+ * Per course, and per owner across all courses. Generous; they stop runaway loops. Not
+ * lowered with the storage budget: nothing prunes a history, so a course already past a
+ * lower cap could never be saved again. What is kept in all is bounded by `server/disk.ts`.
  */
-export const MAX_VERSIONS_PER_COURSE = 100;
-export const MAX_VERSIONS_PER_OWNER = 1000;
-/** A course is tens of kilobytes; its pictures are kept apart, by address. */
-export const MAX_BODY_BYTES = 4 * 1024 * 1024;
+export const MAX_VERSIONS_PER_COURSE = 500;
+export const MAX_VERSIONS_PER_OWNER = 5000;
+export const MAX_BODY_BYTES = 8 * 1024 * 1024;
 
 const OWNER_ID = /^ws_[0-9a-f]{64}$|^user_[A-Za-z0-9_-]{1,64}$/;
 

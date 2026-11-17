@@ -37,14 +37,16 @@ const MEGABYTES = MAX_PICKED_BYTES / 1024 / 1024;
 const COMMON_TYPES = 'JPG, PNG, GIF nebo WebP';
 
 /** The line under the upload button. */
-export const IMAGE_LIMITS_TEXT = `${COMMON_TYPES}, nejvýš ${MEGABYTES} MB`;
+export const IMAGE_LIMITS_TEXT = `${COMMON_TYPES}, nejvýš ${MEGABYTES} MB (GIF 1 MB)`;
 
 /** Why a picture was not taken, in the words a teacher is told. */
 export type ImageProblem =
-	'too-big' | 'big-gif' | 'wrong-type' | 'full' | 'several' | 'later' | 'no-room';
+	'too-big' | 'not-smaller' | 'big-gif' | 'wrong-type' | 'full' | 'several' | 'later' | 'no-room';
 
 export const IMAGE_PROBLEM_TEXT: Record<ImageProblem, string> = {
 	'too-big': `Obrázek je větší než ${MEGABYTES} MB. Zmenši ho a zkus to znovu.`,
+	// The server's own limit: what the browser could not shrink, or a client that did not.
+	'not-smaller': 'Obrázek se nepodařilo zmenšit pod 1 MB. Zmenši ho a zkus to znovu.',
 	// An animation cannot be made smaller in the browser without losing it.
 	'big-gif': 'Obrázek GIF může mít nejvýš 1 MB. Použij menší, nebo ho ulož jako JPG či PNG.',
 	'wrong-type': `Tenhle soubor nahrát nejde. Použij obrázek ${COMMON_TYPES}.`,

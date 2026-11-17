@@ -26,7 +26,8 @@ export class ImageRequestError extends Error {
 }
 
 const BY_STATUS: Record<number, ImageProblem> = {
-	413: 'too-big',
+	// The picker refuses a too-big pick itself; the server's 413 is about the shrunk file.
+	413: 'not-smaller',
 	415: 'wrong-type',
 	429: 'full',
 	// Too many uploads from this address a minute or a day.
