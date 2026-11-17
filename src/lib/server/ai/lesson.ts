@@ -89,6 +89,7 @@ A question is one of
   {"type":"mcq_1","options":[{"text":"…","correct":true|false,"feedback":"…"}]}  exactly one correct, 3–4 options
   {"type":"mcq_n","options":[…]}  at least two correct and at least one wrong, 4–6 options; the task must say that several answers are right
   {"type":"open","answer":"plain text: every accepted answer on its own line, such as 21/30 and then 7/10; for 'explain in your own words' the key points, one per line, without bullet marks"}
+For mcq_1 and mcq_n, add "do_not_shuffle":true only when the order of the options carries meaning (numbers or sizes in order, a scale, options like "all of the above" or "none of the above" that refer to the others); otherwise leave it out: the app then shows the options in another order, so no text (task, hint, help, solution, feedback) refers to an option by its letter or position ("b)", "the first option").
 Use "number" only when the pupil types a whole or decimal number. A fraction answer is a choice question (mcq_1) or an open question answered as typed text such as 3/4. When a step has "question_type", use exactly that type. Otherwise choose the type that suits the task, and vary the types over the card where it makes sense. "option_feedback" is an array with one reaction for each option in that step's given question options, in the same order.
 
 Rules for what you write:

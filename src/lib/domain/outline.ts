@@ -2,9 +2,9 @@
  * The AI panel's proposal: a structure the model suggests and the teacher shapes
  * before anything reaches the course.
  *
- * It is one of two things, and the model decides which from the prompt:
- *  - `lessons`: a course structure, lessons with cards under them;
- *  - `cards`: cards for the lesson the teacher is in.
+ * It is one of two things, decided by the place the teacher chose for it (`placement.ts`):
+ *  - `lessons`: new lessons with cards under them;
+ *  - `cards`: cards for one lesson.
  * Every card is a kind and a name; the lessons are names. Nothing else is asked of the
  * model, which is most of what made a proposal slow. What the card is for comes from its
  * name, the outline around it and the teacher's request (`REQUEST_KEY`).
@@ -29,6 +29,8 @@ export { REQUEST_KEY };
 import { buildDossier } from './dossier';
 import { picturesFor, picturesSchema, renderMaterials, type Section } from './materials';
 import type { CourseV2 } from './schema';
+import { placeForModel, validPlace, type Place } from './placement';
+import { DEFAULT_LESSON_NAME } from './commands';
 
 export const OUTLINE_KINDS = ['display', 'question', 'exercise'] as const;
 export type OutlineKind = (typeof OUTLINE_KINDS)[number];
@@ -93,12 +95,15 @@ export const outlineRequestSchema = z.object({
 	/** The first prompt of this proposal, when `prompt` is a change to it. */
 	original: z.string().max(MAX_PROMPT_CHARS).optional(),
 	course: z.object({ title: z.string(), language: z.string(), audience: audienceSchema }),
-	/** Where the cards would go: the lesson and card the teacher has selected, by name. */
-	target: z.object({
+	/** Where the proposal goes, as the teacher chose it (`placement.ts`, `placeForModel`). */
+	place: z.object({
+		scope: z.enum(['lessons', 'cards']),
+		after_lesson: z.string().optional(),
+		before_lesson: z.string().optional(),
+		replaces_empty_lesson: z.string().optional(),
 		lesson: z.string().optional(),
-		card: z.string().optional(),
-		/** How many lessons the course has now; with none, cards have no lesson to go to. */
-		lessons: z.number().int().min(0)
+		cards_before: z.array(z.string()).max(200).optional(),
+		cards_after: z.array(z.string()).max(200).optional()
 	}),
 	/** The proposal as the teacher has it now, to be reworked. */
 	current: currentOutlineSchema.optional(),
@@ -131,8 +136,8 @@ export function outlineProblem(request: OutlineRequest, outline: Outline): strin
 }
 
 export function scopeProblem(request: OutlineRequest, scope: Outline['scope']): string | undefined {
-	if (scope === 'cards' && request.target.lessons === 0)
-		return 'The course has no lesson yet, so cards have nowhere to go. Use "scope":"lessons".';
+	if (scope !== request.place.scope)
+		return `The teacher chose where the proposal goes ("place"), and it takes "scope":"${request.place.scope}". Use that scope.`;
 	return undefined;
 }
 
@@ -355,6 +360,8 @@ export interface Draft {
 	 * „Vytvořit vybrané“ keeps it on the course. None for an outline made by hand.
 	 */
 	original?: string;
+	/** Where it goes, chosen before it was made (`placement.ts`); none means the default. */
+	place?: Place;
 }
 
 export type KeyMaker = () => string;
@@ -378,6 +385,20 @@ export function emptyDraft(scope: Outline['scope'], next: KeyMaker): Draft {
 	return {
 		scope,
 		lessons: scope === 'cards' ? [{ key: next(), name: '', cards: [] }] : []
+	};
+}
+
+/**
+ * A draft made by hand, moved to a place of the other kind: its cards in one group for a
+ * lesson, or in one new lesson (named as the editor names one; the teacher can rename it).
+ */
+export function withScope(draft: Draft, scope: Outline['scope'], next: KeyMaker): Draft {
+	if (draft.scope === scope) return draft;
+	const cards = draft.lessons.flatMap((l) => l.cards);
+	return {
+		...draft,
+		scope,
+		lessons: [{ key: next(), name: scope === 'cards' ? '' : DEFAULT_LESSON_NAME, cards }]
 	};
 }
 
@@ -627,32 +648,33 @@ export function stepCard(draft: Draft, cardKey: string, by: -1 | 1): Draft {
 
 // ───────────────────────────────── the request ─────────────────────────────────
 
-/** What the teacher has selected; the same two fields as the editor's selection. */
-export interface OutlineSelection {
-	lessonId?: string;
-	blockId?: string;
-}
-
 const text = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 
 /**
  * The request for a proposal: the prompt, the proposal being changed if there is one,
- * and where the teacher is. The dossier is anchored on the selected card, or on the
- * first card of the selected lesson, so that the lesson it is in is told in full.
+ * and the place it goes. For cards the dossier tells their lesson in full, anchored on the
+ * card they come after.
  */
 export function buildOutlineRequest(
 	doc: CourseV2,
-	selection: OutlineSelection | null | undefined,
+	place: Place,
 	prompt: string,
 	change?: { current: Outline; original: string },
 	/** The course's materials, when it has any. */
 	materials: readonly Section[] = []
 ): OutlineRequest {
-	const card = doc.blocks.find((b) => b.block_id === selection?.blockId);
-	const lesson =
-		doc.lessons.find((l) => l.lesson_id === selection?.lessonId) ??
-		doc.lessons.find((l) => l.blocks.some((b) => b.block_id === card?.block_id));
-	const anchor = card?.block_id ?? lesson?.blocks[0]?.block_id;
+	const valid = validPlace(doc, place);
+	const forModel = placeForModel(doc, valid);
+	const into = valid.kind === 'into' && forModel.scope === 'cards' ? valid : undefined;
+	const lesson = doc.lessons.find((l) => l.lesson_id === into?.lessonId);
+	const anchor =
+		into === undefined
+			? undefined
+			: typeof into.at === 'object'
+				? into.at.after
+				: into.at === 'start'
+					? lesson?.blocks[0]?.block_id
+					: lesson?.blocks.at(-1)?.block_id;
 	const audience = audienceSchema.safeParse((doc as Record<string, unknown>)[AUDIENCE_KEY] ?? {});
 	return {
 		schema: 'eduai.outline-request/1',
@@ -669,11 +691,7 @@ export function buildOutlineRequest(
 			language: text(doc.language) || 'cs',
 			audience: audience.success ? audience.data : {}
 		},
-		target: {
-			...(lesson !== undefined && text(lesson.name) !== '' ? { lesson: text(lesson.name) } : {}),
-			...(card !== undefined && text(card.name) !== '' ? { card: text(card.name) } : {}),
-			lessons: doc.lessons.length
-		},
+		place: forModel,
 		context: buildDossier(doc, anchor ?? '', lesson?.lesson_id),
 		...(materials.length > 0
 			? {

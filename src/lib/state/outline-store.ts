@@ -4,7 +4,7 @@ import { OUTLINE_KINDS, type Draft, type KeyMaker } from '$lib/domain/outline';
 /**
  * The AI panel's outline, kept in the browser per course until „Vytvořit vybrané“ or
  * „Zahodit návrh“, so a reload does not lose what the teacher has shaped: the rows, their
- * ticks, and the prompt it started from (none for one made by hand). Like the layout it
+ * ticks, the prompt it started from (none for one made by hand) and where it goes. Like the layout it
  * has keys of its own, never the draft's: the other tabs watch that one for edits.
  *
  * The outline's undo history is not kept, nor a request still being written.
@@ -14,11 +14,21 @@ export const OUTLINE_KEY = 'edu-editor:outline:v1';
 export const outlineKey = (courseId: string): string => `${OUTLINE_KEY}:${courseId}`;
 
 const name = z.string().max(120);
+const id = z.string().max(120);
+const placeSchema = z.union([
+	z.object({ kind: z.literal('new'), after: id.optional() }),
+	z.object({
+		kind: z.literal('into'),
+		lessonId: id,
+		at: z.union([z.literal('start'), z.literal('end'), z.object({ after: id })])
+	})
+]);
 const storedSchema = z.object({
 	format: z.literal(1),
 	draft: z.object({
 		scope: z.enum(['lessons', 'cards']),
 		original: z.string().max(4000).optional(),
+		place: placeSchema.optional(),
 		lessons: z
 			.array(
 				z.object({
@@ -55,12 +65,13 @@ export function keptDraft(draft: Draft): Draft | null {
 }
 
 export function serialiseOutline(draft: Draft): string {
-	const { scope, original, lessons } = draft;
+	const { scope, original, place, lessons } = draft;
 	return JSON.stringify({
 		format: 1,
 		draft: {
 			scope,
 			...(original !== undefined && original !== '' ? { original } : {}),
+			...(place !== undefined ? { place } : {}),
 			lessons: lessons.map(({ name, on, cards }) => ({
 				name,
 				...(on !== undefined ? { on } : {}),
@@ -84,10 +95,11 @@ export function parseOutline(text: string | null, next: KeyMaker): Draft | null 
 	} catch {
 		return null;
 	}
-	const { scope, original, lessons } = stored.draft;
+	const { scope, original, place, lessons } = stored.draft;
 	const draft: Draft = {
 		scope,
 		...(original !== undefined && original !== '' ? { original } : {}),
+		...(place !== undefined ? { place } : {}),
 		lessons: lessons.map((l) => ({
 			key: next(),
 			name: l.name,

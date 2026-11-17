@@ -27,23 +27,23 @@ const ON = !!process.env.EVAL;
 const base = (over: Partial<OutlineRequest> & { prompt: string }): OutlineRequest => ({
 	schema: 'eduai.outline-request/1',
 	course: { title: 'Zlomky', language: 'cs', audience: { grade: 5 } },
-	target: { lessons: 0 },
+	place: { scope: 'lessons' },
 	context: 'Kurz: Zlomky\nPro 5. třídu.',
 	...over
 });
 
-/** A teacher in the lesson „Sčítání zlomků“, with two lessons in the course. */
+/** Cards for the lesson „Sčítání zlomků“, after its „Úvod“; two lessons in the course. */
 const inLesson = (prompt: string, over: Partial<OutlineRequest> = {}) =>
 	base({
 		prompt,
-		target: { lesson: 'Sčítání zlomků', card: 'Úvod', lessons: 2 },
+		place: { scope: 'cards', lesson: 'Sčítání zlomků', cards_before: ['Úvod'], cards_after: [] },
 		context:
 			'Kurz: Zlomky\nPro 5. třídu.\nLekce 1: Co je zlomek (Výklad: Půlka a čtvrtina)\nLekce 2: Sčítání zlomků (Výklad: Úvod)',
 		...over
 	});
-/** A course with lessons but none selected. */
+/** A course with lessons, and new lessons at its end. */
 const noneSelected = (prompt: string, over: Partial<OutlineRequest> = {}) =>
-	base({ prompt, target: { lessons: 2 }, ...over });
+	base({ prompt, place: { scope: 'lessons', after_lesson: 'Sčítání zlomků' }, ...over });
 
 const MATERIALS = `Index of the materials:\n[aaaa1111.0] Sčítání zlomků se stejným jmenovatelem\n[aaaa1111.1] Příklady na sčítání\n[bbbb2222.0] Krácení zlomků\n\nThe materials in full:\n\n[aaaa1111.0] Sčítání zlomků se stejným jmenovatelem\nPři sčítání zlomků se stejným jmenovatelem sečteme čitatele a jmenovatel opíšeme. 1/5 + 2/5 = 3/5.\n\n[aaaa1111.1] Příklady na sčítání\n2/7 + 3/7 = ?  1/9 + 4/9 = ?  3/8 + 2/8 = ?\n\n[bbbb2222.0] Krácení zlomků\nZlomek zkrátíme tak, že čitatele i jmenovatele vydělíme stejným číslem. 4/6 = 2/3.`;
 const withMaterials = (r: OutlineRequest): OutlineRequest => ({

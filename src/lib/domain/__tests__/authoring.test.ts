@@ -81,8 +81,15 @@ const card = (doc: CourseV2, id: string, ...more: GeneratedCard['steps']): Gener
 	steps: [{ keep: stepOf(doc, id).id, fill: FULL_FILL }, ...more]
 });
 
-const fill = (doc: CourseV2, id: string, answer: GeneratedCard) =>
-	fillCard(doc, id, answer, RESERVED);
+/** Just below 1: the shuffle then leaves the order as the model wrote it. */
+const KEEP_ORDER = () => 0.999999;
+
+const fill = (
+	doc: CourseV2,
+	id: string,
+	answer: GeneratedCard,
+	random: () => number = KEEP_ORDER
+) => fillCard(doc, id, answer, RESERVED, random);
 
 const request = (doc: CourseV2, id: string, name = 'Kolik je polovina'): GenRequest => {
 	const named = setField(doc, { blockId: id, field: 'name' }, name).doc;
@@ -821,6 +828,92 @@ describe('in the document', () => {
 		expect(members.filter((b) => BRIEF_KEY in b)).toHaveLength(1);
 		expect(members.filter((b) => ORIGIN_KEY in b)).toHaveLength(1);
 	});
+
+	describe('option order', () => {
+		const optionsAfter = (question: GenQuestion, random?: () => number) => {
+			const { doc, exercise } = fresh();
+			const result = fill(
+				doc,
+				exercise,
+				card(doc, exercise, { ...newQuestion(), question }),
+				random
+			);
+			return blockOf(result.doc, exercise).steps[1].question!.options!;
+		};
+		const seeded = (seed: number) => () => {
+			seed = (seed * 1664525 + 1013904223) % 4294967296;
+			return seed / 4294967296;
+		};
+		const withFlag = (flag?: boolean): GenQuestion =>
+			({ ...MCQ, do_not_shuffle: flag }) as GenQuestion;
+		const firstStepOptions = (question: GenQuestion, random?: () => number) => {
+			const { doc, exercise } = fresh();
+			const answer = card(doc, exercise);
+			(answer.steps[0] as { fill: Fill }).fill = { ...FULL_FILL, question };
+			return blockOf(fill(doc, exercise, answer, random).doc, exercise).steps[0].question!.options!;
+		};
+
+		it('keeps the order when the model says it carries meaning', () => {
+			for (const run of [1, 2, 3]) {
+				const options = firstStepOptions(withFlag(true), seeded(run));
+				expect(options.map((o) => o.text)).toEqual(['4', '2', '16']);
+				expect(options.map((o) => o.id)).toEqual(['a', 'b', 'c']);
+			}
+			expect(optionsAfter(withFlag(true), seeded(7)).map((o) => o.text)).toEqual(['4', '2', '16']);
+		});
+
+		it('reorders otherwise, with text, correctness and feedback together and ids by position', () => {
+			let moved = false;
+			for (let run = 1; run <= 20; run++) {
+				const options = firstStepOptions(withFlag(), seeded(run));
+				expect(options.map((o) => o.id)).toEqual(['a', 'b', 'c']);
+				expect([...options.map((o) => o.text)].sort()).toEqual(['16', '2', '4']);
+				for (const o of options) {
+					const original = MCQ.type === 'mcq_1' ? MCQ.options.find((m) => m.text === o.text)! : o;
+					expect(o.is_correct).toBe(original.correct);
+					expect(o.feedback).toBe(original.feedback);
+				}
+				if (options[0].text !== '4') moved = true;
+			}
+			expect(moved).toBe(true);
+		});
+
+		it('shuffles new question steps too, and leaves the other types alone', () => {
+			const runs = Array.from({ length: 20 }, (_, i) => optionsAfter(withFlag(), seeded(i + 1)));
+			expect(new Set(runs.map((o) => o[0]?.text)).size).toBeGreaterThan(1);
+			const yesNo: GenQuestion = {
+				type: 'yes_no',
+				answer: true,
+				feedback_true: 'a',
+				feedback_false: 'b'
+			};
+			expect(optionsAfter(yesNo, seeded(3)).map((o) => o.id)).toEqual(['true', 'false']);
+		});
+
+		it('does not always leave the correct answer first (Math.random)', () => {
+			let first = 0;
+			const runs = 200;
+			for (let i = 0; i < runs; i++)
+				if (firstStepOptions(withFlag(), Math.random)[0].is_correct) first++;
+			expect(first / runs).toBeLessThan(0.6);
+		});
+
+		it('does not reorder answers the teacher wrote when only their reactions are filled', () => {
+			const { doc, exercise } = fresh();
+			const step = stepOf(doc, exercise).id;
+			let d = doc;
+			for (const o of ['a', 'b'])
+				d = setField(d, { blockId: exercise, stepId: step, optionId: o, field: 'text' }, o).doc;
+			const result = fill(
+				d,
+				exercise,
+				{ steps: [{ keep: step, fill: { option_feedback: ['x', 'y'] } }] },
+				() => 0
+			);
+			const options = stepOf(result.doc, exercise).question!.options!;
+			expect(options.map((o) => o.text)).toEqual(['a', 'b']);
+		});
+	});
 });
 
 describe('a picture step', () => {
@@ -855,7 +948,7 @@ describe('a picture step', () => {
 			steps: [{ keep: first, fill: { content_md: 'Na obrázku vidíš čtvrtiny.' } }, picture]
 		};
 		const steps = blockOf(
-			fillCard(doc, display, answer, RESERVED, { [KEY]: URL }).doc,
+			fillCard(doc, display, answer, RESERVED, Math.random, { [KEY]: URL }).doc,
 			display
 		).steps;
 		expect(steps).toHaveLength(2);

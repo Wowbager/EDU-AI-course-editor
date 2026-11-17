@@ -4,6 +4,8 @@ import { aiPanel, FROM_MATERIALS } from './ai-panel.svelte';
 import { materials } from './materials.svelte';
 import { addBlock, addLesson, setField } from '$lib/domain/commands';
 import { emptyCourse } from '$lib/domain/document';
+import { withStarter } from '$lib/domain/starter';
+import { DEFAULT_PLACE } from '$lib/domain/placement';
 import {
 	addDraftCard,
 	buildOutlineRequest,
@@ -128,13 +130,14 @@ afterEach(() => {
 });
 
 describe('the AI panel state', () => {
-	it('asks for a proposal with the selected lesson, and shows it all ticked', async () => {
+	it('asks for a proposal for the chosen lesson, and shows it all ticked', async () => {
 		const { store, lessonId, blockId } = setup();
 		const seen = server();
 		store.selection = { lessonId, blockId };
+		aiPanel.choose(store, { kind: 'into', lessonId, at: { after: blockId } });
 		await aiPanel.send(store, 'Dej mi karty');
 		expect(seen).toHaveLength(1);
-		expect(seen[0].body.target).toEqual({ lesson: 'Polovina', lessons: 1 });
+		expect(seen[0].body.place).toMatchObject({ scope: 'cards', lesson: 'Polovina' });
 		expect(aiPanel.draft?.scope).toBe('cards');
 		expect(aiPanel.draft?.lessons[0].cards.every((c) => c.on)).toBe(true);
 		// Nothing is in the course yet.
@@ -179,7 +182,7 @@ describe('the AI panel state', () => {
 		);
 		const pending = aiPanel.send(store, 'Kurz');
 		aiPanel.discard();
-		release(stream(fakeOutline(buildOutlineRequest(store.doc, null, 'Kurz'))));
+		release(stream(fakeOutline(buildOutlineRequest(store.doc, DEFAULT_PLACE, 'Kurz'))));
 		await pending;
 		expect(aiPanel.draft).toBeNull();
 	});
@@ -188,6 +191,7 @@ describe('the AI panel state', () => {
 		const { store, lessonId, blockId } = setup();
 		server();
 		store.selection = { lessonId, blockId };
+		aiPanel.choose(store, { kind: 'into', lessonId, at: { after: blockId } });
 		await aiPanel.send(store, 'Dej mi karty');
 		const draft = aiPanel.draft!;
 		aiPanel.draft = setCardTick(draft, draft.lessons[0].cards[2].key, false);
@@ -212,6 +216,7 @@ describe('the AI panel state', () => {
 		const { store, lessonId } = setup();
 		server();
 		store.selection = { lessonId };
+		aiPanel.choose(store, { kind: 'into', lessonId, at: 'end' });
 		await aiPanel.send(store, 'Dej mi karty');
 		aiPanel.create(store);
 		await done();
@@ -221,9 +226,10 @@ describe('the AI panel state', () => {
 });
 
 describe('planning before writing, and a lesson per request', () => {
-	/** Cards for the selected lesson, accepted. */
+	/** Cards for the lesson (or, for another prompt, new lessons), accepted. */
 	async function accept(store: DocStore, lessonId: string, prompt = 'Dej mi karty') {
 		store.selection = { lessonId };
+		if (/karty/.test(prompt)) aiPanel.choose(store, { kind: 'into', lessonId, at: 'end' });
 		await aiPanel.send(store, prompt);
 		aiPanel.create(store);
 	}
@@ -536,6 +542,19 @@ describe('planning before writing, and a lesson per request', () => {
 });
 
 describe('an outline made by hand, and its undo', () => {
+	it('can be started again once every card of a batch is written; the finished rows go', async () => {
+		const { store } = setup();
+		server();
+		await aiPanel.send(store, 'Kurz o zlomcích');
+		aiPanel.create(store);
+		await done();
+		expect(aiPanel.queue.rows.length).toBeGreaterThan(0);
+		expect(aiPanel.queue.rows.every((r) => r.state === 'done')).toBe(true);
+		aiPanel.start('lessons');
+		expect(aiPanel.queue.rows).toEqual([]);
+		expect(aiPanel.draft?.lessons).toHaveLength(1);
+	});
+
 	it('starts with a lesson or a card to name; a row left unnamed is taken back without a trace', () => {
 		aiPanel.start('lessons');
 		const typing = aiPanel.typing!;
@@ -638,6 +657,83 @@ describe('an outline made by hand, and its undo', () => {
 	});
 });
 
+describe('where the proposal goes', () => {
+	it('new lessons go at the end by default, whatever is selected, and the place is shown back', async () => {
+		const { store, lessonId, blockId } = setup();
+		let doc = addLesson(store.doc, 'Druhá').doc;
+		store.load(doc);
+		const seen = server();
+		store.selection = { lessonId, blockId };
+		await aiPanel.send(store, 'Kurz o zlomcích');
+		expect(seen[0].body.place).toEqual({ scope: 'lessons', after_lesson: 'Druhá' });
+		aiPanel.create(store);
+		expect(store.doc.lessons.map((l) => l.name)).toEqual([
+			'Polovina',
+			'Druhá',
+			'První lekce',
+			'Druhá lekce'
+		]);
+		// The tree is told what is new; the next proposal goes to the default place again.
+		expect(aiPanel.landed?.lessonIds).toEqual(store.doc.lessons.slice(2).map((l) => l.lesson_id));
+		expect(aiPanel.place).toEqual(DEFAULT_PLACE);
+		await done();
+	});
+
+	it('a place chosen is where the next proposal goes, until it is created', async () => {
+		const { store, lessonId } = setup();
+		server();
+		const place = { kind: 'into', lessonId, at: 'start' } as const;
+		aiPanel.choose(store, place);
+		expect(aiPanel.place).toEqual(place);
+		await aiPanel.send(store, 'Test předem');
+		expect(aiPanel.draft?.place).toEqual(place);
+		expect(aiPanel.draft?.scope).toBe('cards');
+		aiPanel.create(store);
+		const names = store.doc.lessons[0].blocks.map(
+			(b) => store.doc.blocks.find((x) => x.block_id === b.block_id)!.name
+		);
+		expect(names.slice(0, 3)).toEqual(['Příklady k procvičení', 'Kvíz na závěr', 'Shrnutí']);
+		await done();
+	});
+
+	it('a proposal the AI made, moved to another place, is asked for again for it', async () => {
+		const { store, lessonId } = setup();
+		const seen = server();
+		await aiPanel.send(store, 'Kurz o zlomcích');
+		aiPanel.choose(store, { kind: 'into', lessonId, at: 'end' });
+		await vi.waitFor(() => expect(aiPanel.asking).toBe(false));
+		expect(seen).toHaveLength(2);
+		expect(seen[1].body.place.scope).toBe('cards');
+		expect(seen[1].body.current.scope).toBe('lessons');
+		expect(aiPanel.draft?.scope).toBe('cards');
+		expect(aiPanel.draft?.place).toEqual({ kind: 'into', lessonId, at: 'end' });
+		// One step: undo brings back the lessons, for the old place.
+		aiPanel.undo();
+		expect(aiPanel.draft?.scope).toBe('lessons');
+		expect(aiPanel.place).toEqual(DEFAULT_PLACE);
+	});
+
+	it('an outline made by hand moves without the AI, its cards regrouped; undo moves it back', () => {
+		const { store, lessonId } = setup();
+		const seen = server();
+		aiPanel.start('lessons');
+		const lesson = aiPanel.typing!.key;
+		aiPanel.amend(renameDraftLesson(aiPanel.draft!, lesson, 'Moje'));
+		const card = aiPanel.key();
+		aiPanel.change(addDraftCard(aiPanel.draft!, lesson, card));
+		aiPanel.amend(renameDraftCard(aiPanel.draft!, card, 'Karta'));
+		aiPanel.choose(store, { kind: 'into', lessonId, at: 'end' });
+		expect(seen).toHaveLength(0);
+		expect(toOutline(aiPanel.draft!)).toEqual({
+			scope: 'cards',
+			cards: [{ kind: 'display', name: 'Karta' }]
+		});
+		aiPanel.undo();
+		expect(aiPanel.draft?.scope).toBe('lessons');
+		expect(aiPanel.place).toEqual(DEFAULT_PLACE);
+	});
+});
+
 describe('a streamed proposal', () => {
 	/** A response whose lines are let through by hand. */
 	function manual() {
@@ -735,6 +831,7 @@ describe('a streamed proposal', () => {
 		await done();
 		aiPanel.queue.clear();
 		store.selection = { lessonId };
+		aiPanel.choose(store, { kind: 'into', lessonId, at: 'end' });
 		await aiPanel.send(store, 'Dej mi karty');
 		aiPanel.create(store);
 		expect((store.source as Record<string, unknown>)[REQUEST_KEY]).toBe('Kurz o zlomcích');
@@ -762,16 +859,22 @@ describe('creating when the selection has gone', () => {
 });
 
 describe('buildOutlineRequest', () => {
-	it('names the target by lesson and card, anchors the dossier, and sends the audience', () => {
+	it('says where the proposal goes, anchors the dossier there, and sends the audience', () => {
 		const { store, lessonId, blockId } = setup();
-		const request = buildOutlineRequest(store.doc, { lessonId, blockId }, '  Kurz  ');
+		const place = { kind: 'into', lessonId, at: { after: blockId } } as const;
+		const request = buildOutlineRequest(store.doc, place, '  Kurz  ');
 		expect(request.prompt).toBe('Kurz');
-		expect(request.target).toEqual({ lesson: 'Polovina', lessons: 1 });
+		expect(request.place).toEqual({
+			scope: 'cards',
+			lesson: 'Polovina',
+			cards_before: ['Karta 1'],
+			cards_after: []
+		});
 		expect(request.context).toContain('Zlomky');
-		const none = buildOutlineRequest(store.doc, null, 'Kurz');
-		expect(none.target).toEqual({ lessons: 1 });
+		const none = buildOutlineRequest(store.doc, DEFAULT_PLACE, 'Kurz');
+		expect(none.place).toEqual({ scope: 'lessons', after_lesson: 'Polovina' });
 		const outline: Outline = fakeOutline(none);
-		const change = buildOutlineRequest(store.doc, null, 'Změň', {
+		const change = buildOutlineRequest(store.doc, DEFAULT_PLACE, 'Změň', {
 			current: outline,
 			original: 'Kurz'
 		});
@@ -786,6 +889,7 @@ describe('a card waiting in the queue, in the editor', () => {
 		server();
 		store.awaiting = () => aiPanel.queue.pending;
 		store.selection = { lessonId, blockId };
+		aiPanel.choose(store, { kind: 'into', lessonId, at: { after: blockId } });
 		await aiPanel.send(store, 'Dej mi karty');
 		// Hold the writing so the cards stay in the queue.
 		let open!: () => void;
@@ -820,6 +924,7 @@ describe('what is counted for a card waiting in the queue', () => {
 		server();
 		store.awaiting = () => aiPanel.queue.pending;
 		store.selection = { lessonId, blockId };
+		aiPanel.choose(store, { kind: 'into', lessonId, at: { after: blockId } });
 		const listedBefore = store.listed.errors.length;
 		await aiPanel.send(store, 'Dej mi karty');
 		let open!: () => void;
@@ -964,25 +1069,37 @@ describe('sending with files only', () => {
 	});
 
 	it('asks for a course from the materials with an empty box, and keeps that request on the course', async () => {
-		const { store } = setup();
+		// A new course: only its starter lesson.
+		const store = new DocStore();
+		const id = `KURZ${++courses}`;
+		aiPanel.follow(id);
+		store.load(withStarter(emptyCourse(id, 'Zlomky')).doc);
 		const seen = server();
-		expect(aiPanel.fromMaterials).toBe(false);
+		expect(aiPanel.fromMaterials(store.doc)).toBe(false);
 		await aiPanel.send(store, '  ');
 		expect(seen).toHaveLength(0);
 
 		materials.files = [file];
-		expect(aiPanel.fromMaterials).toBe(true);
+		expect(aiPanel.fromMaterials(store.doc)).toBe(true);
 		await aiPanel.send(store, '');
 		expect(seen).toHaveLength(1);
 		expect(seen[0].body.prompt).toBe(FROM_MATERIALS);
 		expect(seen[0].body.materials).toContain('Polovina je 1/2.');
 		// With an outline on screen an empty box is nothing to send.
-		expect(aiPanel.fromMaterials).toBe(false);
+		expect(aiPanel.fromMaterials(store.doc)).toBe(false);
 		await aiPanel.send(store, '');
 		expect(seen).toHaveLength(1);
 		aiPanel.create(store);
 		expect((store.source as Record<string, unknown>)[REQUEST_KEY]).toBe(FROM_MATERIALS);
 		await done();
+	});
+	it('does not propose the course again once it has content', async () => {
+		const { store } = setup();
+		const seen = server();
+		materials.files = [file];
+		expect(aiPanel.fromMaterials(store.doc)).toBe(false);
+		await aiPanel.send(store, '');
+		expect(seen).toHaveLength(0);
 	});
 });
 

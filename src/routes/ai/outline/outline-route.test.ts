@@ -25,7 +25,7 @@ const body = (): OutlineRequest => ({
 	schema: 'eduai.outline-request/1',
 	prompt: 'Kurz',
 	course: { title: 'Z', language: 'cs', audience: {} },
-	target: { lessons: 0 },
+	place: { scope: 'lessons' },
 	context: ''
 });
 

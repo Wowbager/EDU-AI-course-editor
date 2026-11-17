@@ -30,7 +30,7 @@ const request = (over: Partial<OutlineRequest> = {}): OutlineRequest => ({
 	schema: 'eduai.outline-request/1',
 	prompt: 'Kurz o zlomcích pro 5. třídu, 3 lekce',
 	course: { title: 'Zlomky', language: 'cs', audience: { grade: 5 } },
-	target: { lessons: 0 },
+	place: { scope: 'lessons' },
 	context: 'Kurz: Zlomky',
 	...over
 });
@@ -89,7 +89,10 @@ describe('outlineEvents', () => {
 	it('works for cards, one per line, and without a final newline', async () => {
 		const answer =
 			'{"scope":"cards"}\n{"kind":"exercise","name":"A"}\n{"kind":"question","name":"B"}';
-		const events = await run(request({ target: { lesson: 'X', lessons: 1 } }), scripted(5, answer));
+		const events = await run(
+			request({ place: { scope: 'cards', lesson: 'X' } }),
+			scripted(5, answer)
+		);
 		expect(events.map((e) => e.type)).toEqual(['scope', 'card', 'card', 'done']);
 	});
 
@@ -143,12 +146,12 @@ describe('outlineEvents', () => {
 		expect(model.seen[1].at(-1)!.content).toMatch(/plain text/);
 	});
 
-	it('asks for everything again when the scope cannot be used, and sends nothing of the bad round', async () => {
+	it("asks for everything again when the scope is not the place's, and sends nothing of the bad round", async () => {
 		const cards = '{"scope":"cards"}\n{"kind":"display","name":"A"}\n';
 		const model = scripted(50, cards, GOOD);
-		const events = await run(request({ target: { lessons: 0 } }), model);
+		const events = await run(request({ place: { scope: 'lessons' } }), model);
 		expect(events.map((e) => e.type)).toEqual(['scope', 'lesson', 'lesson', 'done']);
-		expect(model.seen[1].at(-1)!.content).toMatch(/no lesson/);
+		expect(model.seen[1].at(-1)!.content).toMatch(/"scope":"lessons"/);
 	});
 
 	it('fails after three rounds with nothing usable, and logs no course text', async () => {
@@ -177,7 +180,7 @@ describe('outlineEvents', () => {
 		const C = (kind: string, name: string) => JSON.stringify({ kind, name });
 		const scope = (extra = '') => `{"scope":"cards"${extra}}`;
 		const inLesson = (over: Partial<OutlineRequest> = {}) =>
-			request({ prompt: 'jen test', target: { lesson: 'L', lessons: 1 }, ...over });
+			request({ prompt: 'jen test', place: { scope: 'cards', lesson: 'L' }, ...over });
 		const names = (events: OutlineEvent[]) =>
 			events.flatMap((e) => (e.type === 'card' ? [e.card.name] : []));
 
@@ -583,7 +586,7 @@ describe('materials in a proposal', () => {
 			card('C')
 		].join('\n');
 		const events = await run(
-			{ ...withMaterials(), target: { lessons: 1 } },
+			{ ...withMaterials(), place: { scope: 'cards', lesson: 'L' } },
 			scripted(1000, answer),
 			undefined
 		);

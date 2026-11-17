@@ -207,8 +207,16 @@ export const genQuestionSchema = z.discriminatedUnion('type', [
 		answer: z.number(),
 		tolerance: z.number().min(0).optional()
 	}),
-	z.object({ type: z.literal('mcq_1'), options: z.array(genOptionSchema).min(3).max(4) }),
-	z.object({ type: z.literal('mcq_n'), options: z.array(genOptionSchema).min(4).max(6) }),
+	z.object({
+		type: z.literal('mcq_1'),
+		options: z.array(genOptionSchema).min(3).max(4),
+		do_not_shuffle: z.boolean().optional()
+	}),
+	z.object({
+		type: z.literal('mcq_n'),
+		options: z.array(genOptionSchema).min(4).max(6),
+		do_not_shuffle: z.boolean().optional()
+	}),
 	z.object({ type: z.literal('open'), answer: z.string().trim().min(1) })
 ]);
 export type GenQuestion = z.infer<typeof genQuestionSchema>;
@@ -545,7 +553,29 @@ export function cardProblem(request: GenRequest, answer: GeneratedCard): string 
 
 const OPTION_IDS = 'abcdefghijklmnopqrstuvwxyz';
 
-function questionFrom(previous: QuestionConfig | undefined, gen: GenQuestion): QuestionConfig {
+/** A random source in [0, 1); tests pass a fixed one. */
+export type Random = () => number;
+
+/** Fisher–Yates on a copy. */
+function shuffled<T>(items: readonly T[], random: Random): T[] {
+	const out = [...items];
+	for (let i = out.length - 1; i > 0; i--) {
+		const j = Math.floor(random() * (i + 1));
+		[out[i], out[j]] = [out[j], out[i]];
+	}
+	return out;
+}
+
+/**
+ * A question the model wrote whole. Choice options come in a random order unless the model
+ * says their order means something (`do_not_shuffle`): models put the right answer first.
+ * Ids go by final position.
+ */
+function questionFrom(
+	previous: QuestionConfig | undefined,
+	gen: GenQuestion,
+	random: Random
+): QuestionConfig {
 	const base: QuestionConfig = {
 		show_answers: true,
 		show_solution: true,
@@ -580,12 +610,14 @@ function questionFrom(previous: QuestionConfig | undefined, gen: GenQuestion): Q
 				...base,
 				type: 'multiple_choice',
 				...(gen.type === 'mcq_n' ? { allow_multiple: true } : {}),
-				options: gen.options.map((o, i) => ({
-					id: OPTION_IDS[i],
-					text: o.text,
-					is_correct: o.correct,
-					feedback: o.feedback
-				}))
+				options: (gen.do_not_shuffle === true ? gen.options : shuffled(gen.options, random)).map(
+					(o, i) => ({
+						id: OPTION_IDS[i],
+						text: o.text,
+						is_correct: o.correct,
+						feedback: o.feedback
+					})
+				)
 			};
 	}
 }
@@ -604,7 +636,8 @@ const originKey = (stepId: string, key: string) => `${stepId}.${key}`;
 function applyFill(
 	step: BlockStep,
 	missing: ReadonlySet<Slot>,
-	fill: Fill
+	fill: Fill,
+	random: Random
 ): { step: BlockStep; written: string[] } {
 	const written: string[] = [];
 	let next = step;
@@ -621,7 +654,7 @@ function applyFill(
 			questionIsSound(gen) &&
 			(fixed === undefined || fixed === gen.type)
 		) {
-			next = { ...next, question: questionFrom(next.question, gen) };
+			next = { ...next, question: questionFrom(next.question, gen, random) };
 			written.push('question');
 		}
 		const feedback = fill.option_feedback;
@@ -665,6 +698,7 @@ function applyFill(
 function newStep(
 	item: Exclude<GeneratedStep, { keep: string }>,
 	id: string,
+	random: Random,
 	pictures: Readonly<Record<string, string>>
 ): BlockStep | undefined {
 	if (item.kind === 'text') return { id, type: 'text', content: item.content_md };
@@ -679,7 +713,7 @@ function newStep(
 		content: item.content_md,
 		hint: item.hint_md,
 		help: item.help_md,
-		question: { ...questionFrom(undefined, item.question), solution: item.solution_md }
+		question: { ...questionFrom(undefined, item.question, random), solution: item.solution_md }
 	};
 }
 
@@ -703,6 +737,7 @@ export function fillCard(
 	blockId: string,
 	answer: GeneratedCard,
 	reserved?: Reservations,
+	random: Random = Math.random,
 	pictures: Readonly<Record<string, string>> = {}
 ): CommandResult & { written: WrittenCount } {
 	const block = doc.blocks.find((b) => b.block_id === blockId);
@@ -732,7 +767,7 @@ export function fillCard(
 		if ('keep' in item) {
 			const step = byId.get(item.keep);
 			if (step === undefined) return;
-			const result = applyFill(step, gaps.get(step.id) ?? new Set(), item.fill ?? {});
+			const result = applyFill(step, gaps.get(step.id) ?? new Set(), item.fill ?? {}, random);
 			if (result.written.length === 0) return;
 			filledSteps.set(step.id, result.step);
 			for (const key of result.written) origins[originKey(step.id, key)] = 'ai';
@@ -741,7 +776,7 @@ export function fillCard(
 			return;
 		}
 		const id = ids[nextId++];
-		const step = newStep(item, id, pictures);
+		const step = newStep(item, id, random, pictures);
 		if (step === undefined) return;
 		for (const key of item.kind === 'text'
 			? ['content_md']

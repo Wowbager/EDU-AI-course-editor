@@ -1,11 +1,11 @@
-import { test, expect, openEditor, type Page } from './fixtures';
+import { test, expect, openEditor, cardsIntoFirstLesson, type Page } from './fixtures';
 
 /**
  * AI pomocník: a proposal is asked for, shaped, and only then put into the course, where
  * the cards are written one by one.
  *
- * Runs against the `fake` provider (`playwright.config.ts`): a prompt about „karty“ with a
- * lesson selected gets cards, any other a course of two lessons; a change keeps the
+ * Runs against the `fake` provider (`playwright.config.ts`): with „Kam“ in a lesson a prompt
+ * gets three cards, else a course of two lessons; a change keeps the
  * proposal and adds a card called „Změna: …“.
  */
 
@@ -170,7 +170,7 @@ test('a card still waiting for AI shows no errors, however often it is opened', 
 		await gate;
 		await route.continue();
 	});
-	await page.locator('.tree-card').first().click();
+	await cardsIntoFirstLesson(page);
 	await ask(page, 'Dej mi karty na procvičení');
 	await expect(create(page)).toBeEnabled();
 	await create(page).click();
@@ -209,7 +209,7 @@ test('while the plan is made the panel says so, and no card is written before it
 		order.push('lesson');
 		await route.continue();
 	});
-	await page.locator('.tree-card').first().click();
+	await cardsIntoFirstLesson(page);
 	await ask(page, 'Dej mi karty na procvičení');
 	await expect(create(page)).toBeEnabled();
 	await create(page).click();
@@ -297,11 +297,11 @@ test('a proposal is shaped, created as cards that are then written, and undone',
 	await expect(page.locator('.tree-card')).toHaveCount(1);
 });
 
-test('cards for the selected lesson go after the selected card', async ({ page }) => {
+test('cards go where „Kam“ says, and the next proposal goes to new lessons again', async ({
+	page
+}) => {
 	// A card the teacher has written in stays; the new ones go after it.
-	await page.locator('.tree-card').first().click();
-	await page.locator('.rich-content').first().click();
-	await page.keyboard.type('Úvod');
+	await cardsIntoFirstLesson(page);
 	await ask(page, 'Dej mi karty na procvičení');
 	await expect(page.getByRole('checkbox', { name: 'Vytvořit: Kvíz na závěr' })).toBeVisible();
 	// No lessons in a cards proposal.
@@ -311,6 +311,27 @@ test('cards for the selected lesson go after the selected card', async ({ page }
 	await expect(lessons(page)).toHaveCount(1);
 	await expect(page.locator('.tree-card')).toHaveCount(4);
 	await expect(page.locator('.tree-card').nth(1)).toContainText('Příklady k procvičení');
+	await expect(panel(page).getByRole('button', { name: /^Kam:/ })).toHaveAccessibleName(
+		'Kam: Nová lekce na konec kurzu'
+	);
+});
+
+test('the selection does not decide where a proposal goes: new lessons go at the end', async ({
+	page
+}) => {
+	await page.locator('.rich-content').first().click();
+	await page.keyboard.type('Úvod');
+	// The teacher stands in the first lesson; „Kam“ still says the end of the course.
+	await expect(panel(page).getByRole('button', { name: /^Kam:/ })).toHaveAccessibleName(
+		'Kam: Nová lekce na konec kurzu'
+	);
+	await ask(page, 'Kurz o zlomcích');
+	await create(page).click();
+	await expect
+		.poll(() => lessons(page).locator('.name').allTextContents())
+		.toEqual(['První lekce', 'První lekce', 'Druhá lekce']);
+	// The editor stays on the card the teacher was writing.
+	await expect(page.locator('.rich-content').first()).toHaveText('Úvod');
 });
 
 test('„Co změnit?“ replaces the proposal and keeps what the teacher unticked', async ({ page }) => {

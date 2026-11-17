@@ -398,7 +398,7 @@ class Ai {
 			)
 		);
 		store.apply((d, reserved) => {
-			const result = fillCard(d, blockId, card, reserved, pictures);
+			const result = fillCard(d, blockId, card, reserved, Math.random, pictures);
 			written = result.written;
 			return { ...result, ref: undefined };
 		});

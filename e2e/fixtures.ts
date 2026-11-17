@@ -231,3 +231,19 @@ export async function cardActionCount(page: Page, name: string): Promise<number>
 	await expect(menu).toBeHidden();
 	return count;
 }
+
+/**
+ * In a new course, the AI panel's proposals go in place of its empty first lesson. For one
+ * that goes into a lesson: something of the teacher's in the first card, and „Kam“ set to
+ * the end of that lesson.
+ */
+export async function cardsIntoFirstLesson(page: Page): Promise<void> {
+	await page.locator('.tree-card').first().click();
+	await page.locator('.rich-content').first().click();
+	await page.keyboard.type('Úvod');
+	await page
+		.getByRole('region', { name: 'AI', exact: true })
+		.getByRole('button', { name: /^Kam:/ })
+		.click();
+	await page.getByRole('menuitemcheckbox', { name: 'Na konec lekce „První lekce“' }).click();
+}

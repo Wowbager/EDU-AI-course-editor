@@ -15,7 +15,7 @@
 	 * levels of text, so it keeps a circle per lesson and, under the open one, a tile
 	 * per card: enough to see where you are, jump, reorder and add.
 	 */
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { countOf, focusAfterDelete, focusSelectedCard } from '$lib/ui/focus-after';
 	import { dndzone, type DndEvent } from 'svelte-dnd-action';
 	import type { BlockV2, CourseV2, LessonBlockBinding, LessonV2 } from '$lib/domain/schema';
@@ -40,6 +40,7 @@
 	import { cardActions } from './card-actions';
 	import { LoaderCircle, PanelLeftOpen, PanelLeftClose, Settings, Plus } from '@lucide/svelte';
 	import { ai } from '$lib/state/ai.svelte';
+	import { aiPanel } from '$lib/state/ai-panel.svelte';
 
 	interface Props {
 		doc: CourseV2;
@@ -138,6 +139,31 @@
 			// Nothing to remember it in.
 		}
 	}
+	/**
+	 * What the AI panel just put in the course, shown for a moment where it went: the new
+	 * lessons' rows, the new cards in an open lesson, or the row of a folded lesson that got
+	 * them. The selection stays where the teacher is.
+	 */
+	const LANDED_MS = 1600;
+	let landed = $state<{ lessons: Set<string>; cards: Set<string> } | null>(null);
+	let landedTimer: ReturnType<typeof setTimeout> | undefined;
+	$effect(() => {
+		const what = aiPanel.landed;
+		if (what === null) return;
+		untrack(() => {
+			landed = { lessons: new Set(what.lessonIds), cards: new Set(what.blockIds) };
+			clearTimeout(landedTimer);
+			landedTimer = setTimeout(() => (landed = null), LANDED_MS);
+			void tick().then(() =>
+				document.querySelector('.sidebar .landed')?.scrollIntoView({ block: 'nearest' })
+			);
+		});
+	});
+	const lessonLanded = (lesson: LessonV2, open: boolean): boolean =>
+		landed !== null &&
+		(landed.lessons.has(lesson.lesson_id) ||
+			(!open && lesson.blocks.some((b) => landed!.cards.has(b.block_id))));
+
 	const selectedLesson = $derived(activeLessonId);
 	const selectedBlock = $derived(activeBlockId);
 
@@ -158,11 +184,104 @@
 			}))
 	);
 
+	/**
+	 * True from the press on a lesson until the drop (or the release of a press that
+	 * never became a drag): every lesson shows only its header, so the dragged copy is
+	 * one row tall and the gap it leaves is too, whichever lesson is open.
+	 */
+	let folding = $state(false);
+	/** The list `grab` pinned and padded, until the drop or release clears it. */
+	let pinned: HTMLElement | null = null;
+	function unpin() {
+		pinned?.style.removeProperty('min-height');
+		pinned?.style.removeProperty('padding-top');
+		pinned = null;
+	}
+
+	/**
+	 * A lesson starting to move, before the library has measured anything. Mirrors the
+	 * steps' `grab` (CardEditor): fold now so the library measures the short list, then
+	 * put the lesson back under the pointer — the column is scrolled by what the fold
+	 * moved, the list is pinned to its height so the scroll cannot be clamped, and
+	 * whatever scrolling cannot give back is padded on top until the drop or release.
+	 */
+	async function grab(lesson: HTMLElement) {
+		if (folding) return;
+		const list = lesson.parentElement;
+		const scroller = lesson.closest<HTMLElement>('.sidebar');
+		const before = lesson.getBoundingClientRect().top;
+		if (list !== null) {
+			list.style.minHeight = `${list.getBoundingClientRect().height}px`;
+			list.style.paddingTop = '';
+		}
+		folding = true;
+		pinned = list;
+		await tick();
+		const shift = lesson.getBoundingClientRect().top - before;
+		if (shift !== 0) scroller?.scrollBy({ top: shift, behavior: 'instant' });
+		const rest = lesson.getBoundingClientRect().top - before;
+		if (rest < -0.5 && list !== null) list.style.paddingTop = `${-rest}px`;
+		// A press that never became a drag gets no `finalize`.
+		const release = () => {
+			window.removeEventListener('pointerup', release);
+			window.removeEventListener('pointercancel', release);
+			window.removeEventListener('keyup', release);
+			window.removeEventListener('blur', release);
+			if (draggingLessons === null) {
+				folding = false;
+				unpin();
+			}
+		};
+		window.addEventListener('pointerup', release);
+		// A touch the browser takes over for a scroll ends in a cancel, not an up.
+		window.addEventListener('pointercancel', release);
+		window.addEventListener('keyup', release);
+		window.addEventListener('blur', release);
+	}
+	/**
+	 * A press on a lesson folds the list once the pointer moves 2 px: before the library's
+	 * own threshold (3 px), so it still measures the folded list, but not on a plain
+	 * click, which would fold and unfold the tree under the teacher's click.
+	 */
+	function lessonPress(event: PointerEvent) {
+		const target = event.target as HTMLElement;
+		// A card, the add row and the settings button are not the lesson's to grab, and
+		// the library starts no drag from an element with a `value` (a button).
+		if (event.button !== 0 || target.closest('.cards, .tree-add, .row-actions') !== null) return;
+		if ((target as HTMLInputElement).value !== undefined) return;
+		const lesson = event.currentTarget as HTMLElement;
+		const { pointerId, clientX, clientY } = event;
+		const move = (e: PointerEvent) => {
+			if (e.pointerId !== pointerId) return;
+			// Released where the window did not see it (another window): no drag after all.
+			if (e.buttons === 0) return stop();
+			// The jitter of a click is no drag; the library's own threshold is 3 px.
+			if (Math.abs(e.clientX - clientX) < 2 && Math.abs(e.clientY - clientY) < 2) return;
+			stop();
+			void grab(lesson);
+		};
+		const stop = () => {
+			window.removeEventListener('pointermove', move, true);
+			window.removeEventListener('pointerup', stop, true);
+			window.removeEventListener('pointercancel', stop, true);
+		};
+		window.addEventListener('pointermove', move, true);
+		window.addEventListener('pointerup', stop, true);
+		window.addEventListener('pointercancel', stop, true);
+	}
+	function lessonKey(event: KeyboardEvent) {
+		if (event.target !== event.currentTarget) return;
+		if (event.key === ' ' || event.key === 'Enter') void grab(event.currentTarget as HTMLElement);
+	}
+
 	function onconsider(event: CustomEvent<DndEvent<LessonItem>>) {
 		draggingLessons = event.detail.items;
 	}
 	function onfinalize(event: CustomEvent<DndEvent<LessonItem>>) {
 		draggingLessons = null;
+		folding = false;
+		// After the library's own unlock, which put the pinned min-height back.
+		unpin();
 		store.apply((d) =>
 			reorderLessons(
 				d,
@@ -372,11 +491,13 @@
 				{@const totals = lessonTotals(lesson, store.index)}
 				{@const errors = errorsIn(lesson.lesson_id)}
 				{@const open = lesson.lesson_id === selectedLesson}
-				<li class="tree-lesson" class:open>
+				<!-- svelte-ignore a11y_no_noninteractive_element_interactions (the library makes the lesson a draggable item; these only fold the list for it) -->
+				<li class="tree-lesson" class:open onpointerdown={lessonPress} onkeydown={lessonKey}>
 					<button
 						type="button"
 						class="lesson"
 						class:selected={open}
+						class:landed={lessonLanded(lesson, open)}
 						onclick={() => selectLesson(lesson.lesson_id)}
 					>
 						<span class="name">{lessonLabel(doc, lesson)}</span>
@@ -398,7 +519,7 @@
 						</button>
 					</div>
 
-					{#if open}
+					{#if open && !folding}
 						<ul
 							class="cards"
 							use:dndzone={{
@@ -437,6 +558,7 @@
 											tabindex="0"
 											class="tree-card"
 											class:selected={block.block_id === selectedBlock}
+											class:landed={landed?.cards.has(block.block_id) === true}
 											onclick={() => select(lesson.lesson_id, block.block_id)}
 											title="Alt+šipka nahoru nebo dolů přesune kartu"
 											onkeydowncapture={(event) =>
@@ -680,7 +802,15 @@
 		margin-bottom: 8px;
 		padding-bottom: 6px;
 		border-radius: var(--radius-s);
-		background: var(--primary-dark-06);
+	}
+
+	/* The dragged copy is a clone in <body>: with only a tint it is see-through, so
+	   every lesson carries the sidebar's surface behind its own colour. */
+	.tree-lesson {
+		background: var(--surface);
+	}
+	.tree-lesson.open {
+		background: linear-gradient(var(--primary-dark-06), var(--primary-dark-06)), var(--surface);
 	}
 
 	.lesson {
@@ -698,6 +828,26 @@
 
 	.lesson:hover {
 		background: var(--info-bg);
+	}
+
+	/* Where the AI panel's proposal just went: a short, quiet glow, once. */
+	.lesson.landed,
+	.tree-card.landed {
+		animation: landed 1600ms ease-out;
+	}
+
+	@keyframes landed {
+		from {
+			background: var(--primary-dark-12, var(--info-bg));
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.lesson.landed,
+		.tree-card.landed {
+			animation: none;
+			outline: 2px solid var(--primary);
+		}
 	}
 
 	.lesson.selected .name {
