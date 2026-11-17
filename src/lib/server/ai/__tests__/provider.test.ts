@@ -66,6 +66,19 @@ describe('buildBody', () => {
 		expect(body.response_format).toEqual({ type: 'json_object' });
 		expect(buildBody(deepseek, []).provider).toBe(undefined);
 	});
+
+	it('bounds what one text call may write only when the operator says how much', () => {
+		for (const config of [openrouter, deepseek]) {
+			expect(buildBody(config, [])).not.toHaveProperty('max_tokens');
+			const capped = { ...config, maxOutputTokens: 32_000 };
+			expect(buildBody(capped, []).max_tokens).toBe(32_000);
+			expect(buildBody(capped, [], { stream: true }).max_tokens).toBe(32_000);
+			expect(buildChatBody(capped, [], { tool: 'write_card' }).max_tokens).toBe(32_000);
+		}
+		expect(readAiConfig({}).maxOutputTokens).toBeNull();
+		expect(readAiConfig({ AI_MAX_OUTPUT_TOKENS: '32000' }).maxOutputTokens).toBe(32_000);
+		expect(readAiConfig({ AI_MAX_OUTPUT_TOKENS: '' }).maxOutputTokens).toBeNull();
+	});
 });
 
 describe('buildChatBody', () => {

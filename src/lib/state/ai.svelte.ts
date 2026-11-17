@@ -170,12 +170,19 @@ export async function askLesson(
 	options: LessonOptions = {}
 ): Promise<LessonEnd> {
 	const messages: TurnMessage[] = [];
+	// The server's seal on `messages`: it takes back only the conversation it handed out.
+	let seal: string | undefined;
 	for (let next = 0; next < request.cards.length; next++) {
 		const changed = next > 0 ? options.changed?.() : undefined;
 		const turn = await lessonTurn(
 			{
 				...request,
-				resume: { next, messages, ...(changed !== undefined ? { changed } : {}) }
+				resume: {
+					next,
+					messages,
+					...(seal !== undefined ? { seal } : {}),
+					...(changed !== undefined ? { changed } : {})
+				}
 			},
 			onEvent,
 			signal
@@ -188,6 +195,7 @@ export async function askLesson(
 			continue;
 		}
 		messages.push(...turn.messages);
+		seal = turn.seal;
 	}
 	return 'done';
 }
@@ -196,7 +204,7 @@ async function lessonTurn(
 	request: LessonRequest,
 	onEvent: (event: Exclude<LessonEvent, { type: 'done' | 'failed' | 'stopped' | 'turn' }>) => void,
 	signal?: AbortSignal
-): Promise<{ end: LessonEnd; messages?: TurnMessage[] }> {
+): Promise<{ end: LessonEnd; messages?: TurnMessage[]; seal?: string }> {
 	let answer: { response: Response } | Failure;
 	try {
 		answer = await send('/ai/lesson', request, signal);
@@ -207,6 +215,7 @@ async function lessonTurn(
 	if ('problem' in answer) return { end: answer };
 	let ended: LessonEnd | undefined;
 	let messages: TurnMessage[] | undefined;
+	let seal: string | undefined;
 	const read = await readLines(answer.response, (json) => {
 		const event = lessonEventSchema.safeParse(json);
 		if (!event.success) return;
@@ -215,12 +224,18 @@ async function lessonTurn(
 		else if (e.type === 'failed') ended = { problem: e.problem };
 		else if (e.type === 'stopped')
 			ended = { problem: e.reason, ...(e.retryAfter > 0 ? { retryAfter: e.retryAfter } : {}) };
-		else if (e.type === 'turn') messages = e.messages;
-		else onEvent(e);
+		else if (e.type === 'turn') {
+			messages = e.messages;
+			seal = e.seal;
+		} else onEvent(e);
 	});
 	if (signal?.aborted) return { end: 'done' };
 	if (!read) return { end: { problem: 'offline' } };
-	return { end: ended ?? { problem: 'offline' }, ...(messages !== undefined ? { messages } : {}) };
+	return {
+		end: ended ?? { problem: 'offline' },
+		...(messages !== undefined ? { messages } : {}),
+		...(seal !== undefined ? { seal } : {})
+	};
 }
 
 /** Ask for the plan of the cards about to be written; what went wrong, or the plan. */

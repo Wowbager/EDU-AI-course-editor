@@ -8,6 +8,9 @@
  *   AI_API_KEY    the provider's key; without one the editor offers no AI
  *   AI_MODEL, AI_BASE_URL, AI_REASONING_EFFORT   optional overrides
  *   AI_DAILY_TOKEN_BUDGET, AI_MAX_REQUESTS_PER_MINUTE   per-workspace limits
+ *   AI_DAILY_TOKEN_BUDGET_PER_IP, AI_MAX_REQUESTS_PER_MINUTE_PER_IP   per client address
+ *   AI_DAILY_TOKEN_BUDGET_TOTAL, AI_MAX_REQUESTS_PER_MINUTE_TOTAL   for the whole server
+ *   AI_MAX_OUTPUT_TOKENS   `max_tokens` of a text call; unset, the host's own limit
  *
  * `fake` needs no key and calls nobody: it answers from the request alone, the same
  * way every time. It is what the end-to-end suite runs against.
@@ -25,6 +28,15 @@ export type AiConfig = {
 	reasoningEffort: ReasoningEffort;
 	dailyTokenBudget: number;
 	maxRequestsPerMinute: number;
+	dailyTokenBudgetPerIp: number;
+	maxRequestsPerMinutePerIp: number;
+	dailyTokenBudgetTotal: number;
+	maxRequestsPerMinuteTotal: number;
+	/**
+	 * What one text call may write, thinking included; `null` sends none. Not set by
+	 * default: a host whose own limit is lower would refuse every call.
+	 */
+	maxOutputTokens: number | null;
 	/** What is wrong with the settings, if anything. For the operator's log. */
 	problem: string | null;
 };
@@ -45,6 +57,12 @@ const EFFORTS: readonly string[] = ['none', 'minimal', 'low', 'medium', 'high', 
 
 export const DEFAULT_DAILY_TOKEN_BUDGET = 20_000_000;
 export const DEFAULT_MAX_REQUESTS_PER_MINUTE = 300;
+/** A school is one address: several teachers' worth. */
+export const DEFAULT_DAILY_TOKEN_BUDGET_PER_IP = 60_000_000;
+export const DEFAULT_MAX_REQUESTS_PER_MINUTE_PER_IP = 900;
+/** The ceiling on a day's bill, whoever asks. */
+export const DEFAULT_DAILY_TOKEN_BUDGET_TOTAL = 200_000_000;
+export const DEFAULT_MAX_REQUESTS_PER_MINUTE_TOTAL = 3000;
 
 function positiveInt(value: string | undefined, fallback: number): number {
 	if (value === undefined || value.trim() === '') return fallback;
@@ -72,6 +90,23 @@ export function readAiConfig(env: Env): AiConfig {
 		maxRequestsPerMinute: positiveInt(
 			env.AI_MAX_REQUESTS_PER_MINUTE,
 			DEFAULT_MAX_REQUESTS_PER_MINUTE
+		),
+		dailyTokenBudgetPerIp: positiveInt(
+			env.AI_DAILY_TOKEN_BUDGET_PER_IP,
+			DEFAULT_DAILY_TOKEN_BUDGET_PER_IP
+		),
+		maxRequestsPerMinutePerIp: positiveInt(
+			env.AI_MAX_REQUESTS_PER_MINUTE_PER_IP,
+			DEFAULT_MAX_REQUESTS_PER_MINUTE_PER_IP
+		),
+		maxOutputTokens: positiveInt(env.AI_MAX_OUTPUT_TOKENS, 0) || null,
+		dailyTokenBudgetTotal: positiveInt(
+			env.AI_DAILY_TOKEN_BUDGET_TOTAL,
+			DEFAULT_DAILY_TOKEN_BUDGET_TOTAL
+		),
+		maxRequestsPerMinuteTotal: positiveInt(
+			env.AI_MAX_REQUESTS_PER_MINUTE_TOTAL,
+			DEFAULT_MAX_REQUESTS_PER_MINUTE_TOTAL
 		),
 		problem: known ? null : `AI_PROVIDER "${raw}" is not known (openrouter, deepseek or fake).`
 	};

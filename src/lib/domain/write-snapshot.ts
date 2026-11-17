@@ -15,6 +15,8 @@ export interface PlanSnapshot {
 	course: string;
 	request: PlanRequest;
 	turn: AssistantTurnData;
+	/** The server's seal on `turn`; a plan kept before there were seals has none. */
+	seal?: string;
 	targets: PlanTargets;
 }
 

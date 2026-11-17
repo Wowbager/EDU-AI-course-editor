@@ -29,7 +29,8 @@ const post = () =>
 			body: new Uint8Array([1, 2, 3])
 		})
 	} as never);
-const used = () => sharedLimits(readAiConfig({ AI_PROVIDER: 'fake' })).usedToday('budget-owner');
+const used = () =>
+	sharedLimits(readAiConfig({ AI_PROVIDER: 'fake' })).perOwner.usedToday('budget-owner');
 
 describe('what a reading costs the day’s budget', () => {
 	it('is counted by estimate when the host does not say, and when the call fails', async () => {

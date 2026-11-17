@@ -13,6 +13,7 @@
  * id and the number are validated against strict patterns, and the document must
  * parse as a course whose content matches the hash it claims.
  */
+import { disk, DISK_FULL } from '../disk';
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { courseSchema, type CourseV2 } from '$lib/domain/schema';
@@ -48,7 +49,7 @@ export function courseDirOf(root: string, owner: string, courseId: string): stri
 
 export class VersionError extends Error {
 	constructor(
-		readonly status: 400 | 404 | 409 | 413 | 429,
+		readonly status: 400 | 404 | 409 | 413 | 429 | 507,
 		message: string
 	) {
 		super(message);
@@ -152,6 +153,7 @@ export class VersionFiles {
 			if ((await this.#ownerCount(owner)) >= MAX_VERSIONS_PER_OWNER) {
 				throw new VersionError(429, 'Uloženo je příliš mnoho verzí.');
 			}
+			if (!(await disk().roomFor(this.#root, 'version'))) throw new VersionError(507, DISK_FULL);
 			await mkdir(dir, { recursive: true });
 			await atomicWrite(join(dir, `v${version.version}.json`), JSON.stringify(version));
 			return strip(version);

@@ -63,6 +63,12 @@ export const turnMessageSchema = z.union([
 ]);
 export type TurnMessage = z.infer<typeof turnMessageSchema>;
 
+/**
+ * The server's signature on a turn it hands back (`server/ai/seal.ts`): only what the
+ * model said comes back as the model's.
+ */
+export const sealSchema = z.string().max(100);
+
 /** What the earlier turns of a lesson's conversation may add up to, as JSON. */
 export const MAX_RESUME_CHARS = 1_500_000;
 /** What the teacher changed since the lesson began, as the card message carries it. */
@@ -101,6 +107,8 @@ export const lessonRequestSchema = z.object({
 			messages: z
 				.array(turnMessageSchema)
 				.refine((m) => JSON.stringify(m).length <= MAX_RESUME_CHARS, { message: 'too long' }),
+			/** The server's seal on `messages`, from the last `turn` (`server/ai/seal.ts`). */
+			seal: sealSchema.optional(),
 			changed: z.string().max(MAX_CHANGED_CHARS).optional()
 		})
 		.optional(),
@@ -109,7 +117,9 @@ export const lessonRequestSchema = z.object({
 			request: planRequestSchema,
 			turn: assistantTurnSchema.refine((t) => JSON.stringify(t).length <= MAX_TURN_CHARS, {
 				message: 'too long'
-			})
+			}),
+			/** The server's seal on `turn`, from the plan's answer. */
+			seal: sealSchema.optional()
 		})
 		.optional()
 });
@@ -153,7 +163,7 @@ export function buildLessonRequest(
 		/** The pictures to send, and the keys of all of them (`picturesFor`, `pictureKeys`). */
 		pictures?: readonly PictureRef[];
 		pictureKeys?: readonly string[];
-		plan?: { request: PlanRequest; turn: AssistantTurnData; targets: PlanTargets };
+		plan?: { request: PlanRequest; turn: AssistantTurnData; seal?: string; targets: PlanTargets };
 	}
 ): { request: LessonRequest; ids: string[] } | undefined {
 	const ids: string[] = [];
@@ -192,7 +202,13 @@ export function buildLessonRequest(
 				? { picture_keys: [...options.pictureKeys] }
 				: {}),
 			...(options.plan !== undefined
-				? { plan: { request: options.plan.request, turn: options.plan.turn } }
+				? {
+						plan: {
+							request: options.plan.request,
+							turn: options.plan.turn,
+							...(options.plan.seal !== undefined ? { seal: options.plan.seal } : {})
+						}
+					}
 				: {})
 		},
 		ids
@@ -212,7 +228,7 @@ export type LessonEvent =
 	| { type: 'writing'; card: number }
 	| { type: 'card'; card: number; answer: GeneratedCard }
 	| { type: 'card-failed'; card: number }
-	| { type: 'turn'; messages: TurnMessage[] }
+	| { type: 'turn'; messages: TurnMessage[]; seal?: string }
 	| { type: 'stopped'; reason: 'rate' | 'budget'; retryAfter: number }
 	| { type: 'done' }
 	| { type: 'failed'; problem: 'busy' | 'failed' };
@@ -221,7 +237,11 @@ export const lessonEventSchema: z.ZodType<LessonEvent> = z.union([
 	z.object({ type: z.literal('writing'), card: z.number().int().min(0) }),
 	z.object({ type: z.literal('card'), card: z.number().int().min(0), answer: generatedCardSchema }),
 	z.object({ type: z.literal('card-failed'), card: z.number().int().min(0) }),
-	z.object({ type: z.literal('turn'), messages: z.array(turnMessageSchema) }),
+	z.object({
+		type: z.literal('turn'),
+		messages: z.array(turnMessageSchema),
+		seal: sealSchema.optional()
+	}),
 	z.object({
 		type: z.literal('stopped'),
 		reason: z.enum(['rate', 'budget']),
@@ -233,12 +253,17 @@ export const lessonEventSchema: z.ZodType<LessonEvent> = z.union([
 
 /** What the plan route answers: the plan, and the model's turn to hand back with each lesson. */
 export type PlanEvent =
-	| { type: 'plan'; plan: z.infer<typeof planSchema>; turn: AssistantTurnData }
+	| { type: 'plan'; plan: z.infer<typeof planSchema>; turn: AssistantTurnData; seal?: string }
 	| { type: 'failed'; problem: 'busy' | 'failed' }
 	| { type: 'stopped'; reason: 'rate' | 'budget'; retryAfter: number };
 
 export const planEventSchema: z.ZodType<PlanEvent> = z.union([
-	z.object({ type: z.literal('plan'), plan: planSchema, turn: assistantTurnSchema }),
+	z.object({
+		type: z.literal('plan'),
+		plan: planSchema,
+		turn: assistantTurnSchema,
+		seal: sealSchema.optional()
+	}),
 	z.object({ type: z.literal('failed'), problem: z.enum(['busy', 'failed']) }),
 	z.object({
 		type: z.literal('stopped'),

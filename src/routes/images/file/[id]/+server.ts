@@ -8,6 +8,7 @@
 import { error } from '@sveltejs/kit';
 import { imageFiles } from '$lib/server/images/instance';
 import { ImageError } from '$lib/server/images/files';
+import { UNTRUSTED_FILE_HEADERS } from '$lib/server/untrusted';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ params }) => {
@@ -25,7 +26,8 @@ export const GET: RequestHandler = async ({ params }) => {
 				'content-length': String(served.size),
 				'cache-control': 'public, max-age=31536000, immutable',
 				'access-control-allow-origin': '*',
-				'access-control-allow-methods': 'GET, HEAD, OPTIONS'
+				'access-control-allow-methods': 'GET, HEAD, OPTIONS',
+				...UNTRUSTED_FILE_HEADERS
 			}
 		});
 	} catch (e) {

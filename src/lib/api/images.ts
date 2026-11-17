@@ -27,7 +27,10 @@ export class ImageRequestError extends Error {
 const BY_STATUS: Record<number, ImageProblem> = {
 	413: 'too-big',
 	415: 'wrong-type',
-	429: 'full'
+	429: 'full',
+	// Too many uploads from this address a minute or a day, or the server's disk is full.
+	503: 'later',
+	507: 'later'
 };
 
 async function call(path: string, init: RequestInit = {}): Promise<Response> {

@@ -97,6 +97,8 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 # raised to match the check in lib/server/versions/files.ts (nginx allows the same).
 ENV DATA_DIR=/data
 ENV BODY_SIZE_LIMIT=8M
+# The client's address, as nginx passes it on (nginx.conf, `$editor_client`).
+ENV ADDRESS_HEADER=x-editor-client
 RUN mkdir -p /data
 VOLUME /data
 

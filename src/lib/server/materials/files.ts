@@ -22,6 +22,7 @@ import {
 	type MaterialFile
 } from '$lib/domain/materials';
 import { courseDirOf, VersionError } from '../versions/files';
+import { disk, DISK_FULL } from '../disk';
 
 export const MAX_FILE_BODY_BYTES = 6 * 1024 * 1024;
 
@@ -87,6 +88,7 @@ export class MaterialFiles {
 			if (others.length >= MAX_FILES) throw new VersionError(429, 'Podkladů je příliš mnoho.');
 			if (pagesIn(others) + file.pages > MAX_PAGES)
 				throw new VersionError(429, `Podklady mohou mít nejvýše ${MAX_PAGES} stran nebo snímků.`);
+			if (!(await disk().roomFor(this.#root, 'upload'))) throw new VersionError(507, DISK_FULL);
 			await mkdir(dir, { recursive: true });
 			const previous = (await this.#all(dir)).find((f) => f.hash === file.hash);
 			const stored: Stored = { ...file, addedAt: previous?.addedAt || new Date().toISOString() };

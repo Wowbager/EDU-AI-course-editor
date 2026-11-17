@@ -8,12 +8,15 @@
  */
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
+/**
+ * No SVG: it is a document that can carry a script, and a picture is kept on the
+ * editor's own origin. The server checks the bytes too (`server/images/sniff.ts`).
+ */
 export const IMAGE_TYPES = [
 	{ mime: 'image/jpeg', ext: '.jpg', label: 'JPG' },
 	{ mime: 'image/png', ext: '.png', label: 'PNG' },
 	{ mime: 'image/gif', ext: '.gif', label: 'GIF' },
 	{ mime: 'image/webp', ext: '.webp', label: 'WebP' },
-	{ mime: 'image/svg+xml', ext: '.svg', label: 'SVG' },
 	{ mime: 'image/avif', ext: '.avif', label: 'AVIF' },
 	{ mime: 'image/bmp', ext: '.bmp', label: 'BMP' }
 ] as const;
@@ -33,13 +36,14 @@ const COMMON_TYPES = 'JPG, PNG, GIF nebo WebP';
 export const IMAGE_LIMITS_TEXT = `${COMMON_TYPES}, nejvýš ${MEGABYTES} MB`;
 
 /** Why a picture was not taken, in the words a teacher is told. */
-export type ImageProblem = 'too-big' | 'wrong-type' | 'full' | 'several';
+export type ImageProblem = 'too-big' | 'wrong-type' | 'full' | 'several' | 'later';
 
 export const IMAGE_PROBLEM_TEXT: Record<ImageProblem, string> = {
 	'too-big': `Obrázek je větší než ${MEGABYTES} MB. Zmenši ho a zkus to znovu.`,
 	'wrong-type': `Tenhle soubor nahrát nejde. Použij obrázek ${COMMON_TYPES}.`,
 	full: 'Galerie je plná. Smaž obrázky, které už nepotřebuješ, a zkus to znovu.',
-	several: 'Vyber jen jeden obrázek.'
+	several: 'Vyber jen jeden obrázek.',
+	later: 'Obrázek teď nejde nahrát. Zkus to prosím za chvíli.'
 };
 
 /** The check the server makes, made before sending: a refused file is never uploaded. */

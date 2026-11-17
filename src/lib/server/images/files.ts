@@ -19,6 +19,8 @@ import { createReadStream } from 'node:fs';
 import { join, extname, basename } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { IMAGE_TYPES, MAX_IMAGE_BYTES } from '../../images/limits';
+import { sniffImage } from './sniff';
+import { disk, DISK_FULL } from '../disk';
 
 export { MAX_IMAGE_BYTES };
 export const MAX_IMAGES_PER_OWNER = 500;
@@ -36,6 +38,7 @@ export const EXT_TO_MIME: Record<string, string> = {
 	'.png': 'image/png',
 	'.gif': 'image/gif',
 	'.webp': 'image/webp',
+	// Uploaded before SVG was refused: still served, as an untrusted file (`server/untrusted.ts`).
 	'.svg': 'image/svg+xml',
 	'.avif': 'image/avif',
 	'.bmp': 'image/bmp'
@@ -43,7 +46,7 @@ export const EXT_TO_MIME: Record<string, string> = {
 
 export class ImageError extends Error {
 	constructor(
-		readonly status: 400 | 404 | 413 | 415 | 429,
+		readonly status: 400 | 404 | 413 | 415 | 429 | 503 | 507,
 		message: string
 	) {
 		super(message);
@@ -124,17 +127,23 @@ export class ImageFiles {
 		owner: string,
 		bytes: Uint8Array,
 		originalName: string,
-		mimeType: string
+		declaredType: string
 	): Promise<ImageMeta> {
-		if (!ALLOWED_MIME.has(mimeType)) {
-			throw new ImageError(415, `Nepodporovaný typ souboru: ${mimeType}`);
+		if (!ALLOWED_MIME.has(declaredType)) {
+			throw new ImageError(415, `Nepodporovaný typ souboru: ${declaredType}`);
 		}
 		if (bytes.byteLength > MAX_IMAGE_BYTES) {
 			throw new ImageError(413, `Soubor je větší než ${MAX_IMAGE_BYTES / 1024 / 1024} MB.`);
 		}
+		// Kept as what the bytes are: a page or a script named `.png` is not a picture.
+		const mimeType = sniffImage(bytes);
+		if (mimeType === null || !ALLOWED_MIME.has(mimeType)) {
+			throw new ImageError(415, `Nepodporovaný typ souboru: ${declaredType}`);
+		}
 
 		const ownerDir = this.#ownerDir(owner);
 		const publicDir = this.#publicDir();
+		if (!(await disk().roomFor(this.#root, 'upload'))) throw new ImageError(507, DISK_FULL);
 
 		return this.#serial(owner, async () => {
 			const index = await readIndex(ownerDir);
@@ -142,7 +151,7 @@ export class ImageFiles {
 				throw new ImageError(429, `Galerie je plná (maximum ${MAX_IMAGES_PER_OWNER} obrázků).`);
 			}
 
-			const ext = MIME_TO_EXT[mimeType] ?? (extname(originalName).toLowerCase() || '.bin');
+			const ext = MIME_TO_EXT[mimeType];
 			const safeSlug = sanitiseName(originalName)
 				.replace(/\.[^.]+$/, '')
 				.replace(/[^a-zA-Z0-9_-]/g, '_')

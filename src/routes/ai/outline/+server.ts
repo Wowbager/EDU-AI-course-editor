@@ -15,14 +15,15 @@ import { sharedLimits } from '$lib/server/ai/limits';
 import { outlineEvents } from '$lib/server/ai/outline';
 import { ProviderError, streamer } from '$lib/server/ai/provider';
 import { loadPicture } from '$lib/server/images/instance';
-import { ownerOf } from '$lib/server/versions/http';
+import { whoOf } from '$lib/server/ai/route';
 import type { RequestHandler } from './$types';
 
 const MAX_BODY = MAX_CONTEXT_CHARS + 200_000;
 const NO_STORE = { headers: { 'cache-control': 'no-store' } };
 
-export const POST: RequestHandler = async ({ request }) => {
-	const owner = ownerOf(request);
+export const POST: RequestHandler = async (event) => {
+	const { request } = event;
+	const who = whoOf(event);
 	const config = readAiConfig(env);
 	if (!isConfigured(config)) {
 		if (config.problem !== null) console.error('[ai]', config.problem);
@@ -48,7 +49,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	}
 
 	const limits = sharedLimits(config);
-	const verdict = limits.check(owner);
+	const verdict = limits.check(who);
 	if (!verdict.ok)
 		return json(
 			{ reason: verdict.reason },
@@ -74,7 +75,7 @@ export const POST: RequestHandler = async ({ request }) => {
 				for await (const event of outlineEvents(
 					parsed.data,
 					streamer(config, fetch, loadPicture),
-					(tokens) => limits.record(owner, tokens),
+					(tokens) => limits.record(who, tokens),
 					abort.signal
 				))
 					send(event);

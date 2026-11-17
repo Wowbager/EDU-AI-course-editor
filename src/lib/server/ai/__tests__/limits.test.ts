@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AiLimits, CACHED_TOKEN_WEIGHT, weightedTokens } from '../limits';
+import { AiGuard, AiLimits, CACHED_TOKEN_WEIGHT, weightedTokens } from '../limits';
 
 function setup(max = 2, budget = 100) {
 	const clock = { t: Date.UTC(2026, 9, 6, 12, 0, 0) };
@@ -92,5 +92,43 @@ describe('weightedTokens', () => {
 		});
 		expect(call).toBeLessThan(25_000);
 		expect(Math.floor(20_000_000 / call)).toBeGreaterThan(500);
+	});
+});
+
+describe('AiGuard', () => {
+	function guard() {
+		const clock = { t: Date.UTC(2026, 9, 6, 12, 0, 0) };
+		const g = new AiGuard({
+			perOwner: { maxRequestsPerMinute: 2, dailyTokenBudget: 100 },
+			perIp: { maxRequestsPerMinute: 3, dailyTokenBudget: 150 },
+			total: { maxRequestsPerMinute: 4, dailyTokenBudget: 200 },
+			now: () => clock.t
+		});
+		return { clock, g };
+	}
+
+	it('stops a client that makes up a new workspace for every request', () => {
+		const { g } = guard();
+		for (let i = 0; i < 3; i++) expect(g.check({ owner: `w${i}`, ip: '1.2.3.4' }).ok).toBe(true);
+		expect(g.check({ owner: 'w9', ip: '1.2.3.4' })).toMatchObject({ ok: false, reason: 'rate' });
+		expect(g.check({ owner: 'w9', ip: '5.6.7.8' }).ok).toBe(true);
+	});
+
+	it('has a ceiling for the whole server, whatever the address', () => {
+		const { g } = guard();
+		g.check({ owner: 'a', ip: '1.1.1.1' });
+		g.record({ owner: 'a', ip: '1.1.1.1' }, 90);
+		g.check({ owner: 'b', ip: '2.2.2.2' });
+		g.record({ owner: 'b', ip: '2.2.2.2' }, 120);
+		expect(g.check({ owner: 'c', ip: '3.3.3.3' })).toMatchObject({ ok: false, reason: 'budget' });
+	});
+
+	it('counts a refused request nowhere', () => {
+		const { g } = guard();
+		g.check({ owner: 'a', ip: '1.1.1.1' });
+		g.check({ owner: 'a', ip: '1.1.1.1' });
+		// The workspace is at its limit; the address and the total must not lose a request.
+		expect(g.check({ owner: 'a', ip: '1.1.1.1' }).ok).toBe(false);
+		expect(g.check({ owner: 'b', ip: '1.1.1.1' }).ok).toBe(true);
 	});
 });

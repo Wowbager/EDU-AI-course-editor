@@ -153,6 +153,7 @@ class AiPanel {
 		course: string;
 		request: PlanRequest;
 		turn: AssistantTurnData;
+		seal?: string;
 		targets: PlanTargets;
 	} | null = null;
 
@@ -176,9 +177,12 @@ class AiPanel {
 		if (!here()) return { problem: 'other' };
 		const doc = store.doc;
 		// The plan is for the cards it planned: a later batch, or a card added since, has none.
+		// A plan kept from before the server sealed it is not taken back: the cards go without.
 		const known = this.#plan?.course === doc.course_id ? this.#plan : null;
 		const plan =
-			known !== null && rows.every((r) => known.targets.cards.includes(r.blockId)) ? known : null;
+			known?.seal !== undefined && rows.every((r) => known.targets.cards.includes(r.blockId))
+				? known
+				: null;
 		const sections = materials.sections;
 		const refs = rows.flatMap((r) =>
 			sourceRefsOf(doc.blocks.find((b) => b.block_id === r.blockId))
@@ -614,7 +618,13 @@ class AiPanel {
 		if (abort.signal.aborted || !this.queue.running) return;
 		if (answer === undefined || 'problem' in answer || store.doc.course_id !== course) return;
 		store.amend((doc) => applyPlan(doc, answer.plan, built.targets));
-		this.#plan = { course, request: built.request, turn: answer.turn, targets: built.targets };
+		this.#plan = {
+			course,
+			request: built.request,
+			turn: answer.turn,
+			...(answer.seal !== undefined ? { seal: answer.seal } : {}),
+			targets: built.targets
+		};
 		this.#save();
 	}
 

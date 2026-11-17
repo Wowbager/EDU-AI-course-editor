@@ -38,6 +38,15 @@ describe('isReservedIPv4', () => {
 		expect(isReservedIPv4('240.0.0.1')).toBe(true);
 	});
 
+	it('flags carrier-grade NAT, protocol and benchmarking ranges', () => {
+		expect(isReservedIPv4('100.64.0.1')).toBe(true);
+		expect(isReservedIPv4('100.127.255.255')).toBe(true);
+		expect(isReservedIPv4('100.63.255.255')).toBe(false);
+		expect(isReservedIPv4('192.0.0.170')).toBe(true);
+		expect(isReservedIPv4('198.18.0.1')).toBe(true);
+		expect(isReservedIPv4('198.20.0.1')).toBe(false);
+	});
+
 	it('does not flag public addresses, including the edges of private ranges', () => {
 		expect(isReservedIPv4('8.8.8.8')).toBe(false);
 		expect(isReservedIPv4('93.184.216.34')).toBe(false);
@@ -58,6 +67,12 @@ describe('isReservedIPv6', () => {
 	it('unwraps IPv4-mapped addresses and checks the embedded address', () => {
 		expect(isReservedIPv6('::ffff:127.0.0.1')).toBe(true);
 		expect(isReservedIPv6('::ffff:8.8.8.8')).toBe(false);
+		// The same addresses, spelled in hex or as NAT64.
+		expect(isReservedIPv6('::ffff:7f00:1')).toBe(true);
+		expect(isReservedIPv6('::ffff:a9fe:a9fe')).toBe(true);
+		expect(isReservedIPv6('64:ff9b::127.0.0.1')).toBe(true);
+		expect(isReservedIPv6('::ffff:808:808')).toBe(false);
+		expect(isReservedIPv6('ff02::1')).toBe(true);
 	});
 
 	it('does not flag a public IPv6 address', () => {
