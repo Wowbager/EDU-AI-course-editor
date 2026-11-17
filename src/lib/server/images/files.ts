@@ -23,7 +23,8 @@ import { sniffImage } from './sniff';
 import { disk, DISK_FULL } from '../disk';
 
 export { MAX_IMAGE_BYTES };
-export const MAX_IMAGES_PER_OWNER = 500;
+/** Per workspace: with pictures of at most 1 MB, about 100 MB at most. */
+export const MAX_IMAGES_PER_OWNER = 100;
 
 export const ALLOWED_MIME = new Set<string>(IMAGE_TYPES.map((type) => type.mime));
 
@@ -133,7 +134,8 @@ export class ImageFiles {
 			throw new ImageError(415, `Nepodporovaný typ souboru: ${declaredType}`);
 		}
 		if (bytes.byteLength > MAX_IMAGE_BYTES) {
-			throw new ImageError(413, `Soubor je větší než ${MAX_IMAGE_BYTES / 1024 / 1024} MB.`);
+			// The editor shrinks a picture before it is sent (`images/shrink.ts`).
+			throw new ImageError(413, `Obrázek je větší než ${MAX_IMAGE_BYTES / 1024 / 1024} MB.`);
 		}
 		// Kept as what the bytes are: a page or a script named `.png` is not a picture.
 		const mimeType = sniffImage(bytes);
@@ -143,39 +145,55 @@ export class ImageFiles {
 
 		const ownerDir = this.#ownerDir(owner);
 		const publicDir = this.#publicDir();
-		if (!(await disk().roomFor(this.#root, 'upload'))) throw new ImageError(507, DISK_FULL);
-
 		return this.#serial(owner, async () => {
 			const index = await readIndex(ownerDir);
 			if (index.items.length >= MAX_IMAGES_PER_OWNER) {
 				throw new ImageError(429, `Galerie je plná (maximum ${MAX_IMAGES_PER_OWNER} obrázků).`);
 			}
-
-			const ext = MIME_TO_EXT[mimeType];
-			const safeSlug = sanitiseName(originalName)
-				.replace(/\.[^.]+$/, '')
-				.replace(/[^a-zA-Z0-9_-]/g, '_')
-				.slice(0, 40);
-			const id = safeSlug ? `${randomUUID()}-${safeSlug}${ext}` : `${randomUUID()}${ext}`;
-
-			const filePath = join(publicDir, id);
-			await mkdir(publicDir, { recursive: true });
-			await atomicWriteBinary(filePath, bytes);
-
-			const meta: ImageMeta = {
-				id,
-				name: sanitiseName(originalName),
-				url: `/images/file/${encodeURIComponent(id)}`,
-				size: bytes.byteLength,
-				uploadedAt: new Date().toISOString(),
-				mimeType
-			};
-
-			await mkdir(ownerDir, { recursive: true });
-			const updated: ImageIndex = { items: [meta, ...index.items] };
-			await atomicWriteJson(join(ownerDir, 'index.json'), updated);
-			return meta;
+			// Last, so that only a picture that is then written is counted as using room.
+			if (!(await disk().roomFor(this.#root, 'upload', bytes.byteLength)))
+				throw new ImageError(507, DISK_FULL);
+			try {
+				return await this.#write(ownerDir, publicDir, index, bytes, originalName, mimeType);
+			} catch (e) {
+				disk().release(this.#root, bytes.byteLength);
+				throw e;
+			}
 		});
+	}
+
+	async #write(
+		ownerDir: string,
+		publicDir: string,
+		index: ImageIndex,
+		bytes: Uint8Array,
+		originalName: string,
+		mimeType: string
+	): Promise<ImageMeta> {
+		const ext = MIME_TO_EXT[mimeType];
+		const safeSlug = sanitiseName(originalName)
+			.replace(/\.[^.]+$/, '')
+			.replace(/[^a-zA-Z0-9_-]/g, '_')
+			.slice(0, 40);
+		const id = safeSlug ? `${randomUUID()}-${safeSlug}${ext}` : `${randomUUID()}${ext}`;
+
+		const filePath = join(publicDir, id);
+		await mkdir(publicDir, { recursive: true });
+		await atomicWriteBinary(filePath, bytes);
+
+		const meta: ImageMeta = {
+			id,
+			name: sanitiseName(originalName),
+			url: `/images/file/${encodeURIComponent(id)}`,
+			size: bytes.byteLength,
+			uploadedAt: new Date().toISOString(),
+			mimeType
+		};
+
+		await mkdir(ownerDir, { recursive: true });
+		const updated: ImageIndex = { items: [meta, ...index.items] };
+		await atomicWriteJson(join(ownerDir, 'index.json'), updated);
+		return meta;
 	}
 
 	/**

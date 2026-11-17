@@ -1,19 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { Disk, minFreeBytes } from '../disk';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Disk, maxUsedBytes, measureDir, minFreeBytes } from '../disk';
 import { UploadLimits } from '../upload-limits';
 
 const MB = 1024 * 1024;
 
 function diskWith(freeMb: number) {
 	const state = { free: freeMb, calls: 0, t: 0 };
-	const disk = new Disk(
-		1000 * MB,
-		async () => {
+	const disk = new Disk(1000 * MB, {
+		statfs: async () => {
 			state.calls++;
 			return { bavail: state.free, bsize: MB };
 		},
-		() => state.t
-	);
+		now: () => state.t
+	});
 	return { disk, state };
 }
 
@@ -37,8 +39,10 @@ describe('Disk', () => {
 	});
 
 	it('refuses nothing when the disk cannot say', async () => {
-		const disk = new Disk(MB, async () => {
-			throw new Error('ENOENT');
+		const disk = new Disk(MB, {
+			statfs: async () => {
+				throw new Error('ENOENT');
+			}
 		});
 		expect(await disk.roomFor('/missing', 'upload')).toBe(true);
 	});
@@ -50,6 +54,92 @@ describe('Disk', () => {
 		// Left empty in a compose file: the default, not no floor at all.
 		expect(minFreeBytes({ DATA_MIN_FREE_MB: '' })).toBe(1024 * MB);
 		expect(minFreeBytes({ DATA_MIN_FREE_MB: '0' })).toBe(0);
+	});
+});
+
+describe('the storage budget', () => {
+	const plenty = async () => ({ bavail: 1_000_000, bsize: MB });
+
+	function budget(usedMb: number) {
+		const state = { used: usedMb * MB, counts: 0, t: 0 };
+		const disk = new Disk(0, {
+			statfs: plenty,
+			now: () => state.t,
+			maxUsed: 100 * MB,
+			measure: async () => {
+				state.counts++;
+				return state.used;
+			}
+		});
+		return { disk, state };
+	}
+
+	it('stops uploads at 85 % of the budget and versions only at all of it', async () => {
+		const { disk } = budget(80);
+		expect(await disk.roomFor('/d', 'upload', 4 * MB)).toBe(true);
+		// What was just let in counts: 84 MB and more is past 85 MB.
+		expect(await disk.roomFor('/d', 'upload', MB)).toBe(false);
+		expect(await disk.roomFor('/d', 'version', 10 * MB)).toBe(true);
+		expect(await disk.roomFor('/d', 'version', 10 * MB)).toBe(false);
+	});
+
+	it('counts the files again after five minutes, and only once for requests at the same time', async () => {
+		const { disk, state } = budget(10);
+		await Promise.all([disk.roomFor('/d', 'upload'), disk.roomFor('/d', 'upload')]);
+		expect(state.counts).toBe(1);
+		state.used = 99 * MB;
+		expect(await disk.roomFor('/d', 'upload')).toBe(true);
+		state.t += 5 * 60_000;
+		expect(await disk.roomFor('/d', 'upload')).toBe(false);
+		expect(state.counts).toBe(2);
+	});
+
+	it('does not take a failed count for an empty disk, and counts again next time', async () => {
+		const state = { fail: true, counts: 0 };
+		const disk = new Disk(0, {
+			statfs: plenty,
+			maxUsed: 100 * MB,
+			measure: async () => {
+				state.counts++;
+				if (state.fail) throw new Error('EIO');
+				return 99 * MB;
+			}
+		});
+		expect(await disk.roomFor('/d', 'upload')).toBe(true);
+		state.fail = false;
+		expect(await disk.roomFor('/d', 'upload')).toBe(false);
+		expect(state.counts).toBe(2);
+	});
+
+	it('gives back what was let in but not written', async () => {
+		const disk = new Disk(0, { statfs: plenty, maxUsed: 100 * MB, measure: async () => 80 * MB });
+		expect(await disk.roomFor('/d', 'upload', 4 * MB)).toBe(true);
+		disk.release('/d', 4 * MB);
+		expect(await disk.roomFor('/d', 'upload', 4 * MB)).toBe(true);
+	});
+
+	it('has no budget when DATA_MAX_MB is 0', async () => {
+		const disk = new Disk(0, { statfs: plenty, maxUsed: 0, measure: async () => 1e15 });
+		expect(await disk.roomFor('/d', 'upload', MB)).toBe(true);
+		expect(maxUsedBytes({})).toBe(900 * MB);
+		expect(maxUsedBytes({ DATA_MAX_MB: '' })).toBe(900 * MB);
+		expect(maxUsedBytes({ DATA_MAX_MB: '500' })).toBe(500 * MB);
+		expect(maxUsedBytes({ DATA_MAX_MB: '0' })).toBe(0);
+	});
+
+	it('measures what the files take on disk, in whole blocks', async () => {
+		const dir = await mkdtemp(join(tmpdir(), 'measure-'));
+		try {
+			await mkdir(join(dir, 'a', 'b'), { recursive: true });
+			await writeFile(join(dir, 'a', 'b', 'x.json'), 'x');
+			await writeFile(join(dir, 'y.bin'), Buffer.alloc(10_000));
+			const used = await measureDir(dir);
+			// The directories count too, and a file takes whole blocks where the disk says.
+			expect(used).toBeGreaterThanOrEqual(10_001);
+			expect(await measureDir(join(dir, 'missing'))).toBe(0);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
 	});
 });
 

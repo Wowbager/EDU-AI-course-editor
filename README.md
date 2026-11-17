@@ -255,3 +255,11 @@ Since a key costs nothing to make, the server also bounds each client address: p
 60 a minute and 1000 MB a day, materials 120 and 1000 MB (`lib/server/upload-limits.ts`).
 Uploads stop while less than `DATA_MIN_FREE_MB` (default 1024) is free in `DATA_DIR`,
 saving a version only below a quarter of it.
+
+What the editor keeps in all is bounded by `DATA_MAX_MB` (default 900, `0` for no
+bound), counted as the files take on disk: uploads stop at 85 % of it, saving a version
+at all of it (`lib/server/disk.ts`). The browser shrinks a picture to at most 1 MB and
+2048 px before it is sent, and the server refuses a bigger one; a workspace keeps at
+most 100 pictures. Nothing is deleted on its own;
+removing a material also removes its pictures from the gallery, unless the open course
+or a saved version shows them.

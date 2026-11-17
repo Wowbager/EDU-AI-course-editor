@@ -28,7 +28,11 @@ import {
 
 export const COURSE_ID = /^[A-Za-z0-9_-]{1,80}$/;
 export const MAX_VERSION = 1_000_000;
-/** Per course, and per owner across all courses. Generous; they stop runaway loops. */
+/**
+ * Per course, and per owner across all courses. Generous; they stop runaway loops. Not
+ * lowered with the storage budget: nothing prunes a history, so a course already past a
+ * lower cap could never be saved again. What is kept in all is bounded by `server/disk.ts`.
+ */
 export const MAX_VERSIONS_PER_COURSE = 500;
 export const MAX_VERSIONS_PER_OWNER = 5000;
 export const MAX_BODY_BYTES = 8 * 1024 * 1024;
@@ -153,9 +157,11 @@ export class VersionFiles {
 			if ((await this.#ownerCount(owner)) >= MAX_VERSIONS_PER_OWNER) {
 				throw new VersionError(429, 'Uloženo je příliš mnoho verzí.');
 			}
-			if (!(await disk().roomFor(this.#root, 'version'))) throw new VersionError(507, DISK_FULL);
+			const text = JSON.stringify(version);
+			if (!(await disk().roomFor(this.#root, 'version', Buffer.byteLength(text))))
+				throw new VersionError(507, DISK_FULL);
 			await mkdir(dir, { recursive: true });
-			await atomicWrite(join(dir, `v${version.version}.json`), JSON.stringify(version));
+			await atomicWrite(join(dir, `v${version.version}.json`), text);
 			return strip(version);
 		});
 	}
@@ -168,6 +174,21 @@ export class VersionFiles {
 			await atomicWrite(join(dir, 'published.json'), JSON.stringify(publication));
 			return publication;
 		});
+	}
+
+	/** Whether a version the owner keeps, in any course, has `id` in it (a picture's, say). */
+	async mentions(owner: string, id: string): Promise<boolean> {
+		const courses = join(ownerDirOf(this.#root, owner), 'courses');
+		const needles = [id, encodeURIComponent(id)];
+		for (const course of await readdir(courses).catch(() => [] as string[])) {
+			const dir = join(courses, course);
+			for (const name of await readdir(dir).catch(() => [] as string[])) {
+				if (!/^v\d+\.json$/.test(name)) continue;
+				const text = await readFile(join(dir, name), 'utf8').catch(() => '');
+				if (needles.some((needle) => text.includes(needle))) return true;
+			}
+		}
+		return false;
 	}
 
 	async #ownerCount(owner: string): Promise<number> {
