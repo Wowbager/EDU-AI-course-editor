@@ -336,6 +336,7 @@ class AiPanel {
 			return;
 		}
 		this.#step(back.history);
+		this.#namesGiven(back.value);
 		this.draft = back.value;
 	}
 
@@ -343,6 +344,8 @@ class AiPanel {
 		const back = this.canUndo ? undo(this.#history, this.draft) : undefined;
 		if (back === undefined) return false;
 		this.#step(back.history);
+		// Undone or redone, a row without a name is asked for again only at the next click.
+		this.namesWanted = 0;
 		this.draft = back.value;
 		return true;
 	}
@@ -351,6 +354,7 @@ class AiPanel {
 		const next = this.canRedo ? redo(this.#history, this.draft) : undefined;
 		if (next === undefined) return false;
 		this.#step(next.history);
+		this.namesWanted = 0;
 		this.draft = next.value;
 		return true;
 	}
