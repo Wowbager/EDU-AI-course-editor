@@ -1,9 +1,13 @@
 /**
- * Per-owner limits for AI requests: requests per minute and tokens per day.
+ * Limits for AI requests: requests per minute and tokens per day, for each workspace,
+ * for each client address, and for the whole server.
  *
- * In memory, so a restart resets them; that is enough to stop a runaway loop or a
- * leaked workspace key from spending without bound. The clock is
- * injected for tests.
+ * A workspace key is made up by the browser, so a script can make a new one for every
+ * request: the workspace limit alone stops a runaway loop, not someone spending on
+ * purpose. The address limit stops one machine (a school shares one, so it is several
+ * workspaces' worth) and the server's total is the ceiling on a day's bill.
+ *
+ * In memory, so a restart resets them. The clock is injected for tests.
  */
 
 /** What a provider reports for one call (OpenRouter, DeepSeek). */
@@ -58,6 +62,13 @@ export class AiLimits {
 
 	/** Counts a request when it is allowed. */
 	check(owner: string): LimitVerdict {
+		const verdict = this.verdict(owner);
+		if (verdict.ok) this.count(owner);
+		return verdict;
+	}
+
+	/** Whether a request may be made now, without counting it. */
+	verdict(owner: string): LimitVerdict {
 		const now = this.now();
 		const day = Math.floor(now / DAY);
 		const spent = this.tokens.get(owner);
@@ -77,10 +88,16 @@ export class AiLimits {
 				retryAfterSeconds: Math.max(1, Math.ceil((recent[0] + MINUTE - now) / 1000))
 			};
 		}
+		return { ok: true };
+	}
+
+	/** Counts a request. */
+	count(owner: string): void {
+		const now = this.now();
+		const recent = (this.requests.get(owner) ?? []).filter((t) => now - t < MINUTE);
 		recent.push(now);
 		this.requests.set(owner, recent);
-		this.sweep(now, day);
-		return { ok: true };
+		this.sweep(now, Math.floor(now / DAY));
 	}
 
 	/** Adds what a finished request used to today's total. */
@@ -107,11 +124,94 @@ export class AiLimits {
 	}
 }
 
-let shared: { key: string; limits: AiLimits } | null = null;
+/** Who asks: the workspace and the client address (`server/ip.ts`, `clientOf`). */
+export type Who = { owner: string; ip: string };
+
+export type GuardOptions = {
+	perOwner: Omit<Options, 'now'>;
+	perIp: Omit<Options, 'now'>;
+	total: Omit<Options, 'now'>;
+	now?: () => number;
+};
+
+/** The server's one key for its total. */
+const TOTAL = '*';
+
+/** The three limits together: a request is counted by all of them or by none. */
+export class AiGuard {
+	readonly perOwner: AiLimits;
+	readonly perIp: AiLimits;
+	readonly total: AiLimits;
+
+	constructor(options: GuardOptions) {
+		const now = options.now;
+		this.perOwner = new AiLimits({ ...options.perOwner, now });
+		this.perIp = new AiLimits({ ...options.perIp, now });
+		this.total = new AiLimits({ ...options.total, now });
+	}
+
+	#each(who: Who): [AiLimits, string][] {
+		return [
+			[this.perOwner, who.owner],
+			[this.perIp, who.ip],
+			[this.total, TOTAL]
+		];
+	}
+
+	check(who: Who): LimitVerdict {
+		const each = this.#each(who);
+		for (const [limits, key] of each) {
+			const verdict = limits.verdict(key);
+			if (!verdict.ok) return verdict;
+		}
+		for (const [limits, key] of each) limits.count(key);
+		return { ok: true };
+	}
+
+	record(who: Who, tokens: number): void {
+		for (const [limits, key] of this.#each(who)) limits.record(key, tokens);
+	}
+}
+
+/** What the guard is built from: the provider's settings (`config.ts`). */
+export type LimitSettings = {
+	maxRequestsPerMinute: number;
+	dailyTokenBudget: number;
+	maxRequestsPerMinutePerIp: number;
+	dailyTokenBudgetPerIp: number;
+	maxRequestsPerMinuteTotal: number;
+	dailyTokenBudgetTotal: number;
+};
+
+let shared: { key: string; guard: AiGuard } | null = null;
 
 /** One instance per process; replaced if the settings change. */
-export function sharedLimits(options: Omit<Options, 'now'>): AiLimits {
-	const key = `${options.maxRequestsPerMinute}/${options.dailyTokenBudget}`;
-	if (shared === null || shared.key !== key) shared = { key, limits: new AiLimits(options) };
-	return shared.limits;
+export function sharedLimits(settings: LimitSettings): AiGuard {
+	const key = [
+		settings.maxRequestsPerMinute,
+		settings.dailyTokenBudget,
+		settings.maxRequestsPerMinutePerIp,
+		settings.dailyTokenBudgetPerIp,
+		settings.maxRequestsPerMinuteTotal,
+		settings.dailyTokenBudgetTotal
+	].join('/');
+	if (shared === null || shared.key !== key)
+		shared = {
+			key,
+			guard: new AiGuard({
+				perOwner: {
+					maxRequestsPerMinute: settings.maxRequestsPerMinute,
+					dailyTokenBudget: settings.dailyTokenBudget
+				},
+				perIp: {
+					maxRequestsPerMinute: settings.maxRequestsPerMinutePerIp,
+					dailyTokenBudget: settings.dailyTokenBudgetPerIp
+				},
+				total: {
+					maxRequestsPerMinute: settings.maxRequestsPerMinuteTotal,
+					dailyTokenBudget: settings.dailyTokenBudgetTotal
+				}
+			})
+		};
+	return shared.guard;
 }

@@ -15,9 +15,8 @@ import { MAX_CONTEXT_CHARS, MAX_MATERIALS_CHARS } from '$lib/domain/authoring';
 import { lessonRequestSchema, MAX_RESUME_CHARS, MAX_TURN_CHARS } from '$lib/domain/lesson-writing';
 import { lessonEvents } from '$lib/server/ai/lesson';
 import { chatter } from '$lib/server/ai/provider';
-import { eventStream, limitsFor, readAiRequest } from '$lib/server/ai/route';
+import { eventStream, limitsFor, readAiRequest, whoOf } from '$lib/server/ai/route';
 import { loadPicture } from '$lib/server/images/instance';
-import { ownerOf } from '$lib/server/versions/http';
 import type { RequestHandler } from './$types';
 
 // The lesson's dossier and materials, and with a plan the plan's request and answer too;
@@ -25,10 +24,11 @@ import type { RequestHandler } from './$types';
 const MAX_BODY =
 	2 * (MAX_CONTEXT_CHARS + MAX_MATERIALS_CHARS) + MAX_TURN_CHARS + MAX_RESUME_CHARS + 300_000;
 
-export const POST: RequestHandler = async ({ request }) => {
-	const owner = ownerOf(request);
+export const POST: RequestHandler = async (event) => {
+	const { request } = event;
+	const who = whoOf(event);
 	const { config, body } = await readAiRequest(request, env, lessonRequestSchema, MAX_BODY);
-	const limits = limitsFor(config, owner);
+	const limits = limitsFor(config, who);
 	if (limits instanceof Response) return limits;
 	return eventStream(async (send, signal) => {
 		for await (const event of lessonEvents(body, chatter(config, fetch, loadPicture), {

@@ -14,13 +14,14 @@ import { isConfigured, readAiConfig } from '$lib/server/ai/config';
 import { sharedLimits } from '$lib/server/ai/limits';
 import { ProviderError, visionist } from '$lib/server/ai/provider';
 import { ESTIMATED_READ_TOKENS, MAX_PICTURE_BYTES, readPicture } from '$lib/server/ai/read';
-import { ownerOf } from '$lib/server/versions/http';
+import { whoOf } from '$lib/server/ai/route';
 import type { RequestHandler } from './$types';
 
 const TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
-export const POST: RequestHandler = async ({ request }) => {
-	const owner = ownerOf(request);
+export const POST: RequestHandler = async (event) => {
+	const { request } = event;
+	const who = whoOf(event);
 	const config = readAiConfig(env);
 	if (!isConfigured(config)) {
 		if (config.problem !== null) console.error('[ai]', config.problem);
@@ -35,7 +36,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (bytes.length === 0) error(400, 'Chybí obrázek.');
 
 	const limits = sharedLimits(config);
-	const verdict = limits.check(owner);
+	const verdict = limits.check(who);
 	if (!verdict.ok)
 		return json(
 			{ reason: verdict.reason },
@@ -48,13 +49,13 @@ export const POST: RequestHandler = async ({ request }) => {
 			base64: bytes.toString('base64')
 		});
 		// A host that does not say what it used is counted by estimate, not as nothing.
-		limits.record(owner, tokens > 0 ? tokens : ESTIMATED_READ_TOKENS);
+		limits.record(who, tokens > 0 ? tokens : ESTIMATED_READ_TOKENS);
 		return json({ text }, { headers: { 'cache-control': 'no-store' } });
 	} catch (e) {
 		// A call that failed was still sent, and parallel pages must not overrun the budget
 		// unseen; a host that turned it away as busy did no work.
 		if (!(e instanceof ProviderError) || e.kind !== 'busy')
-			limits.record(owner, ESTIMATED_READ_TOKENS);
+			limits.record(who, ESTIMATED_READ_TOKENS);
 		if (!(e instanceof ProviderError)) throw e;
 		console.error('[ai] provider call failed:', e.kind, e.message);
 		// Only a busy host is worth waiting for: the client retries a 503 that says when.

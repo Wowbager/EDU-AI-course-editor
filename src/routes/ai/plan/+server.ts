@@ -12,17 +12,17 @@ import { MAX_CONTEXT_CHARS, MAX_MATERIALS_CHARS } from '$lib/domain/authoring';
 import { planRequestSchema } from '$lib/domain/plan';
 import { makePlan } from '$lib/server/ai/lesson';
 import { chatter } from '$lib/server/ai/provider';
-import { eventStream, limitsFor, readAiRequest } from '$lib/server/ai/route';
+import { eventStream, limitsFor, readAiRequest, whoOf } from '$lib/server/ai/route';
 import { loadPicture } from '$lib/server/images/instance';
-import { ownerOf } from '$lib/server/versions/http';
 import type { RequestHandler } from './$types';
 
 const MAX_BODY = MAX_CONTEXT_CHARS + MAX_MATERIALS_CHARS + 200_000;
 
-export const POST: RequestHandler = async ({ request }) => {
-	const owner = ownerOf(request);
+export const POST: RequestHandler = async (event) => {
+	const { request } = event;
+	const who = whoOf(event);
 	const { config, body } = await readAiRequest(request, env, planRequestSchema, MAX_BODY);
-	const limits = limitsFor(config, owner);
+	const limits = limitsFor(config, who);
 	if (limits instanceof Response) return limits;
 	return eventStream(async (send, signal) => {
 		send(await makePlan(body, chatter(config, fetch, loadPicture), { ...limits, signal }));

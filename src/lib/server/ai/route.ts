@@ -10,9 +10,16 @@
 import { error, json } from '@sveltejs/kit';
 import type { z } from 'zod';
 import { isConfigured, readAiConfig, type AiConfig } from './config';
-import { sharedLimits } from './limits';
+import { sharedLimits, type Who } from './limits';
 import { ProviderError } from './provider';
 import type { Gate } from './lesson';
+import { clientOf } from '../ip';
+import { ownerOf } from '../versions/http';
+
+/** Who a request counts against: its workspace (a 401 without one) and its address. */
+export function whoOf(event: { request: Request; getClientAddress(): string }): Who {
+	return { owner: ownerOf(event.request), ip: clientOf(event) };
+}
 
 /** The configured provider and the parsed body, or the error the route answers with. */
 export async function readAiRequest<T extends z.ZodTypeAny>(
@@ -55,15 +62,15 @@ export async function readAiRequest<T extends z.ZodTypeAny>(
 export const HEARTBEAT_MS = 15_000;
 
 /**
- * The limits for `owner`: a 429 when the first call may not be made; else a gate for
+ * The limits for `who`: a 429 when the first call may not be made; else a gate for
  * every call after it, and where to count what each used.
  */
 export function limitsFor(
 	config: AiConfig,
-	owner: string
+	who: Who
 ): Response | { gate: Gate; spent: (tokens: number) => void } {
 	const limits = sharedLimits(config);
-	const verdict = limits.check(owner);
+	const verdict = limits.check(who);
 	if (!verdict.ok)
 		return json(
 			{ reason: verdict.reason },
@@ -72,11 +79,11 @@ export function limitsFor(
 	let first = true;
 	return {
 		gate: () => {
-			if (!first) return limits.check(owner);
+			if (!first) return limits.check(who);
 			first = false;
 			return { ok: true };
 		},
-		spent: (tokens) => limits.record(owner, tokens)
+		spent: (tokens) => limits.record(who, tokens)
 	};
 }
 
