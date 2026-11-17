@@ -22,6 +22,7 @@ import { emptyCourse } from '../document';
 import { buildGenRequest, sourceRefsOf } from '../authoring';
 import { buildOutlineRequest, toOutline, draftOf, keyMaker } from '../outline';
 import { insertOutline } from '../outline-insert';
+import { DEFAULT_PLACE } from '../placement';
 
 const section = (over: Partial<Section> = {}): Section => ({
 	key: 'aaaaaaaa.0',
@@ -217,10 +218,10 @@ describe('a proposal and a card with materials', () => {
 
 	it('the proposal request carries the materials and their keys, and none without materials', () => {
 		const doc = emptyCourse('K', 'Zlomky');
-		const plain = buildOutlineRequest(doc, null, 'Kurz');
+		const plain = buildOutlineRequest(doc, DEFAULT_PLACE, 'Kurz');
 		expect(plain.materials).toBeUndefined();
 		expect(plain.material_keys).toBeUndefined();
-		const request = buildOutlineRequest(doc, null, 'Kurz', undefined, sections);
+		const request = buildOutlineRequest(doc, DEFAULT_PLACE, 'Kurz', undefined, sections);
 		expect(request.material_keys).toEqual(['aaaaaaaa.0', 'aaaaaaaa.1']);
 		expect(request.materials).toContain('Kapitola 1');
 	});

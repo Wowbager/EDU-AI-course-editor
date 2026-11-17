@@ -9,8 +9,12 @@
 	 * and is not in the course until „Vytvořit vybrané“ — then the left tree is the
 	 * outline, and every later edit happens there.
 	 *
-	 * With nothing proposed, the teacher can also start the outline by hand („+ lekce“,
-	 * „+ karta“). Ctrl+Z / Ctrl+Shift+Z (Ctrl+Y) inside the panel walk the outline's own
+	 * With nothing proposed, the teacher can also start the outline by hand („+ lekce“, or
+	 * „+ karta“ when the place is in a lesson).
+	 *
+	 * Above the box, „Kam“ says where the proposal goes, chosen before it is made
+	 * (`placement.ts`); the selection only offers its lesson and card as places. A course
+	 * with nothing of the teacher's yet has nowhere to choose, and shows no „Kam“. Ctrl+Z / Ctrl+Shift+Z (Ctrl+Y) inside the panel walk the outline's own
 	 * history while it has one, and the course's undo stays out of it; in a text field
 	 * they are the field's.
 	 */
@@ -26,6 +30,10 @@
 	import { displayName } from '$lib/domain/materials';
 	import { anyTicked } from '$lib/domain/outline';
 	import { blockPreview } from '$lib/domain/derive';
+	import { hasNoContent } from '$lib/domain/starter';
+	import { placeChoices, placeLabel, samePlace, scopeOf } from '$lib/domain/placement';
+	import Menu from '$lib/ui/Menu.svelte';
+	import MenuItem from '$lib/ui/MenuItem.svelte';
 
 	const store = useStore();
 
@@ -120,11 +128,19 @@
 	const draft = $derived(aiPanel.draft);
 	const queue = aiPanel.queue;
 
+	/** Where the proposal goes, and the places on offer. */
+	const showPlace = $derived(!hasNoContent(store.doc));
+	const placeText = $derived(placeLabel(store.doc, aiPanel.place));
+	const choices = $derived(placeChoices(store.doc, store.selection, aiPanel.place));
+	const startScope = $derived(scopeOf(store.doc, aiPanel.place));
+
 	/** What the box is for now, in the words it shows. */
 	const placeholder = $derived(draft !== null ? 'Co změnit?' : 'Co mám vytvořit?');
 
 	/** With files read and nothing proposed, an empty box asks for a proposal from them. */
-	const canSend = $derived(!aiPanel.asking && (text.trim() !== '' || aiPanel.fromMaterials));
+	const canSend = $derived(
+		!aiPanel.asking && (text.trim() !== '' || aiPanel.fromMaterials(store.doc))
+	);
 
 	async function send() {
 		const asked = text.trim();
@@ -221,6 +237,29 @@
 		failed: 'Nepodařilo se dopsat'
 	} as const;
 </script>
+
+<!-- Or the outline by hand: a lesson, or cards for the lesson the teacher is in. -->
+{#snippet startByHand()}
+	<div class="start">
+		{#if startScope === 'lessons'}
+			<button
+				type="button"
+				class="text-button"
+				aria-label="Nová lekce"
+				title="Napsat osnovu sám, bez AI: lekce"
+				onclick={() => aiPanel.start('lessons')}>+ lekce</button
+			>
+		{:else}
+			<button
+				type="button"
+				class="text-button"
+				aria-label="Nová karta"
+				title="Napsat osnovu sám, bez AI: karty"
+				onclick={() => aiPanel.start('cards')}>+ karta</button
+			>
+		{/if}
+	</div>
+{/snippet}
 
 <!-- Files are dropped anywhere on the panel; the 📎 in the box is the same thing by click. -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions (the key handler is the outline's undo) -->
@@ -339,31 +378,16 @@
 				<div class="actions">
 					<Button variant="primary" onclick={() => aiPanel.resume(store)}>Dopsat zbytek</Button>
 				</div>
+			{:else if !aiPanel.asking}
+				<!-- Every card is written: the next outline can be started by hand, as on an empty panel. -->
+				<div class="actions">{@render startByHand()}</div>
 			{/if}
 		{:else if aiPanel.asking}
 			<p class="empty"><LoaderCircle size={16} class="spin" aria-hidden="true" /> Navrhuji…</p>
 		{:else}
 			<div class="empty">
 				<p>Napiš, co chceš vytvořit. Třeba celý kurz, nebo jen pár karet do vybrané lekce.</p>
-				<!-- Or the outline by hand: a lesson, or cards for the lesson the teacher is in. -->
-				<div class="start">
-					<button
-						type="button"
-						class="text-button"
-						aria-label="Nová lekce"
-						title="Napsat osnovu sám, bez AI: lekce"
-						onclick={() => aiPanel.start('lessons')}>+ lekce</button
-					>
-					{#if store.doc.lessons.length > 0}
-						<button
-							type="button"
-							class="text-button"
-							aria-label="Nová karta"
-							title="Napsat sám, bez AI: karty do vybrané lekce"
-							onclick={() => aiPanel.start('cards')}>+ karta</button
-						>
-					{/if}
-				</div>
+				{@render startByHand()}
 			</div>
 		{/if}
 	</div>
@@ -429,6 +453,21 @@
 		{#if materials.message !== ''}
 			<p class="quiet" role="status">{materials.message}</p>
 		{/if}
+		{#if showPlace}
+			<Menu
+				label={`Kam: ${placeText}`}
+				text={`Kam: ${placeText}`}
+				class="place"
+				disabled={aiPanel.asking}
+			>
+				{#each choices as choice (JSON.stringify(choice.place))}
+					<MenuItem
+						checked={samePlace(choice.place, aiPanel.place)}
+						onclick={() => aiPanel.choose(store, choice.place)}>{choice.label}</MenuItem
+					>
+				{/each}
+			</Menu>
+		{/if}
 		<form
 			class="box"
 			class:dragging
@@ -477,7 +516,7 @@
 				type="submit"
 				class="send"
 				aria-label="Odeslat"
-				title={text.trim() === '' && aiPanel.fromMaterials
+				title={text.trim() === '' && aiPanel.fromMaterials(store.doc)
 					? 'Navrhnout kurz z podkladů (Enter)'
 					: 'Odeslat (Enter)'}
 				disabled={!canSend}
@@ -552,6 +591,27 @@
 	.start {
 		display: flex;
 		gap: 4px;
+	}
+
+	/* The place is information until pressed: quiet, one line, truncated. */
+	.foot :global(.place) {
+		min-width: 0;
+		max-width: 100%;
+	}
+
+	.foot :global(.place .menu-trigger) {
+		overflow: hidden;
+		max-width: 100%;
+		color: var(--e-text-muted);
+		font: var(--type-meta);
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	/* A choice, not a caption: the ▾ says it opens. */
+	.foot :global(.place .menu-trigger::after) {
+		content: '▾';
+		margin-left: 4px;
 	}
 
 	.start .text-button {

@@ -4,15 +4,16 @@
  * them and the teacher's request, which a course structure saves on the course. One command,
  * so one undo step takes all of it back.
  *
- * Where it goes follows what the teacher has selected: lessons after the selected lesson
- * (or after the lesson of the selected card), else at the end; cards into the selected
- * lesson after the selected card, else at its end. Ids come from the ordinary commands
+ * Where it goes is the place the teacher chose (`placement.ts`, `insertAtOf`): lessons
+ * after `lessonId`, else at the end; cards into `lessonId` at its start, after `blockId`,
+ * else at its end. Ids come from the ordinary commands
  * (`addLesson`, `addBlock`) on the document as it grows, so they stay unique.
  *
  * The outline stands in for a placeholder still as the editor made it (`starter.ts`):
- * lessons replace the selected lesson when it is untouched (a new course's „První lekce“
- * with its empty card, or a „Nová lekce“ just added), and cards put into an untouched
- * lesson replace its one untouched card. Then the selection moves to the first new card,
+ * lessons replace the lesson they go after (or, at the end, the last lesson) when it is
+ * untouched (a new course's „První lekce“ with its empty card, or a „Nová lekce“ just
+ * added), and cards put into an untouched lesson replace its one untouched card. Then the
+ * selection moves to the first new card,
  * and an undo puts it back where it was.
  */
 import type { BlockV2, CourseV2 } from './schema';
@@ -34,6 +35,8 @@ import type { Reservations } from './ids';
 export interface InsertAt {
 	lessonId?: string;
 	blockId?: string;
+	/** Cards go at the start of the lesson, not after `blockId` or at its end. */
+	start?: boolean;
 }
 
 /**
@@ -161,7 +164,7 @@ export function insertOutline(
 			next,
 			lessonId,
 			outline.cards,
-			after < 0 ? undefined : after + 1,
+			at.start === true ? 0 : after < 0 ? undefined : after + 1,
 			reserved
 		);
 		next = result.doc;
@@ -187,8 +190,9 @@ export function insertOutline(
 	let previous = at.lessonId ?? ownerOf(doc, at.blockId);
 	if (previous !== undefined && !doc.lessons.some((l) => l.lesson_id === previous))
 		throw new CommandError('Vybraná lekce v kurzu není.');
-	// The selected lesson, or a course's only lesson, when it is still as the editor made it.
-	const candidate = previous ?? (doc.lessons.length === 1 ? doc.lessons[0].lesson_id : undefined);
+	// The lesson they go after, or the course's last when they go at the end, when it is still
+	// as the editor made it.
+	const candidate = previous ?? doc.lessons.at(-1)?.lesson_id;
 	const placeholder =
 		candidate !== undefined && isUntouchedLesson(doc, candidate) ? candidate : undefined;
 	let firstLesson: string | undefined;

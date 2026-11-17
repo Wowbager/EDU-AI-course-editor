@@ -1,4 +1,12 @@
-import { test, expect, openEditor, OPEN_COURSE_KEY, DRAFT_PREFIX, type Page } from './fixtures';
+import {
+	test,
+	expect,
+	openEditor,
+	cardsIntoFirstLesson,
+	OPEN_COURSE_KEY,
+	DRAFT_PREFIX,
+	type Page
+} from './fixtures';
 
 /**
  * The outline in the AI tab, shaped by hand: started without the AI, typed row by row,
@@ -79,8 +87,10 @@ test('an outline is started without the AI and typed lesson by lesson, card by c
 	await expect(panel(page).locator('.queue-row')).toHaveCount(2);
 });
 
-test('cards for the selected lesson are started by hand too', async ({ page }) => {
-	await page.locator('.tree-card').first().click();
+test('cards for a lesson are started by hand too, where „Kam“ says', async ({ page }) => {
+	await cardsIntoFirstLesson(page);
+	// „Kam“ is in a lesson: the hand-made outline is cards, not a lesson.
+	await expect(panel(page).getByRole('button', { name: 'Nová lekce' })).toHaveCount(0);
 	await panel(page).getByRole('button', { name: 'Nová karta' }).click();
 	await expect(cardField(page)).toBeFocused();
 	await page.keyboard.type('Moje karta');
@@ -90,9 +100,9 @@ test('cards for the selected lesson are started by hand too', async ({ page }) =
 	// No lessons in a proposal of cards.
 	await expect(page.getByRole('checkbox', { name: /^Vytvořit lekci/ })).toHaveCount(0);
 	await create(page).click();
-	// In place of the empty card the new course started with.
-	await expect(page.locator('.tree-card')).toHaveCount(1);
-	await expect(page.locator('.tree-card')).toContainText('Moje karta');
+	// After the card the teacher wrote in.
+	await expect(page.locator('.tree-card')).toHaveCount(2);
+	await expect(page.locator('.tree-card').nth(1)).toContainText('Moje karta');
 	await expect(lessonsInCourse(page)).toHaveCount(1);
 });
 
@@ -300,12 +310,11 @@ test("Ctrl+Z in the panel undoes the outline's changes, not the course's, and Ct
 	page
 }) => {
 	// Something in the course to undo, from cards the AI wrote.
-	await page.locator('.tree-card').first().click();
+	await cardsIntoFirstLesson(page);
 	await ask(page, 'Dej mi karty');
 	await create(page).click();
 	await expect(panel(page).locator('.queue-row.done')).toHaveCount(3);
-	// In place of the empty card the new course started with.
-	await expect(page.locator('.tree-card')).toHaveCount(3);
+	await expect(page.locator('.tree-card')).toHaveCount(4);
 
 	await ask(page, 'Kurz o zlomcích');
 	await page.getByRole('button', { name: 'Odebrat z návrhu: Procvičení' }).click({ force: true });
@@ -315,7 +324,7 @@ test("Ctrl+Z in the panel undoes the outline's changes, not the course's, and Ct
 	await expect(page.getByRole('checkbox', { name: 'Vytvořit: Co to je' })).toBeChecked();
 	await page.keyboard.press('Control+z');
 	await expect.poll(names(page, 0)).toEqual(['Co to je', 'Procvičení', 'Ověření']);
-	await expect(page.locator('.tree-card')).toHaveCount(3);
+	await expect(page.locator('.tree-card')).toHaveCount(4);
 	await page.keyboard.press('Control+Shift+z');
 	await expect.poll(names(page, 0)).toEqual(['Co to je', 'Ověření']);
 	await page.keyboard.press('Control+y');
@@ -343,7 +352,7 @@ test("Ctrl+Z in the panel undoes the outline's changes, not the course's, and Ct
 	// Back past the proposal itself, then the course's undo takes over.
 	for (let i = 0; i < 3; i++) await page.keyboard.press('Control+z');
 	await expect(create(page)).toHaveCount(0);
-	await expect(page.locator('.tree-card')).toHaveCount(3);
+	await expect(page.locator('.tree-card')).toHaveCount(4);
 	// Three cards written and their insert: four steps of the course.
 	for (let i = 0; i < 4; i++) await page.keyboard.press('Control+z');
 	await expect(page.locator('.tree-card')).toHaveCount(1);
@@ -415,6 +424,16 @@ test("a new course's empty first lesson and card give way to the outline, and co
 	await expect(page.locator('.tree-card')).toHaveCount(1);
 	await expect(page.locator('.tree-card.selected')).toHaveCount(1);
 	await expect(page.locator('.rich-content').first()).toBeVisible();
+});
+
+test('once every card is written, the next outline is started by hand', async ({ page }) => {
+	await ask(page, 'Kurz o zlomcích');
+	await create(page).click();
+	await expect(panel(page).locator('.queue-row.done')).toHaveCount(5);
+	await panel(page).getByRole('button', { name: 'Nová lekce', exact: true }).click();
+	await expect(lessonField(page)).toBeFocused();
+	// The finished cards gave way to the new outline.
+	await expect(panel(page).locator('.queue-row')).toHaveCount(0);
 });
 
 test('a starter the teacher has typed into is kept', async ({ page }) => {

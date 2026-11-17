@@ -80,9 +80,10 @@ export function fakeCard(request: GenRequest): GeneratedCard {
 }
 
 /**
- * A proposal from the request alone. A prompt that mentions „karty“ gets cards, any other
- * a course of two lessons; a change keeps the proposal and appends one card that carries
- * the instruction, so a suite can tell that the proposal was replaced.
+ * A proposal from the request alone. A place in a lesson gets three cards, any other a
+ * course of two lessons; a change keeps the proposal and appends one card that carries the
+ * instruction, so a suite can tell that the proposal was replaced. A change to a place of
+ * the other kind regroups the cards: all in one, or in one lesson „Přesunutá lekce“.
  */
 export function fakeOutline(
 	request: OutlineRequest,
@@ -102,6 +103,15 @@ export function fakeOutline(
 	if (request.current !== undefined) {
 		const change = card('display', `Změna: ${request.prompt}`);
 		const current = request.current;
+		if (current.scope !== request.place.scope) {
+			const cards = [
+				...(current.scope === 'cards' ? current.cards : current.lessons.flatMap((l) => l.cards)),
+				change
+			];
+			return request.place.scope === 'cards'
+				? { scope: 'cards', cards }
+				: { scope: 'lessons', lessons: [{ name: 'Přesunutá lekce', cards }] };
+		}
 		return current.scope === 'cards'
 			? { scope: 'cards', cards: [...current.cards, change] }
 			: {
@@ -113,7 +123,7 @@ export function fakeOutline(
 					})
 				};
 	}
-	if (/karty/i.test(request.prompt) && request.target.lessons > 0)
+	if (request.place.scope === 'cards')
 		return {
 			scope: 'cards',
 			cards: [

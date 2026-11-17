@@ -15,7 +15,7 @@
 	 * levels of text, so it keeps a circle per lesson and, under the open one, a tile
 	 * per card: enough to see where you are, jump, reorder and add.
 	 */
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { countOf, focusAfterDelete, focusSelectedCard } from '$lib/ui/focus-after';
 	import { dndzone, type DndEvent } from 'svelte-dnd-action';
 	import type { BlockV2, CourseV2, LessonBlockBinding, LessonV2 } from '$lib/domain/schema';
@@ -40,6 +40,7 @@
 	import { cardActions } from './card-actions';
 	import { LoaderCircle, PanelLeftOpen, PanelLeftClose, Settings, Plus } from '@lucide/svelte';
 	import { ai } from '$lib/state/ai.svelte';
+	import { aiPanel } from '$lib/state/ai-panel.svelte';
 
 	interface Props {
 		doc: CourseV2;
@@ -138,6 +139,31 @@
 			// Nothing to remember it in.
 		}
 	}
+	/**
+	 * What the AI panel just put in the course, shown for a moment where it went: the new
+	 * lessons' rows, the new cards in an open lesson, or the row of a folded lesson that got
+	 * them. The selection stays where the teacher is.
+	 */
+	const LANDED_MS = 1600;
+	let landed = $state<{ lessons: Set<string>; cards: Set<string> } | null>(null);
+	let landedTimer: ReturnType<typeof setTimeout> | undefined;
+	$effect(() => {
+		const what = aiPanel.landed;
+		if (what === null) return;
+		untrack(() => {
+			landed = { lessons: new Set(what.lessonIds), cards: new Set(what.blockIds) };
+			clearTimeout(landedTimer);
+			landedTimer = setTimeout(() => (landed = null), LANDED_MS);
+			void tick().then(() =>
+				document.querySelector('.sidebar .landed')?.scrollIntoView({ block: 'nearest' })
+			);
+		});
+	});
+	const lessonLanded = (lesson: LessonV2, open: boolean): boolean =>
+		landed !== null &&
+		(landed.lessons.has(lesson.lesson_id) ||
+			(!open && lesson.blocks.some((b) => landed!.cards.has(b.block_id))));
+
 	const selectedLesson = $derived(activeLessonId);
 	const selectedBlock = $derived(activeBlockId);
 
@@ -471,6 +497,7 @@
 						type="button"
 						class="lesson"
 						class:selected={open}
+						class:landed={lessonLanded(lesson, open)}
 						onclick={() => selectLesson(lesson.lesson_id)}
 					>
 						<span class="name">{lessonLabel(doc, lesson)}</span>
@@ -531,6 +558,7 @@
 											tabindex="0"
 											class="tree-card"
 											class:selected={block.block_id === selectedBlock}
+											class:landed={landed?.cards.has(block.block_id) === true}
 											onclick={() => select(lesson.lesson_id, block.block_id)}
 											title="Alt+šipka nahoru nebo dolů přesune kartu"
 											onkeydowncapture={(event) =>
@@ -800,6 +828,26 @@
 
 	.lesson:hover {
 		background: var(--info-bg);
+	}
+
+	/* Where the AI panel's proposal just went: a short, quiet glow, once. */
+	.lesson.landed,
+	.tree-card.landed {
+		animation: landed 1600ms ease-out;
+	}
+
+	@keyframes landed {
+		from {
+			background: var(--primary-dark-12, var(--info-bg));
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.lesson.landed,
+		.tree-card.landed {
+			animation: none;
+			outline: 2px solid var(--primary);
+		}
 	}
 
 	.lesson.selected .name {
