@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { addBlock, addLesson, deleteBlock, setField, unbindBlock } from '../commands';
+import { addBlock, addLesson, deleteBlock, deleteLesson, setField, unbindBlock } from '../commands';
 import { emptyCourse } from '../document';
 import { insertOutline } from '../outline-insert';
 import {
 	DEFAULT_PLACE,
+	fitToPlace,
 	insertAtOf,
 	placeChoices,
 	placeForModel,
@@ -168,6 +169,18 @@ describe('a proposal put where it was meant to go', () => {
 		};
 		const next = insertOutline(doc, lessons, insertAtOf(doc, DEFAULT_PLACE, 'lessons')).doc;
 		expect(next.lessons.map((l) => l.name)).toEqual(['Co je zlomek', 'Sčítání', 'Odčítání']);
+	});
+
+	it('puts cards made for a lesson that is gone in a new lesson at the end, not in the last one', () => {
+		const { doc, a, b } = course();
+		const place: Place = { kind: 'into', lessonId: a, at: 'end' };
+		const without = deleteLesson(unbindBlock(doc, a, doc.lessons[0].blocks[0].block_id).doc, a).doc;
+		expect(fitToPlace(doc, cards, place)).toBe(cards);
+		const fitted = fitToPlace(without, cards, place);
+		expect(fitted.scope).toBe('lessons');
+		const next = insertOutline(without, fitted, insertAtOf(without, place, fitted.scope)).doc;
+		expect(next.lessons.find((l) => l.lesson_id === b)!.blocks).toHaveLength(1);
+		expect(next.lessons.at(-1)!.blocks).toHaveLength(1);
 	});
 
 	it('replaces a new course’s starter lesson', () => {

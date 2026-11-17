@@ -608,6 +608,12 @@
 		white-space: nowrap;
 	}
 
+	/* A choice, not a caption: the ▾ says it opens. */
+	.foot :global(.place .menu-trigger::after) {
+		content: '▾';
+		margin-left: 4px;
+	}
+
 	.start .text-button {
 		color: var(--e-text-faint);
 	}

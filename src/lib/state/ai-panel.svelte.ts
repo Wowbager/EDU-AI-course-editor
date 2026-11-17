@@ -60,6 +60,7 @@ import type { CourseV2 } from '$lib/domain/schema';
 import { hasNoContent } from '$lib/domain/starter';
 import {
 	DEFAULT_PLACE,
+	fitToPlace,
 	insertAtOf,
 	samePlace,
 	scopeOf,
@@ -508,8 +509,9 @@ class AiPanel {
 	 * proposal is done with, and the queue starts writing them.
 	 */
 	create(store: DocStore): void {
-		const outline = this.draft === null ? undefined : toOutline(this.draft, 'ticked');
-		if (outline === undefined || this.asking) return;
+		const ticked = this.draft === null ? undefined : toOutline(this.draft, 'ticked');
+		if (ticked === undefined || this.asking) return;
+		const outline = fitToPlace(store.doc, ticked, this.place);
 		// The request that made a course structure is kept on the course for the cards' dossier.
 		const request = outline.scope === 'lessons' ? this.draft?.original : undefined;
 		// Where the teacher chose; a lesson or card deleted meanwhile falls back (`validPlace`).

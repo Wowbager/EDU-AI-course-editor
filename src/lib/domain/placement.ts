@@ -15,6 +15,8 @@ import { isUntouchedLesson } from './starter';
 import type { InsertAt } from './outline-insert';
 import { blockPreview } from './derive';
 import { lessonLabel } from './naming';
+import { DEFAULT_LESSON_NAME } from './commands';
+import type { Outline } from './outline';
 
 export type Place =
 	| { kind: 'new'; after?: string }
@@ -45,6 +47,16 @@ export function samePlace(a: Place, b: Place): boolean {
 export function scopeOf(doc: CourseV2, place: Place): 'lessons' | 'cards' {
 	const valid = validPlace(doc, place);
 	return valid.kind === 'into' && !isUntouchedLesson(doc, valid.lessonId) ? 'cards' : 'lessons';
+}
+
+/**
+ * The proposal as it can still go to its place: cards made for a lesson that is gone are a
+ * new lesson of their own (at the end, where the place falls back to), never cards for
+ * whichever lesson happens to be last.
+ */
+export function fitToPlace(doc: CourseV2, outline: Outline, place: Place): Outline {
+	if (outline.scope !== 'cards' || validPlace(doc, place).kind === 'into') return outline;
+	return { scope: 'lessons', lessons: [{ name: DEFAULT_LESSON_NAME, cards: outline.cards }] };
 }
 
 /** Where `insertOutline` puts a proposal of `scope` made for `place`. */
