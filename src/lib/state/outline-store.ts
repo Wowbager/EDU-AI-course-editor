@@ -51,14 +51,11 @@ const storedSchema = z.object({
 });
 
 /**
- * What of the draft is worth keeping: a row still without a name is one the teacher was
- * about to type, and goes (a lesson only when it has no cards either). `null` when
- * nothing is left.
+ * What of the draft is worth keeping: every row, named or not (the teacher may lay out the
+ * outline first and name it later). `null` when there is no row.
  */
 export function keptDraft(draft: Draft): Draft | null {
-	const lessons = draft.lessons
-		.map((l) => ({ ...l, cards: l.cards.filter((c) => c.name.trim() !== '') }))
-		.filter((l) => draft.scope === 'cards' || l.name.trim() !== '' || l.cards.length > 0);
+	const lessons = draft.lessons;
 	if (draft.scope === 'cards' ? (lessons[0]?.cards.length ?? 0) === 0 : lessons.length === 0)
 		return null;
 	return { ...draft, lessons: draft.scope === 'cards' ? lessons.slice(0, 1) : lessons };

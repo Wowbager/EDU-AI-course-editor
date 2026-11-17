@@ -3,6 +3,8 @@ import { emptyCourse } from '../document';
 import { DEFAULT_PLACE } from '../placement';
 import {
 	anyTicked,
+	unnamedTicked,
+	firstUnnamedTicked,
 	buildOutlineRequest,
 	addDraftCard,
 	addDraftLesson,
@@ -228,6 +230,29 @@ describe('an outline made by hand', () => {
 		expect(draft.lessons.map((l) => l.key)).toEqual(['n2', 'n1']);
 		// A nameless lesson is not part of the outline yet.
 		expect(toOutline(draft)).toBeUndefined();
+	});
+
+	it('knows when a ticked row still has no name', () => {
+		let draft = make();
+		expect(unnamedTicked(draft)).toBe(false);
+		draft = addDraftCard(draft, draft.lessons[0].key, 'n1');
+		expect(unnamedTicked(draft)).toBe(true);
+		// The first one from the top, with the lesson it is in.
+		draft = addDraftCard(draft, draft.lessons[1].key, 'n0');
+		expect(firstUnnamedTicked(draft)).toEqual({ key: 'n1', lesson: draft.lessons[0].key });
+		draft = removeCard(draft, 'n0');
+		draft = setCardTick(draft, 'n1', false);
+		expect(unnamedTicked(draft)).toBe(false);
+		// A lesson without a name counts once it would be created: ticked, or with ticked cards.
+		draft = addDraftLesson(draft, 'l');
+		expect(unnamedTicked(draft)).toBe(true);
+		draft = setLessonTick(draft, 'l', false);
+		expect(unnamedTicked(draft)).toBe(false);
+		draft = renameDraftLesson(setLessonTick(draft, 'l', true), 'l', 'Opakování');
+		expect(unnamedTicked(draft)).toBe(false);
+		// The group of a cards proposal has no name and needs none.
+		const cards = draftOf({ scope: 'cards', cards: [card('A')] } as Outline, keyMaker());
+		expect(unnamedTicked(cards)).toBe(false);
 	});
 
 	it('adds a card of the kind above it, or the first kind; never with sources', () => {

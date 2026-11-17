@@ -9,7 +9,9 @@
 	 *
 	 * Writing an outline by hand is typing: Enter after a card's name starts the next card,
 	 * after a new lesson's name its first card; Backspace in an empty name removes the row
-	 * and goes back to the one above; a new row left without a name is not kept.
+	 * and goes back to the one above, and Enter on a new empty row ends. A row clicked away
+	 * from without a name stays, „bez názvu“: the outline's shape can come first, the names
+	 * after.
 	 *
 	 * It edits the panel's draft through `aiPanel`, each edit one undo step, and nothing
 	 * else: no row here is in the course until „Vytvořit vybrané“.
@@ -21,6 +23,7 @@
 		addDraftLesson,
 		canAddCard,
 		canAddLesson,
+		firstUnnamedTicked,
 		lessonStartsOpen,
 		settleOpen,
 		lessonTick,
@@ -102,7 +105,17 @@
 	// ───────────────────────────── names ─────────────────────────────
 
 	/** The name being edited, what is typed so far, and whether the row is new (with its undo step). */
-	let editing = $state<{ key: string; value: string; fresh: boolean; step: number } | null>(null);
+	/**
+	 * The name being edited, what is typed so far, whether the row is new (with its undo step),
+	 * and whether Enter started it rather than the teacher.
+	 */
+	let editing = $state<{
+		key: string;
+		value: string;
+		fresh: boolean;
+		step: number;
+		chained?: boolean;
+	} | null>(null);
 
 	async function focusName(key: string, select: boolean) {
 		await tick();
@@ -121,10 +134,22 @@
 		editing = { key, value, fresh: false, step: 0 };
 		void focusName(key, select);
 	}
-	function begin(key: string, step: number) {
-		editing = { key, value: '', fresh: true, step };
+	function begin(key: string, step: number, chained = false) {
+		editing = { key, value: '', fresh: true, step, chained };
+		pressedRow = null;
 		void focusName(key, false);
 	}
+
+	// „Vytvořit vybrané“ found a ticked row without a name: the cursor goes to it.
+	$effect(() => {
+		if (aiPanel.namesWanted === 0) return;
+		untrack(() => {
+			const row = firstUnnamedTicked(now());
+			if (row === undefined) return;
+			opened[row.lesson] = true;
+			rename(row.key, '', false);
+		});
+	});
 
 	// A row the empty panel started is named here.
 	$effect(() => {
@@ -142,18 +167,31 @@
 	const without = (d: Draft, key: string, lesson: boolean) =>
 		lesson ? removeLesson(d, key) : removeCard(d, key);
 
+	/** What a row is called on screen and to assistive tech: its name, or that it has none. */
+	const shownName = (name: string): string => name.trim() || 'bez názvu';
+
 	/**
-	 * The name typed is kept. A new row left empty is taken back; an existing one emptied
-	 * keeps its old name. Returns whether a name was typed.
+	 * The name typed is kept. A row left empty stays as it was: one the teacher added stays
+	 * without a name (Backspace, Escape or its × take it away), an existing one keeps its old
+	 * name. Only a row Enter started and nothing was done with goes; a press on the row
+	 * itself (its kind icon, its ×), or focus moving into it (`to`), counts as something.
+	 * Returns whether a name was typed.
 	 */
-	function commit(key: string, lesson: boolean): boolean {
+	/** The card being pressed, from pointerdown to its click, while its name field loses focus. */
+	let pressedRow: string | null = null;
+	function commit(key: string, lesson: boolean, to?: EventTarget | null): boolean {
 		if (editing?.key !== key) return false;
-		const { value, fresh, step } = editing;
+		const { value, fresh, step, chained } = editing;
 		editing = null;
 		const name = value.trim();
 		const d = now();
 		if (name === '') {
-			if (fresh) aiPanel.takeBack(step, without(d, key, lesson));
+			// A pressed button is not focused everywhere (Safari), so the press counts too.
+			const own =
+				pressedRow === key ||
+				(to instanceof Element && to.closest('[data-row]')?.getAttribute('data-row') === key);
+			pressedRow = null;
+			if (chained && !own) aiPanel.takeBack(step, without(d, key, lesson));
 			return false;
 		}
 		const next = lesson ? renameDraftLesson(d, key, name) : renameDraftCard(d, key, name);
@@ -163,13 +201,13 @@
 		return true;
 	}
 
-	function addCard(lessonKey: string, at?: number): boolean {
+	function addCard(lessonKey: string, at?: number, chained = false): boolean {
 		const d = now();
 		if (!canAddCard(d, lessonKey)) return false;
 		const key = aiPanel.key();
 		const step = edit(addDraftCard(d, lessonKey, key, at));
 		opened[lessonKey] = true;
-		begin(key, step);
+		begin(key, step, chained);
 		return true;
 	}
 	function addLesson() {
@@ -181,8 +219,15 @@
 		begin(key, step);
 	}
 
-	/** Enter: the name is kept and the next row is started, ready to type. */
+	/**
+	 * Enter: the name is kept and the next row is started, ready to type. On a new row with
+	 * nothing typed it ends the typing, as in a list, and the row goes.
+	 */
 	function enter(key: string, lesson: boolean) {
+		if (editing?.key === key && editing.fresh && editing.value.trim() === '') {
+			cancel(key, lesson);
+			return;
+		}
 		if (!commit(key, lesson)) {
 			if (nameOf(now(), key) !== undefined) void focusRow(key);
 			return;
@@ -193,8 +238,8 @@
 			: d.lessons.find((l) => l.cards.some((c) => c.key === key));
 		if (owner === undefined) return;
 		const started = lesson
-			? owner.cards.length === 0 && addCard(owner.key, 0)
-			: addCard(owner.key, owner.cards.findIndex((c) => c.key === key) + 1);
+			? owner.cards.length === 0 && addCard(owner.key, 0, true)
+			: addCard(owner.key, owner.cards.findIndex((c) => c.key === key) + 1, true);
 		if (!started) void focusRow(key);
 	}
 
@@ -256,6 +301,7 @@
 	}
 
 	function openKinds(event: MouseEvent, key: string) {
+		pressedRow = null;
 		// The press that closed the menu (light dismiss) does not open it again.
 		if (kindOpenAtPress) {
 			kindOpenAtPress = false;
@@ -416,11 +462,19 @@
 	}
 </script>
 
+<!-- The press ends at its click, which comes after the blur with a mouse and with a finger. -->
+<svelte:window
+	onclickcapture={() => (pressedRow = null)}
+	onpointercancel={() => (pressedRow = null)}
+/>
+
 {#snippet cardRow(card: Draft['lessons'][number]['cards'][number])}
 	{@const Icon = cardTypeIcon(card.kind)}
 	<li
 		class="row card"
 		data-flat
+		data-row={card.key}
+		onpointerdown={() => (pressedRow = card.key)}
 		class:dragged={drag?.list === 'cards' &&
 			drag.state.moved &&
 			drag.state.from === flatIndex.get(card.key)}
@@ -430,7 +484,7 @@
 			type="button"
 			class="grip"
 			id={`ai-grip-${card.key}`}
-			aria-label={`Přesunout: ${card.name}`}
+			aria-label={`Přesunout: ${shownName(card.name)}`}
 			title="Přetažením (nebo šipkami nahoru a dolů) změníš pořadí"
 			onpointerdown={(e) => pressCard(e, card.key)}
 			onkeydown={(e) => cardArrows(e, card.key)}
@@ -440,7 +494,7 @@
 		<input
 			type="checkbox"
 			checked={card.on}
-			aria-label={`Vytvořit: ${card.name}`}
+			aria-label={`Vytvořit: ${shownName(card.name)}`}
 			onchange={(e) => edit(setCardTick(now(), card.key, e.currentTarget.checked))}
 		/>
 		<div class="text">
@@ -464,7 +518,7 @@
 						aria-label="Název karty"
 						placeholder="Název karty"
 						bind:value={editing.value}
-						onblur={() => commit(card.key, false)}
+						onblur={(e) => commit(card.key, false, e.relatedTarget)}
 						onkeydown={(e) => onNameKey(e, card.key, false)}
 					/>
 				{:else}
@@ -473,8 +527,9 @@
 						class="name"
 						id={`ai-row-${card.key}`}
 						class:off={!card.on}
+						class:unnamed={card.name.trim() === ''}
 						title="Přejmenovat"
-						onclick={() => rename(card.key, card.name)}>{card.name}</button
+						onclick={() => rename(card.key, card.name)}>{shownName(card.name)}</button
 					>
 				{/if}
 			</div>
@@ -487,7 +542,7 @@
 		<button
 			type="button"
 			class="remove"
-			aria-label={`Odebrat z návrhu: ${card.name}`}
+			aria-label={`Odebrat z návrhu: ${shownName(card.name)}`}
 			title="Odebrat z návrhu"
 			onclick={() => edit(removeCard(now(), card.key))}
 		>
@@ -535,7 +590,7 @@
 						<button
 							type="button"
 							class="grip"
-							aria-label={`Přesunout lekci: ${lesson.name}`}
+							aria-label={`Přesunout lekci: ${shownName(lesson.name)}`}
 							title="Přetažením (nebo šipkami nahoru a dolů) změníš pořadí"
 							onpointerdown={(e) => pressLesson(e, li)}
 							onkeydown={(e) => lessonArrows(e, li)}
@@ -547,7 +602,7 @@
 							class="fold"
 							class:open
 							aria-expanded={open}
-							aria-label={`${open ? 'Sbalit' : 'Rozbalit'} lekci: ${lesson.name}`}
+							aria-label={`${open ? 'Sbalit' : 'Rozbalit'} lekci: ${shownName(lesson.name)}`}
 							onclick={() => (opened[lesson.key] = !open)}
 						>
 							<ChevronRight size={14} aria-hidden="true" />
@@ -556,7 +611,7 @@
 							type="checkbox"
 							checked={state === 'all'}
 							use:indeterminate={state === 'some'}
-							aria-label={`Vytvořit lekci: ${lesson.name}`}
+							aria-label={`Vytvořit lekci: ${shownName(lesson.name)}`}
 							onchange={(e) => edit(setLessonTick(now(), lesson.key, e.currentTarget.checked))}
 						/>
 						<div class="text">
@@ -567,7 +622,7 @@
 									aria-label="Název lekce"
 									placeholder="Název lekce"
 									bind:value={editing.value}
-									onblur={() => commit(lesson.key, true)}
+									onblur={(e) => commit(lesson.key, true, e.relatedTarget)}
 									onkeydown={(e) => onNameKey(e, lesson.key, true)}
 								/>
 							{:else}
@@ -576,15 +631,16 @@
 									class="name lesson-name"
 									id={`ai-row-${lesson.key}`}
 									class:off={state === 'none'}
+									class:unnamed={lesson.name.trim() === ''}
 									title="Přejmenovat"
-									onclick={() => rename(lesson.key, lesson.name)}>{lesson.name}</button
+									onclick={() => rename(lesson.key, lesson.name)}>{shownName(lesson.name)}</button
 								>
 							{/if}
 						</div>
 						<button
 							type="button"
 							class="remove"
-							aria-label={`Odebrat z návrhu lekci: ${lesson.name}`}
+							aria-label={`Odebrat z návrhu lekci: ${shownName(lesson.name)}`}
 							title="Odebrat z návrhu"
 							onclick={() => edit(removeLesson(now(), lesson.key))}
 						>
@@ -601,7 +657,7 @@
 							<button
 								type="button"
 								class="add in-lesson"
-								aria-label={`Nová karta v lekci: ${lesson.name}`}
+								aria-label={`Nová karta v lekci: ${shownName(lesson.name)}`}
 								onclick={() => addCard(lesson.key)}>+ karta</button
 							>
 						{/if}
@@ -766,6 +822,12 @@
 	}
 
 	.name.off {
+		color: var(--e-text-faint);
+	}
+
+	.name.unnamed {
+		font-style: italic;
+		font-weight: normal;
 		color: var(--e-text-faint);
 	}
 

@@ -27,19 +27,20 @@ const draft: Draft = {
 };
 
 describe('the outline kept in the browser', () => {
-	it('comes back with its rows, ticks, sources and prompt, under new keys, without unnamed rows', () => {
+	it('comes back with its rows, ticks, sources and prompt, under new keys, unnamed rows too', () => {
 		const back = parseOutline(serialiseOutline(draft), keyMaker())!;
 		expect(back.original).toBe('Kurz o zlomcích');
-		expect(back.lessons.map((l) => l.name)).toEqual(['Polovina', 'Moje lekce']);
+		expect(back.lessons.map((l) => l.name)).toEqual(['Polovina', 'Moje lekce', '']);
 		expect(back.lessons[0].cards.map(({ name, on, sources }) => ({ name, on, sources }))).toEqual([
 			{ name: 'Co je půlka', on: true, sources: ['0123abcd.1'] },
-			{ name: 'Příklady', on: false, sources: undefined }
+			{ name: 'Příklady', on: false, sources: undefined },
+			{ name: '', on: true, sources: undefined }
 		]);
 		expect(back.lessons[1].on).toBe(false);
 		expect(back.lessons[0].key).toBe('d1');
 	});
 
-	it('is nothing for nothing, for one that does not parse, and for one with no named row', () => {
+	it('is nothing for nothing, for one that does not parse, and for one with no row', () => {
 		expect(parseOutline(null, keyMaker())).toBeNull();
 		expect(parseOutline('{', keyMaker())).toBeNull();
 		expect(parseOutline('{"format":2}', keyMaker())).toBeNull();
@@ -59,7 +60,7 @@ describe('the outline kept in the browser', () => {
 		expect([...items.keys()]).toEqual(['edu-editor:outline:v1:A', 'edu-editor:outline:v1:B']);
 		writeOutline(storage, 'A', null);
 		expect(readOutline(storage, 'A', keyMaker())).toBeNull();
-		expect(readOutline(storage, 'B', keyMaker())?.lessons).toHaveLength(2);
+		expect(readOutline(storage, 'B', keyMaker())?.lessons).toHaveLength(3);
 		const broken = {
 			getItem: () => {
 				throw new Error('blocked');

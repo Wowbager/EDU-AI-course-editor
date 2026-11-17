@@ -29,7 +29,7 @@
 	import { ACCEPT } from '$lib/materials/read';
 	import { displayName } from '$lib/domain/materials';
 	import { imageInUse } from '$lib/domain/commands';
-	import { anyTicked } from '$lib/domain/outline';
+	import { anyTicked, unnamedTicked } from '$lib/domain/outline';
 	import { blockPreview } from '$lib/domain/derive';
 	import { hasNoContent } from '$lib/domain/starter';
 	import { placeChoices, placeLabel, samePlace, scopeOf } from '$lib/domain/placement';
@@ -147,11 +147,15 @@
 		const asked = text.trim();
 		if (!canSend) return;
 		text = '';
+		const from = document.activeElement;
 		await aiPanel.send(store, asked);
 		// A request that failed gives the words back, to be tried again.
 		if (aiPanel.problem !== '' && text === '') text = asked;
 		await tick();
-		field?.focus();
+		// Back to the box, unless the teacher went on to something else while it was written
+		// (a row's name, an armed „Zahodit návrh“).
+		const at = document.activeElement;
+		if (at === from || at === null || at === document.body || at === section) field?.focus();
 	}
 
 	/** The queue's rows whose card is still in the course, with the lesson's name. */
@@ -304,7 +308,7 @@
 			<div class="actions">
 				<Button
 					variant="primary"
-					disabled={aiPanel.asking || !anyTicked(draft)}
+					disabled={aiPanel.asking || (!anyTicked(draft) && !unnamedTicked(draft))}
 					onclick={() => aiPanel.create(store)}>Vytvořit vybrané</Button
 				>
 				<button
@@ -324,6 +328,9 @@
 					{armed ? 'Opravdu zahodit? Klikni znovu' : 'Zahodit návrh'}
 				</button>
 			</div>
+			{#if aiPanel.namesWanted > 0 && unnamedTicked(draft)}
+				<p class="quiet" role="status">Řádky bez názvu pojmenuj, nebo je odškrtni.</p>
+			{/if}
 		{:else if showRows}
 			<div class="scroll">
 				{#if aiPanel.planning}

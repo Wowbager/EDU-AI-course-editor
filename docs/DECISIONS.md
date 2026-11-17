@@ -3324,6 +3324,15 @@ editor's server (OPEN-PROBLEMS #63). Removing a material removes its pictures fr
 gallery, unless the open course or a saved version shows them; an unsaved draft of
 another course can still lose one, as with deleting from the gallery.
 
+## Round 39 — an outline's shape before its names
+
+**A row the teacher added stays when they click away without a name**, shown as „bez
+názvu“, so a lesson's structure and card kinds can come first. A row Enter started and
+nothing was done with still goes, or every typed list would end in a stray row; Enter and
+Escape on a new empty row still end it. „Vytvořit vybrané“ creates nothing while a ticked
+row has no name and says so once, under the button. Rejected: creating such rows as
+„Karta 3“ or unnamed cards, since the card's name is what the AI writes it from.
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

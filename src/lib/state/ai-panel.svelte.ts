@@ -24,6 +24,7 @@ import {
 	keyMaker,
 	untickedOf,
 	toOutline,
+	unnamedTicked,
 	withScope,
 	type Draft,
 	type KeyMaker
@@ -125,6 +126,11 @@ class AiPanel {
 	incoming = $state(false);
 	/** A sentence for the teacher, or empty. */
 	problem = $state('');
+	/**
+	 * „Vytvořit vybrané“ was clicked with a ticked row still unnamed (`unnamedTicked`): 0 when
+	 * not, else bumped on each such click, for the tree to put the cursor in that row.
+	 */
+	namesWanted = $state(0);
 	/** Bumped to make a request that was sent before „Zahodit návrh“ ignore its answer. */
 	#generation = 0;
 	#key: KeyMaker = keyMaker();
@@ -300,14 +306,21 @@ class AiPanel {
 	 */
 	change(next: Draft | null): number {
 		if (next === this.draft) return -1;
+		this.#namesGiven(next);
 		const stepped = !this.incoming;
 		if (stepped) this.#step(record(this.#history, this.draft));
 		this.draft = next;
 		return stepped ? this.#steps : -1;
 	}
 
+	/** Once no ticked row lacks a name, the next one asks again only at the next click. */
+	#namesGiven(next: Draft | null): void {
+		if (next === null || !unnamedTicked(next)) this.namesWanted = 0;
+	}
+
 	/** A change that belongs to the last step, like the name of a row it added. */
 	amend(next: Draft): void {
+		this.#namesGiven(next);
 		this.draft = next;
 	}
 
@@ -323,6 +336,7 @@ class AiPanel {
 			return;
 		}
 		this.#step(back.history);
+		this.#namesGiven(back.value);
 		this.draft = back.value;
 	}
 
@@ -330,6 +344,8 @@ class AiPanel {
 		const back = this.canUndo ? undo(this.#history, this.draft) : undefined;
 		if (back === undefined) return false;
 		this.#step(back.history);
+		// Undone or redone, a row without a name is asked for again only at the next click.
+		this.namesWanted = 0;
 		this.draft = back.value;
 		return true;
 	}
@@ -338,6 +354,7 @@ class AiPanel {
 		const next = this.canRedo ? redo(this.#history, this.draft) : undefined;
 		if (next === undefined) return false;
 		this.#step(next.history);
+		this.namesWanted = 0;
 		this.draft = next.value;
 		return true;
 	}
@@ -355,6 +372,7 @@ class AiPanel {
 		this.incoming = false;
 		this.problem = '';
 		this.#course = courseId;
+		this.namesWanted = 0;
 		this.#place = DEFAULT_PLACE;
 		this.landed = null;
 		this.planning = false;
@@ -484,7 +502,10 @@ class AiPanel {
 		if (outcome !== 'done') {
 			this.problem = this.#say(outcome.problem);
 			// What a fresh proposal had written before the failure stays; an empty one goes.
-			if (fresh && !some) this.draft = null;
+			if (fresh && !some) {
+				this.draft = null;
+				this.namesWanted = 0;
+			}
 			if (!(fresh && some)) return;
 		}
 		if (fresh) {
@@ -520,8 +541,14 @@ class AiPanel {
 	 * proposal is done with, and the queue starts writing them.
 	 */
 	create(store: DocStore): void {
-		const ticked = this.draft === null ? undefined : toOutline(this.draft, 'ticked');
-		if (ticked === undefined || this.asking) return;
+		if (this.draft === null || this.asking) return;
+		// Nothing goes in without its name: the teacher names those rows, or unticks them.
+		if (unnamedTicked(this.draft)) {
+			this.namesWanted++;
+			return;
+		}
+		const ticked = toOutline(this.draft, 'ticked');
+		if (ticked === undefined) return;
 		const outline = fitToPlace(store.doc, ticked, this.place);
 		// The request that made a course structure is kept on the course for the cards' dossier.
 		const request = outline.scope === 'lessons' ? this.draft?.original : undefined;
@@ -546,6 +573,7 @@ class AiPanel {
 		}
 		this.#store = store;
 		this.draft = null;
+		this.namesWanted = 0;
 		this.forget();
 		this.problem = '';
 		// The next proposal goes to the default place again, not to this one's.
