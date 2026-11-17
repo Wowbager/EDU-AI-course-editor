@@ -111,6 +111,13 @@ describe('the storage budget', () => {
 		expect(state.counts).toBe(2);
 	});
 
+	it('gives back what was let in but not written', async () => {
+		const disk = new Disk(0, { statfs: plenty, maxUsed: 100 * MB, measure: async () => 80 * MB });
+		expect(await disk.roomFor('/d', 'upload', 4 * MB)).toBe(true);
+		disk.release('/d', 4 * MB);
+		expect(await disk.roomFor('/d', 'upload', 4 * MB)).toBe(true);
+	});
+
 	it('has no budget when DATA_MAX_MB is 0', async () => {
 		const disk = new Disk(0, { statfs: plenty, maxUsed: 0, measure: async () => 1e15 });
 		expect(await disk.roomFor('/d', 'upload', MB)).toBe(true);

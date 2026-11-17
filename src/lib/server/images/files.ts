@@ -153,32 +153,47 @@ export class ImageFiles {
 			// Last, so that only a picture that is then written is counted as using room.
 			if (!(await disk().roomFor(this.#root, 'upload', bytes.byteLength)))
 				throw new ImageError(507, DISK_FULL);
-
-			const ext = MIME_TO_EXT[mimeType];
-			const safeSlug = sanitiseName(originalName)
-				.replace(/\.[^.]+$/, '')
-				.replace(/[^a-zA-Z0-9_-]/g, '_')
-				.slice(0, 40);
-			const id = safeSlug ? `${randomUUID()}-${safeSlug}${ext}` : `${randomUUID()}${ext}`;
-
-			const filePath = join(publicDir, id);
-			await mkdir(publicDir, { recursive: true });
-			await atomicWriteBinary(filePath, bytes);
-
-			const meta: ImageMeta = {
-				id,
-				name: sanitiseName(originalName),
-				url: `/images/file/${encodeURIComponent(id)}`,
-				size: bytes.byteLength,
-				uploadedAt: new Date().toISOString(),
-				mimeType
-			};
-
-			await mkdir(ownerDir, { recursive: true });
-			const updated: ImageIndex = { items: [meta, ...index.items] };
-			await atomicWriteJson(join(ownerDir, 'index.json'), updated);
-			return meta;
+			try {
+				return await this.#write(ownerDir, publicDir, index, bytes, originalName, mimeType);
+			} catch (e) {
+				disk().release(this.#root, bytes.byteLength);
+				throw e;
+			}
 		});
+	}
+
+	async #write(
+		ownerDir: string,
+		publicDir: string,
+		index: ImageIndex,
+		bytes: Uint8Array,
+		originalName: string,
+		mimeType: string
+	): Promise<ImageMeta> {
+		const ext = MIME_TO_EXT[mimeType];
+		const safeSlug = sanitiseName(originalName)
+			.replace(/\.[^.]+$/, '')
+			.replace(/[^a-zA-Z0-9_-]/g, '_')
+			.slice(0, 40);
+		const id = safeSlug ? `${randomUUID()}-${safeSlug}${ext}` : `${randomUUID()}${ext}`;
+
+		const filePath = join(publicDir, id);
+		await mkdir(publicDir, { recursive: true });
+		await atomicWriteBinary(filePath, bytes);
+
+		const meta: ImageMeta = {
+			id,
+			name: sanitiseName(originalName),
+			url: `/images/file/${encodeURIComponent(id)}`,
+			size: bytes.byteLength,
+			uploadedAt: new Date().toISOString(),
+			mimeType
+		};
+
+		await mkdir(ownerDir, { recursive: true });
+		const updated: ImageIndex = { items: [meta, ...index.items] };
+		await atomicWriteJson(join(ownerDir, 'index.json'), updated);
+		return meta;
 	}
 
 	/**

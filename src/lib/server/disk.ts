@@ -141,7 +141,13 @@ export class Disk {
 					this.#usage.set(root, fresh);
 					return fresh;
 				})
-				.catch(() => usage ?? null)
+				.catch(() => {
+					// Kept, and asked again only after another while: a failing count is not
+					// made again on every request.
+					if (usage === undefined) return null;
+					usage.at = this.now();
+					return usage;
+				})
 				.finally(() => this.#counting.delete(root));
 			this.#counting.set(root, counting);
 		}
@@ -171,6 +177,12 @@ export class Disk {
 		else this.#full.add(need);
 		if (room) usage.pending += cost;
 		return room;
+	}
+
+	/** Bytes `roomFor` let in that were not written after all. */
+	release(root: string, bytes: number): void {
+		const usage = this.#usage.get(root);
+		if (usage !== undefined) usage.pending = Math.max(0, usage.pending - blocksOf(bytes));
 	}
 }
 
