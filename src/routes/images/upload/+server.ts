@@ -1,7 +1,8 @@
 /**
  * POST /images/upload
  *
- * Accepts a `multipart/form-data` request with a single `file` part.
+ * Accepts a `multipart/form-data` request with a single `file` part, at most 1 MB: the
+ * editor shrinks a picture before it sends it (`images/shrink.ts`).
  * Returns the stored image metadata as JSON with an absolute URL.
  */
 import { error, json } from '@sveltejs/kit';
@@ -17,7 +18,7 @@ export const POST: RequestHandler = async (event) => {
 	const owner = ownerOf(request);
 
 	const contentLength = Number(request.headers.get('content-length') ?? '');
-	if (Number.isFinite(contentLength) && contentLength > MAX_IMAGE_BYTES + 2048) {
+	if (Number.isFinite(contentLength) && contentLength > MAX_IMAGE_BYTES + 16 * 1024) {
 		error(413, 'Soubor je příliš velký.');
 	}
 	// Per address: a workspace key costs nothing to make up.

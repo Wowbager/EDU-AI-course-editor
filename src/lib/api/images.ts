@@ -11,6 +11,7 @@
 import type { ImageMeta } from '$lib/server/images/files';
 import { IMAGE_PROBLEM_TEXT, imageProblem, type ImageProblem } from '$lib/images/limits';
 import { workspaceKey } from '$lib/state/versions/server';
+import { shrinkForUpload } from '$lib/images/shrink';
 
 export type { ImageMeta };
 
@@ -28,9 +29,10 @@ const BY_STATUS: Record<number, ImageProblem> = {
 	413: 'too-big',
 	415: 'wrong-type',
 	429: 'full',
-	// Too many uploads from this address a minute or a day, or the server's disk is full.
+	// Too many uploads from this address a minute or a day.
 	503: 'later',
-	507: 'later'
+	// The server's storage is used up (`server/disk.ts`).
+	507: 'no-room'
 };
 
 async function call(path: string, init: RequestInit = {}): Promise<Response> {
@@ -61,8 +63,16 @@ export function imageAddress(meta: Pick<ImageMeta, 'url'>): string {
 export async function uploadImage(file: File, signal?: AbortSignal): Promise<ImageMeta> {
 	const problem = imageProblem(file);
 	if (problem) throw new ImageRequestError(problem);
+	let kept: File;
+	try {
+		kept = await shrinkForUpload(file);
+	} catch {
+		// Not a picture this browser can open: the server would refuse its bytes too.
+		throw new ImageRequestError('wrong-type');
+	}
+	signal?.throwIfAborted();
 	const form = new FormData();
-	form.append('file', file);
+	form.append('file', kept);
 	const response = await call('/images/upload', { method: 'POST', body: form, signal });
 	return (await response.json()) as ImageMeta;
 }

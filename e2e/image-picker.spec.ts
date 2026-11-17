@@ -65,13 +65,40 @@ test('a file the server would refuse is refused before it is sent, in plain word
 	await fileInput(page).setInputFiles({
 		name: 'velky.png',
 		mimeType: 'image/png',
-		buffer: Buffer.alloc(8 * 1024 * 1024 + 1)
+		buffer: Buffer.alloc(25 * 1024 * 1024 + 1)
 	});
 	await expect(picker(page).getByRole('alert')).toHaveText(
-		'Obrázek je větší než 8 MB. Zmenši ho a zkus to znovu.'
+		'Obrázek je větší než 25 MB. Zmenši ho a zkus to znovu.'
 	);
-	await expect(picker(page).getByText('nejvýš 8 MB')).toBeVisible();
+	await expect(picker(page).getByText('nejvýš 25 MB')).toBeVisible();
 	expect(sent).toBe(0);
+});
+
+test('a big photo is made small enough to keep before it is sent', async ({ page }) => {
+	// A picture of noise, which no encoder can make small: the browser has to shrink it.
+	const big = await page.evaluate(async () => {
+		const canvas = document.createElement('canvas');
+		canvas.width = canvas.height = 1400;
+		const context = canvas.getContext('2d')!;
+		const pixels = context.createImageData(1400, 1400);
+		for (let i = 0; i < pixels.data.length; i++)
+			pixels.data[i] = i % 4 === 3 ? 255 : Math.floor(Math.random() * 256);
+		context.putImageData(pixels, 0, 0);
+		const blob = await new Promise<Blob>((r) => canvas.toBlob((b) => r(b!), 'image/png'));
+		const bytes = new Uint8Array(await blob.arrayBuffer());
+		let text = '';
+		for (let i = 0; i < bytes.length; i += 0x8000)
+			text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+		return btoa(text);
+	});
+	const buffer = Buffer.from(big, 'base64');
+	expect(buffer.length).toBeGreaterThan(2 * 1024 * 1024);
+	const sent = page.waitForRequest((r) => r.url().includes('/images/upload'));
+	await choose(page).click();
+	await fileInput(page).setInputFiles({ name: 'šum.png', mimeType: 'image/png', buffer });
+	expect((await sent).postDataBuffer()!.length).toBeLessThan(1024 * 1024 + 16 * 1024);
+	await expect(change(page)).toBeVisible();
+	await expect(step(page).locator('img')).toHaveAttribute('src', /\/images\/file\//);
 });
 
 test("the server's failure is told as a sentence, never as what the server wrote", async ({
