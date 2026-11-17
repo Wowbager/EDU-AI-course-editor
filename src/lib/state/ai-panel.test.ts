@@ -4,6 +4,7 @@ import { aiPanel, FROM_MATERIALS } from './ai-panel.svelte';
 import { materials } from './materials.svelte';
 import { addBlock, addLesson, setField } from '$lib/domain/commands';
 import { emptyCourse } from '$lib/domain/document';
+import { withStarter } from '$lib/domain/starter';
 import {
 	addDraftCard,
 	buildOutlineRequest,
@@ -491,6 +492,19 @@ describe('planning before writing, and a lesson per request', () => {
 });
 
 describe('an outline made by hand, and its undo', () => {
+	it('can be started again once every card of a batch is written; the finished rows go', async () => {
+		const { store } = setup();
+		server();
+		await aiPanel.send(store, 'Kurz o zlomcích');
+		aiPanel.create(store);
+		await done();
+		expect(aiPanel.queue.rows.length).toBeGreaterThan(0);
+		expect(aiPanel.queue.rows.every((r) => r.state === 'done')).toBe(true);
+		aiPanel.start('lessons');
+		expect(aiPanel.queue.rows).toEqual([]);
+		expect(aiPanel.draft?.lessons).toHaveLength(1);
+	});
+
 	it('starts with a lesson or a card to name; a row left unnamed is taken back without a trace', () => {
 		aiPanel.start('lessons');
 		const typing = aiPanel.typing!;
@@ -919,25 +933,37 @@ describe('sending with files only', () => {
 	});
 
 	it('asks for a course from the materials with an empty box, and keeps that request on the course', async () => {
-		const { store } = setup();
+		// A new course: only its starter lesson.
+		const store = new DocStore();
+		const id = `KURZ${++courses}`;
+		aiPanel.follow(id);
+		store.load(withStarter(emptyCourse(id, 'Zlomky')).doc);
 		const seen = server();
-		expect(aiPanel.fromMaterials).toBe(false);
+		expect(aiPanel.fromMaterials(store.doc)).toBe(false);
 		await aiPanel.send(store, '  ');
 		expect(seen).toHaveLength(0);
 
 		materials.files = [file];
-		expect(aiPanel.fromMaterials).toBe(true);
+		expect(aiPanel.fromMaterials(store.doc)).toBe(true);
 		await aiPanel.send(store, '');
 		expect(seen).toHaveLength(1);
 		expect(seen[0].body.prompt).toBe(FROM_MATERIALS);
 		expect(seen[0].body.materials).toContain('Polovina je 1/2.');
 		// With an outline on screen an empty box is nothing to send.
-		expect(aiPanel.fromMaterials).toBe(false);
+		expect(aiPanel.fromMaterials(store.doc)).toBe(false);
 		await aiPanel.send(store, '');
 		expect(seen).toHaveLength(1);
 		aiPanel.create(store);
 		expect((store.source as Record<string, unknown>)[REQUEST_KEY]).toBe(FROM_MATERIALS);
 		await done();
+	});
+	it('does not propose the course again once it has content', async () => {
+		const { store } = setup();
+		const seen = server();
+		materials.files = [file];
+		expect(aiPanel.fromMaterials(store.doc)).toBe(false);
+		await aiPanel.send(store, '');
+		expect(seen).toHaveLength(0);
 	});
 });
 

@@ -55,6 +55,8 @@ import { makeSnapshot, restoreSnapshot } from '$lib/domain/write-snapshot';
 import { dropSnapshot, loadSnapshot, saveSnapshot } from './write-snapshot-store';
 import { readOutline, writeOutline } from './outline-store';
 import type { DocStore } from './doc-store.svelte';
+import type { CourseV2 } from '$lib/domain/schema';
+import { hasNoContent } from '$lib/domain/starter';
 
 const PROPOSAL_TEXT = {
 	...TEXT,
@@ -361,6 +363,8 @@ class AiPanel {
 	 */
 	start(scope: Draft['scope']): void {
 		if (this.draft !== null || this.asking) return;
+		// A finished batch is over once the teacher starts something else.
+		this.#clearFinished();
 		const empty = emptyDraft(scope, this.#key);
 		const key = this.#key();
 		const draft =
@@ -378,7 +382,7 @@ class AiPanel {
 	 * the proposal as it was.
 	 */
 	async send(store: DocStore, text: string): Promise<void> {
-		const prompt = text.trim() || (this.fromMaterials ? FROM_MATERIALS : '');
+		const prompt = text.trim() || (this.fromMaterials(store.doc) ? FROM_MATERIALS : '');
 		if (prompt === '' || this.asking) return;
 		const previous = this.draft;
 		const current = previous === null ? undefined : toOutline(previous, 'all');
@@ -390,7 +394,7 @@ class AiPanel {
 			materials.sections
 		);
 		// A finished batch is over once the teacher asks for something else.
-		if (!this.queue.writing && this.queue.rest.length === 0) this.queue.clear();
+		this.#clearFinished();
 		const generation = ++this.#generation;
 		this.asking = true;
 		this.problem = '';
@@ -437,10 +441,11 @@ class AiPanel {
 
 	/**
 	 * Sending with an empty box asks for a proposal from the materials: when there is no
-	 * outline on screen and at least one file has been read.
+	 * outline on screen, at least one file has been read, and the course has nothing of the
+	 * teacher's yet. In a course with content it would propose the same course again.
 	 */
-	get fromMaterials(): boolean {
-		return this.draft === null && materials.files.length > 0;
+	fromMaterials(doc: CourseV2): boolean {
+		return this.draft === null && materials.files.length > 0 && hasNoContent(doc);
 	}
 
 	/** „Zahodit návrh“: the proposal and its request go; nothing in the course changes. */
@@ -590,8 +595,9 @@ class AiPanel {
 		this.queue.resume();
 	}
 
-	/** The queue's rows are done with: the panel is empty again. */
-	finish() {
+	/** The queue's rows, once every card is written, are done with. */
+	#clearFinished(): void {
+		if (this.queue.writing || this.queue.rest.length > 0) return;
 		this.queue.clear();
 		this.#save();
 	}

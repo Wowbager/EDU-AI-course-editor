@@ -124,7 +124,9 @@
 	const placeholder = $derived(draft !== null ? 'Co změnit?' : 'Co mám vytvořit?');
 
 	/** With files read and nothing proposed, an empty box asks for a proposal from them. */
-	const canSend = $derived(!aiPanel.asking && (text.trim() !== '' || aiPanel.fromMaterials));
+	const canSend = $derived(
+		!aiPanel.asking && (text.trim() !== '' || aiPanel.fromMaterials(store.doc))
+	);
 
 	async function send() {
 		const asked = text.trim();
@@ -221,6 +223,28 @@
 		failed: 'Nepodařilo se dopsat'
 	} as const;
 </script>
+
+<!-- Or the outline by hand: a lesson, or cards for the lesson the teacher is in. -->
+{#snippet startByHand()}
+	<div class="start">
+		<button
+			type="button"
+			class="text-button"
+			aria-label="Nová lekce"
+			title="Napsat osnovu sám, bez AI: lekce"
+			onclick={() => aiPanel.start('lessons')}>+ lekce</button
+		>
+		{#if store.doc.lessons.length > 0}
+			<button
+				type="button"
+				class="text-button"
+				aria-label="Nová karta"
+				title="Napsat sám, bez AI: karty do vybrané lekce"
+				onclick={() => aiPanel.start('cards')}>+ karta</button
+			>
+		{/if}
+	</div>
+{/snippet}
 
 <!-- Files are dropped anywhere on the panel; the 📎 in the box is the same thing by click. -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions (the key handler is the outline's undo) -->
@@ -339,31 +363,16 @@
 				<div class="actions">
 					<Button variant="primary" onclick={() => aiPanel.resume(store)}>Dopsat zbytek</Button>
 				</div>
+			{:else if !aiPanel.asking}
+				<!-- Every card is written: the next outline can be started by hand, as on an empty panel. -->
+				<div class="actions">{@render startByHand()}</div>
 			{/if}
 		{:else if aiPanel.asking}
 			<p class="empty"><LoaderCircle size={16} class="spin" aria-hidden="true" /> Navrhuji…</p>
 		{:else}
 			<div class="empty">
 				<p>Napiš, co chceš vytvořit. Třeba celý kurz, nebo jen pár karet do vybrané lekce.</p>
-				<!-- Or the outline by hand: a lesson, or cards for the lesson the teacher is in. -->
-				<div class="start">
-					<button
-						type="button"
-						class="text-button"
-						aria-label="Nová lekce"
-						title="Napsat osnovu sám, bez AI: lekce"
-						onclick={() => aiPanel.start('lessons')}>+ lekce</button
-					>
-					{#if store.doc.lessons.length > 0}
-						<button
-							type="button"
-							class="text-button"
-							aria-label="Nová karta"
-							title="Napsat sám, bez AI: karty do vybrané lekce"
-							onclick={() => aiPanel.start('cards')}>+ karta</button
-						>
-					{/if}
-				</div>
+				{@render startByHand()}
 			</div>
 		{/if}
 	</div>
@@ -477,7 +486,7 @@
 				type="submit"
 				class="send"
 				aria-label="Odeslat"
-				title={text.trim() === '' && aiPanel.fromMaterials
+				title={text.trim() === '' && aiPanel.fromMaterials(store.doc)
 					? 'Navrhnout kurz z podkladů (Enter)'
 					: 'Odeslat (Enter)'}
 				disabled={!canSend}

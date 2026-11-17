@@ -80,3 +80,10 @@ export function isUntouchedLesson(doc: CourseV2, lessonId: string): boolean {
 	);
 	return !elsewhere && isUntouchedCard(doc, blockId);
 }
+
+/**
+ * Whether the course has nothing of the teacher's yet: no lesson, or only lessons as the
+ * editor made them. A course from the materials is proposed only then.
+ */
+export const hasNoContent = (doc: CourseV2): boolean =>
+	doc.lessons.every((l) => isUntouchedLesson(doc, l.lesson_id));

@@ -417,6 +417,16 @@ test("a new course's empty first lesson and card give way to the outline, and co
 	await expect(page.locator('.rich-content').first()).toBeVisible();
 });
 
+test('once every card is written, the next outline is started by hand', async ({ page }) => {
+	await ask(page, 'Kurz o zlomcích');
+	await create(page).click();
+	await expect(panel(page).locator('.queue-row.done')).toHaveCount(5);
+	await panel(page).getByRole('button', { name: 'Nová lekce' }).click();
+	await expect(lessonField(page)).toBeFocused();
+	// The finished cards gave way to the new outline.
+	await expect(panel(page).locator('.queue-row')).toHaveCount(0);
+});
+
 test('a starter the teacher has typed into is kept', async ({ page }) => {
 	await page.locator('.rich-content').first().click();
 	await page.keyboard.type('Zlomek je část celku.');
