@@ -173,7 +173,7 @@
 	}
 
 	/**
-	 * A press on a lesson, before the library has measured anything. Mirrors the
+	 * A lesson starting to move, before the library has measured anything. Mirrors the
 	 * steps' `grab` (CardEditor): fold now so the library measures the short list, then
 	 * put the lesson back under the pointer — the column is scrolled by what the fold
 	 * moved, the list is pinned to its height so the scroll cannot be clamped, and
@@ -198,6 +198,7 @@
 		// A press that never became a drag gets no `finalize`.
 		const release = () => {
 			window.removeEventListener('pointerup', release);
+			window.removeEventListener('pointercancel', release);
 			window.removeEventListener('keyup', release);
 			window.removeEventListener('blur', release);
 			if (draggingLessons === null) {
@@ -206,16 +207,38 @@
 			}
 		};
 		window.addEventListener('pointerup', release);
+		// A touch the browser takes over for a scroll ends in a cancel, not an up.
+		window.addEventListener('pointercancel', release);
 		window.addEventListener('keyup', release);
 		window.addEventListener('blur', release);
 	}
+	/**
+	 * A press on a lesson folds the list once the pointer moves: before the library's
+	 * own threshold (3 px), so it still measures the folded list, but not on a plain
+	 * click, which would fold and unfold the tree under the teacher's click.
+	 */
 	function lessonPress(event: PointerEvent) {
 		const target = event.target as HTMLElement;
 		// A card, the add row and the settings button are not the lesson's to grab, and
 		// the library starts no drag from an element with a `value` (a button).
 		if (event.button !== 0 || target.closest('.cards, .tree-add, .row-actions') !== null) return;
 		if ((target as HTMLInputElement).value !== undefined) return;
-		void grab(event.currentTarget as HTMLElement);
+		const lesson = event.currentTarget as HTMLElement;
+		const { pointerId, clientX, clientY } = event;
+		const move = (e: PointerEvent) => {
+			if (e.pointerId !== pointerId) return;
+			if (Math.abs(e.clientX - clientX) < 1 && Math.abs(e.clientY - clientY) < 1) return;
+			stop();
+			void grab(lesson);
+		};
+		const stop = () => {
+			window.removeEventListener('pointermove', move, true);
+			window.removeEventListener('pointerup', stop, true);
+			window.removeEventListener('pointercancel', stop, true);
+		};
+		window.addEventListener('pointermove', move, true);
+		window.addEventListener('pointerup', stop, true);
+		window.addEventListener('pointercancel', stop, true);
 	}
 	function lessonKey(event: KeyboardEvent) {
 		if (event.target !== event.currentTarget) return;
