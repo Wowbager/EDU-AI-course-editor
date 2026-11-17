@@ -177,7 +177,7 @@
 	 * itself (its kind icon, its ×), or focus moving into it (`to`), counts as something.
 	 * Returns whether a name was typed.
 	 */
-	/** The card being pressed, from pointerdown to pointerup, while its name field loses focus. */
+	/** The card being pressed, from pointerdown to its click, while its name field loses focus. */
 	let pressedRow: string | null = null;
 	function commit(key: string, lesson: boolean, to?: EventTarget | null): boolean {
 		if (editing?.key !== key) return false;
@@ -462,8 +462,9 @@
 	}
 </script>
 
+<!-- The press ends at its click, which comes after the blur with a mouse and with a finger. -->
 <svelte:window
-	onpointerup={() => (pressedRow = null)}
+	onclickcapture={() => (pressedRow = null)}
 	onpointercancel={() => (pressedRow = null)}
 />
 
