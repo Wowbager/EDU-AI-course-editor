@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyCourse } from '../document';
+import { DEFAULT_PLACE } from '../placement';
 import {
 	anyTicked,
 	buildOutlineRequest,
@@ -98,11 +99,11 @@ describe('the request', () => {
 	it('sends an outline made by hand without a first prompt', () => {
 		const doc = emptyCourse('K', 'Zlomky');
 		const current = { scope: 'lessons', lessons: [{ name: 'A', cards: [] }] } as Outline;
-		const made = buildOutlineRequest(doc, null, 'doplň karty', { current, original: '' });
+		const made = buildOutlineRequest(doc, DEFAULT_PLACE, 'doplň karty', { current, original: '' });
 		expect(made.original).toBeUndefined();
 		expect(made.current).toEqual(current);
 		expect(outlineRequestSchema.safeParse(made).success).toBe(true);
-		const asked = buildOutlineRequest(doc, null, 'doplň', { current, original: 'Kurz' });
+		const asked = buildOutlineRequest(doc, DEFAULT_PLACE, 'doplň', { current, original: 'Kurz' });
 		expect(asked.original).toBe('Kurz');
 	});
 
@@ -110,7 +111,7 @@ describe('the request', () => {
 		schema: 'eduai.outline-request/1',
 		prompt: 'Kurz o zlomcích',
 		course: { title: 'Zlomky', language: 'cs', audience: {} },
-		target: { lessons: 0 },
+		place: { scope: 'lessons' },
 		context: '',
 		...over
 	});
@@ -120,10 +121,12 @@ describe('the request', () => {
 		expect(outlineRequestSchema.safeParse(request({ prompt: '  ' })).success).toBe(false);
 	});
 
-	it('refuses cards for a course that has no lesson', () => {
+	it("refuses a scope that is not the place's", () => {
 		const cards = { scope: 'cards', cards: [card('A')] } as Outline;
-		expect(outlineProblem(request(), cards)).toMatch(/no lesson/);
-		expect(outlineProblem(request({ target: { lessons: 2, lesson: 'X' } }), cards)).toBeUndefined();
+		expect(outlineProblem(request(), cards)).toMatch(/"scope":"lessons"/);
+		const inLesson = request({ place: { scope: 'cards', lesson: 'X' } });
+		expect(outlineProblem(inLesson, cards)).toBeUndefined();
+		expect(outlineProblem(inLesson, lessons)).toMatch(/"scope":"cards"/);
 		expect(outlineProblem(request(), lessons)).toBeUndefined();
 	});
 });

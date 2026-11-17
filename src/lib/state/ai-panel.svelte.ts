@@ -24,6 +24,7 @@ import {
 	keyMaker,
 	untickedOf,
 	toOutline,
+	withScope,
 	type Draft,
 	type KeyMaker
 } from '$lib/domain/outline';
@@ -57,6 +58,14 @@ import { readOutline, writeOutline } from './outline-store';
 import type { DocStore } from './doc-store.svelte';
 import type { CourseV2 } from '$lib/domain/schema';
 import { hasNoContent } from '$lib/domain/starter';
+import {
+	DEFAULT_PLACE,
+	insertAtOf,
+	samePlace,
+	scopeOf,
+	validPlace,
+	type Place
+} from '$lib/domain/placement';
 
 const PROPOSAL_TEXT = {
 	...TEXT,
@@ -82,6 +91,9 @@ const storage = (): Storage | undefined =>
  */
 export const FROM_MATERIALS = 'Navrhni kurz z přiložených podkladů.';
 
+/** What is asked when the teacher moves a proposal the AI made to another place. */
+export const PLACE_CHANGED = 'Návrh patří na jiné místo (viz place): uprav ho pro ně.';
+
 class AiPanel {
 	#draft = $state<Draft | null>(null);
 	/** The course the outline belongs to; none until the panel says (`follow`). */
@@ -96,6 +108,13 @@ class AiPanel {
 		if (this.#course !== null) writeOutline(storage(), this.#course, next);
 	}
 	#history = $state<History<Draft | null>>(emptyHistory());
+	/** Where the next proposal goes, until there is one: then it is the proposal's own. */
+	#place = $state<Place>(DEFAULT_PLACE);
+	/**
+	 * What „Vytvořit vybrané“ just put in the course, for the tree to show where it went.
+	 * `stamp` tells one creation from the next.
+	 */
+	landed = $state<{ lessonIds: string[]; blockIds: string[]; stamp: number } | null>(null);
 	/** Counts every step, so a step can be taken back only while it is still the last one. */
 	#steps = 0;
 	/** A row just added for the teacher to name: the outline's tree opens it as a field. */
@@ -226,6 +245,30 @@ class AiPanel {
 		return { problem: end.problem === 'budget' ? 'budget' : 'other' };
 	}
 
+	/** Where the proposal on screen goes, or the next one. */
+	get place(): Place {
+		return this.draft?.place ?? this.#place;
+	}
+
+	/**
+	 * The teacher chose another place. With no proposal it is where the next one goes. A
+	 * proposal the AI made is asked for again, made for the new place; one made by hand
+	 * moves there (one undo step), its cards regrouped when the place takes the other kind.
+	 */
+	choose(store: DocStore, place: Place): void {
+		if (this.asking || samePlace(place, this.place)) return;
+		const draft = this.draft;
+		if (draft === null) {
+			this.#place = place;
+			return;
+		}
+		if (draft.original !== undefined && draft.original !== '') {
+			void this.send(store, PLACE_CHANGED, place);
+			return;
+		}
+		this.change({ ...withScope(draft, scopeOf(store.doc, place), this.#key), place });
+	}
+
 	get canUndo(): boolean {
 		return !this.asking && this.#history.past.length > 0;
 	}
@@ -300,6 +343,8 @@ class AiPanel {
 		this.incoming = false;
 		this.problem = '';
 		this.#course = courseId;
+		this.#place = DEFAULT_PLACE;
+		this.landed = null;
 		this.planning = false;
 		this.#step(emptyHistory());
 		this.typing = null;
@@ -365,7 +410,7 @@ class AiPanel {
 		if (this.draft !== null || this.asking) return;
 		// A finished batch is over once the teacher starts something else.
 		this.#clearFinished();
-		const empty = emptyDraft(scope, this.#key);
+		const empty = { ...emptyDraft(scope, this.#key), place: this.#place };
 		const key = this.#key();
 		const draft =
 			scope === 'lessons'
@@ -381,14 +426,15 @@ class AiPanel {
 	 * teacher's ticks on the cards the model kept (`addToDraft`). A failed request leaves
 	 * the proposal as it was.
 	 */
-	async send(store: DocStore, text: string): Promise<void> {
+	async send(store: DocStore, text: string, moveTo?: Place): Promise<void> {
 		const prompt = text.trim() || (this.fromMaterials(store.doc) ? FROM_MATERIALS : '');
 		if (prompt === '' || this.asking) return;
 		const previous = this.draft;
 		const current = previous === null ? undefined : toOutline(previous, 'all');
+		const place = validPlace(store.doc, moveTo ?? this.place);
 		const request = buildOutlineRequest(
 			store.doc,
-			store.selection,
+			place,
 			prompt,
 			current === undefined ? undefined : { current, original: previous?.original ?? '' },
 			materials.sections
@@ -407,7 +453,7 @@ class AiPanel {
 		const outcome = await askOutline(request, (event) => {
 			if (generation !== this.#generation) return;
 			if (event.type === 'scope') {
-				building = emptyDraft(event.scope, this.#key);
+				building = { ...emptyDraft(event.scope, this.#key), place };
 				// A fresh proposal remembers what it was made from; a change keeps the first prompt.
 				const original = fresh ? prompt : previous?.original;
 				if (original !== undefined && original !== '') building = { ...building, original };
@@ -466,16 +512,9 @@ class AiPanel {
 		if (outline === undefined || this.asking) return;
 		// The request that made a course structure is kept on the course for the cards' dossier.
 		const request = outline.scope === 'lessons' ? this.draft?.original : undefined;
-		// The selection may have gone (a lesson deleted meanwhile): then the end of the course.
-		const { selection, doc } = store;
-		const at = {
-			lessonId: doc.lessons.some((l) => l.lesson_id === selection?.lessonId)
-				? selection?.lessonId
-				: undefined,
-			blockId: doc.blocks.some((b) => b.block_id === selection?.blockId)
-				? selection?.blockId
-				: undefined
-		};
+		// Where the teacher chose; a lesson or card deleted meanwhile falls back (`validPlace`).
+		const before = new Set(store.doc.lessons.map((l) => l.lesson_id));
+		const at = insertAtOf(store.doc, this.place, outline.scope);
 		let added: { blockId: string; lessonId: string }[] = [];
 		try {
 			store.endEdit();
@@ -496,6 +535,13 @@ class AiPanel {
 		this.draft = null;
 		this.forget();
 		this.problem = '';
+		// The next proposal goes to the default place again, not to this one's.
+		this.#place = DEFAULT_PLACE;
+		this.landed = {
+			lessonIds: store.doc.lessons.map((l) => l.lesson_id).filter((id) => !before.has(id)),
+			blockIds: added.map((c) => c.blockId),
+			stamp: (this.landed?.stamp ?? 0) + 1
+		};
 		// The cards wait for the plan, and before it, when the materials are too long for a
 		// card to get them all, for the model to name the sources of the cards with none.
 		const sections = materials.sections;

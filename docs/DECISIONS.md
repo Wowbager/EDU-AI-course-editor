@@ -3267,6 +3267,26 @@ did not see each other.
   and the earlier ones, `- Cvičení (zatím prázdná)` in the outline, „+2 prázdné karty“ in
   lessons shown as lines; the model used to not know the slot existed.
 
+## Round 36 — where a proposal goes, and the panel used more than once
+
+- **The teacher chooses where a proposal goes, before it is made** („Kam“ above the box,
+  `domain/placement.ts`). Owner: "it must be intuitive system that lets user be in control,
+  but isn't in the way when user doesn't care, it should be also decided before creating
+  the draft, because it could change the aim". The default is new lessons at the end of
+  the course; the menu offers the places around the lesson and card open in the tree
+  (new lesson after it, start/end of it, after the card) and the place chosen. The place
+  decides the scope; the model no longer does, and it is told what comes before and after
+  (`placeForModel`). Cards into a lesson the editor just made are a lesson in its place, so
+  the AI names it. After „Vytvořit vybrané“ the place is the default again, and the tree
+  shows for a moment where the content went, without moving the selection. A course with
+  nothing of the teacher's has no „Kam“. *Rejected:* the selection deciding (content
+  landed in whatever lesson was open), and the AI choosing between a new lesson and the
+  open one (not in the teacher's control). Moving a proposal the AI made asks for it again
+  for the new place; one made by hand just moves.
+- **The panel is usable again once a batch is written**: „+ lekce“/„+ karta“ show under the
+  finished cards, and an empty send proposes a course from the files only while the course
+  has nothing of the teacher's (`hasNoContent`).
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today
