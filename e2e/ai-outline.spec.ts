@@ -111,6 +111,12 @@ test('an outline is started without the AI and typed lesson by lesson, card by c
 	// The cursor is in the row that needs the name.
 	await expect(lessonField(page)).toBeFocused();
 	await page.keyboard.press('Escape');
+	// Undone and redone, the row is asked for again only at the next click.
+	await page.keyboard.press('ControlOrMeta+z');
+	await expect.poll(lessonNames(page)).toEqual(['Sčítání zlomků', 'Opakování']);
+	await page.keyboard.press('ControlOrMeta+Shift+z');
+	await expect.poll(lessonNames(page)).toEqual(['Sčítání zlomků', 'Opakování', 'bez názvu']);
+	await expect(hint).toHaveCount(0);
 	await page.getByRole('checkbox', { name: 'Vytvořit lekci: bez názvu' }).uncheck();
 	await expect(hint).toHaveCount(0);
 	// It asks again only at the next click, not for every new row.
