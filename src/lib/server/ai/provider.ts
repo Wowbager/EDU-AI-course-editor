@@ -472,12 +472,13 @@ export function chatter(
 				// A host can send the headers at once and the answer never: the time limit then
 				// ends the reading of the body, which is a call that did not get through, not a
 				// bad answer.
-				const data = (await response.json().catch(() => {
+				const data = (await response.json().catch((e: unknown) => {
 					if (timeout.aborted || options.signal?.aborted === true)
 						throw new ProviderError('network', 'the answer did not arrive in time', {
 							slow: true
 						});
-					return null;
+					if (e instanceof SyntaxError) return null;
+					throw new ProviderError('network', e instanceof Error ? e.message : String(e));
 				})) as {
 					choices?: { message?: HostMessage }[];
 					usage?: Usage;
