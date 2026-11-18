@@ -304,6 +304,7 @@ describe('plainLineStarts: a date or a number the AI writes at the start of a li
 		'1. Vyděl dvěma.\n   pokračování\n2. Zkontroluj.',
 		'1. a\n   - x\n2. b',
 		'```\n- x\n14. 5.\n```',
+		'\t- 3',
 		'15.–31. 1. 2027',
 		'> citát',
 		'x = 5'

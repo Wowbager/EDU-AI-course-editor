@@ -76,8 +76,8 @@ export function unescapePlainLines(text: string): string {
 		.join('\n');
 }
 
-/** A list item's start: indent, any backslashes, the marker, the space after it. */
-const LIST_LINE = /^([ \t]{0,3})(\\*)(\d{1,9}[.)]|[-+*])([ \t])/;
+/** A list item's start: an indent of spaces (a tab starts code), any backslashes, the marker, the space after it. */
+const LIST_LINE = /^( {0,3})(\\*)(\d{1,9}[.)]|[-+*])([ \t])/;
 
 /**
  * RULE 2: a date or a number the AI writes at the start of a line stays text.
