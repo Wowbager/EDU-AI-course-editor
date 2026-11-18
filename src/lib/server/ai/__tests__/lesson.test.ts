@@ -266,6 +266,68 @@ describe('lessonEvents: a refusal is the tool result', () => {
 	});
 });
 
+describe('lessonEvents: texts as the app shows them', () => {
+	const choice = (texts: string[], feedback = 'Ne, to je jiný termín.') =>
+		says({
+			steps: [
+				GOOD.steps[0],
+				{
+					...MORE,
+					content_md: 'Kdy školy zveřejňují kritéria přijetí?',
+					question: {
+						type: 'mcq_1',
+						do_not_shuffle: true,
+						options: texts.map((text, i) => ({ text, correct: i === 0, feedback }))
+					}
+				}
+			]
+		});
+	const optionsOf = (event: LessonEvent) =>
+		event.type === 'card'
+			? (event.answer.steps[1] as { question: { options: { text: string; feedback: string }[] } })
+					.question.options
+			: [];
+
+	it('writes a date at the start of an option or a feedback as text, not as a list', async () => {
+		const model = scripted(
+			choice(
+				['15.–31. 1. 2027', '1. 3. 2027', '\\22. 2. 2027', '- 3'],
+				'14. 5. se zveřejňují výsledky.'
+			)
+		);
+		const events = await collect(lessonEvents(request(), model));
+		expect(model.calls).toBe(1);
+		expect(optionsOf(events[1])).toEqual([
+			{ text: '15.–31. 1. 2027', correct: true, feedback: '14.\u00a05. se zveřejňují výsledky.' },
+			{ text: '1.\u00a03. 2027', correct: false, feedback: '14.\u00a05. se zveřejňují výsledky.' },
+			{ text: '22.\u00a02. 2027', correct: false, feedback: '14.\u00a05. se zveřejňují výsledky.' },
+			{ text: '-\u00a03', correct: false, feedback: '14.\u00a05. se zveřejňují výsledky.' }
+		]);
+	});
+
+	it.each([
+		['H<sub>2</sub>O', /option 1.*HTML/],
+		['> 5 cm', /option 1.*one line of inline text/]
+	])('sends an option such as %j back with the reason', async (bad, reason) => {
+		const model = scripted(choice([bad, 'b', 'c']), choice(['a', 'b', 'c']));
+		const events = await collect(lessonEvents(request(), model));
+		expect(events[1].type).toBe('card');
+		expect(model.calls).toBe(2);
+		expect(textOf(lastOf(model.seen[1]))).toMatch(reason);
+	});
+
+	it('keeps a numbered list that starts at 1 and a bulleted one in the help', async () => {
+		const help = 'Postup:\n\n1. Vyděl dvěma.\n2. Zkontroluj.\n\n- jedna\n- dvě';
+		const model = scripted(says({ steps: [{ keep: 's1', fill: { help_md: help } }] }));
+		const events = await collect(lessonEvents(request(), model));
+		expect(events[1]).toEqual({
+			type: 'card',
+			card: 0,
+			answer: { steps: [{ keep: 's1', fill: { help_md: help } }] }
+		});
+	});
+});
+
 describe('lessonEvents: giving up and going on', () => {
 	it('gives up after three attempts, logs why without the course text, and writes the next card in the same conversation', async () => {
 		const log = vi.spyOn(console, 'error').mockImplementation(() => {});

@@ -64,7 +64,7 @@ export const MARKDOWN_SPECS: readonly Where[] = FORMATTED.flatMap((f) =>
 		: []
 );
 
-function dialectOf(field: Formatted): MarkdownDialect | null {
+export function dialectOf(field: Formatted): MarkdownDialect | null {
 	if (field.dialect !== undefined) return field.dialect;
 	const kind =
 		field.spec === undefined ? undefined : fieldSpec(field.spec.level, field.spec.path)?.markdown;

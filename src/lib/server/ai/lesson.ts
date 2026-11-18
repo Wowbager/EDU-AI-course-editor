@@ -18,7 +18,12 @@
  * opening (system prompt, materials, course dossier, the plan request and its answer) is
  * the same for every lesson of the course.
  */
-import { cardProblem, generatedCardSchema, type GeneratedCard } from '$lib/domain/authoring';
+import {
+	cardProblem,
+	generatedCardSchema,
+	tidyCard,
+	type GeneratedCard
+} from '$lib/domain/authoring';
 import { MARKER_CLOSE, MARKER_OPEN } from '$lib/domain/dossier';
 import {
 	cardRequestOf,
@@ -105,6 +110,7 @@ Rules for what you write:
 - Maths goes between dollar signs wherever the field below allows it, for example $\\frac{1}{2}$, and that includes a lone variable or number in a sentence: write $x$, never x. Where a field is plain text, write maths as typed text.
 - Text is Markdown only where the app draws it as Markdown. Field by field:
 ${formatRules({ names: false })}
+- A date or a number at the start of a line or of an option ("14. 5. 2027", "- 3") is written as it is, with no backslash before it; it stays text. A numbered list starts at 1. No HTML anywhere.
 - Keep the short parts short: a hint is one sentence; help is at most two sentences; a solution is at most three; the feedback on a wrong option is one sentence, on the correct one a few words of praise.
 - Do not invent facts beyond common school knowledge of the topic and the teacher's materials. Never mention files or links, and mention a picture only next to the picture step that shows it.`;
 
@@ -205,10 +211,11 @@ function cardVerdict(
 				.map((i) => `${i.path.join('.')}: ${i.message}`)
 				.join('; ')}. Call write_card again with the whole card.`
 		};
-	const problem = cardProblem(cardRequestOf(request, index), parsed.data);
+	const card = tidyCard(parsed.data);
+	const problem = cardProblem(cardRequestOf(request, index), card);
 	if (problem !== undefined)
 		return { say: `Refused: ${problem} Call write_card again with the whole card.` };
-	return { use: parsed.data };
+	return { use: card };
 }
 
 /** What the limits say before each call; the route counts each call as a request. */

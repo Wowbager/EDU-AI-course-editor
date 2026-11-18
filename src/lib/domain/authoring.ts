@@ -23,6 +23,15 @@ import type { BlockStep, BlockV2, CourseV2, QuestionConfig, QuestionOption } fro
 import type { CommandResult } from './commands';
 import { CommandError } from './commands';
 import { nextStepIds, type Reservations } from './ids';
+import {
+	ALWAYS_MARKDOWN,
+	INLINE,
+	SNIFFED,
+	canEditVisually,
+	parseMarkdown,
+	plainLineStarts,
+	type MarkdownDialect
+} from './markdown';
 
 export const BRIEF_KEY = 'brief';
 export const ORIGIN_KEY = 'field_origin';
@@ -438,6 +447,162 @@ export function plainTextProblem(value: string): string | undefined {
 	return undefined;
 }
 
+/**
+ * How the app reads each text the model writes, by its name in the prompt. The prompt's
+ * own rules (`ui/ai-format.ts`) come from the field table; `ai-format.test.ts` checks the
+ * two agree.
+ */
+export const GEN_TEXT_DIALECT = {
+	content_md: SNIFFED,
+	hint_md: ALWAYS_MARKDOWN,
+	help_md: ALWAYS_MARKDOWN,
+	solution_md: SNIFFED,
+	'option text': INLINE,
+	'option feedback': SNIFFED
+} as const satisfies Record<string, MarkdownDialect>;
+type TextKey = keyof typeof GEN_TEXT_DIALECT;
+
+/** One text of the model's answer: where it is, for the model, and what it holds. */
+interface GenText {
+	where: string;
+	key: TextKey;
+	value: string;
+}
+
+type Parts = {
+	content_md?: string;
+	hint_md?: string;
+	help_md?: string;
+	solution_md?: string;
+	question?: GenQuestion;
+	option_feedback?: string[];
+};
+
+const STEP_KEYS = ['content_md', 'hint_md', 'help_md', 'solution_md'] as const;
+
+function textsOf(parts: Parts, where: string): GenText[] {
+	const out: GenText[] = [];
+	for (const key of STEP_KEYS) {
+		const value = parts[key];
+		if (value !== undefined) out.push({ where: `${where}, ${key}`, key, value });
+	}
+	const q = parts.question;
+	if (q?.type === 'yes_no')
+		for (const name of ['feedback_true', 'feedback_false'] as const)
+			out.push({ where: `${where}, ${name}`, key: 'option feedback', value: q[name] });
+	if (q?.type === 'mcq_1' || q?.type === 'mcq_n')
+		q.options.forEach((o, i) => {
+			out.push({
+				where: `${where}, the text of option ${i + 1}`,
+				key: 'option text',
+				value: o.text
+			});
+			out.push({
+				where: `${where}, the feedback on option ${i + 1}`,
+				key: 'option feedback',
+				value: o.feedback
+			});
+		});
+	parts.option_feedback?.forEach((value, i) =>
+		out.push({ where: `${where}, option_feedback ${i + 1}`, key: 'option feedback', value })
+	);
+	return out;
+}
+
+function stepTexts(answer: GeneratedCard): GenText[] {
+	return answer.steps.flatMap((item, i) =>
+		'keep' in item
+			? textsOf(item.fill ?? {}, `Step "${item.keep}"`)
+			: item.kind === 'picture'
+				? []
+				: textsOf(item, `New step ${i + 1}`)
+	);
+}
+
+const tidy = (key: TextKey) => (value: string) => plainLineStarts(value, GEN_TEXT_DIALECT[key]);
+
+function tidyQuestion(q: GenQuestion): GenQuestion {
+	const feedback = tidy('option feedback');
+	if (q.type === 'yes_no')
+		return {
+			...q,
+			feedback_true: feedback(q.feedback_true),
+			feedback_false: feedback(q.feedback_false)
+		};
+	if (q.type === 'mcq_1' || q.type === 'mcq_n')
+		return {
+			...q,
+			options: q.options.map((o) => ({
+				...o,
+				text: tidy('option text')(o.text),
+				feedback: feedback(o.feedback)
+			}))
+		};
+	return q;
+}
+
+function tidyParts<T extends Parts>(parts: T): T {
+	const out = { ...parts };
+	for (const key of STEP_KEYS) {
+		const value = out[key];
+		if (value !== undefined) out[key] = tidy(key)(value) as T[typeof key];
+	}
+	if (out.question !== undefined) out.question = tidyQuestion(out.question);
+	if (out.option_feedback !== undefined)
+		out.option_feedback = out.option_feedback.map(tidy('option feedback'));
+	return out;
+}
+
+/**
+ * The model's card with each text as the plain text it meant where it wrote a date or a
+ * number at the start of a line (`plainLineStarts`). Before `cardProblem`, which then
+ * judges what will be written.
+ */
+export function tidyCard(answer: GeneratedCard): GeneratedCard {
+	return {
+		...answer,
+		steps: answer.steps.map((item) =>
+			'keep' in item
+				? item.fill === undefined
+					? item
+					: { ...item, fill: tidyParts(item.fill) }
+				: item.kind === 'picture'
+					? item
+					: tidyParts(item)
+		)
+	};
+}
+
+/** What the model is told when a text would not open in the visual editor. */
+const UNSUPPORTED: Record<string, string> = {
+	'list-item-start': 'a numbered list there would start at a number other than 1',
+	blocks:
+		'it is one line of inline text, but it holds a list, a quote, a heading or several paragraphs',
+	'line-break': 'it is one line, but it holds a line break',
+	html: 'it holds HTML; write Markdown and $…$ instead',
+	entity: 'it holds an HTML entity such as &nbsp;; write the character itself',
+	'display-math': 'it is one line, so maths goes between single dollars, $…$'
+};
+
+/**
+ * Why a text of the answer cannot be written, or `undefined`. A text the visual editor
+ * cannot open as it is would show in its source view, and usually not as the model meant
+ * it in the app either.
+ */
+function textProblem(answer: GeneratedCard): string | undefined {
+	for (const { where, key, value } of stepTexts(answer)) {
+		const dialect = GEN_TEXT_DIALECT[key];
+		if (canEditVisually(value, dialect)) continue;
+		const codes = parseMarkdown(value, dialect).unsupported;
+		const why =
+			codes.length > 0
+				? (UNSUPPORTED[codes[0]] ?? `it holds Markdown this field cannot show (${codes[0]})`)
+				: 'it would not read back as written';
+		return `${where} "${clip(value)}" cannot be shown as written: ${why}. Write it again without that.`;
+	}
+	return undefined;
+}
+
 /** The right number of right answers for the type; the model's word is not taken for it. */
 export function questionIsSound(gen: GenQuestion): boolean {
 	if (gen.type === 'mcq_1') return gen.options.filter((o) => o.correct).length === 1;
@@ -533,6 +698,9 @@ export function cardProblem(request: GenRequest, answer: GeneratedCard): string 
 					: `"${clip(item.picture)}" is not one of the teacher's pictures (${keys.join(', ')}). A picture step shows one of them, by its key.`;
 		}
 	}
+
+	const text = textProblem(answer);
+	if (text !== undefined) return text;
 
 	const bounds = CARD_BOUNDS[request.card.kind];
 	const texts = answer.steps.filter((s) => !('keep' in s) && s.kind === 'text').length;

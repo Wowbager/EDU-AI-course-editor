@@ -11,6 +11,7 @@ import {
 	looksLikeMarkdown,
 	parseMarkdown,
 	serializeMarkdown,
+	plainLineStarts,
 	type DocNode
 } from '../index';
 import { doc, hardBreak, paragraph, text } from '../doc';
@@ -264,5 +265,45 @@ describe('a plain text that starts like a list (OPEN-PROBLEMS #55)', () => {
 	it('opens it visually', () => {
 		expect(canEditVisually('\\- a', SNIFFED)).toBe(true);
 		expect(canEditVisually('\\\\- a', SNIFFED)).toBe(true);
+	});
+});
+
+describe('plainLineStarts: a date or a number the AI writes at the start of a line', () => {
+	const NB = '\u00a0';
+	it.each([
+		['14. 5. 2027', SNIFFED, `14.${NB}5. 2027`],
+		['1. 3. 2027', INLINE, `1.${NB}3. 2027`],
+		['\\22. 2. 2027', INLINE, `22.${NB}2. 2027`],
+		['2. světová válka začala v roce 1939.', SNIFFED, `2.${NB}světová válka začala v roce 1939.`],
+		['- 3', INLINE, `-${NB}3`],
+		['- 3', SNIFFED, `-${NB}3`],
+		['+ 5', ALWAYS_MARKDOWN, `+${NB}5`],
+		['- jedna', INLINE, `-${NB}jedna`],
+		[
+			'Termíny:\n14. 5. výsledky\n1. 3. test',
+			ALWAYS_MARKDOWN,
+			`Termíny:\n14.${NB}5. výsledky\n1.${NB}3. test`
+		]
+	])('%j in %o becomes plain text', (typed, dialect, stored) => {
+		const out = plainLineStarts(typed, dialect);
+		expect(out).toBe(stored);
+		expect(plainLineStarts(out, dialect)).toBe(out);
+		expect(canEditVisually(out, dialect)).toBe(true);
+		if (dialect.sniffed) expect(looksLikeMarkdown(out)).toBe(false);
+		expect(typedText(parseMarkdown(out, dialect).doc)).toBe(out);
+	});
+
+	it.each([
+		'1. Vyděl dvěma.\n2. Zkontroluj.',
+		'1. a\n\n2. b',
+		'- jedna\n- dvě',
+		'- jedna',
+		'Postup:\n\n1. a\n2. b',
+		'15.–31. 1. 2027',
+		'> citát',
+		'x = 5'
+	])('leaves %j, a list or text meant as it is, alone', (text) => {
+		expect(plainLineStarts(text, SNIFFED)).toBe(text);
+		expect(plainLineStarts(text, ALWAYS_MARKDOWN)).toBe(text);
 	});
 });

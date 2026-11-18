@@ -7,6 +7,8 @@
  * - `lib/core/utils/content_format.dart` — which renderer a text gets.
  */
 
+import type { MarkdownDialect } from './doc';
+
 /**
  * The app's guess at a text's format (`lib/core/utils/content_format.dart`), copied
  * pattern for pattern. A text step, question, answer, solution or feedback that
@@ -72,6 +74,54 @@ export function unescapePlainLines(text: string): string {
 			return found && found.slashes !== '' ? found.slashes.slice(1) + found.rest : line;
 		})
 		.join('\n');
+}
+
+/** A list item's start: indent, any backslashes, the marker, the space after it. */
+const LIST_LINE = /^([ \t]{0,3})(\\*)(\d{1,9}[.)]|[-+*])([ \t])/;
+
+/**
+ * RULE 2: a date or a number the AI writes at the start of a line stays text.
+ *
+ * `14. 5. 2027`, `2. světová válka`, an answer `- 3`: the app and the editor read each
+ * as a list, one that starts at 14, at 2, or holds a single negative number. A list the
+ * AI means is a run of two or more items that starts at 1 (a bulleted run of one is
+ * meant too, unless it holds a number). Every other marker gets a no-break space
+ * after it instead of the space: it reads the same, and neither the app's
+ * `content_format.dart` nor its Markdown nor the editor sees a list any more. A
+ * backslash the model put before it, which the app would print, goes; an answer option
+ * is one line and never a list. Nothing else changes, and a second pass changes nothing.
+ */
+export function plainLineStarts(text: string, dialect: MarkdownDialect): string {
+	const lines = text.split('\n');
+	const found = lines.map((line) => LIST_LINE.exec(line));
+	const kind = (m: RegExpExecArray) => (/\d/.test(m[3]) ? 'ordered' : 'bullet');
+	// The items of one list: marker lines of a kind, with nothing but blank lines between.
+	const runs: number[][] = [];
+	let run: number[] = [];
+	found.forEach((m, i) => {
+		if (m === null) {
+			if (lines[i].trim() !== '') run = [];
+			return;
+		}
+		const previous = run.length > 0 ? found[run[run.length - 1]] : null;
+		if (previous === null || kind(previous) !== kind(m)) runs.push((run = []));
+		run.push(i);
+	});
+	for (const items of runs) {
+		const first = found[items[0]]!;
+		const meant =
+			dialect.inline !== true &&
+			items.every((i) => found[i]![2] === '') &&
+			(kind(first) === 'ordered'
+				? items.length > 1 && parseInt(first[3], 10) === 1
+				: items.length > 1 || !/^\s*\d/.test(lines[items[0]].slice(first[0].length)));
+		if (meant) continue;
+		for (const i of items) {
+			const [whole, indent, , marker] = found[i]!;
+			lines[i] = `${indent}${marker} ${lines[i].slice(whole.length)}`;
+		}
+	}
+	return lines.join('\n');
 }
 
 /** Whether the app renders a text as Markdown at all (`looksLikeMarkdown`). */
