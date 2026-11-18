@@ -276,6 +276,8 @@ describe('plainLineStarts: a date or a number the AI writes at the start of a li
 		['\\22. 2. 2027', INLINE, `22.${NB}2. 2027`],
 		['2. světová válka začala v roce 1939.', SNIFFED, `2.${NB}světová válka začala v roce 1939.`],
 		['- 3', INLINE, `-${NB}3`],
+		['  14. 5. 2027', SNIFFED, `  14.${NB}5. 2027`],
+		['   2. světová válka', SNIFFED, `   2.${NB}světová válka`],
 		['- 3', SNIFFED, `-${NB}3`],
 		['+ 5', ALWAYS_MARKDOWN, `+${NB}5`],
 		['- jedna', INLINE, `-${NB}jedna`],

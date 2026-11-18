@@ -93,26 +93,24 @@ const LIST_LINE = /^([ \t]{0,3})(\\*)(\d{1,9}[.)]|[-+*])([ \t])/;
  */
 export function plainLineStarts(text: string, dialect: MarkdownDialect): string {
 	const lines = text.split('\n');
-	// A line of a code fence is code; an indented one goes on the item above it (its next
-	// line, or an item of a list inside it). Neither is an item of its own.
-	let fenced = false;
-	const found = lines.map((line) => {
-		if (/^[ \t]{0,3}(```|~~~)/.test(line)) {
-			fenced = !fenced;
-			return null;
-		}
-		return fenced || /^( {2}|\t)/.test(line) ? null : LIST_LINE.exec(line);
-	});
+	const found: (RegExpExecArray | null)[] = [];
 	const kind = (m: RegExpExecArray) => (/\d/.test(m[3]) ? 'ordered' : 'bullet');
-	// The items of one list: marker lines of a kind, with nothing but blank or indented
-	// lines between.
+	// The items of one list: marker lines of a kind, with nothing but blank lines between,
+	// or indented ones that go on the item above (its next line, or a list inside it). A
+	// line of a code fence is code.
 	const runs: number[][] = [];
 	let run: number[] = [];
-	found.forEach((m, i) => {
-		if (m === null) {
-			if (lines[i].trim() !== '' && !/^( {2}|\t)/.test(lines[i])) run = [];
+	let fenced = false;
+	lines.forEach((line, i) => {
+		found.push(null);
+		if (/^[ \t]{0,3}(```|~~~)/.test(line)) fenced = !fenced;
+		else if (fenced) return;
+		const m = run.length > 0 && /^( {2}|\t)/.test(line) ? null : LIST_LINE.exec(line);
+		if (m === null || fenced) {
+			if (line.trim() !== '' && !(run.length > 0 && /^( {2}|\t)/.test(line))) run = [];
 			return;
 		}
+		found[i] = m;
 		const previous = run.length > 0 ? found[run[run.length - 1]] : null;
 		if (previous === null || kind(previous) !== kind(m)) runs.push((run = []));
 		run.push(i);
