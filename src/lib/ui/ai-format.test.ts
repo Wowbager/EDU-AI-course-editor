@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FIELDS } from './fields';
-import { FORMATTED, MARKDOWN_SPECS, formatRules } from './ai-format';
+import { GEN_TEXT_DIALECT } from '$lib/domain/authoring';
+import { FORMATTED, MARKDOWN_SPECS, dialectOf, formatRules } from './ai-format';
 
 describe('what the AI may write where', () => {
 	it('has a rule for every field the field table says is Markdown', () => {
@@ -37,5 +38,12 @@ describe('what the AI may write where', () => {
 				.filter((l) => l.startsWith('- ')).length
 		).toBe(FORMATTED.length + 1);
 		expect(formatRules({ fields: false })).toMatch(/Names of cards and lessons/);
+	});
+
+	it('tells the model the format each text is then checked and tidied in', () => {
+		const told = Object.fromEntries(
+			FORMATTED.filter((f) => dialectOf(f) !== null).map((f) => [f.key, dialectOf(f)])
+		);
+		expect(told).toEqual(GEN_TEXT_DIALECT);
 	});
 });

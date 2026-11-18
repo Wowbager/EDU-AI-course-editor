@@ -5,7 +5,8 @@ export {
 	looksLikeMarkdown,
 	looksLikeHtml,
 	escapePlainLines,
-	unescapePlainLines
+	unescapePlainLines,
+	plainLineStarts
 } from './app-dialect';
 export {
 	SNIFFED,
