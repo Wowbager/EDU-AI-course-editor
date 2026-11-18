@@ -103,7 +103,7 @@ export function plainLineStarts(text: string, dialect: MarkdownDialect): string 
 	let fenced = false;
 	lines.forEach((line, i) => {
 		found.push(null);
-		if (/^[ \t]{0,3}(```|~~~)/.test(line)) fenced = !fenced;
+		if (/^ {0,3}(```|~~~)/.test(line)) fenced = !fenced;
 		else if (fenced) return;
 		const m = run.length > 0 && /^( {2}|\t)/.test(line) ? null : LIST_LINE.exec(line);
 		if (m === null || fenced) {

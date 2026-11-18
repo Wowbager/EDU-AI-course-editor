@@ -314,6 +314,10 @@ describe('plainLineStarts: a date or a number the AI writes at the start of a li
 	});
 });
 
+it('a tab before a fence is code, not a fence: the line after it is still checked', () => {
+	expect(plainLineStarts('\t```\n- 3', SNIFFED)).toBe('\t```\n-\u00a03');
+});
+
 describe('an answer option the AI writes with a comparison or an ampersand', () => {
 	it.each(['x < 5', 'A & B', '5 < x < 10', 'Tom & Jerry'])(
 		'opens %j in the visual editor',
