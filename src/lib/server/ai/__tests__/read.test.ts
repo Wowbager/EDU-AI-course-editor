@@ -55,7 +55,12 @@ describe('reading a picture', () => {
 		const vision = visionist(config, fetcher as unknown as typeof fetch);
 		expect(await vision('i', picture)).toEqual({ text: 'Přepis', tokens: 1020 });
 		await expect(
-			visionist(config, (async () => new Response('', { status: 503 })) as never)('i', picture)
+			visionist(config, (async () => new Response('', { status: 503 })) as never, {
+				attempts: 1,
+				baseMs: 0,
+				maxDelayMs: 0,
+				maxWaitMs: 0
+			})('i', picture)
 		).rejects.toMatchObject({ kind: 'busy' });
 	});
 

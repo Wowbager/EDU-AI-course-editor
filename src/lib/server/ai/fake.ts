@@ -218,11 +218,6 @@ export function fakePlan(request: Pick<PlanRequest, 'lessons'>): Plan {
 	};
 }
 
-/** What the fake "thinks", so a suite can see that it is handed back. */
-export const FAKE_REASONING = [
-	{ type: 'reasoning.text', text: 'Ukázková úvaha.', format: 'unknown', index: 0 }
-];
-
 /**
  * A turn of a conversation (`lesson.ts`): the plan for a plan's request, else the card
  * the last card turn asks for, as a call of the tool it was asked for.
@@ -252,8 +247,7 @@ export const fakeChat: Chat = async (messages, { tool }) => {
 				type: 'function',
 				function: { name: tool, arguments: JSON.stringify(args) }
 			}
-		],
-		reasoning_details: FAKE_REASONING
+		]
 	};
 	return { turn, tokens: 0 };
 };

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { genRequestSchema, MAX_CONTEXT_CHARS, type GenRequest } from '$lib/domain/authoring';
 import { isConfigured, readAiConfig } from '../config';
 import { fakeChat } from '../fake';
@@ -9,11 +9,16 @@ import {
 	completer,
 	hostMessages,
 	ProviderError,
+	streamer,
 	textOf,
 	withPictures,
 	TOOLS,
 	turnOf,
-	type ChatMessage
+	visionist,
+	RETRY as RETRY_FOR_TEST,
+	withRetry,
+	type ChatMessage,
+	type RetryPolicy
 } from '../provider';
 
 const request = (context = ''): GenRequest => ({
@@ -28,6 +33,10 @@ const request = (context = ''): GenRequest => ({
 const openrouter = readAiConfig({ AI_API_KEY: 'k' });
 const deepseek = readAiConfig({ AI_PROVIDER: 'deepseek', AI_API_KEY: 'k' });
 const messages: ChatMessage[] = [{ role: 'user', content: 'ahoj' }];
+/** For the tests of one call's failure: none is made again. */
+const ONCE: RetryPolicy = { attempts: 1, baseMs: 0, maxDelayMs: 0, maxWaitMs: 0 };
+/** Calls made again at once, without waiting. */
+const QUICK: RetryPolicy = { attempts: 5, baseMs: 1, maxDelayMs: 4, maxWaitMs: 1000 };
 
 describe('settings', () => {
 	it('allows 20 million weighted tokens a day by default', () => {
@@ -67,17 +76,20 @@ describe('buildBody', () => {
 		expect(buildBody(deepseek, []).provider).toBe(undefined);
 	});
 
-	it('bounds what one text call may write only when the operator says how much', () => {
-		for (const config of [openrouter, deepseek]) {
-			expect(buildBody(config, [])).not.toHaveProperty('max_tokens');
-			const capped = { ...config, maxOutputTokens: 32_000 };
-			expect(buildBody(capped, []).max_tokens).toBe(32_000);
-			expect(buildBody(capped, [], { stream: true }).max_tokens).toBe(32_000);
-			expect(buildChatBody(capped, [], { tool: 'write_card' }).max_tokens).toBe(32_000);
-		}
-		expect(readAiConfig({}).maxOutputTokens).toBeNull();
-		expect(readAiConfig({ AI_MAX_OUTPUT_TOKENS: '32000' }).maxOutputTokens).toBe(32_000);
-		expect(readAiConfig({ AI_MAX_OUTPUT_TOKENS: '' }).maxOutputTokens).toBeNull();
+	it('bounds what one text call may write: 32000 on OpenRouter, elsewhere only when set', () => {
+		expect(buildBody(openrouter, []).max_tokens).toBe(32_000);
+		expect(buildBody(openrouter, [], { stream: true }).max_tokens).toBe(32_000);
+		expect(buildChatBody(openrouter, [], { tool: 'write_card' }).max_tokens).toBe(32_000);
+		expect(buildBody(deepseek, [])).not.toHaveProperty('max_tokens');
+		expect(buildChatBody(deepseek, [], { tool: 'write_card' })).not.toHaveProperty('max_tokens');
+		const capped = readAiConfig({
+			AI_PROVIDER: 'deepseek',
+			AI_API_KEY: 'k',
+			AI_MAX_OUTPUT_TOKENS: '8000'
+		});
+		expect(buildChatBody(capped, [], { tool: 'write_card' }).max_tokens).toBe(8000);
+		expect(readAiConfig({ AI_MAX_OUTPUT_TOKENS: '8000' }).maxOutputTokens).toBe(8000);
+		expect(readAiConfig({ AI_MAX_OUTPUT_TOKENS: '' }).maxOutputTokens).toBe(32_000);
 	});
 });
 
@@ -88,7 +100,7 @@ describe('buildChatBody', () => {
 				const body = buildChatBody(config, messages, { tool });
 				expect(body.tools).toBe(TOOLS);
 				expect(TOOLS.map((t) => t.function.name)).toEqual(['save_plan', 'write_card']);
-				expect(body.messages).toBe(messages);
+				expect(body.messages).toEqual(messages);
 			}
 	});
 
@@ -177,7 +189,9 @@ describe('chatter', () => {
 		const failing = (status: number) =>
 			chatter(
 				readAiConfig({ AI_API_KEY: 'k' }),
-				(async () => new Response('no', { status })) as unknown as typeof fetch
+				(async () => new Response('no', { status })) as unknown as typeof fetch,
+				undefined,
+				ONCE
 			)(messages, { tool: 'write_card' });
 		for (const status of [401, 402, 403])
 			await expect(failing(status)).rejects.toMatchObject({ kind: 'auth' });
@@ -189,9 +203,14 @@ describe('chatter', () => {
 	});
 
 	it('maps a network error to `network`', async () => {
-		const chat = chatter(readAiConfig({ AI_API_KEY: 'k' }), (async () => {
-			throw new TypeError('fetch failed');
-		}) as unknown as typeof fetch);
+		const chat = chatter(
+			readAiConfig({ AI_API_KEY: 'k' }),
+			(async () => {
+				throw new TypeError('fetch failed');
+			}) as unknown as typeof fetch,
+			undefined,
+			ONCE
+		);
 		await expect(chat(messages, { tool: 'write_card' })).rejects.toMatchObject({
 			kind: 'network'
 		});
@@ -234,14 +253,19 @@ describe('chatter', () => {
 
 	it('a refusal for credit or for speed stays one when its body never arrives', async () => {
 		const stalled = (status: number) =>
-			chatter(readAiConfig({ AI_API_KEY: 'k' }), (async (_url: string, init: RequestInit) => {
-				const body = new ReadableStream<Uint8Array>({
-					start(controller) {
-						init.signal!.addEventListener('abort', () => controller.error(init.signal!.reason));
-					}
-				});
-				return new Response(body, { status });
-			}) as unknown as typeof fetch)(messages, { tool: 'write_card', timeoutMs: 20 });
+			chatter(
+				readAiConfig({ AI_API_KEY: 'k' }),
+				(async (_url: string, init: RequestInit) => {
+					const body = new ReadableStream<Uint8Array>({
+						start(controller) {
+							init.signal!.addEventListener('abort', () => controller.error(init.signal!.reason));
+						}
+					});
+					return new Response(body, { status });
+				}) as unknown as typeof fetch,
+				undefined,
+				ONCE
+			)(messages, { tool: 'write_card', timeoutMs: 20 });
 		await expect(stalled(402)).rejects.toMatchObject({ kind: 'auth' });
 		await expect(stalled(429)).rejects.toMatchObject({ kind: 'busy' });
 	});
@@ -285,7 +309,8 @@ describe('completer', () => {
 		const failing = (status: number) =>
 			completer(
 				readAiConfig({ AI_API_KEY: 'k' }),
-				(async () => new Response('no', { status })) as unknown as typeof fetch
+				(async () => new Response('no', { status })) as unknown as typeof fetch,
+				ONCE
 			)([]);
 		await expect(failing(401)).rejects.toMatchObject({ kind: 'auth' });
 		await expect(failing(429)).rejects.toMatchObject({ kind: 'busy' });
@@ -296,28 +321,39 @@ describe('completer', () => {
 describe('turnOf', () => {
 	const reasoningDetails = [{ type: 'reasoning.text', text: 'a', index: 0 }];
 
-	it('keeps reasoning_details as returned and nothing else of the reasoning', () => {
-		const turn = turnOf({
+	it('keeps none of the reasoning, but DeepSeek\u2019s own reasoning_content for DeepSeek', () => {
+		const message = {
 			content: 'x',
 			reasoning_details: reasoningDetails,
 			reasoning_content: 'rc',
 			reasoning: 'r'
+		};
+		expect(turnOf(message)).toEqual({ role: 'assistant', content: 'x' });
+		expect(turnOf(message, 'openrouter')).toEqual({ role: 'assistant', content: 'x' });
+		expect(turnOf(message, 'deepseek')).toEqual({
+			role: 'assistant',
+			content: 'x',
+			reasoning_content: 'rc'
 		});
-		expect(turn.reasoning_details).toBe(reasoningDetails);
-		expect(turn).not.toHaveProperty('reasoning_content');
-		expect(turn).not.toHaveProperty('reasoning');
 	});
 
-	it('falls back to reasoning_content, then to reasoning', () => {
-		const second = turnOf({ reasoning_details: [], reasoning_content: 'rc', reasoning: 'r' });
-		expect(second.reasoning_content).toBe('rc');
-		expect(second).not.toHaveProperty('reasoning_details');
-		expect(second).not.toHaveProperty('reasoning');
-		const third = turnOf({ reasoning_content: '', reasoning: 'r' });
-		expect(third.reasoning).toBe('r');
-		expect(third).not.toHaveProperty('reasoning_content');
-		const none = turnOf({ content: 'text' });
-		expect(none).toEqual({ role: 'assistant', content: 'text' });
+	it('sends no reasoning back, also from a turn kept from before', () => {
+		const old: ChatMessage[] = [
+			{ role: 'user', content: 'a' },
+			{
+				role: 'assistant',
+				content: '',
+				reasoning_details: reasoningDetails,
+				reasoning_content: 'rc',
+				reasoning: 'r'
+			}
+		];
+		const sent = buildChatBody(openrouter, old, { tool: 'write_card' }).messages;
+		expect(sent).toEqual([old[0], { role: 'assistant', content: '' }]);
+		expect(buildChatBody(deepseek, old, { tool: 'write_card' }).messages).toEqual([
+			old[0],
+			{ role: 'assistant', content: '', reasoning_content: 'rc' }
+		]);
 	});
 
 	it('normalises tool calls: arguments become JSON text, malformed calls are dropped', () => {
@@ -383,5 +419,163 @@ describe('pictures in a conversation', () => {
 			{ type: 'text', text: 'Materiály' },
 			{ type: 'text', text: '\n\nPicture [bbbbbbbb.0]: no longer available.' }
 		]);
+	});
+});
+
+describe('a call that may pass is made again', () => {
+	const answer = () => Response.json({ choices: [{ message: { content: '{}', tool_calls: [] } }] });
+	/** Answers `failures` in order, then the answer; counts the calls. */
+	const flaky = (...failures: (() => Response | never)[]) => {
+		let calls = 0;
+		const fetcher = (async () => {
+			const next = failures[calls++];
+			return next === undefined ? answer() : next();
+		}) as unknown as typeof fetch;
+		return { fetcher, calls: () => calls };
+	};
+	const status =
+		(code: number, body = 'no', headers?: HeadersInit) =>
+		() =>
+			new Response(body, { status: code, headers });
+	const quiet = () => vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+	it('after a busy host, a host error or a call that did not get through', async () => {
+		const warn = quiet();
+		const host = flaky(status(429), status(503), status(502), () => {
+			throw new TypeError('fetch failed');
+		});
+		const chat = chatter(openrouter, host.fetcher, undefined, QUICK);
+		expect((await chat(messages, { tool: 'write_card' })).turn.content).toBe('{}');
+		expect(host.calls()).toBe(5);
+		expect(warn).toHaveBeenCalledTimes(4);
+		warn.mockRestore();
+	});
+
+	it('after OpenRouter\u2019s 402 for the calls running at once, not for spent credit', async () => {
+		const warn = quiet();
+		const inFlight = JSON.stringify({
+			error: {
+				code: 402,
+				message: 'in_flight_budget_exhausted',
+				metadata: { limit_source: 'openrouter_in_flight_budget' }
+			}
+		});
+		const busy = flaky(status(402, inFlight));
+		await completer(openrouter, busy.fetcher, QUICK)([]);
+		expect(busy.calls()).toBe(2);
+		const spent = flaky(status(402, '{"error":{"message":"Insufficient credits"}}'));
+		await expect(completer(openrouter, spent.fetcher, QUICK)([])).rejects.toMatchObject({
+			kind: 'auth'
+		});
+		expect(spent.calls()).toBe(1);
+		const tooBig = flaky(
+			status(402, '{"error":{"message":"weight_exceeds_budget in_flight_budget"}}')
+		);
+		await expect(completer(openrouter, tooBig.fetcher, QUICK)([])).rejects.toMatchObject({
+			kind: 'auth'
+		});
+		warn.mockRestore();
+	});
+
+	it('not after a refusal that would come again', async () => {
+		for (const code of [400, 401, 403, 404]) {
+			const host = flaky(status(code));
+			await expect(
+				chatter(openrouter, host.fetcher, undefined, QUICK)(messages, { tool: 'write_card' })
+			).rejects.toBeInstanceOf(ProviderError);
+			expect(host.calls()).toBe(1);
+		}
+	});
+
+	it('gives up after the attempts, with the last failure', async () => {
+		const warn = quiet();
+		const host = flaky(...Array.from({ length: 9 }, () => status(529)));
+		await expect(
+			visionist(openrouter, host.fetcher, QUICK)('i', { mime: 'image/png', base64: '' })
+		).rejects.toMatchObject({ kind: 'busy' });
+		expect(host.calls()).toBe(5);
+		warn.mockRestore();
+	});
+
+	it('a call the time limit ended is made once more only', async () => {
+		const warn = quiet();
+		const lost = () =>
+			Promise.reject(
+				new ProviderError('network', 'the answer did not arrive in time', { slow: true })
+			);
+		let calls = 0;
+		await expect(
+			withRetry(QUICK, () => {
+				calls++;
+				return lost();
+			})
+		).rejects.toMatchObject({ kind: 'network' });
+		expect(calls).toBe(2);
+		warn.mockRestore();
+	});
+
+	it('waits as long as Retry-After asks, up to the longest wait', async () => {
+		const warn = quiet();
+		const waits: number[] = [];
+		const timer = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((
+			fn: () => void,
+			ms: number
+		) => {
+			waits.push(ms);
+			queueMicrotask(fn);
+			return 0;
+		}) as unknown as typeof setTimeout);
+		try {
+			const policy: RetryPolicy = { ...RETRY_FOR_TEST, random: () => 0 };
+			const host = flaky(
+				status(429, 'no', { 'retry-after': '7' }),
+				status(429, 'no', { 'retry-after': '600' }),
+				status(503)
+			);
+			await completer(openrouter, host.fetcher, policy)([]);
+			// 7 s asked; 600 s asked, 30 s at most; then the doubling alone (half of 8 s, by chance 0).
+			expect(waits).toEqual([7000, 30_000, 4000]);
+		} finally {
+			timer.mockRestore();
+			warn.mockRestore();
+		}
+	});
+
+	it('stops waiting when the teacher leaves', async () => {
+		const warn = quiet();
+		const gone = new AbortController();
+		let calls = 0;
+		const failing = withRetry(
+			{ attempts: 5, baseMs: 60_000, maxDelayMs: 60_000, maxWaitMs: 600_000 },
+			async () => {
+				calls++;
+				throw new ProviderError('busy', '429');
+			},
+			{ signal: gone.signal }
+		);
+		gone.abort();
+		await expect(failing).rejects.toMatchObject({ kind: 'busy' });
+		expect(calls).toBe(1);
+		warn.mockRestore();
+	});
+
+	it('a stream only until its first text', async () => {
+		const warn = quiet();
+		const sse = (text: string) =>
+			new Response(text, { status: 200, headers: { 'content-type': 'text/event-stream' } });
+		const cut = 'data: {"choices":[{"delta":{"content":"Lekce"}}]}\n\n';
+		const done =
+			'data: {"choices":[{"delta":{"content":"Lekce"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n';
+		let calls = 0;
+		const answers = [() => status(503)(), () => sse(cut), () => sse(done)];
+		const fetcher = (async () => answers[calls++]()) as unknown as typeof fetch;
+		const pieces: string[] = [];
+		await expect(
+			streamer(openrouter, fetcher, undefined, QUICK)([], (p) => pieces.push(p))
+		).rejects.toMatchObject({ kind: 'network' });
+		// The busy host was asked again; the cut stream, which had shown text, was not.
+		expect(calls).toBe(2);
+		expect(pieces).toEqual(['Lekce']);
+		warn.mockRestore();
 	});
 });

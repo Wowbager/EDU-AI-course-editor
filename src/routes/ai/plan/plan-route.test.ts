@@ -4,7 +4,6 @@ import { addBlock, addLesson } from '$lib/domain/commands';
 import { emptyCourse } from '$lib/domain/document';
 import { planEventSchema } from '$lib/domain/lesson-writing';
 import { buildPlanRequest, type PlanRequest } from '$lib/domain/plan';
-import { FAKE_REASONING } from '$lib/server/ai/fake';
 
 const state = vi.hoisted(() => ({ env: {} as Record<string, string>, owner: 'owner' }));
 vi.mock('$env/dynamic/private', () => ({
@@ -62,10 +61,8 @@ describe('POST /ai/plan', () => {
 		expect(events[0].type).toBe('plan');
 		expect(events[0].plan.cards.map((c: { card: number }) => c.card)).toEqual([1, 2, 3, 4]);
 		expect(events[0].plan.lessons.map((l: { lesson: number }) => l.lesson)).toEqual([1, 2]);
-		expect(events[0].turn).toMatchObject({
-			role: 'assistant',
-			reasoning_details: FAKE_REASONING
-		});
+		expect(events[0].turn).toMatchObject({ role: 'assistant' });
+		expect(events[0].turn).not.toHaveProperty('reasoning_details');
 	});
 
 	it('answers 400 to a body that is not JSON or not a plan request', async () => {

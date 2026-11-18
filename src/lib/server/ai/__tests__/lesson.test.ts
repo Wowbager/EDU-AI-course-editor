@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { LessonEvent, LessonRequest } from '$lib/domain/lesson-writing';
 import type { PlanRequest } from '$lib/domain/plan';
-import { FAKE_REASONING, fakeChat } from '../fake';
+import { fakeChat } from '../fake';
 import {
 	AUTHOR_SYSTEM_PROMPT,
 	CARD_TIMEOUT_MS,
@@ -318,34 +318,13 @@ describe('lessonEvents: giving up and going on', () => {
 		expect(used).toBe(10);
 	});
 
-	it('makes a call that did not get through once more, with the same conversation and a short time limit', async () => {
-		const model = scripted(says(GOOD), new ProviderError('network', 'timeout'), says(GOOD));
-		const events = await collect(lessonEvents(request({ cards: [card(), card()] }), model));
-		expect(events.map((e) => e.type)).toEqual(['writing', 'card', 'writing', 'card', 'done']);
-		expect(model.calls).toBe(3);
-		expect(model.seen[2]).toEqual(model.seen[1]);
-		expect(model.options[1].timeoutMs).toBe(CARD_TIMEOUT_MS);
-	});
-
-	it("a lost call is not one of the card's three attempts", async () => {
-		const model = scripted(
-			says('x'),
-			new ProviderError('network', 'timeout'),
-			says('x'),
-			says(GOOD)
-		);
-		const events = await collect(lessonEvents(request(), model));
-		expect(events.map((e) => e.type)).toEqual(['writing', 'card', 'done']);
-		expect(model.calls).toBe(4);
-	});
-
-	it('gives up on the second lost call for a card, and on any other failure at once', async () => {
-		const lost = scripted(new ProviderError('network', 'timeout'));
-		await expect(collect(lessonEvents(request(), lost))).rejects.toMatchObject({ kind: 'network' });
-		expect(lost.calls).toBe(2);
-		const busy = scripted(new ProviderError('busy', '429'));
-		await expect(collect(lessonEvents(request(), busy))).rejects.toMatchObject({ kind: 'busy' });
-		expect(busy.calls).toBe(1);
+	it('leaves calling again to the chat: a failure that reaches it ends the lesson', async () => {
+		for (const kind of ['network', 'busy'] as const) {
+			const model = scripted(new ProviderError(kind, 'down'));
+			await expect(collect(lessonEvents(request(), model))).rejects.toMatchObject({ kind });
+			expect(model.calls).toBe(1);
+			expect(model.options[0].timeoutMs).toBe(CARD_TIMEOUT_MS);
+		}
 	});
 
 	it('does not call again once the teacher has left', async () => {
@@ -579,14 +558,14 @@ describe('makePlan', () => {
 });
 
 describe('the fake provider', () => {
-	it('plans in a shape makePlan accepts, with its reasoning', async () => {
+	it('plans in a shape makePlan accepts', async () => {
 		const event = await makePlan(planRequest(), fakeChat);
 		expect(event.type).toBe('plan');
 		if (event.type !== 'plan') return;
 		expect(event.plan.cards.map((c) => c.card)).toEqual([1, 2, 3]);
 		// A brief the teacher gave is kept.
 		expect(event.plan.cards[1].brief).toBe('Procvičit.');
-		expect(event.turn.reasoning_details).toEqual(FAKE_REASONING);
+		expect(event.turn.tool_calls?.[0].function.name).toBe('save_plan');
 	});
 
 	it('answers every kind of card in a shape lessonEvents accepts, keeping given steps', async () => {
