@@ -16,7 +16,7 @@
 	 * It edits the panel's draft through `aiPanel`, each edit one undo step, and nothing
 	 * else: no row here is in the course until „Vytvořit vybrané“.
 	 */
-	import { tick, untrack } from 'svelte';
+	import { flushSync, tick, untrack } from 'svelte';
 	import { ChevronRight, GripVertical, X } from '@lucide/svelte';
 	import {
 		addDraftCard,
@@ -392,8 +392,27 @@
 	let root = $state<HTMLElement | null>(null);
 	let lessonsEl = $state<HTMLElement | null>(null);
 
+	/**
+	 * A press on a handle keeps the focus where it was (`startReorder` cancels it), so a
+	 * name still being typed would only be committed by the blur that moving its row in
+	 * the page causes, in the middle of Svelte drawing the move, and the row would show
+	 * no name until the next change. It is committed here, before anything moves, and
+	 * drawn before the rows are measured.
+	 */
+	function commitTyping(event: PointerEvent) {
+		if (event.button !== 0 || editing === null) return;
+		const key = editing.key;
+		commit(
+			key,
+			now().lessons.some((l) => l.key === key),
+			event.target
+		);
+		flushSync();
+	}
+
 	function pressLesson(event: PointerEvent, from: number) {
 		if (lessonsEl === null) return;
+		commitTyping(event);
 		const rows = [...lessonsEl.children].filter((c): c is HTMLElement => c instanceof HTMLElement);
 		startReorder(
 			event,
@@ -406,6 +425,7 @@
 
 	function pressCard(event: PointerEvent, key: string) {
 		if (root === null) return;
+		commitTyping(event);
 		const els = [...root.querySelectorAll<HTMLElement>('[data-flat]')];
 		const rows = shown.map(({ lesson, card, folded }): FlatRow => ({ lesson, card, folded }));
 		const from = flatIndex.get(key);
