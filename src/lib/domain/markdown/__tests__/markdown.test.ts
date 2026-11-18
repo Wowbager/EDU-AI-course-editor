@@ -299,6 +299,9 @@ describe('plainLineStarts: a date or a number the AI writes at the start of a li
 		'- jedna\n- dvě',
 		'- jedna',
 		'Postup:\n\n1. a\n2. b',
+		'1. Vyděl dvěma.\n   pokračování\n2. Zkontroluj.',
+		'1. a\n   - x\n2. b',
+		'```\n- x\n14. 5.\n```',
 		'15.–31. 1. 2027',
 		'> citát',
 		'x = 5'
@@ -306,4 +309,14 @@ describe('plainLineStarts: a date or a number the AI writes at the start of a li
 		expect(plainLineStarts(text, SNIFFED)).toBe(text);
 		expect(plainLineStarts(text, ALWAYS_MARKDOWN)).toBe(text);
 	});
+});
+
+describe('an answer option the AI writes with a comparison or an ampersand', () => {
+	it.each(['x < 5', 'A & B', '5 < x < 10', 'Tom & Jerry'])(
+		'opens %j in the visual editor',
+		(text) => {
+			expect(plainLineStarts(text, INLINE)).toBe(text);
+			expect(canEditVisually(text, INLINE)).toBe(true);
+		}
+	);
 });

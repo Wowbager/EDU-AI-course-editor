@@ -93,14 +93,24 @@ const LIST_LINE = /^([ \t]{0,3})(\\*)(\d{1,9}[.)]|[-+*])([ \t])/;
  */
 export function plainLineStarts(text: string, dialect: MarkdownDialect): string {
 	const lines = text.split('\n');
-	const found = lines.map((line) => LIST_LINE.exec(line));
+	// A line of a code fence is code; an indented one goes on the item above it (its next
+	// line, or an item of a list inside it). Neither is an item of its own.
+	let fenced = false;
+	const found = lines.map((line) => {
+		if (/^[ \t]{0,3}(```|~~~)/.test(line)) {
+			fenced = !fenced;
+			return null;
+		}
+		return fenced || /^( {2}|\t)/.test(line) ? null : LIST_LINE.exec(line);
+	});
 	const kind = (m: RegExpExecArray) => (/\d/.test(m[3]) ? 'ordered' : 'bullet');
-	// The items of one list: marker lines of a kind, with nothing but blank lines between.
+	// The items of one list: marker lines of a kind, with nothing but blank or indented
+	// lines between.
 	const runs: number[][] = [];
 	let run: number[] = [];
 	found.forEach((m, i) => {
 		if (m === null) {
-			if (lines[i].trim() !== '') run = [];
+			if (lines[i].trim() !== '' && !/^( {2}|\t)/.test(lines[i])) run = [];
 			return;
 		}
 		const previous = run.length > 0 ? found[run[run.length - 1]] : null;
