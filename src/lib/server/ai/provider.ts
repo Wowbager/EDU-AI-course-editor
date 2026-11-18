@@ -185,8 +185,9 @@ const TIMEOUT_MS = 150_000;
 /** What a request costs at most, $ per million tokens: rules out the one host priced 10 times higher. */
 export const MAX_PRICE = { prompt: 0.5, completion: 2 } as const;
 
-/** `max_tokens`: what OpenRouter reserves the call's price at while it runs. */
-const outputCap = (config: AiConfig) => ({ max_tokens: config.maxOutputTokens });
+/** `max_tokens`, what OpenRouter reserves the call's price at while it runs; none when unset. */
+const outputCap = (config: AiConfig) =>
+	config.maxOutputTokens !== null ? { max_tokens: config.maxOutputTokens } : {};
 
 /** The request every call makes: the endpoint, the key, OpenRouter's attribution. */
 function post(

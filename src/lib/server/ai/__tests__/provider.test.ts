@@ -76,12 +76,18 @@ describe('buildBody', () => {
 		expect(buildBody(deepseek, []).provider).toBe(undefined);
 	});
 
-	it('bounds what one text call may write, at 32000 unless the operator says otherwise', () => {
-		for (const config of [openrouter, deepseek]) {
-			expect(buildBody(config, []).max_tokens).toBe(32_000);
-			expect(buildBody(config, [], { stream: true }).max_tokens).toBe(32_000);
-			expect(buildChatBody(config, [], { tool: 'write_card' }).max_tokens).toBe(32_000);
-		}
+	it('bounds what one text call may write: 32000 on OpenRouter, elsewhere only when set', () => {
+		expect(buildBody(openrouter, []).max_tokens).toBe(32_000);
+		expect(buildBody(openrouter, [], { stream: true }).max_tokens).toBe(32_000);
+		expect(buildChatBody(openrouter, [], { tool: 'write_card' }).max_tokens).toBe(32_000);
+		expect(buildBody(deepseek, [])).not.toHaveProperty('max_tokens');
+		expect(buildChatBody(deepseek, [], { tool: 'write_card' })).not.toHaveProperty('max_tokens');
+		const capped = readAiConfig({
+			AI_PROVIDER: 'deepseek',
+			AI_API_KEY: 'k',
+			AI_MAX_OUTPUT_TOKENS: '8000'
+		});
+		expect(buildChatBody(capped, [], { tool: 'write_card' }).max_tokens).toBe(8000);
 		expect(readAiConfig({ AI_MAX_OUTPUT_TOKENS: '8000' }).maxOutputTokens).toBe(8000);
 		expect(readAiConfig({ AI_MAX_OUTPUT_TOKENS: '' }).maxOutputTokens).toBe(32_000);
 	});

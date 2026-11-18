@@ -202,7 +202,7 @@ key never reaches the browser.
 | `AI_DAILY_TOKEN_BUDGET`, `AI_MAX_REQUESTS_PER_MINUTE` | Limits per workspace, kept in memory (default 300 requests a minute, only a stop for a runaway loop). The budget (default 20 000 000 a day) counts the prompt tokens the provider served from its cache at a tenth, because the course text is sent with every card and is cached after the first one. |
 | `AI_DAILY_TOKEN_BUDGET_PER_IP`, `AI_MAX_REQUESTS_PER_MINUTE_PER_IP` | The same per client address (default 60 000 000 and 900): a workspace key is made up by the browser, so this is what stops one machine. A school shares one address. |
 | `AI_DAILY_TOKEN_BUDGET_TOTAL`, `AI_MAX_REQUESTS_PER_MINUTE_TOTAL` | The same for the whole server (default 200 000 000 and 3000): the ceiling on a day's bill. Set a credit limit on the provider's key as well. |
-| `AI_MAX_OUTPUT_TOKENS` | `max_tokens` of every text call, thinking included; 32000 by default. OpenRouter reserves each running call's price at this many tokens, so a higher value lets fewer lessons run at once. |
+| `AI_MAX_OUTPUT_TOKENS` | `max_tokens` of every text call, thinking included. Unset: 32000 on OpenRouter, none elsewhere (a host whose own limit is lower would refuse every call). OpenRouter reserves each running call's price at this many tokens, so a higher value lets fewer lessons run at once. |
 
 ```bash
 AI_API_KEY=… npm run dev

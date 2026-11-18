@@ -10,7 +10,7 @@
  *   AI_DAILY_TOKEN_BUDGET, AI_MAX_REQUESTS_PER_MINUTE   per-workspace limits
  *   AI_DAILY_TOKEN_BUDGET_PER_IP, AI_MAX_REQUESTS_PER_MINUTE_PER_IP   per client address
  *   AI_DAILY_TOKEN_BUDGET_TOTAL, AI_MAX_REQUESTS_PER_MINUTE_TOTAL   for the whole server
- *   AI_MAX_OUTPUT_TOKENS   `max_tokens` of a text call; 32000 when unset
+ *   AI_MAX_OUTPUT_TOKENS   `max_tokens` of a text call; unset, 32000 on OpenRouter, else none
  *
  * `fake` needs no key and calls nobody: it answers from the request alone, the same
  * way every time. It is what the end-to-end suite runs against.
@@ -35,9 +35,10 @@ export type AiConfig = {
 	/**
 	 * What one text call may write, thinking included. OpenRouter reserves a call's price
 	 * at this many tokens while it runs, so without it a course of many lessons exhausts
-	 * the in-flight budget; the largest call writes about 6000.
+	 * the in-flight budget; the largest call writes about 6000. Elsewhere `null` sends none
+	 * unless the operator sets it: a host whose own limit is lower would refuse every call.
 	 */
-	maxOutputTokens: number;
+	maxOutputTokens: number | null;
 	/** What is wrong with the settings, if anything. For the operator's log. */
 	problem: string | null;
 };
@@ -101,7 +102,9 @@ export function readAiConfig(env: Env): AiConfig {
 			env.AI_MAX_REQUESTS_PER_MINUTE_PER_IP,
 			DEFAULT_MAX_REQUESTS_PER_MINUTE_PER_IP
 		),
-		maxOutputTokens: positiveInt(env.AI_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS),
+		maxOutputTokens:
+			positiveInt(env.AI_MAX_OUTPUT_TOKENS, 0) ||
+			(provider === 'openrouter' ? DEFAULT_MAX_OUTPUT_TOKENS : null),
 		dailyTokenBudgetTotal: positiveInt(
 			env.AI_DAILY_TOKEN_BUDGET_TOTAL,
 			DEFAULT_DAILY_TOKEN_BUDGET_TOTAL

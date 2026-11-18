@@ -3337,7 +3337,8 @@ row has no name and says so once, under the button. Rejected: creating such rows
 
 OpenRouter reserves each running call's price at its `max_tokens` (402
 `in_flight_budget_exhausted`); with none sent and every lesson at once, a large course
-ran out. **`max_tokens` is 32000 by default** (the largest call writes about 6000),
+ran out. **`max_tokens` is 32000 by default on OpenRouter** (the largest call writes about
+6000; other hosts still get none unless `AI_MAX_OUTPUT_TOKENS` is set),
 **six lessons at most run at once over HTTP/2** (supersedes "Every lesson at once"), and
 **every provider call is made again** after a busy host (429, 503, 529, that 402), a
 call that did not get through or a host's 500/502/504: up to 5 calls, waits doubling
