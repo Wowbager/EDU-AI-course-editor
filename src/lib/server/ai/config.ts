@@ -10,7 +10,7 @@
  *   AI_DAILY_TOKEN_BUDGET, AI_MAX_REQUESTS_PER_MINUTE   per-workspace limits
  *   AI_DAILY_TOKEN_BUDGET_PER_IP, AI_MAX_REQUESTS_PER_MINUTE_PER_IP   per client address
  *   AI_DAILY_TOKEN_BUDGET_TOTAL, AI_MAX_REQUESTS_PER_MINUTE_TOTAL   for the whole server
- *   AI_MAX_OUTPUT_TOKENS   `max_tokens` of a text call; unset, the host's own limit
+ *   AI_MAX_OUTPUT_TOKENS   `max_tokens` of a text call; 32000 when unset
  *
  * `fake` needs no key and calls nobody: it answers from the request alone, the same
  * way every time. It is what the end-to-end suite runs against.
@@ -33,10 +33,11 @@ export type AiConfig = {
 	dailyTokenBudgetTotal: number;
 	maxRequestsPerMinuteTotal: number;
 	/**
-	 * What one text call may write, thinking included; `null` sends none. Not set by
-	 * default: a host whose own limit is lower would refuse every call.
+	 * What one text call may write, thinking included. OpenRouter reserves a call's price
+	 * at this many tokens while it runs, so without it a course of many lessons exhausts
+	 * the in-flight budget; the largest call writes about 6000.
 	 */
-	maxOutputTokens: number | null;
+	maxOutputTokens: number;
 	/** What is wrong with the settings, if anything. For the operator's log. */
 	problem: string | null;
 };
@@ -57,6 +58,7 @@ const EFFORTS: readonly string[] = ['none', 'minimal', 'low', 'medium', 'high', 
 
 export const DEFAULT_DAILY_TOKEN_BUDGET = 20_000_000;
 export const DEFAULT_MAX_REQUESTS_PER_MINUTE = 300;
+export const DEFAULT_MAX_OUTPUT_TOKENS = 32_000;
 /** A school is one address: several teachers' worth. */
 export const DEFAULT_DAILY_TOKEN_BUDGET_PER_IP = 60_000_000;
 export const DEFAULT_MAX_REQUESTS_PER_MINUTE_PER_IP = 900;
@@ -99,7 +101,7 @@ export function readAiConfig(env: Env): AiConfig {
 			env.AI_MAX_REQUESTS_PER_MINUTE_PER_IP,
 			DEFAULT_MAX_REQUESTS_PER_MINUTE_PER_IP
 		),
-		maxOutputTokens: positiveInt(env.AI_MAX_OUTPUT_TOKENS, 0) || null,
+		maxOutputTokens: positiveInt(env.AI_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS),
 		dailyTokenBudgetTotal: positiveInt(
 			env.AI_DAILY_TOKEN_BUDGET_TOTAL,
 			DEFAULT_DAILY_TOKEN_BUDGET_TOTAL

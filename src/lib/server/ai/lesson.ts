@@ -4,8 +4,8 @@
  *
  * The plan is one turn at high effort that decides, in writing, the course's terms,
  * notation, address and running examples and each card's purpose (`plan.ts`). A lesson's
- * conversation starts from that turn, its reasoning included, when the browser hands it
- * back; else from the dossier, where the plan's decisions are kept.
+ * conversation starts from that turn when the browser hands it back; else from the
+ * dossier, where the plan's decisions are kept.
  *
  * A card arrives through the `write_card` tool, and the tool's result is the check: "ok",
  * or why the card cannot be used (`cardProblem`, `questionIsSound`), after which the model
@@ -14,8 +14,7 @@
  * come back as `keep`, and `fillCard` checks again at write time.
  *
  * Every request defines both tools and has the same system prompt, so its opening is the
- * same for the plan and for every lesson: for the provider's prefix cache, and because a
- * host keeps the model's earlier reasoning only in a request with tools. With a plan the
+ * same for the plan and for every lesson, for the provider's prefix cache. With a plan the
  * opening (system prompt, materials, course dossier, the plan request and its answer) is
  * the same for every lesson of the course.
  */
@@ -34,7 +33,6 @@ import type { LimitVerdict } from './limits';
 import { parseJson } from './json';
 import {
 	PLAN_TIMEOUT_MS,
-	ProviderError,
 	withPictures,
 	type AssistantTurn,
 	type Chat,
@@ -338,31 +336,19 @@ export async function* lessonEvents(
 		});
 		let reason = '';
 		let written: GeneratedCard | undefined;
-		// A call that did not get through (the host hung, the connection broke) is made once
-		// more for the card, with the conversation as it was; it is not one of the attempts.
-		let again = true;
+		// A call that did not get through or found the host busy is made again by `chat`
+		// itself; what reaches here is final.
 		for (let attempt = 0; attempt < ATTEMPTS && written === undefined; attempt++) {
 			const verdict = (options.gate ?? open)();
 			if (!verdict.ok) {
 				yield { type: 'stopped', reason: verdict.reason, retryAfter: verdict.retryAfterSeconds };
 				return;
 			}
-			let answered: Awaited<ReturnType<Chat>>;
-			try {
-				answered = await chat(messages, {
-					tool: 'write_card',
-					timeoutMs: CARD_TIMEOUT_MS,
-					signal: options.signal
-				});
-			} catch (e) {
-				const lost = e instanceof ProviderError && e.kind === 'network';
-				if (!lost || !again || options.signal?.aborted === true) throw e;
-				again = false;
-				console.error('[ai] card call lost, calling once more:', e.message);
-				attempt--;
-				continue;
-			}
-			const { turn, tokens } = answered;
+			const { turn, tokens } = await chat(messages, {
+				tool: 'write_card',
+				timeoutMs: CARD_TIMEOUT_MS,
+				signal: options.signal
+			});
 			options.spent?.(tokens);
 			const result = cardVerdict(request, index, turn);
 			messages.push(turn, ...reply(turn, 'write_card', 'use' in result ? 'ok' : result.say));

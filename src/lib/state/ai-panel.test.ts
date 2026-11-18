@@ -16,7 +16,7 @@ import {
 	toOutline,
 	type Outline
 } from '$lib/domain/outline';
-import { fakeChat, fakeOutline, FAKE_REASONING } from '$lib/server/ai/fake';
+import { fakeChat, fakeOutline } from '$lib/server/ai/fake';
 import { lessonEvents, makePlan } from '$lib/server/ai/lesson';
 import { loadSnapshot, useSnapshotBackend, type SnapshotBackend } from './write-snapshot-store';
 import type { WriteSnapshot } from '$lib/domain/write-snapshot';
@@ -265,7 +265,6 @@ describe('planning before writing, and a lesson per request', () => {
 		expect(lessons).toHaveLength(2);
 		for (const { body } of lessons) {
 			expect(body.plan.request).toEqual(only(seen, '/ai/plan')[0].body);
-			expect(body.plan.turn.reasoning_details).toEqual(FAKE_REASONING);
 			expect(body.plan.turn.role).toBe('assistant');
 			expect(body.plan.turn.tool_calls[0].function.name).toBe('save_plan');
 			// Each card knows its number in the plan.

@@ -3333,6 +3333,21 @@ Escape on a new empty row still end it. „Vytvořit vybrané“ creates nothing
 row has no name and says so once, under the button. Rejected: creating such rows as
 „Karta 3“ or unnamed cards, since the card's name is what the AI writes it from.
 
+## Round 40 — a large course no longer runs out of OpenRouter's in-flight budget
+
+OpenRouter reserves each running call's price at its `max_tokens` (402
+`in_flight_budget_exhausted`); with none sent and every lesson at once, a large course
+ran out. **`max_tokens` is 32000 by default** (the largest call writes about 6000),
+**six lessons at most run at once over HTTP/2** (supersedes "Every lesson at once"), and
+**every provider call is made again** after a busy host (429, 503, 529, that 402), a
+call that did not get through or a host's 500/502/504: up to 5 calls, waits doubling
+from 2 s with jitter, `Retry-After` honoured, 90 s of waiting at most; a timed-out call
+once only; a stream only before its first text. Each retry is logged, the teacher sees
+only the last failure. **The model's reasoning is no longer sent back** with its turns
+(smaller requests; the plan writes its decisions out), except DeepSeek's own API's
+`reasoning_content`. Rejected: retrying in the browser (the server already holds the
+conversation and the heartbeat keeps the stream open while it waits).
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today

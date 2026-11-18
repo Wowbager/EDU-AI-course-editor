@@ -9,8 +9,8 @@
  * (`buildLessonRequest`'s `ids`).
  *
  * The plan (`plan.ts`) may come along: its request and the model's answer, as they were,
- * so the conversation starts with the plan's own reasoning (the server keeps nothing
- * between requests). Without it, the dossier and the briefs carry what the plan decided.
+ * so the conversation starts with the plan itself (the server keeps nothing between
+ * requests). Without it, the dossier and the briefs carry what the plan decided.
  */
 import { z } from 'zod';
 import type { CourseV2 } from './schema';
@@ -30,7 +30,10 @@ import {
 import { planRequestSchema, planSchema, type PlanRequest, type PlanTargets } from './plan';
 import { MAX_CARDS, MAX_SOURCES } from './outline';
 
-/** The model's turn as the host returned it, reasoning included, to be sent back unchanged. */
+/**
+ * The model's turn, to be sent back. The reasoning fields are only in turns made before
+ * the server stopped keeping them; they are accepted and not sent on.
+ */
 export const assistantTurnSchema = z.object({
 	role: z.literal('assistant'),
 	content: z.string(),
@@ -49,7 +52,7 @@ export const assistantTurnSchema = z.object({
 });
 export type AssistantTurnData = z.infer<typeof assistantTurnSchema>;
 
-/** The plan's answer with its reasoning, at most this long as JSON. */
+/** The plan's answer, at most this long as JSON. */
 export const MAX_TURN_CHARS = 400_000;
 
 /**

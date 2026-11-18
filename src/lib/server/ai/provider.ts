@@ -95,10 +95,87 @@ export type Stream = (
 export class ProviderError extends Error {
 	constructor(
 		readonly kind: 'auth' | 'busy' | 'network' | 'failed',
-		detail: string
+		detail: string,
+		/**
+		 * Whether the same call may succeed if made again: a busy host, a call that did not
+		 * get through, a host's own error (500, 502, 504). `slow` when the time limit ended
+		 * it, which is worth one more try, not several.
+		 */
+		readonly again: { slow?: boolean; afterMs?: number } | false = kind === 'busy' ||
+		kind === 'network'
+			? {}
+			: false
 	) {
 		super(detail);
 		this.name = 'ProviderError';
+	}
+}
+
+/**
+ * How a call is made again after a failure that may pass: waits that double from `baseMs`
+ * up to `maxDelayMs` (or what the host's `Retry-After` asks, up to the same), half of each
+ * left to chance so that parallel lessons do not come back together; `attempts` calls at
+ * most, and no more once `maxWaitMs` would be spent waiting. The teacher sees only the
+ * last failure.
+ */
+export type RetryPolicy = {
+	attempts: number;
+	baseMs: number;
+	maxDelayMs: number;
+	maxWaitMs: number;
+	random?: () => number;
+};
+export const RETRY: RetryPolicy = {
+	attempts: 5,
+	baseMs: 2000,
+	maxDelayMs: 30_000,
+	maxWaitMs: 90_000
+};
+
+function pause(ms: number, signal?: AbortSignal): Promise<boolean> {
+	return new Promise((resolve) => {
+		if (signal?.aborted === true) return resolve(false);
+		const done = () => {
+			clearTimeout(timer);
+			signal?.removeEventListener('abort', done);
+			resolve(signal?.aborted !== true);
+		};
+		const timer = setTimeout(done, ms);
+		signal?.addEventListener('abort', done, { once: true });
+	});
+}
+
+/**
+ * `call`, made again while it fails in a way that may pass and `may()` still allows it
+ * (a stream that has shown text may not). What fails for good is thrown at once.
+ */
+export async function withRetry<T>(
+	policy: RetryPolicy,
+	call: () => Promise<T>,
+	options: { signal?: AbortSignal; may?: () => boolean } = {}
+): Promise<T> {
+	let waited = 0;
+	let slow = 0;
+	for (let attempt = 1; ; attempt++) {
+		try {
+			return await call();
+		} catch (e) {
+			if (!(e instanceof ProviderError) || e.again === false) throw e;
+			if (attempt >= policy.attempts || options.may?.() === false) throw e;
+			if (options.signal?.aborted === true) throw e;
+			if (e.again.slow === true && ++slow > 1) throw e;
+			const ceiling = Math.min(policy.maxDelayMs, policy.baseMs * 2 ** (attempt - 1));
+			const jittered = ceiling / 2 + ((policy.random ?? Math.random)() * ceiling) / 2;
+			const wait = Math.round(
+				Math.max(jittered, Math.min(e.again.afterMs ?? 0, policy.maxDelayMs))
+			);
+			if (waited + wait > policy.maxWaitMs) throw e;
+			console.warn(
+				`[ai] call failed (${e.kind}: ${e.message.slice(0, 120)}), attempt ${attempt + 1}/${policy.attempts} in ${wait} ms`
+			);
+			if (!(await pause(wait, options.signal))) throw e;
+			waited += wait;
+		}
 	}
 }
 
@@ -108,9 +185,65 @@ const TIMEOUT_MS = 150_000;
 /** What a request costs at most, $ per million tokens: rules out the one host priced 10 times higher. */
 export const MAX_PRICE = { prompt: 0.5, completion: 2 } as const;
 
-/** `max_tokens` when the operator set one (`AI_MAX_OUTPUT_TOKENS`); else the host's own. */
-const outputCap = (config: AiConfig) =>
-	config.maxOutputTokens !== null ? { max_tokens: config.maxOutputTokens } : {};
+/** `max_tokens`: what OpenRouter reserves the call's price at while it runs. */
+const outputCap = (config: AiConfig) => ({ max_tokens: config.maxOutputTokens });
+
+/** The request every call makes: the endpoint, the key, OpenRouter's attribution. */
+function post(
+	config: AiConfig,
+	fetcher: typeof fetch,
+	body: Record<string, unknown>,
+	signal: AbortSignal
+): Promise<Response> {
+	return fetcher(`${config.baseURL}/chat/completions`, {
+		method: 'POST',
+		headers: {
+			'content-type': 'application/json',
+			authorization: `Bearer ${config.apiKey}`,
+			// ASCII only: a header with a Czech letter fails the request.
+			...(config.provider === 'openrouter'
+				? { 'HTTP-Referer': 'https://edu-ai.eu', 'X-Title': 'EDU-AI course editor' }
+				: {})
+		},
+		body: JSON.stringify(body),
+		signal
+	}).catch((e: unknown) => {
+		throw new ProviderError('network', e instanceof Error ? e.message : String(e), {
+			slow: signal.aborted
+		});
+	});
+}
+
+/** A `Retry-After` in seconds, as milliseconds. */
+function retryAfterOf(response: Response): number | undefined {
+	const seconds = Number(response.headers.get('retry-after'));
+	return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : undefined;
+}
+
+/**
+ * The error an answer that is not `ok` stands for. OpenRouter answers 402 both when the
+ * credit is spent (`auth`) and when the calls running at once have reserved all of it
+ * (`in_flight_budget`): the latter passes as they finish, so it is `busy`.
+ */
+async function failureOf(response: Response, timeout: AbortSignal): Promise<ProviderError> {
+	const text = await response.text().catch(() => '');
+	const detail = `${response.status} ${text.slice(0, 300)}`;
+	const afterMs = retryAfterOf(response);
+	if (
+		response.status === 402 &&
+		text.includes('in_flight_budget') &&
+		!text.includes('weight_exceeds')
+	)
+		return new ProviderError('busy', detail, { afterMs });
+	if ([401, 402, 403].includes(response.status)) return new ProviderError('auth', detail);
+	if ([429, 503, 529].includes(response.status))
+		return new ProviderError('busy', detail, { afterMs });
+	// Any other error whose body the time limit cut is a call that did not get through.
+	if (timeout.aborted) return new ProviderError('network', `${detail} (timed out)`, { slow: true });
+	if ([500, 502, 504].includes(response.status))
+		return new ProviderError('failed', detail, { afterMs });
+	return new ProviderError('failed', detail);
+}
 
 export function buildBody(
 	config: AiConfig,
@@ -152,10 +285,10 @@ export type ToolCall = {
 };
 
 /**
- * What the model said in one turn, kept to be sent back as it came: its reasoning goes
- * with it, in whichever field the host used (`reasoning_details` exactly as returned).
- * A host keeps earlier reasoning only when the request defines tools; every request
- * here does.
+ * What the model said in one turn, sent back with the next: its text and tool calls. Its
+ * reasoning is not kept (a plan writes its decisions out), except DeepSeek's own API's
+ * `reasoning_content`, which that API wants back after a tool's result. The other fields
+ * remain only in turns a browser held from before.
  */
 export type AssistantTurn = {
 	role: 'assistant';
@@ -247,7 +380,7 @@ export function buildChatBody(
 	const effort = options.effort ?? config.reasoningEffort;
 	const body: Record<string, unknown> = {
 		model: config.model,
-		messages,
+		messages: messages.map((m) => (m.role === 'assistant' ? sentTurn(m, config.provider) : m)),
 		tools: TOOLS,
 		...outputCap(config)
 	};
@@ -263,6 +396,16 @@ export function buildChatBody(
 	return body;
 }
 
+/** A turn as it goes back to the host: without its reasoning (see `AssistantTurn`). */
+function sentTurn(turn: ChatMessage, provider: AiConfig['provider']): ChatMessage {
+	const { reasoning_details, reasoning_content, reasoning, ...rest } = turn as AssistantTurn;
+	void reasoning_details;
+	void reasoning;
+	return provider === 'deepseek' && reasoning_content !== undefined
+		? { ...rest, reasoning_content }
+		: rest;
+}
+
 type HostMessage = {
 	content?: unknown;
 	tool_calls?: unknown;
@@ -271,8 +414,8 @@ type HostMessage = {
 	reasoning?: unknown;
 };
 
-/** The answer as it will be sent back: one reasoning field, the one the host filled. */
-export function turnOf(message: HostMessage): AssistantTurn {
+/** The answer as it will be sent back (see `AssistantTurn`). */
+export function turnOf(message: HostMessage, provider?: AiConfig['provider']): AssistantTurn {
 	const turn: AssistantTurn = {
 		role: 'assistant',
 		content: typeof message.content === 'string' ? message.content : ''
@@ -295,103 +438,83 @@ export function turnOf(message: HostMessage): AssistantTurn {
 		});
 		if (calls.length > 0) turn.tool_calls = calls;
 	}
-	if (Array.isArray(message.reasoning_details) && message.reasoning_details.length > 0)
-		turn.reasoning_details = message.reasoning_details;
-	else if (typeof message.reasoning_content === 'string' && message.reasoning_content !== '')
+	if (
+		provider === 'deepseek' &&
+		typeof message.reasoning_content === 'string' &&
+		message.reasoning_content !== ''
+	)
 		turn.reasoning_content = message.reasoning_content;
-	else if (typeof message.reasoning === 'string' && message.reasoning !== '')
-		turn.reasoning = message.reasoning;
 	return turn;
 }
 
 export function chatter(
 	config: AiConfig,
 	fetcher: typeof fetch = fetch,
-	pictures: PictureLoader = noPictures
+	pictures: PictureLoader = noPictures,
+	retry: RetryPolicy = RETRY
 ): Chat {
 	if (config.provider === 'fake') return fakeChat;
 	return async (asked, options) => {
 		const messages = await hostMessages(asked, pictures);
-		const timeout = AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS);
-		let response: Response;
-		try {
-			response = await fetcher(`${config.baseURL}/chat/completions`, {
-				method: 'POST',
-				headers: {
-					'content-type': 'application/json',
-					authorization: `Bearer ${config.apiKey}`,
-					...(config.provider === 'openrouter'
-						? { 'HTTP-Referer': 'https://edu-ai.eu', 'X-Title': 'EDU-AI course editor' }
-						: {})
-				},
-				body: JSON.stringify(buildChatBody(config, messages, options)),
-				signal: options.signal === undefined ? timeout : AbortSignal.any([options.signal, timeout])
-			});
-		} catch (e) {
-			throw new ProviderError('network', e instanceof Error ? e.message : String(e));
-		}
-		if (!response.ok) {
-			const detail = `${response.status} ${(await response.text().catch(() => '')).slice(0, 300)}`;
-			if ([401, 402, 403].includes(response.status)) throw new ProviderError('auth', detail);
-			if ([429, 503, 529].includes(response.status)) throw new ProviderError('busy', detail);
-			// Any other error whose body the time limit cut is a call that did not get through.
-			if (timeout.aborted) throw new ProviderError('network', `${detail} (timed out)`);
-			throw new ProviderError('failed', detail);
-		}
-		// A host can send the headers at once and the answer never: the time limit then ends
-		// the reading of the body, which is a call that did not get through, not a bad answer.
-		const data = (await response.json().catch(() => {
-			if (timeout.aborted || options.signal?.aborted === true)
-				throw new ProviderError('network', 'the answer did not arrive in time');
-			return null;
-		})) as {
-			choices?: { message?: HostMessage }[];
-			usage?: Usage;
-			error?: unknown;
-		} | null;
-		const message = data?.choices?.[0]?.message;
-		if (message === undefined) throw new ProviderError('failed', 'no message');
-		return { turn: turnOf(message), tokens: weightedTokens(data?.usage) };
+		const body = buildChatBody(config, messages, options);
+		return withRetry(
+			retry,
+			async () => {
+				const timeout = AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS);
+				const response = await post(
+					config,
+					fetcher,
+					body,
+					options.signal === undefined ? timeout : AbortSignal.any([options.signal, timeout])
+				);
+				if (!response.ok) throw await failureOf(response, timeout);
+				// A host can send the headers at once and the answer never: the time limit then
+				// ends the reading of the body, which is a call that did not get through, not a
+				// bad answer.
+				const data = (await response.json().catch(() => {
+					if (timeout.aborted || options.signal?.aborted === true)
+						throw new ProviderError('network', 'the answer did not arrive in time', {
+							slow: true
+						});
+					return null;
+				})) as {
+					choices?: { message?: HostMessage }[];
+					usage?: Usage;
+					error?: unknown;
+				} | null;
+				const message = data?.choices?.[0]?.message;
+				if (message === undefined) throw new ProviderError('failed', 'no message');
+				return { turn: turnOf(message, config.provider), tokens: weightedTokens(data?.usage) };
+			},
+			{ signal: options.signal }
+		);
 	};
 }
 
-export function completer(config: AiConfig, fetcher: typeof fetch = fetch): Complete {
+/** A call answered whole, its text in `message.content`. */
+async function wholeAnswer(response: Response): Promise<Completion> {
+	const data = (await response.json().catch(() => null)) as {
+		choices?: { message?: { content?: unknown } }[];
+		usage?: Usage;
+	} | null;
+	const content = data?.choices?.[0]?.message?.content;
+	if (typeof content !== 'string') throw new ProviderError('failed', 'no message content');
+	return { text: content, tokens: weightedTokens(data?.usage) };
+}
+
+export function completer(
+	config: AiConfig,
+	fetcher: typeof fetch = fetch,
+	retry: RetryPolicy = RETRY
+): Complete {
 	if (config.provider === 'fake') return fakeComplete;
-	return async (messages) => {
-		let response: Response;
-		try {
-			response = await fetcher(`${config.baseURL}/chat/completions`, {
-				method: 'POST',
-				headers: {
-					'content-type': 'application/json',
-					authorization: `Bearer ${config.apiKey}`,
-					// ASCII only: a header with a Czech letter fails the request.
-					...(config.provider === 'openrouter'
-						? { 'HTTP-Referer': 'https://edu-ai.eu', 'X-Title': 'EDU-AI course editor' }
-						: {})
-				},
-				body: JSON.stringify(buildBody(config, messages)),
-				signal: AbortSignal.timeout(TIMEOUT_MS)
-			});
-		} catch (e) {
-			throw new ProviderError('network', e instanceof Error ? e.message : String(e));
-		}
-		if (!response.ok) {
-			const detail = `${response.status} ${(await response.text().catch(() => '')).slice(0, 300)}`;
-			if (response.status === 401 || response.status === 403 || response.status === 402)
-				throw new ProviderError('auth', detail);
-			if (response.status === 429 || response.status === 503 || response.status === 529)
-				throw new ProviderError('busy', detail);
-			throw new ProviderError('failed', detail);
-		}
-		const data = (await response.json().catch(() => null)) as {
-			choices?: { message?: { content?: unknown } }[];
-			usage?: Usage;
-		} | null;
-		const content = data?.choices?.[0]?.message?.content;
-		if (typeof content !== 'string') throw new ProviderError('failed', 'no message content');
-		return { text: content, tokens: weightedTokens(data?.usage) };
-	};
+	return (messages) =>
+		withRetry(retry, async () => {
+			const timeout = AbortSignal.timeout(TIMEOUT_MS);
+			const response = await post(config, fetcher, buildBody(config, messages), timeout);
+			if (!response.ok) throw await failureOf(response, timeout);
+			return wholeAnswer(response);
+		});
 }
 
 /** Pieces of text out of an OpenAI-style event stream, and the usage it ends with. */
@@ -450,51 +573,50 @@ export function sseReader(onText: (piece: string) => void): {
 export function streamer(
 	config: AiConfig,
 	fetcher: typeof fetch = fetch,
-	pictures: PictureLoader = noPictures
+	pictures: PictureLoader = noPictures,
+	retry: RetryPolicy = RETRY
 ): Stream {
 	if (config.provider === 'fake') return fakeStream;
 	return async (asked, onText, signal) => {
 		const messages = await hostMessages(asked, pictures);
-		let response: Response;
-		try {
-			response = await fetcher(`${config.baseURL}/chat/completions`, {
-				method: 'POST',
-				headers: {
-					'content-type': 'application/json',
-					authorization: `Bearer ${config.apiKey}`,
-					...(config.provider === 'openrouter'
-						? { 'HTTP-Referer': 'https://edu-ai.eu', 'X-Title': 'EDU-AI course editor' }
-						: {})
-				},
-				body: JSON.stringify(buildBody(config, messages, { stream: true })),
-				signal:
-					signal === undefined
-						? AbortSignal.timeout(TIMEOUT_MS)
-						: AbortSignal.any([signal, AbortSignal.timeout(TIMEOUT_MS)])
-			});
-		} catch (e) {
-			throw new ProviderError('network', e instanceof Error ? e.message : String(e));
-		}
-		if (!response.ok || response.body === null) {
-			const detail = `${response.status} ${(await response.text().catch(() => '')).slice(0, 300)}`;
-			if ([401, 402, 403].includes(response.status)) throw new ProviderError('auth', detail);
-			if ([429, 503, 529].includes(response.status)) throw new ProviderError('busy', detail);
-			throw new ProviderError('failed', detail);
-		}
-		const reader = sseReader(onText);
-		const decoder = new TextDecoder();
-		try {
-			for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>)
-				reader.feed(decoder.decode(chunk, { stream: true }));
-		} catch (e) {
-			throw new ProviderError('network', e instanceof Error ? e.message : String(e));
-		}
-		const ended = reader.end();
-		if (ended.error !== undefined)
-			throw new ProviderError('failed', `stream error: ${ended.error}`);
-		if (!ended.finished)
-			throw new ProviderError('network', 'the stream ended before the model finished');
-		return { tokens: ended.tokens };
+		const body = buildBody(config, messages, { stream: true });
+		// Once the teacher has seen text, a new call would write it again.
+		let shown = false;
+		const show = (piece: string) => {
+			shown = true;
+			onText(piece);
+		};
+		return withRetry(
+			retry,
+			async () => {
+				const timeout = AbortSignal.timeout(TIMEOUT_MS);
+				const response = await post(
+					config,
+					fetcher,
+					body,
+					signal === undefined ? timeout : AbortSignal.any([signal, timeout])
+				);
+				if (!response.ok) throw await failureOf(response, timeout);
+				if (response.body === null) throw new ProviderError('failed', 'no body');
+				const reader = sseReader(show);
+				const decoder = new TextDecoder();
+				try {
+					for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>)
+						reader.feed(decoder.decode(chunk, { stream: true }));
+				} catch (e) {
+					throw new ProviderError('network', e instanceof Error ? e.message : String(e), {
+						slow: timeout.aborted
+					});
+				}
+				const ended = reader.end();
+				if (ended.error !== undefined)
+					throw new ProviderError('failed', `stream error: ${ended.error}`);
+				if (!ended.finished)
+					throw new ProviderError('network', 'the stream ended before the model finished');
+				return { tokens: ended.tokens };
+			},
+			{ signal, may: () => !shown }
+		);
 	};
 }
 
@@ -535,38 +657,22 @@ export function buildVisionBody(
 	return body;
 }
 
-export function visionist(config: AiConfig, fetcher: typeof fetch = fetch): Vision {
+export function visionist(
+	config: AiConfig,
+	fetcher: typeof fetch = fetch,
+	retry: RetryPolicy = RETRY
+): Vision {
 	if (config.provider === 'fake') return fakeRead;
-	return async (instructions, picture) => {
-		let response: Response;
-		try {
-			response = await fetcher(`${config.baseURL}/chat/completions`, {
-				method: 'POST',
-				headers: {
-					'content-type': 'application/json',
-					authorization: `Bearer ${config.apiKey}`,
-					...(config.provider === 'openrouter'
-						? { 'HTTP-Referer': 'https://edu-ai.eu', 'X-Title': 'EDU-AI course editor' }
-						: {})
-				},
-				body: JSON.stringify(buildVisionBody(config, instructions, picture)),
-				signal: AbortSignal.timeout(TIMEOUT_MS)
-			});
-		} catch (e) {
-			throw new ProviderError('network', e instanceof Error ? e.message : String(e));
-		}
-		if (!response.ok) {
-			const detail = `${response.status} ${(await response.text().catch(() => '')).slice(0, 300)}`;
-			if ([401, 402, 403].includes(response.status)) throw new ProviderError('auth', detail);
-			if ([429, 503, 529].includes(response.status)) throw new ProviderError('busy', detail);
-			throw new ProviderError('failed', detail);
-		}
-		const data = (await response.json().catch(() => null)) as {
-			choices?: { message?: { content?: unknown } }[];
-			usage?: Usage;
-		} | null;
-		const content = data?.choices?.[0]?.message?.content;
-		if (typeof content !== 'string') throw new ProviderError('failed', 'no message content');
-		return { text: content, tokens: weightedTokens(data?.usage) };
-	};
+	return (instructions, picture) =>
+		withRetry(retry, async () => {
+			const timeout = AbortSignal.timeout(TIMEOUT_MS);
+			const response = await post(
+				config,
+				fetcher,
+				buildVisionBody(config, instructions, picture),
+				timeout
+			);
+			if (!response.ok) throw await failureOf(response, timeout);
+			return wholeAnswer(response);
+		});
 }
