@@ -370,6 +370,33 @@ test('the arrow keys on a handle move a card past the end of its lesson into the
 	await expect.poll(names(page, 0)).toEqual(['Co to je', 'Procvičení', 'Ověření']);
 });
 
+test('a name still being typed is kept when its row is dragged', async ({ page }) => {
+	await ask(page, 'Kurz o zlomcích');
+	// A new lesson at the bottom, named but not confirmed, dragged to the top by its handle.
+	await panel(page).getByRole('button', { name: 'Nová lekce' }).click();
+	await page.keyboard.type('Opakování');
+	const lessons = page.locator('.lessons > li');
+	const grip = (await lessons.nth(2).locator('.grip').boundingBox())!;
+	const first = (await lessons.nth(0).boundingBox())!;
+	const drag = async (from: { x: number; y: number; width: number; height: number }, y: number) => {
+		await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+		await page.mouse.down();
+		await page.mouse.move(from.x + from.width / 2, y, { steps: 10 });
+		await page.mouse.up();
+	};
+	await drag(grip, first.y - 4);
+	await expect.poll(lessonNames(page)).toEqual(['Opakování', 'První lekce', 'Druhá lekce']);
+
+	// A card being renamed, carried down into the next lesson.
+	await page.getByRole('button', { name: 'Ověření', exact: true }).click();
+	await cardField(page).fill('Test');
+	const cardGrip = (await page.getByRole('button', { name: 'Přesunout: Ověření' }).boundingBox())!;
+	const head = (await lessons.nth(2).locator('.head').boundingBox())!;
+	await drag(cardGrip, head.y + head.height);
+	await expect.poll(names(page, 1)).toEqual(['Co to je', 'Procvičení']);
+	await expect.poll(names(page, 2)).toContain('Test');
+});
+
 test("Ctrl+Z in the panel undoes the outline's changes, not the course's, and Ctrl+Shift+Z redoes them", async ({
 	page
 }) => {
