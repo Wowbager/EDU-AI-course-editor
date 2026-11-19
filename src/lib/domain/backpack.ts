@@ -60,6 +60,20 @@ export function parseBackpack(text: string | null): SavedCard[] {
 	return cards;
 }
 
+/**
+ * Whether a stored value may be replaced: nothing stored yet, or a backpack this build
+ * reads. A newer build's backpack, or one that does not parse, is left alone rather than
+ * overwritten with this build's idea of an empty one.
+ */
+export function canWriteOver(text: string | null): boolean {
+	if (text === null) return true;
+	try {
+		return fileSchema.safeParse(JSON.parse(text)).success;
+	} catch {
+		return false;
+	}
+}
+
 export function serializeBackpack(cards: SavedCard[]): string {
 	return JSON.stringify({ version: VERSION, cards });
 }

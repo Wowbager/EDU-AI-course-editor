@@ -584,7 +584,6 @@
 		color: var(--e-text);
 	}
 
-	.rail-tile:focus-visible,
 	/* A lesson a carried card would go into, if let go now; and one it just went into. */
 	.rail-item.drop-target {
 		box-shadow: 0 0 0 2px var(--primary);
@@ -607,6 +606,7 @@
 		}
 	}
 
+	.rail-tile:focus-visible,
 	.rail-item:focus-visible {
 		outline: 2px solid var(--e-focus-ring);
 		outline-offset: 1px;

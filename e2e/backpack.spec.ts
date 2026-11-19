@@ -98,8 +98,9 @@ test('Moje karty keeps a copy: the lesson keeps its card, and a copy goes back i
 	await drag(page, rows(page).nth(2), saved(page), hasShadow(saved(page)));
 
 	await expect(saved(page).locator('.row')).toHaveCount(1);
-	await expect(saved(page).locator('.row')).toContainText('z kurzu Zlomky pro 5. třídu');
-	expect(await titles(page)).toEqual(before);
+	// Saved from this course, so it does not say where from.
+	await expect(saved(page).locator('.row')).not.toContainText('z kurzu');
+	await expect.poll(() => titles(page)).toEqual(before);
 
 	// Kept across a reload, in this browser.
 	await page.reload();
@@ -108,11 +109,13 @@ test('Moje karty keeps a copy: the lesson keeps its card, and a copy goes back i
 	await expect(saved(page).locator('.row')).toHaveCount(1);
 
 	// Out again, between the first and second card: a new card, and the backpack keeps its copy.
-	await drag(
-		page,
-		saved(page).locator('.row').first(),
-		rows(page).nth(1),
-		hasShadow(page.locator('.tree-lesson.open .cards'))
+	const list = page.locator('.tree-lesson.open .cards');
+	await drag(page, saved(page).locator('.row').first(), rows(page).nth(1), () =>
+		list.evaluate(
+			(ul) =>
+				[...ul.children].findIndex((li) => li.hasAttribute('data-is-dnd-shadow-item-internal')) ===
+				1
+		)
 	);
 	await expect(rows(page)).toHaveCount(before.length + 1);
 	const after = await titles(page);
@@ -136,17 +139,32 @@ test('Z tohoto kurzu: a card dragged in leaves its lesson, and dragged out goes 
 	expect(await titles(page)).toEqual([before[0], ...before.slice(2)]);
 	await expect(page.locator('.toast')).toContainText('Z tohoto kurzu');
 
+	// Onto the open lesson's own name (the backpack covers the lessons below it): to its end.
 	await drag(
 		page,
 		loose(page).getByRole('button').first(),
-		lessonButton(page, 'Porovnávání zlomků'),
+		lessonButton(page, 'Co je zlomek?'),
 		async () =>
-			(await lessonButton(page, 'Porovnávání zlomků').getAttribute('class'))!.includes(
-				'drop-target'
-			)
+			(await lessonButton(page, 'Co je zlomek?').getAttribute('class'))!.includes('drop-target')
 	);
 	await expect(loose(page).getByRole('button')).toHaveCount(0);
-	await expect(lessonMeta(page, 'Porovnávání zlomků')).toContainText('6 karet');
+	await expect.poll(() => titles(page)).toEqual([before[0], ...before.slice(2), before[1]]);
+});
+
+test('the backpack opens once for a card taken out of its lesson, and stays closed while it is written', async ({
+	page
+}) => {
+	await rows(page).nth(1).click();
+	await cardMenu(page);
+	await page.getByRole('menuitem', { name: 'Odebrat z lekce' }).click();
+	await expect(loose(page).getByRole('button')).toHaveCount(1);
+
+	await backpackButton(page).click();
+	await expect(saved(page)).toHaveCount(0);
+	await page.locator('.rich-content').first().click();
+	await page.keyboard.type(' a dál');
+	await expect(page.locator('.rich-content').first()).toContainText('a dál');
+	await expect(saved(page)).toHaveCount(0);
 });
 
 test('a card held over the closed backpack opens it', async ({ page }) => {

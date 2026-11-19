@@ -9,6 +9,7 @@
 import type { BlockV2 } from '$lib/domain/schema';
 import type { CopiedFrom } from '$lib/domain/commands';
 import {
+	canWriteOver,
 	dropCard,
 	parseBackpack,
 	saveCard,
@@ -35,9 +36,27 @@ export class Backpack {
 		});
 	}
 
-	/** Keep a copy of `block`. Returns false when the browser had no room for it. */
+	/**
+	 * The list to change: re-read from storage, so a card another tab saved a moment ago
+	 * is not written over. Undefined when the stored backpack is not one this build may
+	 * replace (`canWriteOver`).
+	 */
+	#current(): SavedCard[] | undefined {
+		const text = read();
+		if (!canWriteOver(text)) {
+			notices.show({
+				text: 'Batoh uložila novější verze editoru. Obnov stránku, ať se nic neztratí.'
+			});
+			return undefined;
+		}
+		return parseBackpack(text);
+	}
+
+	/** Keep a copy of `block`. Returns false when it could not be stored. */
 	save(block: BlockV2, from: CopiedFrom, courseName?: string): boolean {
-		const next = saveCard(this.cards, block, {
+		const current = this.#current();
+		if (current === undefined) return false;
+		const next = saveCard(current, block, {
 			id: newId(),
 			savedAt: new Date().toISOString(),
 			from,
@@ -52,8 +71,11 @@ export class Backpack {
 	}
 
 	drop(id: string): void {
-		const next = dropCard(this.cards, id);
+		const current = this.#current();
+		if (current === undefined) return;
+		const next = dropCard(current, id);
 		if (write(serializeBackpack(next))) this.cards = next;
+		else notices.show({ text: 'Kartu se nepodařilo vyndat z batohu.' });
 	}
 
 	find(id: string): SavedCard | undefined {

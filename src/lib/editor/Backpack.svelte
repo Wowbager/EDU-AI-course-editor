@@ -14,7 +14,7 @@
 	 */
 	import { onMount, untrack, type Snippet } from 'svelte';
 	import { dndzone, type DndEvent } from 'svelte-dnd-action';
-	import { Backpack as BackpackIcon, ChevronDown, Plus, X } from '@lucide/svelte';
+	import { Backpack as BackpackIcon, ChevronDown, ChevronUp, Plus, X } from '@lucide/svelte';
 	import type { BlockV2 } from '$lib/domain/schema';
 	import { blockPreview } from '$lib/domain/derive';
 	import { pasteBlock } from '$lib/domain/commands';
@@ -23,7 +23,7 @@
 	import { useStore } from '$lib/ui/context';
 	import { focusSelectedCard } from '$lib/ui/focus-after';
 	import { backpack } from '$lib/state/backpack.svelte';
-	import type { CardDrag, CardItem } from './card-drag.svelte';
+	import type { CardDrag, CardItem, Held } from './card-drag.svelte';
 
 	interface Props {
 		drag: CardDrag;
@@ -44,10 +44,10 @@
 	onMount(() => backpack.load());
 
 	// ── „Z tohoto kurzu“ ─────────────────────────────────────────────────────────
-	let draggingLoose = $state<CardItem[] | null>(null);
+	let draggingLoose = $state<Held | null>(null);
 	const looseKeys = $derived(uniqueKeys(loose.map((b) => b.block_id)));
 	const looseItems = $derived<CardItem[]>(
-		draggingLoose ??
+		drag.held(draggingLoose) ??
 			loose.map((block, i) => ({
 				id: `loose:${looseKeys[i]}`,
 				binding: { block_id: block.block_id, order: 0 },
@@ -56,7 +56,7 @@
 	);
 
 	function onlooseConsider(event: CustomEvent<DndEvent<CardItem>>) {
-		draggingLoose = event.detail.items;
+		draggingLoose = drag.hold(event.detail.items);
 		drag.considered(event);
 	}
 	function onlooseFinalize(event: CustomEvent<DndEvent<CardItem>>) {
@@ -78,9 +78,9 @@
 	}
 
 	// ── „Moje karty“ ─────────────────────────────────────────────────────────────
-	let draggingSaved = $state<CardItem[] | null>(null);
+	let draggingSaved = $state<Held | null>(null);
 	const savedItems = $derived<CardItem[]>(
-		draggingSaved ??
+		drag.held(draggingSaved) ??
 			backpack.cards.map((card) => ({
 				id: `saved:${card.id}`,
 				binding: { block_id: card.block.block_id, order: 0 },
@@ -90,7 +90,7 @@
 	);
 
 	function onsavedConsider(event: CustomEvent<DndEvent<CardItem>>) {
-		draggingSaved = event.detail.items;
+		draggingSaved = drag.hold(event.detail.items);
 		drag.considered(event);
 	}
 	function onsavedFinalize(event: CustomEvent<DndEvent<CardItem>>) {
@@ -117,11 +117,22 @@
 		void focusSelectedCard();
 	}
 
-	/** The selected card is one of the course's loose ones: the backpack shows where it is. */
+	/**
+	 * The selected card became one of the course's loose ones (it was picked, or taken out
+	 * of its lesson): the backpack opens to show where it is. Once, so a teacher who then
+	 * closes it while writing the card is not fought on every keystroke.
+	 */
+	let shownFor: string | undefined;
 	$effect(() => {
 		const id = selectedBlockId;
-		if (id === undefined || collapsed) return;
-		if (loose.some((b) => b.block_id === id)) untrack(() => (backpack.open = true));
+		const isLoose = id !== undefined && loose.some((b) => b.block_id === id);
+		if (!isLoose) {
+			shownFor = undefined;
+			return;
+		}
+		if (collapsed || shownFor === id) return;
+		shownFor = id;
+		untrack(() => (backpack.open = true));
 	});
 
 	function toggle() {
@@ -217,7 +228,8 @@
 									<div class="row saved">
 										<span class="type"><Icon size={16}></Icon></span>
 										<span class="snippet">{blockPreview(block, 40)}</span>
-										{#if saved?.courseName}
+										<!-- Where it came from says something only when that is another course. -->
+										{#if saved?.courseName && saved.from.courseId !== store.doc.course_id}
 											<span class="sub">z kurzu {saved.courseName}</span>
 										{/if}
 										{#if saved !== undefined}
@@ -273,7 +285,11 @@
 			<BackpackIcon size={16}></BackpackIcon>
 			{#if !collapsed}
 				<span>Batoh</span>
-				{#if backpack.open}<ChevronDown size={14}></ChevronDown>{/if}
+				{#if backpack.open}
+					<ChevronDown size={14}></ChevronDown>
+				{:else}
+					<ChevronUp size={14}></ChevronUp>
+				{/if}
 			{/if}
 		</button>
 		{@render children?.()}
@@ -297,7 +313,7 @@
 		border: 1px solid var(--e-border);
 		border-radius: var(--radius-s);
 		background: var(--surface);
-		box-shadow: var(--shadow-light);
+		box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.08);
 	}
 
 	h3 {

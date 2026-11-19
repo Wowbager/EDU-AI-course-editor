@@ -39,7 +39,7 @@
 	import CardActions from './CardActions.svelte';
 	import Backpack from './Backpack.svelte';
 	import { cardActions } from './card-actions';
-	import { CardDrag, type CardItem } from './card-drag.svelte';
+	import { CardDrag, type CardItem, type Held } from './card-drag.svelte';
 	import { LoaderCircle, PanelLeftOpen, PanelLeftClose, Settings, Plus } from '@lucide/svelte';
 	import { ai } from '$lib/state/ai.svelte';
 	import { aiPanel } from '$lib/state/ai-panel.svelte';
@@ -302,12 +302,13 @@
 	// The card zone, for the open lesson only — which is what keeps the two nested
 	// drag zones from ever having to coexist. A closed lesson takes a card on its name
 	// (`card-drag.svelte.ts`).
-	let draggingCards = $state<CardItem[] | null>(null);
+	let draggingCards = $state<Held | null>(null);
 	const openLesson = $derived(doc.lessons.find((l) => l.lesson_id === selectedLesson));
 	// Keyed by the card's own id, so a card keeps its DOM (and its focus) when it
 	// moves; a duplicated id in a broken course still gets a distinct key.
 	const cards = $derived.by(() => {
-		if (draggingCards !== null) return draggingCards;
+		const held = drag.held(draggingCards);
+		if (held !== null) return held;
 		const bindings = openLesson?.blocks ?? [];
 		const keys = uniqueKeys(bindings.map((b) => b.block_id));
 		const lessonId = openLesson?.lesson_id;
@@ -315,7 +316,7 @@
 	});
 
 	function oncardConsider(event: CustomEvent<DndEvent<CardItem>>) {
-		draggingCards = event.detail.items;
+		draggingCards = drag.hold(event.detail.items);
 		drag.considered(event, openLesson?.lesson_id);
 	}
 	/**

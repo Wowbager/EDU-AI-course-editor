@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseCourse } from '../document';
-import { dropCard, parseBackpack, saveCard, serializeBackpack } from '../backpack';
+import { canWriteOver, dropCard, parseBackpack, saveCard, serializeBackpack } from '../backpack';
 import { pasteBlock } from '../commands';
 
 const course = parseCourse(
@@ -48,6 +48,13 @@ describe('Moje karty', () => {
 		const good = saveCard([], block, where('a'));
 		const text = JSON.stringify({ version: 1, cards: [{ id: 'x' }, ...good] });
 		expect(parseBackpack(text).map((c) => c.id)).toEqual(['a']);
+	});
+
+	it('is not written over when a newer build or something unreadable stored it', () => {
+		expect(canWriteOver(null)).toBe(true);
+		expect(canWriteOver(serializeBackpack([]))).toBe(true);
+		expect(canWriteOver('{"version":2,"cards":[]}')).toBe(false);
+		expect(canWriteOver('{')).toBe(false);
 	});
 
 	it('removes only the entry asked for', () => {

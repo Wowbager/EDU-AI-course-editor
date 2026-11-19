@@ -18,7 +18,7 @@
  * card let go over a lesson name goes to the end of that lesson. The closed backpack's
  * button is a target the same way: held over it, the backpack opens.
  */
-import { TRIGGERS, type DndEvent } from 'svelte-dnd-action';
+import { DRAGGED_ELEMENT_ID, TRIGGERS, type DndEvent } from 'svelte-dnd-action';
 import type { DocStore } from '$lib/state/doc-store.svelte';
 import type { BlockV2, LessonBlockBinding } from '$lib/domain/schema';
 import { bindBlock, moveBlockToLesson, pasteBlock } from '$lib/domain/commands';
@@ -38,6 +38,9 @@ export type CardItem = {
 /** How long a card held over the closed backpack waits before it opens. */
 const OPEN_BACKPACK_MS = 400;
 
+/** A zone's list as the library last showed it mid-drag, and which drag that was. */
+export type Held = { drag: number; items: CardItem[] };
+
 export type DropHover = { kind: 'lesson'; lessonId: string } | { kind: 'backpack' } | null;
 
 export class CardDrag {
@@ -45,6 +48,8 @@ export class CardDrag {
 	hover = $state<DropHover>(null);
 	/** The lesson the landed glow is on, for a moment after a drop on its name. */
 	landed = $state<string | null>(null);
+	/** Counts finished drags; a zone's mid-drag list from an earlier one is stale. */
+	#drags = $state(0);
 	#untrack: (() => void) | undefined;
 	#openTimer: ReturnType<typeof setTimeout> | undefined;
 	#landedTimer: ReturnType<typeof setTimeout> | undefined;
@@ -75,14 +80,31 @@ export class CardDrag {
 	}
 
 	/**
-	 * Every zone's `finalize`. Returns the lesson whose name the card was let go over,
-	 * when it was let go outside every zone; the zone it came from then moves it there.
+	 * Every zone's `finalize`. Returns the lesson whose name the card was let go over; the
+	 * zone that gets this first then moves it there. The pointer decides, not the library's
+	 * trigger: a card flicked onto a name is let go before the library has seen it leave
+	 * its zone, and is then reported as dropped back into it. A lesson's name is never
+	 * inside a card zone, so under the pointer it always means that lesson.
 	 */
 	finalized(event: CustomEvent<DndEvent<CardItem>>): string | undefined {
 		const hover = this.hover;
 		this.#stop();
-		if (event.detail.info.trigger !== TRIGGERS.DROPPED_OUTSIDE_OF_ANY) return undefined;
+		this.#drags += 1;
+		if (event.detail.info.trigger === TRIGGERS.DROPPED_INTO_ANOTHER) return undefined;
 		return hover?.kind === 'lesson' ? hover.lessonId : undefined;
+	}
+
+	/**
+	 * A zone keeps the library's list while a card is carried (`hold`) and shows it until
+	 * the drag ends (`held`). Only the zones the card ends in are told it ended: one it
+	 * merely passed through would otherwise keep that list, out of step with the course.
+	 * So every held list lapses when any drag ends.
+	 */
+	hold(items: CardItem[]): Held {
+		return { drag: this.#drags, items };
+	}
+	held(list: Held | null): CardItem[] | null {
+		return list !== null && list.drag === this.#drags ? list.items : null;
 	}
 
 	/** The item that came in from another zone, and where it now is; undefined for a reorder. */
@@ -155,18 +177,18 @@ export class CardDrag {
 	#track(ownLessonId: string | undefined) {
 		this.#stop();
 		const follow = (x: number, y: number) => {
+			// The topmost element only, past the carried copy: a lesson's name under the
+			// open backpack is covered, not a target.
+			const el = document
+				.elementsFromPoint(x, y)
+				.find((e) => e.closest(`#${DRAGGED_ELEMENT_ID}`) === null);
 			let next: DropHover = null;
-			for (const el of document.elementsFromPoint(x, y)) {
-				const lesson = el.closest<HTMLElement>('[data-drop-lesson]');
-				if (lesson !== null) {
-					const id = lesson.dataset.dropLesson!;
-					if (id !== ownLessonId) next = { kind: 'lesson', lessonId: id };
-					break;
-				}
-				if (el.closest('[data-drop-backpack]') !== null) {
-					next = { kind: 'backpack' };
-					break;
-				}
+			const lesson = el?.closest<HTMLElement>('[data-drop-lesson]');
+			if (lesson != null) {
+				const id = lesson.dataset.dropLesson!;
+				if (id !== ownLessonId) next = { kind: 'lesson', lessonId: id };
+			} else if (el?.closest('[data-drop-backpack]') != null) {
+				next = { kind: 'backpack' };
 			}
 			this.#hoverOn(next);
 		};
