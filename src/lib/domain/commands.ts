@@ -458,7 +458,11 @@ export function moveBlockInLesson(
 	return reorderBindings(doc, lessonId, ids);
 }
 
-/** Move a block from one lesson to another, keeping its per-lesson presentation. */
+/**
+ * Move a block from one lesson to another, keeping its per-lesson presentation. A card
+ * the target lesson already shows is only taken out of the first one: a lesson never
+ * lists one card twice.
+ */
 export function moveBlockToLesson(
 	doc: CourseV2,
 	blockId: string,
@@ -467,7 +471,8 @@ export function moveBlockToLesson(
 	at?: number
 ): CommandResult {
 	const from = requireLesson(doc, fromLessonId);
-	requireLesson(doc, toLessonId);
+	const to = requireLesson(doc, toLessonId);
+	if (fromLessonId === toLessonId) return { doc, description: 'Karta už je v této lekci' };
 	const binding = from.blocks.find((b) => b.block_id === blockId);
 	if (binding === undefined) {
 		throw new CommandError(`Karta „${blockId}“ v lekci „${fromLessonId}“ není.`, {
@@ -480,6 +485,13 @@ export function moveBlockToLesson(
 		...lesson,
 		blocks: renumberOrder(lesson.blocks.filter((b) => b.block_id !== blockId))
 	}));
+	if (to.blocks.some((b) => b.block_id === blockId)) {
+		return {
+			doc: next,
+			ref: { lessonId: toLessonId, blockId },
+			description: `Karta „${blockId}“ odebrána z lekce „${fromLessonId}“`
+		};
+	}
 	next = mapLesson(next, toLessonId, (lesson) => {
 		const bindings = [...lesson.blocks];
 		bindings.splice(at ?? bindings.length, 0, { ...binding });

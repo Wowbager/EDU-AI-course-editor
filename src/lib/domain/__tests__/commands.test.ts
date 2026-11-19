@@ -778,6 +778,38 @@ describe('moving a block between lessons', () => {
 		});
 		expectOrderIsDense(doc);
 	});
+
+	it('puts the card at the given place in the target lesson', () => {
+		let doc = addLesson(base(), 'Druhá').doc;
+		const target = doc.lessons.at(-1)!.lesson_id;
+		doc = bindBlock(doc, target, 'L1_B1_uvod').doc;
+		doc = bindBlock(doc, target, 'L1_B3_poznej').doc;
+		doc = moveBlockToLesson(doc, 'L1_B2_casti', 'L1_INTRO', target, 1).doc;
+
+		expect(doc.lessons.at(-1)!.blocks.map((b) => b.block_id)).toEqual([
+			'L1_B1_uvod',
+			'L1_B2_casti',
+			'L1_B3_poznej'
+		]);
+		expectOrderIsDense(doc);
+	});
+
+	it('does not list a card twice when the target lesson already has it', () => {
+		let doc = base();
+		doc = addLesson(doc, 'Druhá').doc;
+		const target = doc.lessons.at(-1)!.lesson_id;
+		doc = bindBlock(doc, target, 'L1_B2_casti').doc;
+		doc = moveBlockToLesson(doc, 'L1_B2_casti', 'L1_INTRO', target).doc;
+
+		expect(doc.lessons[0].blocks.map((b) => b.block_id)).not.toContain('L1_B2_casti');
+		expect(doc.lessons.at(-1)!.blocks.map((b) => b.block_id)).toEqual(['L1_B2_casti']);
+		expectOrderIsDense(doc);
+	});
+
+	it('changes nothing when the card is dropped on its own lesson', () => {
+		const doc = base();
+		expect(moveBlockToLesson(doc, 'L1_B2_casti', 'L1_INTRO', 'L1_INTRO').doc).toBe(doc);
+	});
 });
 
 // ─────────────────────────────── property test ───────────────────────────────
