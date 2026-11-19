@@ -94,7 +94,11 @@ export function rewriteBackpack(
 			stored.set(parsed.data.id, entry);
 		} else unread.push(entry);
 	}
-	const next = change(cards).map((card) => stored.get(card.id) ?? card);
+	// What `change` made of a card wins; the stored entry only adds the keys it does not know.
+	const next = change(cards).map((card) => {
+		const entry = stored.get(card.id);
+		return typeof entry === 'object' && entry !== null ? { ...entry, ...card } : card;
+	});
 	return JSON.stringify({ version: VERSION, cards: [...next, ...unread] });
 }
 

@@ -74,6 +74,15 @@ describe('Moje karty', () => {
 		expect(JSON.parse(text).cards[1]).toMatchObject({ id: 'a', pinned: true });
 	});
 
+	it('keeps what a change did to a stored card', () => {
+		const [entry] = saveCard([], block, where('a'));
+		const stored = JSON.stringify({ version: 1, cards: [{ ...entry, pinned: true }] });
+		const text = rewriteBackpack(stored, (c) =>
+			c.map((card) => ({ ...card, courseName: 'Jiný' }))
+		)!;
+		expect(JSON.parse(text).cards[0]).toMatchObject({ courseName: 'Jiný', pinned: true });
+	});
+
 	it('keeps an entry it cannot read when it saves another', () => {
 		const odd = { id: 'z', from: {}, block: { kind: 'from a newer build' } };
 		const stored = JSON.stringify({ version: 1, cards: [odd] });
