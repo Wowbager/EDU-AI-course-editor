@@ -28,10 +28,11 @@ export interface SavedCard {
 	block: BlockV2;
 }
 
-const entrySchema = z.object({
+// Loose, like the block: a key a newer build adds is read along and written back.
+const entrySchema = z.looseObject({
 	id: z.string(),
 	savedAt: z.string(),
-	from: z.object({ courseId: z.string().optional(), blockId: z.string().optional() }),
+	from: z.looseObject({ courseId: z.string().optional(), blockId: z.string().optional() }),
 	courseName: z.string().optional(),
 	block: blockSchema
 });
@@ -64,8 +65,8 @@ export function parseBackpack(text: string | null): SavedCard[] {
  * The stored backpack after `change`, as text to store, or null when it must not be
  * written: it is a newer build's (a higher `version`), which this build would replace
  * with its own idea of it. Anything else no build can read (not JSON, another shape) is
- * replaced. Entries are written back as they were stored, so keys a newer build added
- * survive; entries this build cannot read are kept, after the ones it changed.
+ * replaced. Entries keep keys this build does not know (`entrySchema` is loose), and
+ * entries this build cannot read are kept as they are, after the ones it changed.
  */
 export function rewriteBackpack(
 	text: string | null,
@@ -85,20 +86,13 @@ export function rewriteBackpack(
 		if (file.success) entries = file.data.cards;
 	}
 	const cards: SavedCard[] = [];
-	const stored = new Map<string, unknown>();
 	const unread: unknown[] = [];
 	for (const entry of entries) {
 		const parsed = entrySchema.safeParse(entry);
-		if (parsed.success) {
-			cards.push(parsed.data as SavedCard);
-			stored.set(parsed.data.id, entry);
-		} else unread.push(entry);
+		if (parsed.success) cards.push(parsed.data as SavedCard);
+		else unread.push(entry);
 	}
-	// What `change` made of a card wins; the stored entry only adds the keys it does not know.
-	const next = change(cards).map((card) => {
-		const entry = stored.get(card.id);
-		return typeof entry === 'object' && entry !== null ? { ...entry, ...card } : card;
-	});
+	const next = change(cards);
 	return JSON.stringify({ version: VERSION, cards: [...next, ...unread] });
 }
 

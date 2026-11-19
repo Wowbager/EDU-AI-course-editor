@@ -69,9 +69,16 @@ describe('Moje karty', () => {
 
 	it('keeps keys a newer build added to an entry it can read', () => {
 		const [entry] = saveCard([], block, where('a'));
-		const stored = JSON.stringify({ version: 1, cards: [{ ...entry, pinned: true }] });
+		const stored = JSON.stringify({
+			version: 1,
+			cards: [{ ...entry, pinned: true, from: { ...entry.from, extra: 1 } }]
+		});
 		const text = rewriteBackpack(stored, (c) => saveCard(c, block, where('b')))!;
-		expect(JSON.parse(text).cards[1]).toMatchObject({ id: 'a', pinned: true });
+		expect(JSON.parse(text).cards[1]).toMatchObject({
+			id: 'a',
+			pinned: true,
+			from: { extra: 1 }
+		});
 	});
 
 	it('keeps what a change did to a stored card', () => {
