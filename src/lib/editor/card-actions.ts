@@ -96,7 +96,7 @@ export function cardActions(store: DocStore, handlers: CardActionHandlers) {
 			);
 			const where =
 				remaining.length === 0
-					? 'Karta je nyní v části Karty mimo lekci.'
+					? 'Karta je teď v batohu, v části Z tohoto kurzu.'
 					: `Karta zůstává v lekcích (${remaining.length}): ${remaining
 							.map((l) => `„${lessonLabel(store.doc, l)}“`)
 							.join(', ')}.`;

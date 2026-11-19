@@ -19,7 +19,7 @@
 	import { focusSelectedCard } from '$lib/ui/focus-after';
 	import { dndzone, type DndEvent } from 'svelte-dnd-action';
 	import { Plus, Settings } from '@lucide/svelte';
-	import type { CourseV2, LessonBlockBinding } from '$lib/domain/schema';
+	import type { CourseV2 } from '$lib/domain/schema';
 	import { addBlock, addLesson } from '$lib/domain/commands';
 	import { blockPreview, lessonTotals } from '$lib/domain/derive';
 	import { lessonLabel } from '$lib/domain/naming';
@@ -32,8 +32,7 @@
 	import CardActions from './CardActions.svelte';
 	import RailPeek from './RailPeek.svelte';
 	import { cardActions } from './card-actions';
-
-	type CardItem = { id: string; binding: LessonBlockBinding };
+	import type { CardItem } from './card-drag.svelte';
 
 	interface Props {
 		doc: CourseV2;
@@ -49,6 +48,10 @@
 		onlessonSettings: (lessonId: string, options?: { focusName?: boolean }) => void;
 		oncardSettings: (blockId: string) => void;
 		onrepairBlock: (blockId: string) => void;
+		/** A carried card is over this lesson's circle (`card-drag.svelte.ts`). */
+		dropTarget: (lessonId: string) => boolean;
+		/** A card was just dropped on this lesson's circle. */
+		landedLesson: string | null;
 	}
 	let {
 		doc,
@@ -62,7 +65,9 @@
 		errorsOn,
 		onlessonSettings,
 		oncardSettings,
-		onrepairBlock
+		onrepairBlock,
+		dropTarget,
+		landedLesson
 	}: Props = $props();
 
 	const store = useStore();
@@ -308,6 +313,9 @@
 					class="rail-item"
 					class:selected={open}
 					class:peeked={peek?.key === lKey}
+					class:drop-target={dropTarget(lesson.lesson_id)}
+					class:landed={landedLesson === lesson.lesson_id}
+					data-drop-lesson={lesson.lesson_id}
 					aria-current={open ? 'true' : undefined}
 					aria-label={`${i + 1}. lekce: ${name}`}
 					{@attach track(lKey)}
@@ -577,6 +585,28 @@
 	}
 
 	.rail-tile:focus-visible,
+	/* A lesson a carried card would go into, if let go now; and one it just went into. */
+	.rail-item.drop-target {
+		box-shadow: 0 0 0 2px var(--primary);
+		background: var(--info-bg);
+	}
+
+	.rail-item.landed {
+		animation: rail-landed 1600ms ease-out;
+	}
+
+	@keyframes rail-landed {
+		from {
+			background: var(--info-bg);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.rail-item.landed {
+			animation: none;
+		}
+	}
+
 	.rail-item:focus-visible {
 		outline: 2px solid var(--e-focus-ring);
 		outline-offset: 1px;

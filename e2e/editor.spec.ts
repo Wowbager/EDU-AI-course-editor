@@ -323,7 +323,10 @@ test('a card that is in no lesson can still be opened', async ({ page }) => {
 	// pointing at it. It used to be unselectable: the click registered and the
 	// "always keep a card open" effect immediately threw the selection back.
 	await cardAction(page, 'Odebrat z lekce');
-	const orphan = page.locator('.orphans .tree-card').first();
+	const orphan = page
+		.getByRole('list', { name: 'Karty z tohoto kurzu mimo lekce' })
+		.getByRole('button')
+		.first();
 	await expect(orphan).toBeVisible();
 
 	await orphan.click();
@@ -541,15 +544,17 @@ test('deleting a branched step asks where its branches should go', async ({ page
 test('undo puts back what a delete took away', async ({ page }) => {
 	await importCourse(page, 'spec-16-course.json');
 	// Scoped to the lesson: "Odebrat" unbinds rather than deletes, so the card is
-	// still in the course — it moves to "Karty mimo lekce", which is the whole point.
+	// still in the course — it moves to the backpack's „Z tohoto kurzu“, which is the whole point.
 	const inLesson = page.locator('.tree-lesson.open .cards .tree-card');
 	await expect(inLesson).toHaveCount(3);
 
 	await inLesson.first().click();
 	await cardAction(page, 'Odebrat z lekce');
-	// The removed card stays selected in the orphan bucket; its old lesson closes.
+	// The removed card stays selected, in the backpack, which opens to show it; its old lesson closes.
 	await expect(page.locator('.tree-lesson .meta').first()).toContainText('2 karty');
-	await expect(page.locator('.orphans .tree-card')).toHaveCount(1);
+	await expect(
+		page.getByRole('list', { name: 'Karty z tohoto kurzu mimo lekce' }).getByRole('button')
+	).toHaveCount(1);
 
 	// The glyph is what a mouse sees; "Vrátit" is what the button is called.
 	await page.getByRole('button', { name: 'Vrátit', exact: true }).click();

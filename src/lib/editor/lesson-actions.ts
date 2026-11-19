@@ -13,7 +13,7 @@ import { deleteLesson } from '$lib/domain/commands';
 import { notices } from '$lib/state/notice.svelte';
 
 /** One wording, whatever the lesson left behind: the counting is the dialog's business. */
-const MESSAGE = 'Lekce smazána. Její karty jsou v Kartách mimo lekci.';
+const MESSAGE = 'Lekce smazána. Její karty jsou v batohu, v části Z tohoto kurzu.';
 
 /**
  * Delete the lesson and offer to put it back. The selection moves to the neighbouring

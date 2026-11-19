@@ -93,7 +93,7 @@ describe('the card actions the rail, the tree and the ⋯ menu share', () => {
 		expect(store.selection?.blockId).toBe(ids[0]);
 		expect(store.doc.blocks.map((b) => b.block_id)).toContain(ids[2]);
 		expect(store.doc.lessons[0].blocks.map((b) => b.block_id)).not.toContain(ids[2]);
-		expect(notices.current?.text).toContain('Karta je nyní v části Karty mimo lekci.');
+		expect(notices.current?.text).toContain('Karta je teď v batohu, v části Z tohoto kurzu.');
 
 		actions.removeFromLesson(lessonId, ids[0], { follow: false });
 		expect(store.selection?.blockId).toBe(ids[0]);
@@ -141,7 +141,7 @@ describe('deleting a lesson from its settings dialog', () => {
 		const store = openThree();
 		store.selection = { lessonId: 'L1_INTRO' };
 		removeLesson(store, 'L1_INTRO');
-		expect(notices.current?.text).toBe('Lekce smazána. Její karty jsou v Kartách mimo lekci.');
+		expect(notices.current?.text).toBe('Lekce smazána. Její karty jsou v batohu, v části Z tohoto kurzu.');
 		expect(notices.current?.entry).toBe(store.undoStack.at(-1));
 		expect(store.doc.lessons.map((l) => lessonLabel(store.doc, l))).toEqual([
 			'Druhá lekce',
