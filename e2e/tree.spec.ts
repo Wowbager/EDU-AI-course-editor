@@ -242,7 +242,7 @@ test('deleting a lesson from its settings says so, moves on, and Vrátit zpět b
 
 	// One sentence about what the lesson left behind, wherever the teacher looks.
 	const toast = page.locator('.toast');
-	await expect(toast).toContainText('Lekce smazána. Její karty jsou v Kartách mimo lekci.');
+	await expect(toast).toContainText('Lekce smazána. Její karty jsou v batohu, v části Z tohoto kurzu.');
 	await expect(rows).toHaveCount(2);
 	// The editor was in the lesson, so it is on the next one.
 	await expect(rows.nth(0)).toHaveClass(/selected/);

@@ -34,6 +34,7 @@
 	import MenuItem from '$lib/ui/MenuItem.svelte';
 	import MenuSeparator from '$lib/ui/MenuSeparator.svelte';
 	import { notices } from '$lib/state/notice.svelte';
+	import { backpack } from '$lib/state/backpack.svelte';
 	import type { Ref } from '$lib/domain/ref';
 	import FocusField from '$lib/ui/FocusField.svelte';
 	import StepEditor from './StepEditor.svelte';
@@ -45,6 +46,7 @@
 		addStep,
 		bindBlock,
 		moveBlockInLesson,
+		moveBlockToLesson,
 		reorderSteps,
 		setField
 	} from '$lib/domain/commands';
@@ -59,7 +61,9 @@
 	} from '$lib/domain/derive';
 	import {
 		ArrowDown,
+		ArrowRightLeft,
 		ArrowUp,
+		Backpack,
 		Copy,
 		Ellipsis,
 		ListPlus,
@@ -106,7 +110,8 @@
 			(lesson) => !lesson.blocks.some((binding) => binding.block_id === block.block_id)
 		)
 	);
-	let showLessonPicker = $state(false);
+	/** The lesson picker: „Zařadit do lekce“ for a card in none, „Přesunout do lekce“ for one in this lesson. */
+	let showLessonPicker = $state<'assign' | 'move' | false>(false);
 	let targetLessonId = $state('');
 	const xp = $derived(derivedBlockXp(block));
 	const minutes = $derived(blockDurationMinutes(block));
@@ -312,9 +317,27 @@
 			doc,
 			availableLessons.find((lesson) => lesson.lesson_id === targetLessonId)!
 		);
-		store.apply((d) => bindBlock(d, targetLessonId, blockId));
+		const target = targetLessonId;
+		if (showLessonPicker === 'move' && lessonId !== undefined) {
+			const from = lessonId;
+			store.apply((d) => moveBlockToLesson(d, blockId, from, target));
+			showLessonPicker = false;
+			showNotice(`Karta přesunuta do lekce „${name}“.`, { lessonId: from, blockId });
+			return;
+		}
+		store.apply((d) => bindBlock(d, target, blockId));
 		showLessonPicker = false;
 		showNotice(`Karta zařazena do lekce „${name}“.`, { blockId });
+	}
+
+	/** A copy into „Moje karty“, to take into another course; this course does not change. */
+	function saveToBackpack() {
+		const saved = backpack.save(
+			block,
+			{ courseId: doc.course_id, blockId: block.block_id },
+			doc.name
+		);
+		if (saved) notices.show({ text: 'Kopie karty je v batohu, v části Moje karty.' });
 	}
 
 	/**
@@ -443,7 +466,7 @@
 					icon={ListPlus}
 					onclick={() => {
 						targetLessonId = '';
-						showLessonPicker = true;
+						showLessonPicker = 'assign';
 					}}
 					disabled={availableLessons.length === 0}
 					title={availableLessons.length === 0
@@ -462,11 +485,30 @@
 						})}
 					title={sharedWith > 1
 						? 'Odebere kartu jen z této lekce — ostatní lekce a všechen obsah zůstanou'
-						: 'Odebere kartu z této lekce. Obsah zůstává v části Karty mimo lekci; smazat jde přes Smazat kartu.'}
+						: 'Odebere kartu z této lekce. Obsah zůstává v batohu, v části Z tohoto kurzu; smazat jde přes Smazat kartu.'}
 				>
 					Odebrat z lekce
 				</MenuItem>
+				{#if availableLessons.length > 0}
+					<MenuItem
+						icon={ArrowRightLeft}
+						onclick={() => {
+							targetLessonId = '';
+							showLessonPicker = 'move';
+						}}
+						title="Přesune kartu do jiné lekce. Kartu jde také přetáhnout na název lekce vlevo."
+					>
+						Přesunout do lekce…
+					</MenuItem>
+				{/if}
 			{/if}
+			<MenuItem
+				icon={Backpack}
+				onclick={saveToBackpack}
+				title="Uloží kopii karty do batohu. Odtud ji vložíš do jiné lekce nebo jiného kurzu; tady se nic nezmění."
+			>
+				Uložit kopii do batohu
+			</MenuItem>
 			{#if place >= 0}
 				<MenuItem icon={ArrowUp} onclick={() => moveCard(-1)} disabled={place === 0}>
 					Posunout nahoru
@@ -566,8 +608,15 @@
 </Card>
 
 {#if showLessonPicker}
-	<Modal title="Zařadit do lekce" onclose={() => (showLessonPicker = false)}>
-		<p>Vyber lekci pro tuto kartu. Její obsah se nebude kopírovat.</p>
+	<Modal
+		title={showLessonPicker === 'move' ? 'Přesunout do lekce' : 'Zařadit do lekce'}
+		onclose={() => (showLessonPicker = false)}
+	>
+		<p>
+			{showLessonPicker === 'move'
+				? 'Vyber lekci, kam kartu přesunout. Karta přijde na její konec.'
+				: 'Vyber lekci pro tuto kartu. Její obsah se nebude kopírovat.'}
+		</p>
 		<label class="lesson-picker">
 			Lekce
 			<select bind:value={targetLessonId}>
@@ -581,7 +630,7 @@
 			<Button variant="ghost" onclick={() => (showLessonPicker = false)}>Zpět</Button>
 			<Button
 				disabled={!availableLessons.some((lesson) => lesson.lesson_id === targetLessonId)}
-				onclick={assignToLesson}>Zařadit</Button
+				onclick={assignToLesson}>{showLessonPicker === 'move' ? 'Přesunout' : 'Zařadit'}</Button
 			>
 		{/snippet}
 	</Modal>

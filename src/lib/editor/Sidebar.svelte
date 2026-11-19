@@ -17,8 +17,8 @@
 	 */
 	import { tick, untrack } from 'svelte';
 	import { countOf, focusAfterDelete, focusSelectedCard } from '$lib/ui/focus-after';
-	import { dndzone, type DndEvent } from 'svelte-dnd-action';
-	import type { BlockV2, CourseV2, LessonBlockBinding, LessonV2 } from '$lib/domain/schema';
+	import { dndzone, TRIGGERS, type DndEvent } from 'svelte-dnd-action';
+	import type { BlockV2, CourseV2, LessonV2 } from '$lib/domain/schema';
 	import Chip from '$lib/ui/Chip.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import { useStore } from '$lib/ui/context';
@@ -37,7 +37,9 @@
 	import { CARD_TYPES, cardTypeIcon } from '$lib/ui/card-types';
 	import SidebarRail from './SidebarRail.svelte';
 	import CardActions from './CardActions.svelte';
+	import Backpack from './Backpack.svelte';
 	import { cardActions } from './card-actions';
+	import { CardDrag, type CardItem, type Held } from './card-drag.svelte';
 	import { LoaderCircle, PanelLeftOpen, PanelLeftClose, Settings, Plus } from '@lucide/svelte';
 	import { ai } from '$lib/state/ai.svelte';
 	import { aiPanel } from '$lib/state/ai-panel.svelte';
@@ -77,6 +79,10 @@
 		onsettings: (blockId) => oncardSettings(blockId),
 		onrepair: (blockId) => onrepairBlock(blockId)
 	});
+	// Cards carried between the open lesson, the other lessons and the backpack.
+	const drag = new CardDrag(store, (lessonId, blockId) =>
+		actions.removeFromLesson(lessonId, blockId, { follow: false })
+	);
 
 	/**
 	 * In Pokročilý the tree shows the blocks the course is exported as, where one
@@ -160,9 +166,12 @@
 		});
 	});
 	const lessonLanded = (lesson: LessonV2, open: boolean): boolean =>
-		landed !== null &&
-		(landed.lessons.has(lesson.lesson_id) ||
-			(!open && lesson.blocks.some((b) => landed!.cards.has(b.block_id))));
+		drag.landed === lesson.lesson_id ||
+		(landed !== null &&
+			(landed.lessons.has(lesson.lesson_id) ||
+				(!open && lesson.blocks.some((b) => landed!.cards.has(b.block_id)))));
+	const dropTarget = (lessonId: string): boolean =>
+		drag.hover?.kind === 'lesson' && drag.hover.lessonId === lessonId;
 
 	const selectedLesson = $derived(activeLessonId);
 	const selectedBlock = $derived(activeBlockId);
@@ -291,30 +300,54 @@
 	}
 
 	// The card zone, for the open lesson only — which is what keeps the two nested
-	// drag zones from ever having to coexist.
-	type CardItem = { id: string; binding: LessonBlockBinding };
-	let draggingCards = $state<CardItem[] | null>(null);
+	// drag zones from ever having to coexist. A closed lesson takes a card on its name
+	// (`card-drag.svelte.ts`).
+	let draggingCards = $state<Held | null>(null);
 	const openLesson = $derived(doc.lessons.find((l) => l.lesson_id === selectedLesson));
 	// Keyed by the card's own id, so a card keeps its DOM (and its focus) when it
 	// moves; a duplicated id in a broken course still gets a distinct key.
 	const cards = $derived.by(() => {
-		if (draggingCards !== null) return draggingCards;
+		const held = drag.held(draggingCards);
+		if (held !== null) return held;
 		const bindings = openLesson?.blocks ?? [];
 		const keys = uniqueKeys(bindings.map((b) => b.block_id));
-		return bindings.map((binding, i) => ({ id: keys[i], binding }));
+		const lessonId = openLesson?.lesson_id;
+		return bindings.map((binding, i): CardItem => ({ id: keys[i], binding, lessonId }));
 	});
 
 	function oncardConsider(event: CustomEvent<DndEvent<CardItem>>) {
-		draggingCards = event.detail.items;
+		draggingCards = drag.hold(event.detail.items);
+		drag.considered(event, openLesson?.lesson_id);
 	}
+	/**
+	 * A card let go in the open lesson: reordered, or, when it came from the backpack,
+	 * put in where it was let go. Let go over another lesson's name, it moves there.
+	 */
 	function oncardFinalize(event: CustomEvent<DndEvent<CardItem>>) {
 		draggingCards = null;
+		const toLesson = drag.finalized(event);
 		if (openLesson === undefined) return;
+		if (toLesson !== undefined) {
+			const item = event.detail.items.find((i) => i.id === event.detail.info.id);
+			if (item !== undefined) {
+				drag.toLesson(item, toLesson);
+				drag.glow(toLesson);
+			}
+			return;
+		}
+		if (event.detail.info.trigger === TRIGGERS.DROPPED_INTO_ANOTHER) return;
+		const arrived = drag.arrived(event, (item) => item.from === undefined);
+		if (arrived !== undefined) {
+			drag.toLesson(arrived.item, openLesson.lesson_id, arrived.index);
+			return;
+		}
 		store.apply((d) =>
 			reorderBindings(
 				d,
 				openLesson.lesson_id,
-				event.detail.items.map((item) => item.binding.block_id)
+				event.detail.items
+					.filter((item) => item.from === undefined)
+					.map((item) => item.binding.block_id)
 			)
 		);
 	}
@@ -435,7 +468,6 @@
 	const orphans = $derived(
 		doc.blocks.filter((b) => (store.index.lessonsByBlock.get(b.block_id) ?? []).length === 0)
 	);
-	const orphanKeys = $derived(uniqueKeys(orphans.map((b) => b.block_id)));
 
 	function select(lessonId: string, blockId: string) {
 		store.selection = { lessonId, blockId };
@@ -443,10 +475,6 @@
 
 	function selectLesson(lessonId: string) {
 		store.selection = { lessonId };
-	}
-
-	function selectOrphan(blockId: string) {
-		store.selection = { blockId };
 	}
 </script>
 
@@ -498,6 +526,8 @@
 						class="lesson"
 						class:selected={open}
 						class:landed={lessonLanded(lesson, open)}
+						class:drop-target={dropTarget(lesson.lesson_id)}
+						data-drop-lesson={lesson.lesson_id}
 						onclick={() => selectLesson(lesson.lesson_id)}
 					>
 						<span class="name">{lessonLabel(doc, lesson)}</span>
@@ -535,7 +565,7 @@
 							onfinalize={oncardFinalize}
 						>
 							{#each cards as card, position (card.id)}
-								{@const block = doc.blocks.find((b) => b.block_id === card.binding.block_id)}
+								{@const block = drag.blockOf(card)}
 								<li
 									class="tree-row"
 									class:selected={block?.block_id === selectedBlock}
@@ -650,29 +680,6 @@
 				<Plus size={16}></Plus> Nová lekce
 			</Button>
 		</div>
-
-		{#if orphans.length > 0}
-			<h2 class="secondary">Karty mimo lekce</h2>
-			<ul class="orphans">
-				{#each orphans as block, i (orphanKeys[i])}
-					{@const Icon = cardTypeIcon(block.type)}
-					<li>
-						<button
-							type="button"
-							class="tree-card"
-							class:selected={block.block_id === selectedBlock}
-							onclick={() => selectOrphan(block.block_id)}
-						>
-							<span class="type">
-								<Icon size={16}></Icon>
-							</span>
-							<span class="snippet">{blockPreview(block, 44)}</span>
-							<span class="steps">žák se k ní nedostane</span>
-						</button>
-					</li>
-				{/each}
-			</ul>
-		{/if}
 	{:else}
 		<SidebarRail
 			{doc}
@@ -687,17 +694,28 @@
 			{onlessonSettings}
 			{oncardSettings}
 			{onrepairBlock}
+			{dropTarget}
+			landedLesson={drag.landed}
 		/>
 	{/if}
 
-	{#if !collapsed}
-		<footer>
-			<Chip tone="quiet" title="Součet přes celý kurz">{store.totals.durationMinutes} min</Chip>
-			<Chip tone="quiet" title={doc.max_xp ? `Strop kurzu je ${doc.max_xp} XP` : 'Bez stropu'}>
-				{store.totals.cappedXp} XP
-			</Chip>
-		</footer>
-	{/if}
+	<div class="bottom">
+		<Backpack
+			{drag}
+			loose={orphans}
+			selectedBlockId={selectedBlock}
+			lessonId={selectedLesson}
+			{collapsed}
+			onexpand={ontoggle}
+		>
+			{#if !collapsed}
+				<Chip tone="quiet" title="Součet přes celý kurz">{store.totals.durationMinutes} min</Chip>
+				<Chip tone="quiet" title={doc.max_xp ? `Strop kurzu je ${doc.max_xp} XP` : 'Bez stropu'}>
+					{store.totals.cappedXp} XP
+				</Chip>
+			{/if}
+		</Backpack>
+	</div>
 </nav>
 
 <style>
@@ -775,10 +793,6 @@
 		font: var(--type-badge-small);
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
-	}
-
-	h2.secondary {
-		margin-top: 20px;
 	}
 
 	ul {
@@ -1083,15 +1097,25 @@
 		margin-top: 8px;
 	}
 
-	.orphans {
-		gap: 1px;
+	/* The backpack and the course's totals stay in view at the bottom while the lessons scroll. */
+	.bottom {
+		position: sticky;
+		bottom: -16px;
+		margin: auto -12px -16px;
+		padding: 12px 12px 16px;
+		background: var(--surface);
+		z-index: 2;
 	}
 
-	footer {
-		display: flex;
-		gap: 6px;
-		margin-top: auto;
-		padding-top: 16px;
+	.sidebar.collapsed .bottom {
+		margin: auto -6px -16px;
+		padding: 12px 6px 16px;
+	}
+
+	/* A lesson a carried card would go into, if let go now. */
+	.lesson.drop-target {
+		background: var(--info-bg);
+		box-shadow: inset 0 0 0 2px var(--primary);
 	}
 
 	/* A card AI is writing: its type icon turns, slowly, until the text arrives. */

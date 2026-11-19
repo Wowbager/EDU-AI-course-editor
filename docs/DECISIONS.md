@@ -3349,6 +3349,30 @@ only the last failure. **The model's reasoning is no longer sent back** with its
 `reasoning_content`. Rejected: retrying in the browser (the server already holds the
 conversation and the heartbeat keeps the stream open while it waits).
 
+## Round 41 — Batoh: moving cards between lessons and courses
+
+The owner asked for a backpack at the bottom of the lesson panel, small until clicked,
+with the cards in no lesson in a part of their own. **„Z tohoto kurzu“ moves, „Moje
+karty“ copies.** The first is the course's own loose cards (it replaces the Karty mimo
+lekce list): a card dragged in leaves its lesson as Odebrat z lekce does, with its undo
+notice, and one dragged out goes into a lesson. The second outlives a course, so it can
+only hold copies: dropping a card in never changes the course, and taking one out pastes
+a new card through `pasteBlock` (the Ctrl+V path), keeping the saved copy for next time.
+Rejected: a real move between courses, because the cards pointing at the moved one and the
+pupils' progress (keyed by block id) would break with no way to repair them from the
+other course. It is stored in this browser's `localStorage`, like the drafts.
+
+**Moving between lessons does not go through the backpack**: a card dropped on another
+lesson's name (or rail circle) goes to its end, and ⋯ gains „Přesunout do lekce…“. Only
+the open lesson is a drag zone (two nested card zones never coexist), so a closed lesson's name is
+a target found by following the pointer (`card-drag.svelte.ts`). The pointer decides, not
+the library: a card flicked onto a name is let go before the library sees it leave its
+zone, and it then reports a drop back into that zone. Rejected for now: a lesson opening while a card is
+held over it, since that unmounts the zone the drag started in. The selection stays put
+unless the moved card was the open one. A selected loose card opens the backpack, so the
+tree always shows where the open card is. On the rail the backpack button unfolds the
+panel and opens the backpack, instead of a second, narrow backpack.
+
 ## Still open
 
 Blockers and questions, in the order they will bite. Defects a teacher can hit today
