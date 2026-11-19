@@ -60,6 +60,20 @@ describe('Moje karty', () => {
 		expect(parseBackpack(rewriteBackpack(null, (c) => c))).toEqual([]);
 	});
 
+	it('replaces another shape no build can read', () => {
+		for (const stored of ['{}', '[]', 'null', '{"version":1}', '{"version":0,"cards":[]}']) {
+			const text = rewriteBackpack(stored, (c) => saveCard(c, block, where('a')));
+			expect(parseBackpack(text).map((c) => c.id)).toEqual(['a']);
+		}
+	});
+
+	it('keeps keys a newer build added to an entry it can read', () => {
+		const [entry] = saveCard([], block, where('a'));
+		const stored = JSON.stringify({ version: 1, cards: [{ ...entry, pinned: true }] });
+		const text = rewriteBackpack(stored, (c) => saveCard(c, block, where('b')))!;
+		expect(JSON.parse(text).cards[1]).toMatchObject({ id: 'a', pinned: true });
+	});
+
 	it('keeps an entry it cannot read when it saves another', () => {
 		const odd = { id: 'z', from: {}, block: { kind: 'from a newer build' } };
 		const stored = JSON.stringify({ version: 1, cards: [odd] });

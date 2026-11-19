@@ -62,11 +62,10 @@ export function parseBackpack(text: string | null): SavedCard[] {
 
 /**
  * The stored backpack after `change`, as text to store, or null when it must not be
- * written: what is stored is a backpack of another version (a newer build's), which
- * this build would replace with its own idea of it. Entries this build cannot read
- * are kept as they are, after the ones it changed, so a card a newer build saved is
- * never lost by saving here. Text that is not JSON at all is replaced: nothing in it
- * could be read back by any build.
+ * written: it is a newer build's (a higher `version`), which this build would replace
+ * with its own idea of it. Anything else no build can read (not JSON, another shape) is
+ * replaced. Entries are written back as they were stored, so keys a newer build added
+ * survive; entries this build cannot read are kept, after the ones it changed.
  */
 export function rewriteBackpack(
 	text: string | null,
@@ -75,26 +74,28 @@ export function rewriteBackpack(
 	let entries: unknown[] = [];
 	if (text !== null) {
 		let raw: unknown;
-		let json = true;
 		try {
 			raw = JSON.parse(text);
 		} catch {
-			json = false;
+			raw = undefined;
 		}
-		if (json) {
-			const file = fileSchema.safeParse(raw);
-			if (!file.success) return null;
-			entries = file.data.cards;
-		}
+		const version = (raw as { version?: unknown } | null)?.version;
+		if (typeof version === 'number' && version > VERSION) return null;
+		const file = fileSchema.safeParse(raw);
+		if (file.success) entries = file.data.cards;
 	}
 	const cards: SavedCard[] = [];
+	const stored = new Map<string, unknown>();
 	const unread: unknown[] = [];
 	for (const entry of entries) {
 		const parsed = entrySchema.safeParse(entry);
-		if (parsed.success) cards.push(parsed.data as SavedCard);
-		else unread.push(entry);
+		if (parsed.success) {
+			cards.push(parsed.data as SavedCard);
+			stored.set(parsed.data.id, entry);
+		} else unread.push(entry);
 	}
-	return JSON.stringify({ version: VERSION, cards: [...change(cards), ...unread] });
+	const next = change(cards).map((card) => stored.get(card.id) ?? card);
+	return JSON.stringify({ version: VERSION, cards: [...next, ...unread] });
 }
 
 export function serializeBackpack(cards: SavedCard[]): string {
