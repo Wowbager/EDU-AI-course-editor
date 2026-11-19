@@ -61,17 +61,40 @@ export function parseBackpack(text: string | null): SavedCard[] {
 }
 
 /**
- * Whether a stored value may be replaced: nothing stored yet, or a backpack this build
- * reads. A newer build's backpack, or one that does not parse, is left alone rather than
- * overwritten with this build's idea of an empty one.
+ * The stored backpack after `change`, as text to store, or null when it must not be
+ * written: what is stored is a backpack of another version (a newer build's), which
+ * this build would replace with its own idea of it. Entries this build cannot read
+ * are kept as they are, after the ones it changed, so a card a newer build saved is
+ * never lost by saving here. Text that is not JSON at all is replaced: nothing in it
+ * could be read back by any build.
  */
-export function canWriteOver(text: string | null): boolean {
-	if (text === null) return true;
-	try {
-		return fileSchema.safeParse(JSON.parse(text)).success;
-	} catch {
-		return false;
+export function rewriteBackpack(
+	text: string | null,
+	change: (cards: SavedCard[]) => SavedCard[]
+): string | null {
+	let entries: unknown[] = [];
+	if (text !== null) {
+		let raw: unknown;
+		let json = true;
+		try {
+			raw = JSON.parse(text);
+		} catch {
+			json = false;
+		}
+		if (json) {
+			const file = fileSchema.safeParse(raw);
+			if (!file.success) return null;
+			entries = file.data.cards;
+		}
 	}
+	const cards: SavedCard[] = [];
+	const unread: unknown[] = [];
+	for (const entry of entries) {
+		const parsed = entrySchema.safeParse(entry);
+		if (parsed.success) cards.push(parsed.data as SavedCard);
+		else unread.push(entry);
+	}
+	return JSON.stringify({ version: VERSION, cards: [...change(cards), ...unread] });
 }
 
 export function serializeBackpack(cards: SavedCard[]): string {

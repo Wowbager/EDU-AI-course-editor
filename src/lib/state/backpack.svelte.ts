@@ -9,11 +9,10 @@
 import type { BlockV2 } from '$lib/domain/schema';
 import type { CopiedFrom } from '$lib/domain/commands';
 import {
-	canWriteOver,
 	dropCard,
 	parseBackpack,
+	rewriteBackpack,
 	saveCard,
-	serializeBackpack,
 	type SavedCard
 } from '$lib/domain/backpack';
 import { notices } from './notice.svelte';
@@ -37,45 +36,42 @@ export class Backpack {
 	}
 
 	/**
-	 * The list to change: re-read from storage, so a card another tab saved a moment ago
-	 * is not written over. Undefined when the stored backpack is not one this build may
-	 * replace (`canWriteOver`).
+	 * Change the stored list. It is re-read first, so a card another tab saved a moment
+	 * ago is not written over; a newer build's backpack is not written at all
+	 * (`rewriteBackpack`). `failed` is what the teacher is told when the write fails.
 	 */
-	#current(): SavedCard[] | undefined {
-		const text = read();
-		if (!canWriteOver(text)) {
+	#change(change: (cards: SavedCard[]) => SavedCard[], failed: string): boolean {
+		const next = rewriteBackpack(read(), change);
+		if (next === null) {
 			notices.show({
 				text: 'Batoh uložila novější verze editoru. Obnov stránku, ať se nic neztratí.'
 			});
-			return undefined;
+			return false;
 		}
-		return parseBackpack(text);
+		if (!write(next)) {
+			notices.show({ text: failed });
+			return false;
+		}
+		this.cards = parseBackpack(next);
+		return true;
 	}
 
 	/** Keep a copy of `block`. Returns false when it could not be stored. */
 	save(block: BlockV2, from: CopiedFrom, courseName?: string): boolean {
-		const current = this.#current();
-		if (current === undefined) return false;
-		const next = saveCard(current, block, {
+		const where = {
 			id: newId(),
 			savedAt: new Date().toISOString(),
 			from,
 			courseName: courseName || undefined
-		});
-		if (!write(serializeBackpack(next))) {
-			notices.show({ text: 'Kartu se nepodařilo uložit do batohu: prohlížeč nemá místo.' });
-			return false;
-		}
-		this.cards = next;
-		return true;
+		};
+		return this.#change(
+			(cards) => saveCard(cards, block, where),
+			'Kartu se nepodařilo uložit do batohu: prohlížeč nemá místo.'
+		);
 	}
 
 	drop(id: string): void {
-		const current = this.#current();
-		if (current === undefined) return;
-		const next = dropCard(current, id);
-		if (write(serializeBackpack(next))) this.cards = next;
-		else notices.show({ text: 'Kartu se nepodařilo vyndat z batohu.' });
+		this.#change((cards) => dropCard(cards, id), 'Kartu se nepodařilo vyndat z batohu.');
 	}
 
 	find(id: string): SavedCard | undefined {

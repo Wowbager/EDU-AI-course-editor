@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseCourse } from '../document';
-import { canWriteOver, dropCard, parseBackpack, saveCard, serializeBackpack } from '../backpack';
+import { dropCard, parseBackpack, rewriteBackpack, saveCard, serializeBackpack } from '../backpack';
 import { pasteBlock } from '../commands';
 
 const course = parseCourse(
@@ -50,11 +50,22 @@ describe('Moje karty', () => {
 		expect(parseBackpack(text).map((c) => c.id)).toEqual(['a']);
 	});
 
-	it('is not written over when a newer build or something unreadable stored it', () => {
-		expect(canWriteOver(null)).toBe(true);
-		expect(canWriteOver(serializeBackpack([]))).toBe(true);
-		expect(canWriteOver('{"version":2,"cards":[]}')).toBe(false);
-		expect(canWriteOver('{')).toBe(false);
+	it('is not written over when a newer build stored it', () => {
+		expect(rewriteBackpack('{"version":2,"cards":[]}', (c) => c)).toBeNull();
+	});
+
+	it('replaces storage that is not JSON at all, and starts from nothing', () => {
+		const text = rewriteBackpack('{', (c) => saveCard(c, block, where('a')));
+		expect(parseBackpack(text).map((c) => c.id)).toEqual(['a']);
+		expect(parseBackpack(rewriteBackpack(null, (c) => c))).toEqual([]);
+	});
+
+	it('keeps an entry it cannot read when it saves another', () => {
+		const odd = { id: 'z', from: {}, block: { kind: 'from a newer build' } };
+		const stored = JSON.stringify({ version: 1, cards: [odd] });
+		const text = rewriteBackpack(stored, (c) => saveCard(c, block, where('a')))!;
+		expect(parseBackpack(text).map((c) => c.id)).toEqual(['a']);
+		expect(JSON.parse(text).cards).toContainEqual(odd);
 	});
 
 	it('removes only the entry asked for', () => {
